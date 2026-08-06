@@ -1,0 +1,661 @@
+# 接口与数据契约
+
+文档状态：提案基线
+版本：0.1
+协议版本：1.0
+日期：2026-08-06
+
+本文定义逻辑契约。实际 JSON Schema 文件应在 M2.0 生成到 `src/Contracts/Schemas/`，并由契约测试验证。
+
+## 1. 基本约定
+
+### 1.1 编码
+
+- UTF-8；
+- 属性名 camelCase；
+- 时间使用 ISO 8601 UTC，例如 `2026-08-06T09:30:00.000Z`；
+- ID 使用小写 UUID 或受约束的反向域名；
+- 枚举使用小写 kebab-case；
+- 空值与缺失语义不同；
+- 未知可选字段可保留，未知必填字段或主版本拒绝。
+
+### 1.2 传输帧
+
+命名管道上的每条消息：
+
+```text
+4 bytes: unsigned little-endian payload length
+N bytes: UTF-8 JSON payload
+```
+
+约束：
+
+- 默认最大 1MiB；
+- 长度为 0 拒绝；
+- 超限在分配 payload 缓冲区前拒绝；
+- 每次读取必须处理部分 frame；
+- 二进制数据不得 base64 塞入常规状态消息。
+
+### 1.3 Envelope
+
+```json
+{
+  "protocolVersion": "1.0",
+  "messageType": "request",
+  "messageId": "5f6060f1-7a4f-482d-81bd-9e9c5f6d130d",
+  "correlationId": null,
+  "sentAtUtc": "2026-08-06T09:30:00.000Z",
+  "method": "panel.toggle",
+  "payload": {},
+  "error": null
+}
+```
+
+`messageType`：
+
+- `request`；
+- `response`；
+- `event`。
+
+响应的 `correlationId` 等于请求 `messageId`。事件可没有 correlationId。
+
+## 2. 握手
+
+### 2.1 请求
+
+```json
+{
+  "protocolVersion": "1.0",
+  "messageType": "request",
+  "messageId": "uuid",
+  "sentAtUtc": "2026-08-06T09:30:00.000Z",
+  "method": "session.hello",
+  "payload": {
+    "clientType": "workspace-panel",
+    "clientVersion": "0.1.0",
+    "processId": 1234,
+    "architecture": "x64",
+    "sessionToken": "<redacted>",
+    "supportedProtocolRange": {
+      "min": "1.0",
+      "max": "1.0"
+    }
+  }
+}
+```
+
+### 2.2 响应
+
+```json
+{
+  "protocolVersion": "1.0",
+  "messageType": "response",
+  "messageId": "uuid",
+  "correlationId": "request-uuid",
+  "sentAtUtc": "2026-08-06T09:30:00.010Z",
+  "method": "session.hello",
+  "payload": {
+    "acceptedProtocolVersion": "1.0",
+    "serverVersion": "0.1.0",
+    "sessionId": "uuid",
+    "capabilities": [
+      "cards.snapshot",
+      "layout.write",
+      "timers"
+    ],
+    "maxMessageBytes": 1048576
+  },
+  "error": null
+}
+```
+
+失败：
+
+- token 错误；
+- 当前用户不匹配；
+- 主版本不兼容；
+- clientType 未知；
+- 消息超限。
+
+握手成功前的其他方法一律拒绝。
+
+## 3. 标识符
+
+### 3.1 Card Type ID
+
+反向域名格式：
+
+```text
+app.winwidgetboard.weather
+app.winwidgetboard.notes
+com.example.package-card
+```
+
+规则：
+
+- 3～128 字符；
+- 小写 ASCII、数字、点、连字符；
+- 不允许连续点；
+- 内置 `app.winwidgetboard.*` 保留。
+
+### 3.2 Instance ID
+
+UUID。两个相同 Card Type 的放置副本必须有不同 Instance ID。
+
+### 3.3 Provider ID
+
+反向域名格式。Card Type 可以依赖一个或多个 Provider。
+
+## 4. Card Definition
+
+```json
+{
+  "cardTypeId": "app.winwidgetboard.weather",
+  "displayNameKey": "card.weather.name",
+  "descriptionKey": "card.weather.description",
+  "category": "information",
+  "version": "1.0.0",
+  "source": "builtin",
+  "supportedSizes": [
+    { "id": "s", "columns": 1, "rows": 1 },
+    { "id": "m", "columns": 2, "rows": 1 },
+    { "id": "l", "columns": 2, "rows": 2 }
+  ],
+  "defaultSizeId": "m",
+  "requiredProviders": ["app.winwidgetboard.weather-provider"],
+  "requiredPermissions": ["network"],
+  "settingsSchemaVersion": 1,
+  "uiSchemaVersion": 1
+}
+```
+
+`source`：
+
+- `builtin`；
+- `brokered-plugin`；
+- `full-trust-plugin`。
+
+## 5. Card Instance
+
+```json
+{
+  "instanceId": "c1fe6ef7-6073-4fba-8e82-208df7c5d33e",
+  "cardTypeId": "app.winwidgetboard.weather",
+  "enabled": true,
+  "sizeId": "m",
+  "settingsRevision": 4,
+  "settings": {
+    "locationMode": "manual",
+    "city": "Singapore",
+    "units": "metric"
+  },
+  "createdAtUtc": "2026-08-06T08:00:00.000Z",
+  "updatedAtUtc": "2026-08-06T09:00:00.000Z"
+}
+```
+
+设置更新必须带 expected revision：
+
+```json
+{
+  "instanceId": "uuid",
+  "expectedRevision": 4,
+  "settings": {}
+}
+```
+
+不匹配返回 `conflict.settings-revision`，避免覆盖其他窗口修改。
+
+## 6. Layout
+
+### 6.1 Layout Snapshot
+
+```json
+{
+  "layoutId": "primary-default",
+  "displayId": "\\\\?\\DISPLAY#...",
+  "revision": 12,
+  "columnPolicy": {
+    "small": 2,
+    "normal": 4,
+    "wide": 6
+  },
+  "items": [
+    {
+      "instanceId": "uuid-1",
+      "order": 0,
+      "columnSpan": 2,
+      "rowSpan": 1,
+      "preferredColumn": 0
+    },
+    {
+      "instanceId": "uuid-2",
+      "order": 1,
+      "columnSpan": 2,
+      "rowSpan": 2,
+      "preferredColumn": null
+    }
+  ],
+  "updatedAtUtc": "2026-08-06T09:00:00.000Z"
+}
+```
+
+最终行列位置不持久化，由布局引擎计算。`preferredColumn` 只是提示。
+
+### 6.2 Layout Command
+
+```json
+{
+  "commandType": "move-card",
+  "layoutId": "primary-default",
+  "expectedRevision": 12,
+  "instanceId": "uuid-1",
+  "targetOrder": 3,
+  "preferredColumn": 2,
+  "clientOperationId": "uuid"
+}
+```
+
+命令类型：
+
+- `add-card`；
+- `remove-card`；
+- `move-card`；
+- `resize-card`；
+- `restore-default`；
+- `undo`；
+- `redo`。
+
+CoreBroker 提交后返回新 revision 和规范化布局。
+
+## 7. Card State Snapshot
+
+```json
+{
+  "instanceId": "uuid",
+  "cardTypeId": "app.winwidgetboard.system-monitor",
+  "schemaVersion": 1,
+  "sequence": 424,
+  "generatedAtUtc": "2026-08-06T09:30:00.000Z",
+  "validUntilUtc": "2026-08-06T09:30:05.000Z",
+  "status": "ready",
+  "freshness": "fresh",
+  "payload": {
+    "cpuPercent": 18.2,
+    "memoryPercent": 53.4,
+    "networkDownBytesPerSecond": 3090,
+    "networkUpBytesPerSecond": 1460
+  },
+  "allowedActions": [
+    "refresh",
+    "open-details"
+  ],
+  "diagnosticCode": null
+}
+```
+
+`status`：
+
+- `loading`；
+- `ready`；
+- `empty`；
+- `offline`；
+- `permission-required`；
+- `unavailable`；
+- `error`；
+- `disabled`。
+
+`freshness`：
+
+- `fresh`；
+- `stale`；
+- `expired`；
+- `unknown`。
+
+WorkspacePanel 只接受 sequence 大于当前已应用 sequence 的快照。
+
+## 8. Action
+
+### 8.1 请求
+
+```json
+{
+  "protocolVersion": "1.0",
+  "messageType": "request",
+  "messageId": "uuid",
+  "sentAtUtc": "2026-08-06T09:30:00.000Z",
+  "method": "card.execute-action",
+  "payload": {
+    "instanceId": "uuid",
+    "actionId": "timer.start",
+    "expectedStateSequence": 18,
+    "arguments": {
+      "durationSeconds": 1500
+    },
+    "clientOperationId": "uuid"
+  }
+}
+```
+
+### 8.2 幂等
+
+有外部副作用的命令必须支持 `clientOperationId` 去重。重复请求返回第一次结果，不重复创建计时器或待办。
+
+## 9. Panel API
+
+### 9.1 Launcher 到 Panel 启动上下文
+
+```json
+{
+  "command": "show",
+  "displayId": "\\\\?\\DISPLAY#...",
+  "monitorRectPx": {
+    "left": 0,
+    "top": 0,
+    "right": 1920,
+    "bottom": 1080
+  },
+  "workAreaRectPx": {
+    "left": 0,
+    "top": 0,
+    "right": 1920,
+    "bottom": 1032
+  },
+  "launcherRectPx": {
+    "left": 8,
+    "top": 1036,
+    "right": 44,
+    "bottom": 1072
+  },
+  "dpi": 120,
+  "sessionToken": "<redacted>"
+}
+```
+
+启动参数中的 token 不写日志。更理想的实现可通过继承句柄或受保护临时通道传递。
+
+### 9.2 Panel Methods
+
+- `panel.show`；
+- `panel.hide`；
+- `panel.toggle`；
+- `panel.open-card`；
+- `panel.open-settings`；
+- `panel.enter-modal-scope`；
+- `panel.exit-modal-scope`；
+- `panel.report-visibility`。
+
+## 10. Provider Contract
+
+### 10.1 Provider Descriptor
+
+```json
+{
+  "providerId": "app.winwidgetboard.weather-provider",
+  "version": "1.0.0",
+  "capabilities": [
+    "weather.current",
+    "weather.forecast"
+  ],
+  "mode": "scheduled",
+  "minimumIntervalSeconds": 900,
+  "permissions": [
+    "network"
+  ],
+  "networkDomains": [
+    "api.example-weather.invalid"
+  ]
+}
+```
+
+### 10.2 Provider Request
+
+```json
+{
+  "requestId": "uuid",
+  "capability": "weather.current",
+  "deadlineUtc": "2026-08-06T09:30:10.000Z",
+  "arguments": {
+    "latitude": 1.3521,
+    "longitude": 103.8198,
+    "units": "metric"
+  }
+}
+```
+
+Provider 不应收到不需要的用户资料。
+
+## 11. Plugin Manifest
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "com.example.focus-tools",
+  "name": "Focus Tools",
+  "version": "1.2.0",
+  "author": {
+    "name": "Example",
+    "url": "https://example.invalid"
+  },
+  "minimumHostVersion": "0.5.0",
+  "apiVersion": "1.0",
+  "securityTier": "brokered",
+  "entryPoint": "provider/module.wasm",
+  "cards": [
+    "cards/pomodoro.json"
+  ],
+  "permissions": [
+    {
+      "name": "notifications",
+      "reason": "计时结束时提醒"
+    }
+  ],
+  "networkDomains": [],
+  "contentHash": "sha256:...",
+  "license": {
+    "spdx": "MIT",
+    "noticeFile": "LICENSES/MIT.txt"
+  }
+}
+```
+
+注意：`brokered` 只在真实沙箱落地后可用。否则必须标记 `full-trust`。
+
+## 12. Permission Grant
+
+```json
+{
+  "subjectId": "com.example.focus-tools",
+  "permission": "notifications",
+  "scope": null,
+  "decision": "allow",
+  "grantedAtUtc": "2026-08-06T09:00:00.000Z",
+  "revision": 1
+}
+```
+
+网络权限 scope：
+
+```json
+{
+  "domains": [
+    "api.example.invalid"
+  ],
+  "methods": [
+    "GET"
+  ]
+}
+```
+
+权限变更后：
+
+- 当前请求可取消；
+- Provider 收到 capability change；
+- 缓存按策略清理；
+- UI 更新为 PermissionRequired 或 Ready。
+
+## 13. 声明式 UI Schema 草案
+
+第三方卡片默认由宿主渲染有限节点：
+
+- `stack`；
+- `grid`；
+- `text`；
+- `icon`；
+- `image-token`；
+- `button`；
+- `toggle`；
+- `progress`；
+- `sparkline`；
+- `list`；
+- `input`（受限）；
+- `separator`；
+- `status-badge`。
+
+示例：
+
+```json
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "stack",
+    "orientation": "vertical",
+    "spacing": "space-3",
+    "children": [
+      {
+        "type": "text",
+        "style": "card-title",
+        "textBinding": "title"
+      },
+      {
+        "type": "progress",
+        "valueBinding": "progress",
+        "minimum": 0,
+        "maximum": 1
+      },
+      {
+        "type": "button",
+        "labelBinding": "actionLabel",
+        "actionId": "timer.toggle"
+      }
+    ]
+  }
+}
+```
+
+限制：
+
+- 不接受脚本；
+- 不接受任意 XAML；
+- 不接受任意 URI；
+- 图片通过 host token；
+- 样式使用宿主 token；
+- 节点数、深度和文本长度有上限；
+- action 必须出现在 allowed actions。
+
+## 14. 错误
+
+```json
+{
+  "code": "permission.denied",
+  "category": "permission-denied",
+  "messageKey": "error.permissionDenied",
+  "developerMessage": "clipboard.read was not granted",
+  "correlationId": "uuid",
+  "isTransient": false,
+  "retryAfterSeconds": null,
+  "details": {
+    "permission": "clipboard.read"
+  }
+}
+```
+
+稳定错误码：
+
+```text
+protocol.version-mismatch
+protocol.invalid-frame
+protocol.message-too-large
+session.unauthorized
+validation.invalid-argument
+permission.denied
+resource.unavailable
+provider.timeout
+provider.failed
+storage.conflict
+storage.migration-failed
+layout.revision-conflict
+settings.revision-conflict
+security.policy-violation
+internal.error
+```
+
+## 15. 订阅与背压
+
+WorkspacePanel 订阅：
+
+```json
+{
+  "method": "cards.subscribe",
+  "payload": {
+    "instanceIds": ["uuid-1", "uuid-2"],
+    "visibility": {
+      "panelVisible": true,
+      "visibleInstanceIds": ["uuid-1"]
+    }
+  }
+}
+```
+
+规则：
+
+- 状态事件可合并，只保留每实例最新 snapshot；
+- 命令结果不得丢弃；
+- 慢客户端超过队列上限时断开并记录；
+- 不允许无界事件队列；
+- UI 更新按帧批量应用。
+
+## 16. 数据大小限制
+
+建议初值：
+
+| 数据 | 上限 |
+| --- | ---: |
+| IPC message | 1MiB |
+| settings JSON | 64KiB/instance |
+| state payload | 256KiB/instance |
+| UI schema nodes | 256 |
+| UI schema depth | 16 |
+| text field | 16KiB，具体卡片可更低 |
+| diagnostics detail | 32KiB |
+| image token metadata | 8KiB |
+
+超过上限返回验证错误，不截断后继续执行。
+
+## 17. 版本管理
+
+- 协议 major 变化需要双版本迁移窗口；
+- schemaVersion 按 Card/Manifest/UI 分别管理；
+- 数据库 schema 不等同 IPC 版本；
+- 插件最低宿主版本与 API 版本分开；
+- 废弃字段至少保留一个稳定发布周期；
+- 未知配置字段在读写迁移中尽量保留。
+
+## 18. 契约测试
+
+至少覆盖：
+
+- frame 分片；
+- 0 长度、负向溢出、超大长度；
+- 非 UTF-8；
+- 畸形 JSON；
+- 未知 major/minor；
+- 缺少必填字段；
+- 未知枚举；
+- sequence 乱序；
+- revision 冲突；
+- 重复 clientOperationId；
+- 未授权 action；
+- manifest 权限与请求不符；
+- UI schema 深度/节点/URI 攻击；
+- 错误响应不泄露秘密。

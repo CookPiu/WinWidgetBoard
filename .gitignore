@@ -1,0 +1,43 @@
+# Build output
+bin/
+obj/
+out/
+artifacts/
+.vs/
+.idea/
+.vscode/
+
+# Tooling and package caches
+.nuget/
+packages/
+node_modules/
+target/
+
+# Local runtime data
+Data/
+Logs/
+CrashDumps/
+*.db
+*.db-shm
+*.db-wal
+*.etl
+*.dmp
+
+# Secrets and machine-local configuration
+*.secrets.json
+appsettings.Local.json
+.env
+.env.*
+!.env.example
+
+# Packaging and signing
+*.pfx
+*.cer
+*.snk
+*.msix
+*.msixbundle
+*.appinstaller
+
+# OS noise
+Thumbs.db
+Desktop.ini
