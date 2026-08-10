@@ -433,7 +433,7 @@ M2.1.6 验收重点：
 
 ### 5.5 M2.4 内置卡片批次 A
 
-当前已完成工作包：[M2.4.1 NTE-001 便签显式复制动作](work-packages/M2.4.1-note-copy-action.md)、[M2.4.2 NTE-001 便签保存失败显式重试](work-packages/M2.4.2-note-save-retry.md)、[M2.4.3 NTE-001 便签搜索结果展示](work-packages/M2.4.3-note-search-results.md)、[M2.4.4 NTE-001 从搜索结果打开便签](work-packages/M2.4.4-note-search-open.md)、[M2.4.5 NTE-001 便签编辑撤销与重做](work-packages/M2.4.5-note-undo-redo.md)、[M2.4.6 NTE-001 便签基础 Markdown 预览](work-packages/M2.4.6-note-markdown-preview.md)、[M2.4.7 NTE-001 便签已提交状态恢复回归](work-packages/M2.4.7-note-committed-state-recovery.md)、[M2.4.8 NTE-001 多便签只读列表与安全导航](work-packages/M2.4.8-note-list-navigation.md)；便签版本历史和多便签写操作仍待完成。
+当前已完成工作包：[M2.4.1 NTE-001 便签显式复制动作](work-packages/M2.4.1-note-copy-action.md)、[M2.4.2 NTE-001 便签保存失败显式重试](work-packages/M2.4.2-note-save-retry.md)、[M2.4.3 NTE-001 便签搜索结果展示](work-packages/M2.4.3-note-search-results.md)、[M2.4.4 NTE-001 从搜索结果打开便签](work-packages/M2.4.4-note-search-open.md)、[M2.4.5 NTE-001 便签编辑撤销与重做](work-packages/M2.4.5-note-undo-redo.md)、[M2.4.6 NTE-001 便签基础 Markdown 预览](work-packages/M2.4.6-note-markdown-preview.md)、[M2.4.7 NTE-001 便签已提交状态恢复回归](work-packages/M2.4.7-note-committed-state-recovery.md)、[M2.4.8 NTE-001 多便签只读列表与安全导航](work-packages/M2.4.8-note-list-navigation.md)、[M2.4.9 NTE-001 新建便签并安全切换](work-packages/M2.4.9-note-create-switch.md)；便签版本历史和多便签删除/编辑仍待完成。
 
 #### 便签
 

@@ -502,6 +502,21 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    private async void NewNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NoteEditor.CanLoadNote)
+        {
+            StatusText.Text = _resources.GetString("NoteCreateBlockedStatus");
+            return;
+        }
+
+        NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+        StatusText.Text = _resources.GetString("NoteCreatingStatus");
+        bool created = await NoteEditor.CreateNoteAsync(CancellationToken.None);
+        StatusText.Text = _resources.GetString(
+            created ? "NoteCreatedStatus" : "NoteCreateFailedStatus");
+    }
+
     private void OpenNotesButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not DependencyObject source)

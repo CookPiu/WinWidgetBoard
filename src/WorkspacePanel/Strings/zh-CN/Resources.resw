@@ -166,6 +166,24 @@
   <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>聚焦便签编辑器</value>
   </data>
+  <data name="NewNoteButton.Content" xml:space="preserve">
+    <value>新建</value>
+  </data>
+  <data name="NewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>新建便签</value>
+  </data>
+  <data name="NoteCreatingStatus" xml:space="preserve">
+    <value>正在创建新的本地便签……</value>
+  </data>
+  <data name="NoteCreatedStatus" xml:space="preserve">
+    <value>已创建新便签。</value>
+  </data>
+  <data name="NoteCreateBlockedStatus" xml:space="preserve">
+    <value>请先保存当前草稿，再创建其他便签。</value>
+  </data>
+  <data name="NoteCreateFailedStatus" xml:space="preserve">
+    <value>无法创建新便签，当前便签已保留。</value>
+  </data>
   <data name="CopyNoteButton.Content" xml:space="preserve">
     <value>复制</value>
   </data>

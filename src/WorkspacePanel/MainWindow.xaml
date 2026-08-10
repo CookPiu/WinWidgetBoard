@@ -220,6 +220,11 @@
                         HorizontalAlignment="Left"
                         Spacing="8">
                         <Button
+                            x:Name="NewNoteButton"
+                            x:Uid="NewNoteButton"
+                            IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                            Click="NewNoteButton_Click" />
+                        <Button
                             x:Name="OpenNotesButton"
                             x:Uid="OpenNotesButton"
                             IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"

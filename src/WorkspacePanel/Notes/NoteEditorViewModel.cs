@@ -364,6 +364,41 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         return LoadNoteCoreAsync(noteId, cancellationToken);
     }
 
+    public Task<bool> CreateNoteAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        string noteId = "note-" + Guid.NewGuid().ToString("N");
+
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                _isLoading ||
+                _isSaving ||
+                _hasUnsavedChanges ||
+                _disposed)
+            {
+                return Task.FromResult(false);
+            }
+
+            _isLoading = true;
+            _status = NoteEditorStatus.Loading;
+            _errorCode = null;
+        }
+
+        Publish(
+            nameof(IsLoading),
+            nameof(Status),
+            nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(ErrorCode));
+        return CreateNoteCoreAsync(noteId, cancellationToken);
+    }
+
     public bool Undo() => TryApplyHistory(_undoHistory, _redoHistory);
 
     public bool Redo() => TryApplyHistory(_redoHistory, _undoHistory);
@@ -735,6 +770,112 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             return SetSelectedNoteLoadFailure(GetErrorCode(exception));
         }
+    }
+
+    private async Task<bool> CreateNoteCoreAsync(
+        string noteId,
+        CancellationToken cancellationToken)
+    {
+        using CancellationTokenSource linkedCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token,
+                cancellationToken);
+        try
+        {
+            NoteDto created = await _noteClient!.SaveNoteAsync(
+                new NoteSaveRequest
+                {
+                    ClientOperationId = Guid.NewGuid(),
+                    NoteId = noteId,
+                    Title = string.Empty,
+                    Body = string.Empty,
+                    BodyFormat = NotesContract.PlainTextFormat,
+                },
+                linkedCancellation.Token).ConfigureAwait(false);
+
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+
+                _noteId = created.NoteId;
+                _title = created.Title;
+                _body = created.Body;
+                _bodyFormat = NormalizeBodyFormat(created.BodyFormat);
+                _expectedUpdatedAtUtc = created.UpdatedAtUtc;
+                _isLoaded = true;
+                _isLoading = false;
+                _isSaving = false;
+                _hasUnsavedChanges = false;
+                _isMarkdownPreviewVisible = false;
+                _draftVersion++;
+                _errorCode = null;
+                _status = NoteEditorStatus.Saved;
+                _undoHistory.Clear();
+                _redoHistory.Clear();
+            }
+
+            Publish(
+                nameof(NoteId),
+                nameof(Title),
+                nameof(Body),
+                nameof(IsMarkdown),
+                nameof(IsMarkdownPreviewVisible),
+                nameof(MarkdownPreviewBlocks),
+                nameof(Status),
+                nameof(IsLoading),
+                nameof(IsSaving),
+                nameof(HasUnsavedChanges),
+                nameof(CanEdit),
+                nameof(CanChangeMarkdownMode),
+                nameof(CanPreviewMarkdown),
+                nameof(CanLoadNote),
+                nameof(CanUndo),
+                nameof(CanRedo),
+                nameof(CanRetrySave),
+                nameof(ErrorCode));
+            return true;
+        }
+        catch (OperationCanceledException) when (linkedCancellation.IsCancellationRequested)
+        {
+            return SetCreateFailure("cancelled");
+        }
+        catch (Exception exception)
+        {
+            return SetCreateFailure(GetErrorCode(exception));
+        }
+    }
+
+    private bool SetCreateFailure(string errorCode)
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            _isLoading = false;
+            _isSaving = false;
+            _status = NoteEditorStatus.Error;
+            _errorCode = errorCode;
+        }
+
+        Publish(
+            nameof(Status),
+            nameof(IsLoading),
+            nameof(IsSaving),
+            nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
+            nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return false;
     }
 
     private bool SetSelectedNoteLoadFailure(string errorCode)

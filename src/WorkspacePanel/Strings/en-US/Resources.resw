@@ -166,6 +166,24 @@
   <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Focus note editor</value>
   </data>
+  <data name="NewNoteButton.Content" xml:space="preserve">
+    <value>New</value>
+  </data>
+  <data name="NewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Create a new note</value>
+  </data>
+  <data name="NoteCreatingStatus" xml:space="preserve">
+    <value>Creating a new local note…</value>
+  </data>
+  <data name="NoteCreatedStatus" xml:space="preserve">
+    <value>New note created.</value>
+  </data>
+  <data name="NoteCreateBlockedStatus" xml:space="preserve">
+    <value>Save the current draft before creating another note.</value>
+  </data>
+  <data name="NoteCreateFailedStatus" xml:space="preserve">
+    <value>Could not create a new note; the current note was kept.</value>
+  </data>
   <data name="CopyNoteButton.Content" xml:space="preserve">
     <value>Copy</value>
   </data>

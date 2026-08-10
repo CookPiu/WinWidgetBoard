@@ -116,6 +116,103 @@ public sealed class NoteEditorViewModelTests
         Assert.IsFalse(viewModel.CanRetrySave);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-029 [NTE-001] Editor creates and switches to a new saved note")]
+    public async Task EditorCreatesAndSwitchesToNewSavedNote()
+    {
+        var fake = new FakeNoteClient
+        {
+            Existing = new NoteDto
+            {
+                NoteId = NoteEditorViewModel.DefaultNoteId,
+                Title = "Primary",
+                Body = "Existing body",
+                BodyFormat = NotesContract.PlainTextFormat,
+                CreatedAtUtc = "2026-08-10T00:00:00.0000000+00:00",
+                UpdatedAtUtc = "2026-08-10T00:00:01.0000000+00:00",
+            },
+        };
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromSeconds(1));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        Assert.IsTrue(await viewModel.CreateNoteAsync(CancellationToken.None));
+
+        Assert.IsTrue(viewModel.NoteId.StartsWith("note-", StringComparison.Ordinal));
+        Assert.AreNotEqual(NoteEditorViewModel.DefaultNoteId, viewModel.NoteId);
+        Assert.AreEqual(string.Empty, viewModel.Title);
+        Assert.AreEqual(string.Empty, viewModel.Body);
+        Assert.AreEqual(NoteEditorStatus.Saved, viewModel.Status);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+        Assert.AreEqual(1, fake.Saves.Count);
+        Assert.AreEqual(viewModel.NoteId, fake.Saves[0].NoteId);
+        Assert.IsNull(fake.Saves[0].ExpectedUpdatedAtUtc);
+        Assert.AreEqual(NotesContract.PlainTextFormat, fake.Saves[0].BodyFormat);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-030 [NTE-001] Editor refuses to create a note while a draft is unsaved")]
+    public async Task EditorRefusesToCreateNoteWhileDraftIsUnsaved()
+    {
+        var fake = new FakeNoteClient
+        {
+            Existing = new NoteDto
+            {
+                NoteId = NoteEditorViewModel.DefaultNoteId,
+                Title = "Primary",
+                Body = "Existing body",
+                BodyFormat = NotesContract.PlainTextFormat,
+                CreatedAtUtc = "2026-08-10T00:00:00.0000000+00:00",
+                UpdatedAtUtc = "2026-08-10T00:00:01.0000000+00:00",
+            },
+        };
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromSeconds(1));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        viewModel.Body = "unsaved draft";
+
+        Assert.IsFalse(await viewModel.CreateNoteAsync(CancellationToken.None));
+        Assert.AreEqual(NoteEditorViewModel.DefaultNoteId, viewModel.NoteId);
+        Assert.AreEqual("unsaved draft", viewModel.Body);
+        Assert.IsTrue(viewModel.HasUnsavedChanges);
+        Assert.AreEqual(0, fake.Saves.Count);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-031 [NTE-001] Editor keeps the current note when creation fails")]
+    public async Task EditorKeepsCurrentNoteWhenCreationFails()
+    {
+        var fake = new FakeNoteClient
+        {
+            Existing = new NoteDto
+            {
+                NoteId = NoteEditorViewModel.DefaultNoteId,
+                Title = "Current title",
+                Body = "Current body",
+                BodyFormat = NotesContract.MarkdownFormat,
+                CreatedAtUtc = "2026-08-10T00:00:00.0000000+00:00",
+                UpdatedAtUtc = "2026-08-10T00:00:01.0000000+00:00",
+            },
+            SaveException = new CoreBrokerClientException(
+                NotesContract.SaveMethod,
+                "transport.unavailable",
+                "create failure"),
+        };
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromSeconds(1));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        Assert.IsFalse(await viewModel.CreateNoteAsync(CancellationToken.None));
+
+        Assert.AreEqual(NoteEditorViewModel.DefaultNoteId, viewModel.NoteId);
+        Assert.AreEqual("Current title", viewModel.Title);
+        Assert.AreEqual("Current body", viewModel.Body);
+        Assert.AreEqual(NoteEditorStatus.Error, viewModel.Status);
+        Assert.AreEqual("transport.unavailable", viewModel.ErrorCode);
+        Assert.IsTrue(viewModel.CanLoadNote);
+    }
+
     [TestMethod(DisplayName = "UT-NOTE-013 [NTE-001] Editor keeps retry available after a second save failure")]
     public async Task EditorKeepsRetryAvailableAfterSecondSaveFailure()
     {
