@@ -37,8 +37,16 @@ try {
     $env:DOTNET_ROOT = $dotnetRoot
     $env:DOTNET_ROOT_X64 = $dotnetRoot
     $env:WINWIDGETBOARD_WORKSPACE_PANEL = $panelPath
+    $sessionRandomBytes = New-Object byte[] 32
+    $sessionRandom = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $sessionRandom.GetBytes($sessionRandomBytes)
+    }
+    finally {
+        $sessionRandom.Dispose()
+    }
     $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN = [Convert]::ToBase64String(
-        [Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        $sessionRandomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 
     $brokerProcess = Start-Process `
         -FilePath $brokerPath `
