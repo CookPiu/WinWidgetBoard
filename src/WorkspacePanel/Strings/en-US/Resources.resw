@@ -77,10 +77,28 @@
     <value>Today's workspace</value>
   </data>
   <data name="SearchBox.PlaceholderText" xml:space="preserve">
-    <value>Search cards</value>
+    <value>Search notes</value>
   </data>
   <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Search cards</value>
+    <value>Search notes</value>
+  </data>
+  <data name="NoteSearchResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Note search results</value>
+  </data>
+  <data name="NoteSearchSearchingStatus" xml:space="preserve">
+    <value>Searching notes…</value>
+  </data>
+  <data name="NoteSearchResultsStatus" xml:space="preserve">
+    <value>Found {0} matching notes.</value>
+  </data>
+  <data name="NoteSearchNoResultsStatus" xml:space="preserve">
+    <value>No matching notes found.</value>
+  </data>
+  <data name="NoteSearchFailedStatus" xml:space="preserve">
+    <value>Could not search notes.</value>
+  </data>
+  <data name="NoteSearchClearedStatus" xml:space="preserve">
+    <value>Note search cleared.</value>
   </data>
   <data name="AddCardButton.Content" xml:space="preserve">
     <value>Add</value>

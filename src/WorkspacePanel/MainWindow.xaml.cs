@@ -87,6 +87,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         NoteEditor = new NoteEditorViewModel(
             noteClient,
             dispatch: DispatchToUi);
+        NoteSearch = new NoteSearchViewModel(
+            noteClient,
+            dispatch: DispatchToUi);
         InitializeComponent();
         _cardLayout = new CardLayoutViewModel(
             4,
@@ -153,6 +156,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     }
 
     public NoteEditorViewModel NoteEditor { get; }
+
+    public NoteSearchViewModel NoteSearch { get; }
 
     public CardLayoutViewModel CardLayout => _cardLayout;
 
@@ -265,6 +270,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSurface.PropertyChanged -= CardSurface_PropertyChanged;
         _cardEdit.PropertyChanged -= CardEdit_PropertyChanged;
         await NoteEditor.DisposeAsync();
+        await NoteSearch.DisposeAsync();
     }
 
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
@@ -538,6 +544,48 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             Debug.WriteLine($"WorkspacePanel note copy failed: {exception.Message}");
             StatusText.Text = _resources.GetString("NoteCopyFailedStatus");
         }
+    }
+
+    private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        string query = textBox.Text.Trim();
+        if (query.Length == 0)
+        {
+            await NoteSearch.SearchAsync(query, CancellationToken.None);
+            NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+            StatusText.Text = _resources.GetString("NoteSearchClearedStatus");
+            return;
+        }
+
+        NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+        StatusText.Text = _resources.GetString("NoteSearchSearchingStatus");
+        bool completed = await NoteSearch.SearchAsync(query, CancellationToken.None);
+        if (!completed || !string.Equals(
+                NoteSearch.Query,
+                query,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        NoteSearchResultsBorder.Visibility = NoteSearch.HasResults
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        StatusText.Text = NoteSearch.Status switch
+        {
+            NoteSearchStatus.Ready => string.Format(
+                CultureInfo.CurrentCulture,
+                _resources.GetString("NoteSearchResultsStatus"),
+                NoteSearch.Results.Count),
+            NoteSearchStatus.Empty => _resources.GetString("NoteSearchNoResultsStatus"),
+            NoteSearchStatus.Error => _resources.GetString("NoteSearchFailedStatus"),
+            _ => StatusText.Text,
+        };
     }
 
     private async void RetryNoteSaveButton_Click(object sender, RoutedEventArgs e)

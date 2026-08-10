@@ -77,10 +77,28 @@
     <value>今日工作台</value>
   </data>
   <data name="SearchBox.PlaceholderText" xml:space="preserve">
-    <value>搜索卡片</value>
+    <value>搜索便签</value>
   </data>
   <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>搜索卡片</value>
+    <value>搜索便签</value>
+  </data>
+  <data name="NoteSearchResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>便签搜索结果</value>
+  </data>
+  <data name="NoteSearchSearchingStatus" xml:space="preserve">
+    <value>正在搜索便签……</value>
+  </data>
+  <data name="NoteSearchResultsStatus" xml:space="preserve">
+    <value>找到 {0} 条匹配便签。</value>
+  </data>
+  <data name="NoteSearchNoResultsStatus" xml:space="preserve">
+    <value>没有找到匹配的便签。</value>
+  </data>
+  <data name="NoteSearchFailedStatus" xml:space="preserve">
+    <value>便签搜索失败。</value>
+  </data>
+  <data name="NoteSearchClearedStatus" xml:space="preserve">
+    <value>已清除便签搜索。</value>
   </data>
   <data name="AddCardButton.Content" xml:space="preserve">
     <value>添加</value>
