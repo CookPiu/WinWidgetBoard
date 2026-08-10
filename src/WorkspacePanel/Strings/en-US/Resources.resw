@@ -175,6 +175,24 @@
   <data name="NoteSaveRetryFailedStatus" xml:space="preserve">
     <value>Could not save the note. Your draft is still available.</value>
   </data>
+  <data name="UndoNoteButton.Content" xml:space="preserve">
+    <value>Undo</value>
+  </data>
+  <data name="UndoNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Undo note edit</value>
+  </data>
+  <data name="RedoNoteButton.Content" xml:space="preserve">
+    <value>Redo</value>
+  </data>
+  <data name="RedoNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Redo note edit</value>
+  </data>
+  <data name="NoteUndoStatus" xml:space="preserve">
+    <value>Note edit undone.</value>
+  </data>
+  <data name="NoteRedoStatus" xml:space="preserve">
+    <value>Note edit redone.</value>
+  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>Note title</value>
   </data>

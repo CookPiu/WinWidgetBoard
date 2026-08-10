@@ -617,6 +617,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             saved ? "NoteSaveRetrySucceededStatus" : "NoteSaveRetryFailedStatus");
     }
 
+    private void UndoNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (NoteEditor.Undo())
+        {
+            StatusText.Text = _resources.GetString("NoteUndoStatus");
+        }
+    }
+
+    private void RedoNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (NoteEditor.Redo())
+        {
+            StatusText.Text = _resources.GetString("NoteRedoStatus");
+        }
+    }
+
     private void NoteTitleBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (sender is TextBox textBox)

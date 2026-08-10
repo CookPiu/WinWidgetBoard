@@ -87,6 +87,16 @@
                             x:Uid="RetryNoteSaveButton"
                             IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
                             Click="RetryNoteSaveButton_Click" />
+                        <Button
+                            x:Name="UndoNoteButton"
+                            x:Uid="UndoNoteButton"
+                            IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
+                            Click="UndoNoteButton_Click" />
+                        <Button
+                            x:Name="RedoNoteButton"
+                            x:Uid="RedoNoteButton"
+                            IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
+                            Click="RedoNoteButton_Click" />
                     </StackPanel>
                     <StackPanel
                         Orientation="Horizontal"

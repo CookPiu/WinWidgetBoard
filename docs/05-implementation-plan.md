@@ -433,7 +433,7 @@ M2.1.6 验收重点：
 
 ### 5.5 M2.4 内置卡片批次 A
 
-当前已完成工作包：[M2.4.1 NTE-001 便签显式复制动作](work-packages/M2.4.1-note-copy-action.md)、[M2.4.2 NTE-001 便签保存失败显式重试](work-packages/M2.4.2-note-save-retry.md)、[M2.4.3 NTE-001 便签搜索结果展示](work-packages/M2.4.3-note-search-results.md)、[M2.4.4 NTE-001 从搜索结果打开便签](work-packages/M2.4.4-note-search-open.md)；便签恢复历史、Markdown 最小集和多便签管理仍待完成。
+当前已完成工作包：[M2.4.1 NTE-001 便签显式复制动作](work-packages/M2.4.1-note-copy-action.md)、[M2.4.2 NTE-001 便签保存失败显式重试](work-packages/M2.4.2-note-save-retry.md)、[M2.4.3 NTE-001 便签搜索结果展示](work-packages/M2.4.3-note-search-results.md)、[M2.4.4 NTE-001 从搜索结果打开便签](work-packages/M2.4.4-note-search-open.md)、[M2.4.5 NTE-001 便签编辑撤销与重做](work-packages/M2.4.5-note-undo-redo.md)；便签恢复历史、Markdown 最小集和多便签管理仍待完成。
 
 #### 便签
 
@@ -444,6 +444,7 @@ M2.1.6 验收重点：
 - 恢复；
 - 显式复制；
 - 保存失败后的显式重试；
+- 编辑撤销与重做；
 - 输入期间失焦策略。
 
 #### 计时器

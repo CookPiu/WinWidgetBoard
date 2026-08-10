@@ -175,6 +175,24 @@
   <data name="NoteSaveRetryFailedStatus" xml:space="preserve">
     <value>便签保存失败，当前草稿仍然保留。</value>
   </data>
+  <data name="UndoNoteButton.Content" xml:space="preserve">
+    <value>撤销</value>
+  </data>
+  <data name="UndoNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>撤销便签编辑</value>
+  </data>
+  <data name="RedoNoteButton.Content" xml:space="preserve">
+    <value>重做</value>
+  </data>
+  <data name="RedoNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>重做便签编辑</value>
+  </data>
+  <data name="NoteUndoStatus" xml:space="preserve">
+    <value>已撤销便签编辑。</value>
+  </data>
+  <data name="NoteRedoStatus" xml:space="preserve">
+    <value>已重做便签编辑。</value>
+  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>便签标题</value>
   </data>

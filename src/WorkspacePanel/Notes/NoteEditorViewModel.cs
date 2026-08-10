@@ -20,6 +20,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     public const string DefaultNoteId = "primary-note";
 
     private static readonly TimeSpan DefaultAutosaveDelay = TimeSpan.FromMilliseconds(500);
+    private const int MaxDraftHistory = 20;
 
     private readonly object _gate = new();
     private readonly INoteClient? _noteClient;
@@ -27,6 +28,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     private readonly TimeSpan _autosaveDelay;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly List<NoteDraftSnapshot> _undoHistory = [];
+    private readonly List<NoteDraftSnapshot> _redoHistory = [];
     private string _noteId;
     private CancellationTokenSource? _pendingSaveCancellation;
     private Task<bool>? _pendingSaveTask;
@@ -179,6 +182,36 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    public bool CanUndo
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _isLoaded &&
+                    !_isLoading &&
+                    !_isSaving &&
+                    _undoHistory.Count != 0 &&
+                    !_disposed;
+            }
+        }
+    }
+
+    public bool CanRedo
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _isLoaded &&
+                    !_isLoading &&
+                    !_isSaving &&
+                    _redoHistory.Count != 0 &&
+                    !_disposed;
+            }
+        }
+    }
+
     public bool CanEdit
     {
         get
@@ -259,9 +292,15 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(CanEdit),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
             nameof(ErrorCode));
         return LoadNoteCoreAsync(noteId, cancellationToken);
     }
+
+    public bool Undo() => TryApplyHistory(_undoHistory, _redoHistory);
+
+    public bool Redo() => TryApplyHistory(_redoHistory, _undoHistory);
 
     public void MarkUnavailable(string errorCode = "transport.unavailable")
     {
@@ -277,6 +316,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _isSaving = false;
             _status = NoteEditorStatus.Unavailable;
             _errorCode = errorCode;
+            _undoHistory.Clear();
+            _redoHistory.Clear();
         }
 
         Publish(
@@ -285,6 +326,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(IsSaving),
             nameof(CanEdit),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
             nameof(CanRetrySave),
             nameof(ErrorCode));
     }
@@ -327,6 +370,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(IsSaving),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
             nameof(CanRetrySave),
             nameof(ErrorCode));
         return saveTask;
@@ -423,6 +468,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _hasUnsavedChanges = false;
                 _errorCode = null;
                 _status = NoteEditorStatus.Ready;
+                _undoHistory.Clear();
+                _redoHistory.Clear();
             }
 
             Publish(
@@ -434,6 +481,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 nameof(HasUnsavedChanges),
                 nameof(CanEdit),
                 nameof(CanLoadNote),
+                nameof(CanUndo),
+                nameof(CanRedo),
                 nameof(ErrorCode));
             return true;
         }
@@ -452,12 +501,14 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _errorCode = GetErrorCode(exception);
             }
 
-            Publish(
-                nameof(Status),
-                nameof(IsLoading),
-                nameof(CanEdit),
-                nameof(CanLoadNote),
-                nameof(ErrorCode));
+                Publish(
+                    nameof(Status),
+                    nameof(IsLoading),
+                    nameof(CanEdit),
+                    nameof(CanLoadNote),
+                    nameof(CanUndo),
+                    nameof(CanRedo),
+                    nameof(ErrorCode));
             return false;
         }
     }
@@ -494,6 +545,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _draftVersion++;
                 _errorCode = null;
                 _status = NoteEditorStatus.Ready;
+                _undoHistory.Clear();
+                _redoHistory.Clear();
             }
 
             Publish(
@@ -506,6 +559,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 nameof(HasUnsavedChanges),
                 nameof(CanEdit),
                 nameof(CanLoadNote),
+                nameof(CanUndo),
+                nameof(CanRedo),
                 nameof(CanRetrySave),
                 nameof(ErrorCode));
             return true;
@@ -539,8 +594,60 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(IsLoading),
             nameof(CanEdit),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
             nameof(ErrorCode));
         return false;
+    }
+
+    private bool TryApplyHistory(
+        List<NoteDraftSnapshot> source,
+        List<NoteDraftSnapshot> target)
+    {
+        CancellationTokenSource? previousCancellation;
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                _isLoading ||
+                _isSaving ||
+                _disposed ||
+                source.Count == 0)
+            {
+                return false;
+            }
+
+            NoteDraftSnapshot snapshot = source[^1];
+            source.RemoveAt(source.Count - 1);
+            AddHistoryEntry(target, new NoteDraftSnapshot(_title, _body));
+            _title = snapshot.Title;
+            _body = snapshot.Body;
+            _draftVersion++;
+            _hasUnsavedChanges = true;
+            _status = NoteEditorStatus.PendingSave;
+            _errorCode = null;
+            previousCancellation = _pendingSaveCancellation;
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token);
+            _pendingSaveCancellation = cancellation;
+            _pendingSaveTask = RunSaveAsync(
+                _draftVersion,
+                cancellation,
+                skipDebounce: false);
+        }
+
+        previousCancellation?.Cancel();
+        Publish(
+            nameof(Title),
+            nameof(Body),
+            nameof(Status),
+            nameof(HasUnsavedChanges),
+            nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return true;
     }
 
     private void UpdateDraftValue(string? value, bool isTitle)
@@ -563,6 +670,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     return;
                 }
 
+                AddHistoryEntry(_undoHistory, new NoteDraftSnapshot(_title, _body));
+                _redoHistory.Clear();
                 _title = value;
                 propertyName = nameof(Title);
             }
@@ -573,6 +682,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     return;
                 }
 
+                AddHistoryEntry(_undoHistory, new NoteDraftSnapshot(_title, _body));
+                _redoHistory.Clear();
                 _body = value;
                 propertyName = nameof(Body);
             }
@@ -596,6 +707,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(HasUnsavedChanges),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
             nameof(CanRetrySave),
             nameof(ErrorCode));
     }
@@ -625,6 +738,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             {
                 string title;
                 string body;
+                string noteId;
                 string? expectedUpdatedAtUtc;
                 lock (_gate)
                 {
@@ -635,6 +749,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
 
                     title = _title;
                     body = _body;
+                    noteId = _noteId;
                     expectedUpdatedAtUtc = _expectedUpdatedAtUtc;
                     _isSaving = true;
                     _status = NoteEditorStatus.Saving;
@@ -645,6 +760,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     nameof(Status),
                     nameof(IsSaving),
                     nameof(CanLoadNote),
+                    nameof(CanUndo),
+                    nameof(CanRedo),
                     nameof(CanRetrySave),
                     nameof(ErrorCode));
 
@@ -652,7 +769,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     new NoteSaveRequest
                     {
                         ClientOperationId = Guid.NewGuid(),
-                        NoteId = _noteId,
+                        NoteId = noteId,
                         Title = title,
                         Body = body,
                         BodyFormat = NotesContract.PlainTextFormat,
@@ -677,6 +794,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     nameof(IsSaving),
                     nameof(HasUnsavedChanges),
                     nameof(CanLoadNote),
+                    nameof(CanUndo),
+                    nameof(CanRedo),
                     nameof(CanRetrySave),
                     nameof(ErrorCode));
                 return true;
@@ -732,12 +851,25 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     nameof(Status),
                     nameof(IsSaving),
                     nameof(CanLoadNote),
+                    nameof(CanUndo),
+                    nameof(CanRedo),
                     nameof(CanRetrySave),
                     nameof(ErrorCode));
             }
         }
 
         return false;
+    }
+
+    private static void AddHistoryEntry(
+        List<NoteDraftSnapshot> history,
+        NoteDraftSnapshot snapshot)
+    {
+        history.Add(snapshot);
+        if (history.Count > MaxDraftHistory)
+        {
+            history.RemoveAt(0);
+        }
     }
 
     private void SetState(
@@ -762,6 +894,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(IsLoading),
             nameof(CanEdit),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
             nameof(CanRetrySave),
             nameof(ErrorCode));
     }
@@ -782,6 +916,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             }
         });
     }
+
+    private sealed record NoteDraftSnapshot(string Title, string Body);
 
     private static string GetErrorCode(Exception exception) => exception switch
     {
