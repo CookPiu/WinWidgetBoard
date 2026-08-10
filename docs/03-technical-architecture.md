@@ -104,6 +104,8 @@ flowchart TB
 - 从 CoreBroker 订阅状态；
 - 将用户命令提交给 CoreBroker。
 
+便签编辑器通过 `CoreBroker.Client` 的高层接口和独立 `NoteEditorViewModel` 接入。XAML code-behind 只负责控件事件、焦点和本地化状态显示，不直接创建 IPC Envelope 或访问 SQLite。
+
 生命周期：
 
 - 首次打开按需启动；
@@ -180,6 +182,8 @@ WinWidgetBoard/
 │  │  ├─ Plugins/
 │  │  ├─ Security/
 │  │  └─ Diagnostics/
+│  ├─ CoreBroker.Client/
+│  │  └─ Named Pipe 客户端与会话保活
 │  ├─ Contracts/
 │  ├─ Cards.BuiltIn/
 │  │  ├─ Weather/
@@ -571,6 +575,8 @@ CoreBroker 可在首次启动时生成随机会话令牌，通过受保护的启
 4. 保留上一版本。
 
 LauncherHost 不打开 SQLite，避免把数据库依赖带入最小常驻进程。
+
+CoreBroker 启动后打开 `%LOCALAPPDATA%\WinWidgetBoard\data.db`，完成 schema migration，并通过当前用户命名管道向 WorkspacePanel 提供便签等数据服务。WorkspacePanel 通过 `CoreBroker.Client` 和 ViewModel 使用版本化 IPC 契约，不直接持有数据库连接或可变数据库实体。
 
 ### 13.4 密钥
 

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.winwidgetboard.invalid/contracts/envelope-1.0.json",
+  "title": "WinWidgetBoard IPC Envelope",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "protocolVersion",
+    "messageType",
+    "messageId",
+    "correlationId",
+    "sentAtUtc",
+    "method",
+    "payload",
+    "error"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "messageType": {
+      "type": "string",
+      "enum": ["request", "response", "event"]
+    },
+    "messageId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "correlationId": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "sentAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "method": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object"
+    },
+    "error": {
+      "anyOf": [
+        { "$ref": "#/$defs/error" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "$defs": {
+    "error": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "code",
+        "category",
+        "messageKey",
+        "developerMessage",
+        "correlationId",
+        "isTransient",
+        "retryAfterSeconds",
+        "details"
+      ],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "messageKey": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "developerMessage": { "type": ["string", "null"], "maxLength": 4096 },
+        "correlationId": { "type": ["string", "null"], "format": "uuid" },
+        "isTransient": { "type": "boolean" },
+        "retryAfterSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "details": { "type": ["object", "null"] }
+      }
+    }
+  }
+}

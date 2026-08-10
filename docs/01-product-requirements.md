@@ -597,6 +597,10 @@ OAuth 令牌和插件密钥必须存入 Windows Credential Manager 或使用 DPA
 - NFR-I18N-003：时间、日期、数字和单位遵循用户区域设置。
 - NFR-I18N-004：布局允许文本增长 30% 而不截断关键操作。
 
+### 9.7 工程可复现性
+
+- BLD-001：M1 必须使用锁定的 Visual Studio/MSVC、Windows SDK、.NET 和 Windows App SDK 版本，提供可重复的 x64 Debug/Release 构建、最小自动测试和 CI；不得使用浮动包版本，基础构建和运行不得要求管理员权限。
+
 ## 10. MVP 范围
 
 ### 10.1 必须包含

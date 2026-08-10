@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="WindowTitle" xml:space="preserve">
+    <value>WinWidgetBoard 工作台</value>
+  </data>
+  <data name="HeadingText.Text" xml:space="preserve">
+    <value>WorkspacePanel 测试窗口</value>
+  </data>
+  <data name="DescriptionText.Text" xml:space="preserve">
+    <value>此普通窗口用于验证 M1.0 WinUI 3 构建基础，不包含产品面板行为。</value>
+  </data>
+  <data name="CloseButton.Content" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="CloseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>关闭测试窗口</value>
+  </data>
+  <data name="GreetingText.Text" xml:space="preserve">
+    <value>今日工作台</value>
+  </data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve">
+    <value>搜索卡片</value>
+  </data>
+  <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>搜索卡片</value>
+  </data>
+  <data name="AddCardButton.Content" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="AddCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>添加卡片</value>
+  </data>
+  <data name="EditLayoutButton.Content" xml:space="preserve">
+    <value>编辑</value>
+  </data>
+  <data name="EditLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>编辑布局</value>
+  </data>
+  <data name="SettingsButton.Content" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="SettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="ClosePanelButton.Content" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="ClosePanelButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>关闭面板</value>
+  </data>
+  <data name="StatusText.Text" xml:space="preserve">
+    <value>面板壳层已加载；连接 CoreBroker 后可使用本地便签编辑器。</value>
+  </data>
+  <data name="NotesCardTitle.Text" xml:space="preserve">
+    <value>便签</value>
+  </data>
+  <data name="NotesCardBody.Text" xml:space="preserve">
+    <value>在下方编辑本地便签，修改会通过 CoreBroker 自动保存。</value>
+  </data>
+  <data name="OpenNotesButton.Content" xml:space="preserve">
+    <value>聚焦编辑器</value>
+  </data>
+  <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>聚焦便签编辑器</value>
+  </data>
+  <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
+    <value>便签标题</value>
+  </data>
+  <data name="NoteTitleBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>便签标题</value>
+  </data>
+  <data name="NoteBodyBox.PlaceholderText" xml:space="preserve">
+    <value>记录一些内容……</value>
+  </data>
+  <data name="NoteBodyBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>便签正文</value>
+  </data>
+  <data name="NoteEditorUnavailableStatus" xml:space="preserve">
+    <value>CoreBroker 不可用，编辑器当前为只读。</value>
+  </data>
+  <data name="NoteEditorLoadingStatus" xml:space="preserve">
+    <value>正在加载本地便签……</value>
+  </data>
+  <data name="NoteEditorReadyStatus" xml:space="preserve">
+    <value>可以编辑，修改会自动保存。</value>
+  </data>
+  <data name="NoteEditorPendingSaveStatus" xml:space="preserve">
+    <value>等待保存……</value>
+  </data>
+  <data name="NoteEditorSavingStatus" xml:space="preserve">
+    <value>正在本地保存……</value>
+  </data>
+  <data name="NoteEditorSavedStatus" xml:space="preserve">
+    <value>已保存到本地。</value>
+  </data>
+  <data name="NoteEditorErrorStatus" xml:space="preserve">
+    <value>保存失败，当前草稿仍保留在编辑器中。</value>
+  </data>
+  <data name="TimerCardTitle.Text" xml:space="preserve">
+    <value>计时器</value>
+  </data>
+  <data name="TimerCardBody.Text" xml:space="preserve">
+    <value>计时与通知由后续 CoreBroker 工作包负责。</value>
+  </data>
+  <data name="StartTimerButton.Content" xml:space="preserve">
+    <value>启动计时器</value>
+  </data>
+  <data name="StartTimerButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>启动计时器</value>
+  </data>
+  <data name="TodoCardTitle.Text" xml:space="preserve">
+    <value>待办</value>
+  </data>
+  <data name="TodoCardBody.Text" xml:space="preserve">
+    <value>本地待办数据将在存储工作包中接入。</value>
+  </data>
+  <data name="OpenTodoButton.Content" xml:space="preserve">
+    <value>打开待办</value>
+  </data>
+  <data name="OpenTodoButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>打开待办</value>
+  </data>
+  <data name="CalendarCardTitle.Text" xml:space="preserve">
+    <value>本地日历</value>
+  </data>
+  <data name="CalendarCardBody.Text" xml:space="preserve">
+    <value>日历摘要与提醒将在本地数据工作包中接入。</value>
+  </data>
+  <data name="OpenCalendarButton.Content" xml:space="preserve">
+    <value>打开日历</value>
+  </data>
+  <data name="OpenCalendarButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>打开日历</value>
+  </data>
+  <data name="ShellPlaceholderStatus" xml:space="preserve">
+    <value>当前为 M1.2 面板壳层；此操作将在后续工作包接入。</value>
+  </data>
+  <data name="DemoCardClickStatus" xml:space="preserve">
+    <value>已识别为点击；未进入拖动。</value>
+  </data>
+  <data name="DemoCardDragStatus" xml:space="preserve">
+    <value>假卡片拖动已提交；布局引擎将在后续工作包接入。</value>
+  </data>
+  <data name="DemoCardDragCanceledStatus" xml:space="preserve">
+    <value>拖动已取消，卡片恢复到开始位置。</value>
+  </data>
+  <data name="FinishEditLayoutButtonContent" xml:space="preserve">
+    <value>完成</value>
+  </data>
+  <data name="FinishEditLayoutButtonAutomationName" xml:space="preserve">
+    <value>完成布局编辑</value>
+  </data>
+  <data name="LayoutEditStartedStatus" xml:space="preserve">
+    <value>已进入布局编辑模式；现在可以调整尺寸、删除或拖动卡片。</value>
+  </data>
+  <data name="LayoutEditCommittedStatus" xml:space="preserve">
+    <value>布局编辑已完成。</value>
+  </data>
+  <data name="LayoutReadyToSaveStatus" xml:space="preserve">
+    <value>布局已准备就绪，完成编辑时会保存修改。</value>
+  </data>
+  <data name="LayoutSavingStatus" xml:space="preserve">
+    <value>正在保存卡片布局…</value>
+  </data>
+  <data name="LayoutLoadedStatus" xml:space="preserve">
+    <value>已加载保存的卡片布局。</value>
+  </data>
+  <data name="LayoutRecoveredStatus" xml:space="preserve">
+    <value>已恢复异常的布局空行；点击“完成”可保存修复后的位置。</value>
+  </data>
+  <data name="LayoutUnavailableStatus" xml:space="preserve">
+    <value>CoreBroker 不可用，卡片布局修改无法保存。</value>
+  </data>
+  <data name="LayoutSaveFailedStatus" xml:space="preserve">
+    <value>卡片布局保存失败，可继续编辑或取消以放弃修改。</value>
+  </data>
+  <data name="LayoutEditCanceledStatus" xml:space="preserve">
+    <value>布局编辑已取消，已恢复进入编辑模式前的布局。</value>
+  </data>
+  <data name="DecreaseCardButton.Content" xml:space="preserve">
+    <value>缩小</value>
+  </data>
+  <data name="DecreaseCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>缩小卡片</value>
+  </data>
+  <data name="IncreaseCardButton.Content" xml:space="preserve">
+    <value>放大</value>
+  </data>
+  <data name="IncreaseCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>放大卡片</value>
+  </data>
+  <data name="RemoveCardButton.Content" xml:space="preserve">
+    <value>移除</value>
+  </data>
+  <data name="RemoveCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>移除卡片</value>
+  </data>
+  <data name="CardResizedStatus" xml:space="preserve">
+    <value>卡片尺寸已更新。</value>
+  </data>
+  <data name="CardRemovedStatus" xml:space="preserve">
+    <value>卡片已移除；取消编辑可恢复。</value>
+  </data>
+  <data name="DragCardHandle.Text" xml:space="preserve">
+    <value>⋮⋮</value>
+  </data>
+  <data name="DragCardHandle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>拖动卡片</value>
+  </data>
+  <data name="DemoCardDropCommittedStatus" xml:space="preserve">
+    <value>卡片已放置到新的网格位置。</value>
+  </data>
+  <data name="DemoCardDropRejectedStatus" xml:space="preserve">
+    <value>没有可用的合法落点，卡片正在返回原位置。</value>
+  </data>
+</root>

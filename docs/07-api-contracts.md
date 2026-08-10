@@ -7,6 +7,8 @@
 
 本文定义逻辑契约。实际 JSON Schema 文件应在 M2.0 生成到 `src/Contracts/Schemas/`，并由契约测试验证。
 
+M2.0.1 已实现 `Envelope`、UTF-8 JSON 编解码、1MiB 消息上限和 4 字节 little-endian 长度帧；M2.0.2 已实现当前用户 Named Pipe、`session.hello`/`session.ping`、CoreBroker 单实例，以及客户端请求超时、定时心跳和基础断线重连 POC；LauncherHost/WorkspacePanel 生产客户端接入、真实业务方法和完整重启恢复仍未实现。
+
 ## 1. 基本约定
 
 ### 1.1 编码
@@ -268,6 +270,16 @@ UUID。两个相同 Card Type 的放置副本必须有不同 Instance ID。
 
 CoreBroker 提交后返回新 revision 和规范化布局。
 
+### 6.3 Layout IPC Methods
+
+- `layout.get`：按 `layoutId` 和 `displayId` 读取布局快照；不存在时返回 `resource.not-found`；
+- `layout.save`：带 `clientOperationId`、`expectedRevision` 和完整布局项集合保存布局；
+- `layout.save` 的 `sizeId` 只允许 `s`、`m`、`l`、`w`、`xl`，`order` 必须从零连续递增；
+- 布局项的 `preferredColumn`、`preferredRow` 是可选逻辑网格坐标，不是绝对像素坐标；保存时使用当前 placement 的实际行列；
+- 重复的 `clientOperationId` 与相同请求返回第一次结果，revision 不重复递增；
+- revision 不匹配返回 `conflict.layout-revision`；
+- WorkspacePanel 只在完成编辑时提交一次，不在拖动每帧写入 SQLite。
+
 ## 7. Card State Snapshot
 
 ```json
@@ -384,6 +396,63 @@ WorkspacePanel 只接受 sequence 大于当前已应用 sequence 的快照。
 - `panel.enter-modal-scope`；
 - `panel.exit-modal-scope`；
 - `panel.report-visibility`。
+
+### 9.3 Panel Visibility Report
+
+WorkspacePanel 使用状态设置式上报同步当前面板可见性：
+
+```json
+{
+  "method": "panel.report-visibility",
+  "payload": {
+    "clientOperationId": "uuid",
+    "panelVisible": true,
+    "displayId": null
+  }
+}
+```
+
+成功响应的 `payload`：
+
+```json
+{
+  "clientOperationId": "uuid",
+  "panelVisible": true,
+  "revision": 1,
+  "acceptedAtUtc": "2026-08-07T09:30:00.000Z"
+}
+```
+
+相同 `clientOperationId` 和相同 payload 的重复请求返回相同业务结果，不重复应用状态；同一 ID 搭配不同 payload 返回 `validation.invalid-argument`。Broker 重启后客户端重新握手，并以最新目标状态生成新的 operation ID 重新上报。该状态目前仅存在于 Broker 进程内，不替代 M2.1 持久化。
+
+### 9.4 Notes Methods
+
+便签通过当前用户 CoreBroker IPC 访问，WorkspacePanel 不直接打开 SQLite。支持的方法：
+
+- `notes.save`：创建或带 `expectedUpdatedAtUtc` 的更新；写请求必须带 `clientOperationId`；
+- `notes.get`：按 `noteId` 读取；
+- `notes.search`：按标题或正文搜索；
+- `notes.delete`：带 `noteId`、`expectedUpdatedAtUtc` 和 `clientOperationId` 删除。
+
+`bodyFormat` 只允许 `plain-text` 或 `markdown`。`noteId` 最长 200 字符，标题最长 512 字符，正文最长 256 KiB，搜索词最长 256 字符。正文和时间戳不写入日志。
+
+保存请求示例：
+
+```json
+{
+  "method": "notes.save",
+  "payload": {
+    "clientOperationId": "uuid",
+    "noteId": "note-1",
+    "title": "今日记录",
+    "body": "# 内容",
+    "bodyFormat": "markdown",
+    "expectedUpdatedAtUtc": null
+  }
+}
+```
+
+更新或删除使用过期 `expectedUpdatedAtUtc` 时返回 `conflict.notes-revision`；不存在的记录返回 `resource.not-found`；相同 `clientOperationId` 搭配不同 payload 返回 `validation.invalid-argument`。
 
 ## 10. Provider Contract
 

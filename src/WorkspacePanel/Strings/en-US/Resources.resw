@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="WindowTitle" xml:space="preserve">
+    <value>WinWidgetBoard workspace</value>
+  </data>
+  <data name="HeadingText.Text" xml:space="preserve">
+    <value>WorkspacePanel test window</value>
+  </data>
+  <data name="DescriptionText.Text" xml:space="preserve">
+    <value>This ordinary window verifies the M1.0 WinUI 3 build foundation. It does not implement product panel behavior.</value>
+  </data>
+  <data name="CloseButton.Content" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="CloseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Close test window</value>
+  </data>
+  <data name="GreetingText.Text" xml:space="preserve">
+    <value>Today's workspace</value>
+  </data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve">
+    <value>Search cards</value>
+  </data>
+  <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search cards</value>
+  </data>
+  <data name="AddCardButton.Content" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="AddCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Add card</value>
+  </data>
+  <data name="EditLayoutButton.Content" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="EditLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Edit layout</value>
+  </data>
+  <data name="SettingsButton.Content" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="ClosePanelButton.Content" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ClosePanelButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Close panel</value>
+  </data>
+  <data name="StatusText.Text" xml:space="preserve">
+    <value>The panel shell is loaded; the local note editor is available when CoreBroker is connected.</value>
+  </data>
+  <data name="NotesCardTitle.Text" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="NotesCardBody.Text" xml:space="preserve">
+    <value>Edit a local note below; changes are autosaved through CoreBroker.</value>
+  </data>
+  <data name="OpenNotesButton.Content" xml:space="preserve">
+    <value>Focus editor</value>
+  </data>
+  <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Focus note editor</value>
+  </data>
+  <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
+    <value>Note title</value>
+  </data>
+  <data name="NoteTitleBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Note title</value>
+  </data>
+  <data name="NoteBodyBox.PlaceholderText" xml:space="preserve">
+    <value>Write a quick note…</value>
+  </data>
+  <data name="NoteBodyBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Note body</value>
+  </data>
+  <data name="NoteEditorUnavailableStatus" xml:space="preserve">
+    <value>CoreBroker is unavailable; the editor is read-only.</value>
+  </data>
+  <data name="NoteEditorLoadingStatus" xml:space="preserve">
+    <value>Loading local note…</value>
+  </data>
+  <data name="NoteEditorReadyStatus" xml:space="preserve">
+    <value>Ready. Changes save automatically.</value>
+  </data>
+  <data name="NoteEditorPendingSaveStatus" xml:space="preserve">
+    <value>Waiting to save…</value>
+  </data>
+  <data name="NoteEditorSavingStatus" xml:space="preserve">
+    <value>Saving locally…</value>
+  </data>
+  <data name="NoteEditorSavedStatus" xml:space="preserve">
+    <value>Saved locally.</value>
+  </data>
+  <data name="NoteEditorErrorStatus" xml:space="preserve">
+    <value>Save failed; your draft remains in the editor.</value>
+  </data>
+  <data name="TimerCardTitle.Text" xml:space="preserve">
+    <value>Timer</value>
+  </data>
+  <data name="TimerCardBody.Text" xml:space="preserve">
+    <value>Timer persistence and notifications arrive with CoreBroker.</value>
+  </data>
+  <data name="StartTimerButton.Content" xml:space="preserve">
+    <value>Start timer</value>
+  </data>
+  <data name="StartTimerButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Start timer</value>
+  </data>
+  <data name="TodoCardTitle.Text" xml:space="preserve">
+    <value>To-do</value>
+  </data>
+  <data name="TodoCardBody.Text" xml:space="preserve">
+    <value>Local to-do data arrives with the storage work package.</value>
+  </data>
+  <data name="OpenTodoButton.Content" xml:space="preserve">
+    <value>Open to-do</value>
+  </data>
+  <data name="OpenTodoButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Open to-do</value>
+  </data>
+  <data name="CalendarCardTitle.Text" xml:space="preserve">
+    <value>Local calendar</value>
+  </data>
+  <data name="CalendarCardBody.Text" xml:space="preserve">
+    <value>Calendar summaries and reminders arrive with local data.</value>
+  </data>
+  <data name="OpenCalendarButton.Content" xml:space="preserve">
+    <value>Open calendar</value>
+  </data>
+  <data name="OpenCalendarButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Open calendar</value>
+  </data>
+  <data name="ShellPlaceholderStatus" xml:space="preserve">
+    <value>This is the M1.2 panel shell; the action will arrive in a later work package.</value>
+  </data>
+  <data name="DemoCardClickStatus" xml:space="preserve">
+    <value>Click recognized; drag mode was not committed.</value>
+  </data>
+  <data name="DemoCardDragStatus" xml:space="preserve">
+    <value>Demo card drag committed; the layout engine arrives in a later work package.</value>
+  </data>
+  <data name="DemoCardDragCanceledStatus" xml:space="preserve">
+    <value>Drag canceled; the card returned to its starting position.</value>
+  </data>
+  <data name="FinishEditLayoutButtonContent" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="FinishEditLayoutButtonAutomationName" xml:space="preserve">
+    <value>Finish layout editing</value>
+  </data>
+  <data name="LayoutEditStartedStatus" xml:space="preserve">
+    <value>Layout editing is on; cards can now be resized, removed, or dragged.</value>
+  </data>
+  <data name="LayoutEditCommittedStatus" xml:space="preserve">
+    <value>Layout editing completed.</value>
+  </data>
+  <data name="LayoutReadyToSaveStatus" xml:space="preserve">
+    <value>Layout is ready; changes will be saved when editing is finished.</value>
+  </data>
+  <data name="LayoutSavingStatus" xml:space="preserve">
+    <value>Saving card layout…</value>
+  </data>
+  <data name="LayoutLoadedStatus" xml:space="preserve">
+    <value>Saved card layout loaded.</value>
+  </data>
+  <data name="LayoutRecoveredStatus" xml:space="preserve">
+    <value>Recovered an excessive saved layout gap. Choose Done to save the repaired positions.</value>
+  </data>
+  <data name="LayoutUnavailableStatus" xml:space="preserve">
+    <value>CoreBroker is unavailable; card layout changes cannot be saved.</value>
+  </data>
+  <data name="LayoutSaveFailedStatus" xml:space="preserve">
+    <value>Card layout could not be saved; keep editing or cancel to discard changes.</value>
+  </data>
+  <data name="LayoutEditCanceledStatus" xml:space="preserve">
+    <value>Layout editing canceled; the layout from before editing was restored.</value>
+  </data>
+  <data name="DecreaseCardButton.Content" xml:space="preserve">
+    <value>Smaller</value>
+  </data>
+  <data name="DecreaseCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Make card smaller</value>
+  </data>
+  <data name="IncreaseCardButton.Content" xml:space="preserve">
+    <value>Larger</value>
+  </data>
+  <data name="IncreaseCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Make card larger</value>
+  </data>
+  <data name="RemoveCardButton.Content" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="RemoveCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Remove card</value>
+  </data>
+  <data name="CardResizedStatus" xml:space="preserve">
+    <value>Card size updated.</value>
+  </data>
+  <data name="CardRemovedStatus" xml:space="preserve">
+    <value>Card removed; cancel editing to restore it.</value>
+  </data>
+  <data name="DragCardHandle.Text" xml:space="preserve">
+    <value>⋮⋮</value>
+  </data>
+  <data name="DragCardHandle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Drag card</value>
+  </data>
+  <data name="DemoCardDropCommittedStatus" xml:space="preserve">
+    <value>Card placed in the new grid position.</value>
+  </data>
+  <data name="DemoCardDropRejectedStatus" xml:space="preserve">
+    <value>No legal drop cell was available; the card is returning.</value>
+  </data>
+</root>

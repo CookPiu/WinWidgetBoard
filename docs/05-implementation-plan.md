@@ -52,6 +52,8 @@
 
 ### 4.1 M1.0 工具链锁定
 
+覆盖工程需求：BLD-001。
+
 任务：
 
 1. 记录当前 Windows、SDK、Visual Studio、.NET 和 Windows App SDK 版本。
@@ -76,6 +78,8 @@ build(solution): establish pinned Windows toolchain
 ### 4.2 M1.1 LauncherHost POC
 
 覆盖需求：SYS-001、SYS-003～006、LCH-001～005。
+
+当前工作包：[M1.1 无注入入口 POC](work-packages/M1.1-launcher-entry-poc.md)。
 
 任务：
 
@@ -113,29 +117,54 @@ build(solution): establish pinned Windows toolchain
 - 自动隐藏热区不被阻挡；
 - LauncherHost 工作集和 CPU 记录达到初步预算。
 
+### 4.2.1 M1.2.1 LauncherHost 到 WorkspacePanel 的启动交接
+
+覆盖需求：SYS-001、LCH-003、PNL-003、PNL-004。
+
+当前工作包：[M1.2.1 进程启动交接](work-packages/M1.2.1-panel-launch-handoff.md)。
+
+任务：
+
+- 使用同用户 `CreateProcessW` 启动 WorkspacePanel，并传递已校验的显示器、工作区、入口矩形和 DPI；
+- 已运行时定位并激活面板顶层窗口，关闭时发送 `WM_CLOSE`；
+- 轮询进程句柄，面板退出后恢复 LauncherHost 入口状态；
+- 提供启动 smoke 和正常窗口生命周期 smoke；
+- 保持 LauncherHost 不加载 WinUI、SQLite、HTTP 或插件运行时。
+
+门禁：
+
+- Debug/Release 编译和进程启动/关闭 smoke 通过；
+- 缺失面板路径 fail closed，不影响 LauncherHost 自身；
+- 真实桌面完成点击、重复打开、关闭、失焦、多显示器/DPI、全屏和 Explorer 重启验收后，才进入 M1.3 动效与输入联调；
+- 不把命令行交接当作 IPC 契约，不把 smoke 时间当作 NFR-PERF-004/005 性能结论。
+
 ### 4.3 M1.2 WorkspacePanel 空壳
 
 覆盖需求：PNL-001～007、NFR-PERF-004/005。
 
+当前工作包：[M1.2 面板壳层与确定性几何](work-packages/M1.2-panel-shell.md)。
+
 任务：
 
 - WinUI 3 单实例；
-- 接收 Launcher 传入的显示器和入口矩形；
-- 在正确工作区计算尺寸；
+- 接收显示器、工作区、入口矩形和 DPI 启动上下文；
+- 在正确工作区计算尺寸并从入口所在角锚定；
+- 使用无任务栏按钮的独立工具窗口；
 - 点击外部/`Esc` 关闭；
 - 模态作用域；
-- 深浅色、高对比度；
-- 标题区和空网格；
-- 短时保温；
-- 冷/热启动计时。
+- 使用系统主题资源、键盘焦点和资源化无障碍名称；
+- 标题区、搜索框、操作按钮、垂直滚动区域和占位卡片；
+- 为后续 IPC、卡片运行时和动效保留边界。
+
+本工作包暂以命令行启动上下文验证跨进程数据形状，不在本阶段接入 IPC、数据库或 LauncherHost 调用链。
 
 门禁：
 
-- 首帧和基础可交互时间被测量；
-- 窗口不跨屏；
-- 不生成普通任务栏按钮；
-- 再次触发可从当前动画反向；
-- 全屏时安全关闭。
+- 纯几何契约验证工作区内、DPI 缩放和无效上下文 fail closed；
+- Debug/Release smoke 能构造真实 WinUI `MainWindow` 并正常退出；
+- 真实桌面上确认窗口不跨屏、不生成普通任务栏按钮，且外部点击/`Esc` 行为符合预期；
+- NFR-PERF-004/005 的按下反馈、首帧和基础可交互时间须在后续真实入口联调中测量；
+- 动效中途反向、拖拽和全屏联动转入 M1.3/后续验收。
 
 ### 4.4 M1.3 动效与输入 POC
 
@@ -160,6 +189,67 @@ build(solution): establish pinned Windows toolchain
 - 60Hz 和高刷新率显示器上无明显跳变；
 - 减少动态效果无大位移。
 
+已完成工作包：[M1.3.1 单张假卡片拖动 POC](work-packages/M1.3.1-single-card-drag-poc.md)、[M1.3.2 面板开关动效 POC](work-packages/M1.3.2-panel-motion-poc.md) 的当前会话验收。当前工作包：[M1.3.3 单卡拖动取消回归动效 POC](work-packages/M1.3.3-card-return-motion-poc.md)。
+
+### 4.4.1 M1.3.1 单张假卡片拖动 POC
+
+覆盖需求：LCH-003、LYT-004。
+
+任务：
+
+- 实现 8～10 逻辑像素拖动阈值；
+- 实现 pointer capture、抓取偏移和 1:1 视觉跟随；
+- 区分点击、拖动、取消和捕获丢失；
+- 对第一张假卡片提供真实鼠标验证入口；
+- 用单元测试覆盖阈值、位移和恢复状态。
+
+门禁：
+
+- 不得同时触发卡片点击和拖动；
+- 拖动期间输入不能 fall-through；
+- `Esc` 或捕获丢失恢复起始位置；
+- 不把单卡片 POC 描述为完整布局引擎。
+
+### 4.4.2 M1.3.2 面板锚定开关与可中断反向 POC
+
+覆盖需求：PNL-003、PNL-004、NFR-PERF-004/005。
+
+任务：
+
+- 从入口所在角计算面板动效起始偏移和变换原点；
+- 使用临界阻尼控制器驱动透明度、缩放和位移；
+- 统一处理打开、关闭、失焦、`Esc`、关闭按钮和 `WM_CLOSE`；
+- 中途触发时从当前展示值和速度反向；
+- 减少动态效果只保留淡化反馈；
+- 只在动效期间运行 UI 定时器，目标达成后停止。
+
+门禁：
+
+- 真实鼠标交互期间不能锁定输入；
+- 打开和关闭路径空间一致，不出现跳变；
+- 60Hz 与高刷新率显示器上无明显跳变；
+- NFR-PERF-004/005 必须通过真实入口会话测量，不能由单元测试替代。
+
+### 4.4.3 M1.3.3 单卡拖动取消回归动效 POC
+
+覆盖需求：LYT-004。
+
+任务：
+
+- 为 `Esc`、pointer canceled 和 pointer capture lost 增加从当前展示位置回到起点的控制器；
+- 使用临界阻尼回归，不在无释放速度的取消路径加入装饰性回弹；
+- 新指针按下时从回归动画当前值接管，保持拖动 1:1 和抓取偏移；
+- 减少动态效果时直接回到起点；
+- 只在回归期间运行共享 UI 定时器，目标达成后停止。
+
+门禁：
+
+- 取消回归不跳变、不 fall-through；
+- 回归中重新按下可以立即接管，不等待动画结束；
+- 正常拖动释放仍与点击互斥；
+- 不把本工作包描述为网格让位、合法落点投影或持久化实现；
+- 真实 60Hz 与高刷新率桌面验收通过后，才进入 M2.0 Contracts/CoreBroker 或完整网格工作。
+
 ### 4.5 M1 Go/No-Go
 
 M1 结束必须形成决策报告：
@@ -179,6 +269,8 @@ M1 结束必须形成决策报告：
 
 ### 5.1 M2.0 Contracts 与 CoreBroker
 
+已完成工作包：[M2.0.1 版本化 IPC Envelope 与校验](work-packages/M2.0.1-contract-envelope.md)。当前工作包：[M2.0.2 Named Pipe 当前用户传输与握手 POC](work-packages/M2.0.2-named-pipe-handshake.md)。
+
 任务：
 
 - 定义协议 Envelope；
@@ -196,7 +288,77 @@ M1 结束必须形成决策报告：
 - CoreBroker 重启后客户端可恢复；
 - 敏感字段不写日志。
 
+### 5.1.1 M2.0.1 版本化 IPC Envelope 与校验
+
+覆盖需求：G-006、SYS-001、NFR-REL-001。
+
+任务：
+
+- 定义 `request`、`response`、`event` 共用的版本化 Envelope；
+- 固定 camelCase JSON、UTC 时间、UUID 标识和 CorrelationId 语义；
+- 在反序列化前拒绝空消息和超过 1MiB 的消息；
+- 拒绝主版本不兼容、未知消息类型、缺少响应关联、非对象 payload 和超长错误字段；
+- 提供可复用的 UTF-8 JSON 编解码入口和契约测试；
+- 提供 4 字节 little-endian 长度帧编解码，并正确处理部分读和截断；
+- 生成 `src/Contracts/Schemas/envelope.schema.json`，为后续命名管道实现提供同一结构基线。
+
+门禁：
+
+- 有效 Envelope 可稳定序列化和反序列化；
+- 畸形 JSON、超大消息、未知主版本和无关联响应均被拒绝；
+- 测试工程通过 Contracts 程序集引用，不重复编译协议源文件；
+- 本工作包不宣称 Named Pipe ACL、握手、心跳、重连或 CoreBroker 已完成。
+
+### 5.1.2 M2.0.2 Named Pipe 当前用户传输与握手 POC
+
+覆盖需求：G-006、SYS-001、NFR-REL-001。
+
+任务：
+
+- 创建独立 CoreBroker Console/Worker 入口和本用户单实例 mutex；
+- 使用 `PipeOptions.CurrentUserOnly` 创建异步 byte-mode Named Pipe；
+- 复用 M2.0.1 长度帧与 Envelope，首条请求处理 `session.hello`；
+- 校验 session token、clientType、x64 架构、进程 ID 和协议范围；
+- 握手后提供 `session.ping`，验证当前连接仍可收发；
+- 将 Named Pipe 客户端放入可被 UI 进程复用的 `CoreBroker.Client` 程序集；
+- LauncherHost 使用无 UI/无第三方 JSON 依赖的原生客户端完成 session 保活；
+- 客户端为连接和请求设置超时，并提供周期心跳；
+- 客户端在断管、请求超时和 Broker 重启窗口执行一次重连，心跳任务对瞬时连接错误按周期继续尝试；
+- WorkspacePanel 通过独立会话服务异步连接 CoreBroker，不把 IPC 业务逻辑写入 XAML code-behind；
+- 提供真实进程 `--pipe-handshake-smoke-test` 和集成测试。
+
+门禁：
+
+- 当前用户可连接，其他用户/提升级别不因默认配置获得访问权；
+- 错误 token、未知客户端类型和不兼容协议范围返回稳定错误码；
+- 重复 CoreBroker 实例被拒绝；
+- 关闭和取消不留下 pipe、任务或 CoreBroker smoke 进程；
+- 客户端请求超时、周期心跳、断管重连和 Broker 重启窗口恢复由集成测试覆盖；
+- Launcher/Panel 生产接入、幂等命令恢复和完整 CoreBroker 重启恢复保留到后续工作包。
+
+### 5.1.3 M2.0.3 面板可见性业务方法与重连恢复
+
+覆盖需求：PNL-004、G-006、NFR-REL-001。
+
+任务：
+
+- 定义 `panel.report-visibility` 请求/响应和 `clientOperationId`；
+- 采用状态设置语义，禁止用 toggle 语义承载可重试命令；
+- CoreBroker 对相同 operation 和 payload 返回相同业务结果，对冲突 payload 拒绝，并限制内存去重表大小；
+- WorkspacePanel 首次会话建立后上报可见性；心跳发现 Broker 重连后重新上报最新目标状态；
+- 提供真实 WinUI `--broker-smoke-test`，覆盖握手、业务上报和清理。
+
+门禁：
+
+- 相同 `clientOperationId` 的重复请求不重复应用状态；
+- 同一 ID 搭配不同 payload 返回 `validation.invalid-argument`；
+- Broker 重启后客户端可以重新握手并安全设置目标状态；
+- Debug/Release 33/33 测试、WorkspacePanel 构建和真实进程 smoke 通过；
+- 不引入数据库或把进程内 revision 描述为跨重启持久化。
+
 ### 5.2 M2.1 持久化
+
+当前工作包：[M2.1.6 NTE-001 WorkspacePanel 便签编辑器](work-packages/M2.1.6-note-panel-editor.md) 已实现；M2.1.1 交付 schema/migration/backup 基础，M2.1.2 交付通用参数化访问、事务和隔离恢复故障注入，M2.1.3 交付便签持久化读写和 revision 冲突保护，M2.1.4 交付 UI 无关的 debounce 自动保存服务，M2.1.5 交付便签 IPC，M2.1.6 交付单便签 UI 接入，仍不包含便签完整能力、布局或其他领域业务。
 
 任务：
 
@@ -208,6 +370,14 @@ M1 结束必须形成决策报告：
 - 备份与只读恢复；
 - 导入导出 v1。
 
+M2.1.6 验收重点：
+
+- WorkspacePanel 通过 `CoreBroker.Client` 加载和保存单条便签；
+- 输入 debounce 且只提交最新草稿；
+- 保存失败保留内存草稿并显示错误状态；
+- 编辑区不抢占演示卡片拖拽区域；
+- 真实桌面输入和失焦关闭仍需人工验证。
+
 门禁：
 
 - 进程在写入中终止后数据库可恢复；
@@ -218,6 +388,8 @@ M1 结束必须形成决策报告：
 ### 5.3 M2.2 网格布局
 
 覆盖需求：LYT-001～007。
+
+已完成工作包：[M2.2.1 LYT-001/002/005 响应式网格核心](work-packages/M2.2.1-responsive-grid-engine.md)、[M2.2.2 LYT-001/002/005 卡片布局 ViewModel](work-packages/M2.2.2-card-layout-viewmodel.md)、[M2.2.3 LYT-001/002/005 ItemsRepeater 卡片视觉接入](work-packages/M2.2.3-items-repeater-card-surface.md)、[M2.2.4 LYT-003 布局编辑模式与卡片操作门禁](work-packages/M2.2.4-layout-edit-mode.md)、[M2.2.5 LYT-004 拖动落点投影核心](work-packages/M2.2.5-drag-placement-projection.md)、[M2.2.6 LYT-003/004 真实指针拖动与释放提交](work-packages/M2.2.6-pointer-drag-commit.md)、[M2.2.7 LYT-004 拖动落点与视觉状态修复](work-packages/M2.2.7-drag-drop-boundary-fix.md)、[M2.2.8 LYT-006 卡片布局持久化](work-packages/M2.2.8-layout-persistence.md)、[M2.2.9 LYT-006 布局逻辑位置重放修复](work-packages/M2.2.9-layout-position-replay.md)、[M2.2.10 LYT-003/004/005 卡片拖动入口与实时让位修复](work-packages/M2.2.10-card-drag-reflow-preview.md)、[M2.2.11 LYT-004/005/DAT-001 持久化空行与拖动视觉恢复](work-packages/M2.2.11-bounded-layout-gap-recovery.md)。当前已具备纯布局函数、可测试状态层、ItemsRepeater 视觉接入、编辑模式门禁、统一卡片拖动入口、占用单元格实时让位、指针释放提交、CoreBroker/SQLite 布局保存、逻辑位置重放和异常大空行的有界恢复；让位弹簧补间、虚拟化回收和撤销/重做仍未实现。
 
 任务：
 

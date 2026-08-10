@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>WinWidgetBoard.CoreBroker.Client</AssemblyName>
+    <RootNamespace>WinWidgetBoard.CoreBroker.Client</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\WinWidgetBoard.Contracts.csproj" />
+  </ItemGroup>
+</Project>

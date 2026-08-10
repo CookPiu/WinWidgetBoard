@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>WinWidgetBoard.UnitTests</AssemblyName>
+    <RootNamespace>WinWidgetBoard.UnitTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CoreBroker.Client\WinWidgetBoard.CoreBroker.Client.csproj" />
+    <ProjectReference Include="..\..\src\Contracts\WinWidgetBoard.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\CoreBroker\WinWidgetBoard.CoreBroker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\WorkspacePanel\Shell\PanelLaunchContext.cs" Link="WorkspacePanel\Shell\PanelLaunchContext.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Shell\PanelGeometry.cs" Link="WorkspacePanel\Shell\PanelGeometry.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Interaction\CardDragController.cs" Link="WorkspacePanel\Interaction\CardDragController.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Motion\PanelMotionController.cs" Link="WorkspacePanel\Motion\PanelMotionController.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Motion\CardReturnMotionController.cs" Link="WorkspacePanel\Motion\CardReturnMotionController.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Ipc\CoreBrokerSession.cs" Link="WorkspacePanel\Ipc\CoreBrokerSession.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\ResponsiveGridLayout.cs" Link="WorkspacePanel\Layout\ResponsiveGridLayout.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutReplaySanitizer.cs" Link="WorkspacePanel\Layout\CardLayoutReplaySanitizer.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutEditViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutEditViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardDragPlacementProjector.cs" Link="WorkspacePanel\Layout\CardDragPlacementProjector.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardGridDropTargetCalculator.cs" Link="WorkspacePanel\Layout\CardGridDropTargetCalculator.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardSurfaceItem.cs" Link="WorkspacePanel\Layout\CardSurfaceItem.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutSurfaceViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutSurfaceViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Notes\NoteEditorViewModel.cs" Link="WorkspacePanel\Notes\NoteEditorViewModel.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\src\WorkspacePanel\MainWindow.xaml"
+          Link="TestAssets\MainWindow.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\WorkspacePanel\MainWindow.xaml.cs"
+          Link="TestAssets\MainWindow.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\Run-WinWidgetBoard.ps1"
+          Link="TestAssets\Run-WinWidgetBoard.ps1"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

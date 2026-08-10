@@ -1,0 +1,54 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.0.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Contracts", "src\Contracts\WinWidgetBoard.Contracts.csproj", "{F07F1758-31B6-4A60-B4FA-DA68D94AD55C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoreBroker.Client", "src\CoreBroker.Client\WinWidgetBoard.CoreBroker.Client.csproj", "{C7C7D76E-8DB6-497A-9A64-E1DF0B4330F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoreBroker", "src\CoreBroker\WinWidgetBoard.CoreBroker.csproj", "{4B9B4940-7870-48D6-935C-3467893047DA}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "LauncherHost", "src\LauncherHost\WinWidgetBoard.LauncherHost.vcxproj", "{D8741475-8CC9-40FA-84F7-1676C78343F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkspacePanel", "src\WorkspacePanel\WinWidgetBoard.WorkspacePanel.csproj", "{2507A2C8-C72D-46A4-B8BD-C5BBE949DD67}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "tests\UnitTests\WinWidgetBoard.UnitTests.csproj", "{9376C6A3-6681-46AC-9225-131E082D4C7C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F07F1758-31B6-4A60-B4FA-DA68D94AD55C}.Debug|x64.ActiveCfg = Debug|x64
+		{F07F1758-31B6-4A60-B4FA-DA68D94AD55C}.Debug|x64.Build.0 = Debug|x64
+		{F07F1758-31B6-4A60-B4FA-DA68D94AD55C}.Release|x64.ActiveCfg = Release|x64
+		{F07F1758-31B6-4A60-B4FA-DA68D94AD55C}.Release|x64.Build.0 = Release|x64
+		{C7C7D76E-8DB6-497A-9A64-E1DF0B4330F0}.Debug|x64.ActiveCfg = Debug|x64
+		{C7C7D76E-8DB6-497A-9A64-E1DF0B4330F0}.Debug|x64.Build.0 = Debug|x64
+		{C7C7D76E-8DB6-497A-9A64-E1DF0B4330F0}.Release|x64.ActiveCfg = Release|x64
+		{C7C7D76E-8DB6-497A-9A64-E1DF0B4330F0}.Release|x64.Build.0 = Release|x64
+		{4B9B4940-7870-48D6-935C-3467893047DA}.Debug|x64.ActiveCfg = Debug|x64
+		{4B9B4940-7870-48D6-935C-3467893047DA}.Debug|x64.Build.0 = Debug|x64
+		{4B9B4940-7870-48D6-935C-3467893047DA}.Release|x64.ActiveCfg = Release|x64
+		{4B9B4940-7870-48D6-935C-3467893047DA}.Release|x64.Build.0 = Release|x64
+		{D8741475-8CC9-40FA-84F7-1676C78343F4}.Debug|x64.ActiveCfg = Debug|x64
+		{D8741475-8CC9-40FA-84F7-1676C78343F4}.Debug|x64.Build.0 = Debug|x64
+		{D8741475-8CC9-40FA-84F7-1676C78343F4}.Release|x64.ActiveCfg = Release|x64
+		{D8741475-8CC9-40FA-84F7-1676C78343F4}.Release|x64.Build.0 = Release|x64
+		{2507A2C8-C72D-46A4-B8BD-C5BBE949DD67}.Debug|x64.ActiveCfg = Debug|x64
+		{2507A2C8-C72D-46A4-B8BD-C5BBE949DD67}.Debug|x64.Build.0 = Debug|x64
+		{2507A2C8-C72D-46A4-B8BD-C5BBE949DD67}.Release|x64.ActiveCfg = Release|x64
+		{2507A2C8-C72D-46A4-B8BD-C5BBE949DD67}.Release|x64.Build.0 = Release|x64
+		{9376C6A3-6681-46AC-9225-131E082D4C7C}.Debug|x64.ActiveCfg = Debug|x64
+		{9376C6A3-6681-46AC-9225-131E082D4C7C}.Debug|x64.Build.0 = Debug|x64
+		{9376C6A3-6681-46AC-9225-131E082D4C7C}.Release|x64.ActiveCfg = Release|x64
+		{9376C6A3-6681-46AC-9225-131E082D4C7C}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1F90ACF4-833C-4BD8-8B46-4C7BF461B1EA}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,406 @@
+<Window
+    x:Class="WinWidgetBoard.WorkspacePanel.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:layout="using:WinWidgetBoard.WorkspacePanel.Layout">
+
+    <Grid>
+        <Grid.Resources>
+        <layout:EditModeVisibilityConverter
+            x:Key="EditModeVisibilityConverter" />
+        <DataTemplate
+            x:Key="NotesCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="360"
+                Padding="16"
+                CornerRadius="16"
+                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <StackPanel Spacing="8">
+                    <Grid
+                        x:Name="DemoNotesCardSurface"
+                        MinHeight="112"
+                        Background="Transparent">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                x:Uid="NotesCardTitle"
+                                Style="{ThemeResource SubtitleTextBlockStyle}" />
+                            <TextBlock
+                                x:Uid="NotesCardBody"
+                                TextWrapping="Wrap"
+                                Opacity="0.72" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Spacing="8">
+                        <TextBox
+                            x:Name="NoteTitleBox"
+                            x:Uid="NoteTitleBox"
+                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                            Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
+                            TextChanged="NoteTitleBox_TextChanged" />
+                        <TextBox
+                            x:Name="NoteBodyBox"
+                            x:Uid="NoteBodyBox"
+                            Height="128"
+                            AcceptsReturn="True"
+                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                            Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
+                            TextChanged="NoteBodyBox_TextChanged"
+                            TextWrapping="Wrap"
+                            VerticalContentAlignment="Top" />
+                        <TextBlock
+                            x:Name="NoteEditorStatusText"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Opacity="0.72"
+                            Text="{x:Bind NoteStatusText, Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button
+                        x:Name="OpenNotesButton"
+                        x:Uid="OpenNotesButton"
+                        HorizontalAlignment="Left"
+                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                        Click="OpenNotesButton_Click" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
+                        <Border
+                            Tag="{x:Bind InstanceId}"
+                            Padding="4"
+                            MinWidth="32"
+                            MinHeight="32"
+                            CornerRadius="4"
+                            Background="Transparent">
+                            <TextBlock
+                                x:Uid="DragCardHandle"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <Button
+                            x:Uid="DecreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="DecreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="IncreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="IncreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="RemoveCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="RemoveCardButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="TimerCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="180"
+                Padding="16"
+                CornerRadius="16"
+                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        x:Uid="TimerCardTitle"
+                        Style="{ThemeResource SubtitleTextBlockStyle}" />
+                    <TextBlock
+                        x:Uid="TimerCardBody"
+                        TextWrapping="Wrap"
+                        Opacity="0.72" />
+                    <Button
+                        x:Uid="StartTimerButton"
+                        HorizontalAlignment="Left"
+                        Click="ShellCommandButton_Click" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
+                        <Border
+                            Tag="{x:Bind InstanceId}"
+                            Padding="4"
+                            MinWidth="32"
+                            MinHeight="32"
+                            CornerRadius="4"
+                            Background="Transparent">
+                            <TextBlock
+                                x:Uid="DragCardHandle"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <Button
+                            x:Uid="DecreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="DecreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="IncreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="IncreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="RemoveCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="RemoveCardButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="TodoCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="180"
+                Padding="16"
+                CornerRadius="16"
+                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        x:Uid="TodoCardTitle"
+                        Style="{ThemeResource SubtitleTextBlockStyle}" />
+                    <TextBlock
+                        x:Uid="TodoCardBody"
+                        TextWrapping="Wrap"
+                        Opacity="0.72" />
+                    <Button
+                        x:Uid="OpenTodoButton"
+                        HorizontalAlignment="Left"
+                        Click="ShellCommandButton_Click" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
+                        <Border
+                            Tag="{x:Bind InstanceId}"
+                            Padding="4"
+                            MinWidth="32"
+                            MinHeight="32"
+                            CornerRadius="4"
+                            Background="Transparent">
+                            <TextBlock
+                                x:Uid="DragCardHandle"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <Button
+                            x:Uid="DecreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="DecreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="IncreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="IncreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="RemoveCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="RemoveCardButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="CalendarCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="180"
+                Padding="16"
+                CornerRadius="16"
+                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        x:Uid="CalendarCardTitle"
+                        Style="{ThemeResource SubtitleTextBlockStyle}" />
+                    <TextBlock
+                        x:Uid="CalendarCardBody"
+                        TextWrapping="Wrap"
+                        Opacity="0.72" />
+                    <Button
+                        x:Uid="OpenCalendarButton"
+                        HorizontalAlignment="Left"
+                        Click="ShellCommandButton_Click" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
+                        <Border
+                            Tag="{x:Bind InstanceId}"
+                            Padding="4"
+                            MinWidth="32"
+                            MinHeight="32"
+                            CornerRadius="4"
+                            Background="Transparent">
+                            <TextBlock
+                                x:Uid="DragCardHandle"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <Button
+                            x:Uid="DecreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="DecreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="IncreaseCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="IncreaseCardSizeButton_Click" />
+                        <Button
+                            x:Uid="RemoveCardButton"
+                            Tag="{x:Bind InstanceId}"
+                            Click="RemoveCardButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <layout:CardSurfaceTemplateSelector
+            x:Key="CardTemplateSelector"
+            NotesTemplate="{StaticResource NotesCardTemplate}"
+            TimerTemplate="{StaticResource TimerCardTemplate}"
+            TodoTemplate="{StaticResource TodoCardTemplate}"
+            CalendarTemplate="{StaticResource CalendarCardTemplate}"
+            DefaultTemplate="{StaticResource TimerCardTemplate}" />
+        </Grid.Resources>
+        <Grid x:Name="RootGrid"
+            IsTabStop="True"
+            KeyDown="RootGrid_KeyDown"
+            Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+            RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform>
+                <CompositeTransform x:Name="PanelMotionTransform" />
+            </Grid.RenderTransform>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border
+            x:Name="HeaderBar"
+            Grid.Row="0"
+            Padding="20,16,20,12"
+            Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        x:Name="GreetingText"
+                        x:Uid="GreetingText"
+                        Style="{ThemeResource TitleTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        automation:AutomationProperties.HeadingLevel="Level1" />
+                    <TextBlock
+                        x:Name="DateText"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Opacity="0.72" />
+                    <TextBlock
+                        x:Name="ContextText"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Opacity="0.62" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    VerticalAlignment="Center">
+                    <TextBox
+                        x:Name="SearchBox"
+                        x:Uid="SearchBox"
+                        Width="180"
+                        MinHeight="36"
+                        VerticalContentAlignment="Center" />
+                    <Button
+                        x:Name="AddCardButton"
+                        x:Uid="AddCardButton"
+                        MinWidth="36"
+                        Click="ShellCommandButton_Click" />
+                    <Button
+                        x:Name="EditLayoutButton"
+                        x:Uid="EditLayoutButton"
+                        MinWidth="36"
+                        Click="EditLayoutButton_Click" />
+                    <Button
+                        x:Name="SettingsButton"
+                        x:Uid="SettingsButton"
+                        MinWidth="36"
+                        Click="ShellCommandButton_Click" />
+                    <Button
+                        x:Name="ClosePanelButton"
+                        x:Uid="ClosePanelButton"
+                        MinWidth="36"
+                        Click="ClosePanelButton_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer
+            x:Name="ContentScrollViewer"
+            Grid.Row="1"
+            Padding="20,8,20,24"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="16">
+                <TextBlock
+                    x:Name="StatusText"
+                    x:Uid="StatusText"
+                    Style="{ThemeResource BodyTextBlockStyle}"
+                    TextWrapping="Wrap" />
+
+                <Grid
+                    x:Name="CardGridHost"
+                    SizeChanged="CardGridHost_SizeChanged">
+                    <controls:ItemsRepeater
+                        x:Name="CardItemsRepeater"
+                        ItemTemplate="{StaticResource CardTemplateSelector}" />
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+        </Grid>
+    </Grid>
+</Window>

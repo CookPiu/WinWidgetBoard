@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>WinWidgetBoard.CoreBroker</AssemblyName>
+    <RootNamespace>WinWidgetBoard.CoreBroker</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CoreBroker.Client\WinWidgetBoard.CoreBroker.Client.csproj" />
+    <ProjectReference Include="..\Contracts\WinWidgetBoard.Contracts.csproj" />
+  </ItemGroup>
+</Project>

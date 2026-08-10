@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows x64 ${{ matrix.configuration }}
+    runs-on: windows-2025-vs2026
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - Debug
+          - Release
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install locked .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore
+        run: msbuild .\WinWidgetBoard.sln /m /t:Restore /p:Platform=x64
+
+      - name: Build
+        run: msbuild .\WinWidgetBoard.sln /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 /p:Restore=false
+
+      - name: Test
+        run: dotnet test .\tests\UnitTests\WinWidgetBoard.UnitTests.csproj --configuration ${{ matrix.configuration }} --no-build --no-restore --property:Platform=x64
+
+      - name: Run executable smoke tests
+        shell: pwsh
+        run: |
+          $configuration = '${{ matrix.configuration }}'
+          $targets = @(
+            ".\artifacts\bin\WinWidgetBoard.LauncherHost\$configuration\x64\WinWidgetBoard.LauncherHost.exe",
+            ".\artifacts\bin\WinWidgetBoard.WorkspacePanel\x64\$configuration\net10.0-windows10.0.26100.0\win-x64\WinWidgetBoard.WorkspacePanel.exe"
+          )
+
+          foreach ($target in $targets) {
+            if (-not (Test-Path -LiteralPath $target)) {
+              throw "Smoke-test executable was not produced: $target"
+            }
+
+            $process = Start-Process `
+              -FilePath $target `
+              -ArgumentList '--smoke-test' `
+              -WindowStyle Hidden `
+              -Wait `
+              -PassThru
+
+            if ($process.ExitCode -ne 0) {
+              throw "Smoke test failed with exit code $($process.ExitCode): $target"
+            }
+          }
