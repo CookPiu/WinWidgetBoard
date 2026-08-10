@@ -36,6 +36,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     private Task<bool>? _loadTask;
     private string _title = string.Empty;
     private string _body = string.Empty;
+    private string _bodyFormat = NotesContract.PlainTextFormat;
     private string? _expectedUpdatedAtUtc;
     private string? _errorCode;
     private NoteEditorStatus _status;
@@ -43,6 +44,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     private bool _isSaving;
     private bool _hasUnsavedChanges;
     private bool _isLoaded;
+    private bool _isMarkdownPreviewVisible;
     private bool _disposed;
     private long _draftVersion;
 
@@ -104,6 +106,39 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         set => UpdateDraftValue(value, isTitle: false);
     }
 
+    public bool IsMarkdown
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return IsMarkdownFormat(_bodyFormat);
+            }
+        }
+    }
+
+    public bool IsMarkdownPreviewVisible
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _isMarkdownPreviewVisible;
+            }
+        }
+    }
+
+    public IReadOnlyList<NoteMarkdownPreviewBlock> MarkdownPreviewBlocks
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return NoteMarkdownPreviewFormatter.Format(_body);
+            }
+        }
+    }
+
     public NoteEditorStatus Status
     {
         get
@@ -111,6 +146,36 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             lock (_gate)
             {
                 return _status;
+            }
+        }
+    }
+
+    public bool CanChangeMarkdownMode
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _noteClient is not null &&
+                    _isLoaded &&
+                    !_isLoading &&
+                    !_isSaving &&
+                    !_disposed;
+            }
+        }
+    }
+
+    public bool CanPreviewMarkdown
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _noteClient is not null &&
+                    _isLoaded &&
+                    IsMarkdownFormat(_bodyFormat) &&
+                    !_isLoading &&
+                    !_disposed;
             }
         }
     }
@@ -291,6 +356,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(IsLoading),
             nameof(Status),
             nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
             nameof(CanLoadNote),
             nameof(CanUndo),
             nameof(CanRedo),
@@ -301,6 +367,79 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     public bool Undo() => TryApplyHistory(_undoHistory, _redoHistory);
 
     public bool Redo() => TryApplyHistory(_redoHistory, _undoHistory);
+
+    public bool SetMarkdownMode(bool enabled)
+    {
+        CancellationTokenSource? previousCancellation;
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                _isLoading ||
+                _isSaving ||
+                _disposed ||
+                IsMarkdownFormat(_bodyFormat) == enabled)
+            {
+                return false;
+            }
+
+            _bodyFormat = enabled
+                ? NotesContract.MarkdownFormat
+                : NotesContract.PlainTextFormat;
+            if (!enabled)
+            {
+                _isMarkdownPreviewVisible = false;
+            }
+
+            _draftVersion++;
+            _hasUnsavedChanges = true;
+            _status = NoteEditorStatus.PendingSave;
+            _errorCode = null;
+            previousCancellation = _pendingSaveCancellation;
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token);
+            _pendingSaveCancellation = cancellation;
+            _pendingSaveTask = RunSaveAsync(
+                _draftVersion,
+                cancellation,
+                skipDebounce: false);
+        }
+
+        previousCancellation?.Cancel();
+        Publish(
+            nameof(IsMarkdown),
+            nameof(IsMarkdownPreviewVisible),
+            nameof(Status),
+            nameof(HasUnsavedChanges),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
+            nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return true;
+    }
+
+    public bool ToggleMarkdownPreview()
+    {
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                !IsMarkdownFormat(_bodyFormat) ||
+                _isLoading ||
+                _disposed)
+            {
+                return false;
+            }
+
+            _isMarkdownPreviewVisible = !_isMarkdownPreviewVisible;
+        }
+
+        Publish(nameof(IsMarkdownPreviewVisible), nameof(CanPreviewMarkdown));
+        return true;
+    }
 
     public void MarkUnavailable(string errorCode = "transport.unavailable")
     {
@@ -316,6 +455,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _isSaving = false;
             _status = NoteEditorStatus.Unavailable;
             _errorCode = errorCode;
+            _bodyFormat = NotesContract.PlainTextFormat;
+            _isMarkdownPreviewVisible = false;
             _undoHistory.Clear();
             _redoHistory.Clear();
         }
@@ -324,7 +465,12 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(IsLoading),
             nameof(IsSaving),
+            nameof(IsMarkdown),
+            nameof(IsMarkdownPreviewVisible),
+            nameof(MarkdownPreviewBlocks),
             nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
             nameof(CanLoadNote),
             nameof(CanUndo),
             nameof(CanRedo),
@@ -369,6 +515,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         Publish(
             nameof(Status),
             nameof(IsSaving),
+            nameof(CanChangeMarkdownMode),
             nameof(CanLoadNote),
             nameof(CanUndo),
             nameof(CanRedo),
@@ -461,11 +608,13 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
 
                 _title = note?.Title ?? string.Empty;
                 _body = note?.Body ?? string.Empty;
+                _bodyFormat = NormalizeBodyFormat(note?.BodyFormat);
                 _expectedUpdatedAtUtc = note?.UpdatedAtUtc;
                 _isLoaded = true;
                 _isLoading = false;
                 _isSaving = false;
                 _hasUnsavedChanges = false;
+                _isMarkdownPreviewVisible = false;
                 _errorCode = null;
                 _status = NoteEditorStatus.Ready;
                 _undoHistory.Clear();
@@ -475,11 +624,16 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             Publish(
                 nameof(Title),
                 nameof(Body),
+                nameof(IsMarkdown),
+                nameof(IsMarkdownPreviewVisible),
+                nameof(MarkdownPreviewBlocks),
                 nameof(Status),
                 nameof(IsLoading),
                 nameof(IsSaving),
                 nameof(HasUnsavedChanges),
                 nameof(CanEdit),
+                nameof(CanChangeMarkdownMode),
+                nameof(CanPreviewMarkdown),
                 nameof(CanLoadNote),
                 nameof(CanUndo),
                 nameof(CanRedo),
@@ -501,14 +655,15 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _errorCode = GetErrorCode(exception);
             }
 
-                Publish(
-                    nameof(Status),
-                    nameof(IsLoading),
-                    nameof(CanEdit),
-                    nameof(CanLoadNote),
-                    nameof(CanUndo),
-                    nameof(CanRedo),
-                    nameof(ErrorCode));
+            Publish(
+                nameof(Status),
+                nameof(IsLoading),
+                nameof(CanEdit),
+                nameof(CanChangeMarkdownMode),
+                nameof(CanLoadNote),
+                nameof(CanUndo),
+                nameof(CanRedo),
+                nameof(ErrorCode));
             return false;
         }
     }
@@ -537,11 +692,13 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _noteId = noteId;
                 _title = note.Title;
                 _body = note.Body;
+                _bodyFormat = NormalizeBodyFormat(note.BodyFormat);
                 _expectedUpdatedAtUtc = note.UpdatedAtUtc;
                 _isLoaded = true;
                 _isLoading = false;
                 _isSaving = false;
                 _hasUnsavedChanges = false;
+                _isMarkdownPreviewVisible = false;
                 _draftVersion++;
                 _errorCode = null;
                 _status = NoteEditorStatus.Ready;
@@ -553,11 +710,16 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 nameof(NoteId),
                 nameof(Title),
                 nameof(Body),
+                nameof(IsMarkdown),
+                nameof(IsMarkdownPreviewVisible),
+                nameof(MarkdownPreviewBlocks),
                 nameof(Status),
                 nameof(IsLoading),
                 nameof(IsSaving),
                 nameof(HasUnsavedChanges),
                 nameof(CanEdit),
+                nameof(CanChangeMarkdownMode),
+                nameof(CanPreviewMarkdown),
                 nameof(CanLoadNote),
                 nameof(CanUndo),
                 nameof(CanRedo),
@@ -593,6 +755,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(IsLoading),
             nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
             nameof(CanLoadNote),
             nameof(CanUndo),
             nameof(CanRedo),
@@ -640,6 +804,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         Publish(
             nameof(Title),
             nameof(Body),
+            nameof(MarkdownPreviewBlocks),
             nameof(Status),
             nameof(HasUnsavedChanges),
             nameof(CanLoadNote),
@@ -704,6 +869,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         previousCancellation?.Cancel();
         Publish(
             propertyName,
+            !isTitle ? nameof(MarkdownPreviewBlocks) : nameof(Title),
             nameof(Status),
             nameof(HasUnsavedChanges),
             nameof(CanLoadNote),
@@ -738,6 +904,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             {
                 string title;
                 string body;
+                string bodyFormat;
                 string noteId;
                 string? expectedUpdatedAtUtc;
                 lock (_gate)
@@ -749,6 +916,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
 
                     title = _title;
                     body = _body;
+                    bodyFormat = _bodyFormat;
                     noteId = _noteId;
                     expectedUpdatedAtUtc = _expectedUpdatedAtUtc;
                     _isSaving = true;
@@ -759,6 +927,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 Publish(
                     nameof(Status),
                     nameof(IsSaving),
+                    nameof(CanChangeMarkdownMode),
                     nameof(CanLoadNote),
                     nameof(CanUndo),
                     nameof(CanRedo),
@@ -772,7 +941,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                         NoteId = noteId,
                         Title = title,
                         Body = body,
-                        BodyFormat = NotesContract.PlainTextFormat,
+                        BodyFormat = bodyFormat,
                         ExpectedUpdatedAtUtc = expectedUpdatedAtUtc,
                     },
                     cancellationSource.Token).ConfigureAwait(false);
@@ -793,6 +962,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     nameof(Status),
                     nameof(IsSaving),
                     nameof(HasUnsavedChanges),
+                    nameof(CanChangeMarkdownMode),
                     nameof(CanLoadNote),
                     nameof(CanUndo),
                     nameof(CanRedo),
@@ -850,6 +1020,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 Publish(
                     nameof(Status),
                     nameof(IsSaving),
+                    nameof(CanChangeMarkdownMode),
                     nameof(CanLoadNote),
                     nameof(CanUndo),
                     nameof(CanRedo),
@@ -893,6 +1064,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(IsLoading),
             nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
             nameof(CanLoadNote),
             nameof(CanUndo),
             nameof(CanRedo),
@@ -926,4 +1098,15 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         IOException => "transport.unavailable",
         _ => "unknown",
     };
+
+    private static bool IsMarkdownFormat(string? bodyFormat) =>
+        string.Equals(
+            bodyFormat,
+            NotesContract.MarkdownFormat,
+            StringComparison.Ordinal);
+
+    private static string NormalizeBodyFormat(string? bodyFormat) =>
+        IsMarkdownFormat(bodyFormat)
+            ? NotesContract.MarkdownFormat
+            : NotesContract.PlainTextFormat;
 }

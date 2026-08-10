@@ -514,6 +514,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             cardRoot = VisualTreeHelper.GetParent(cardRoot);
         }
 
+        if (NoteEditor.IsMarkdownPreviewVisible)
+        {
+            NoteEditor.ToggleMarkdownPreview();
+        }
+
         FindDescendant<TextBox>(cardRoot, "NoteBodyBox")?.Focus(
             FocusState.Programmatic);
     }
@@ -631,6 +636,47 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         {
             StatusText.Text = _resources.GetString("NoteRedoStatus");
         }
+    }
+
+    private void MarkdownModeCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox checkBox)
+        {
+            return;
+        }
+
+        bool enabled = checkBox.IsChecked == true;
+        bool changed = NoteEditor.SetMarkdownMode(enabled);
+        checkBox.IsChecked = NoteEditor.IsMarkdown;
+        StatusText.Text = _resources.GetString(
+            changed
+                ? enabled
+                    ? "NoteMarkdownEnabledStatus"
+                    : "NotePlainTextEnabledStatus"
+                : "NoteMarkdownModeBlockedStatus");
+    }
+
+    private void PreviewNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NoteEditor.CanPreviewMarkdown)
+        {
+            StatusText.Text = _resources.GetString("NoteMarkdownModeBlockedStatus");
+            return;
+        }
+
+        NoteEditor.ToggleMarkdownPreview();
+        StatusText.Text = _resources.GetString("NoteMarkdownPreviewStatus");
+    }
+
+    private void EditMarkdownButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NoteEditor.CanEdit)
+        {
+            return;
+        }
+
+        NoteEditor.ToggleMarkdownPreview();
+        StatusText.Text = _resources.GetString("NoteMarkdownEditStatus");
     }
 
     private void NoteTitleBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1413,7 +1459,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         DependencyObject? current = source;
         while (current is not null && current != dragSurface)
         {
-            if (current is Button or TextBox)
+            if (current is Button or CheckBox or ListView or ScrollViewer or TextBox)
             {
                 return true;
             }

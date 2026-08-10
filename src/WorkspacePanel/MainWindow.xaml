@@ -11,6 +11,106 @@
         <Grid.Resources>
         <layout:EditModeVisibilityConverter
             x:Key="EditModeVisibilityConverter" />
+        <layout:InverseVisibilityConverter
+            x:Key="InverseVisibilityConverter" />
+        <DataTemplate
+            x:Key="NoteMarkdownBlankTemplate"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <Border Height="8" />
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownParagraphTemplate"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <TextBlock
+                Text="{x:Bind Text}"
+                TextWrapping="Wrap" />
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownHeading1Template"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <TextBlock
+                FontSize="22"
+                FontWeight="SemiBold"
+                Text="{x:Bind Text}"
+                TextWrapping="Wrap" />
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownHeading2Template"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <TextBlock
+                FontSize="18"
+                FontWeight="SemiBold"
+                Text="{x:Bind Text}"
+                TextWrapping="Wrap" />
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownHeading3Template"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <TextBlock
+                FontWeight="SemiBold"
+                Text="{x:Bind Text}"
+                TextWrapping="Wrap" />
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownUnorderedListItemTemplate"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <StackPanel
+                Orientation="Horizontal"
+                Spacing="8">
+                <TextBlock
+                    Text="{x:Bind Marker}" />
+                <TextBlock
+                    Text="{x:Bind Text}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownOrderedListItemTemplate"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <StackPanel
+                Orientation="Horizontal"
+                Spacing="8">
+                <TextBlock
+                    Text="{x:Bind Marker}" />
+                <TextBlock
+                    Text="{x:Bind Text}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownQuoteTemplate"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <StackPanel
+                Orientation="Horizontal"
+                Spacing="8">
+                <TextBlock
+                    Opacity="0.72"
+                    Text="{x:Bind Marker}" />
+                <TextBlock
+                    Text="{x:Bind Text}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate
+            x:Key="NoteMarkdownCodeTemplate"
+            x:DataType="notes:NoteMarkdownPreviewBlock">
+            <TextBlock
+                FontFamily="Consolas"
+                Opacity="0.84"
+                Text="{x:Bind Text}"
+                TextWrapping="Wrap" />
+        </DataTemplate>
+        <notes:NoteMarkdownPreviewTemplateSelector
+            x:Key="NoteMarkdownPreviewTemplateSelector"
+            BlankTemplate="{StaticResource NoteMarkdownBlankTemplate}"
+            ParagraphTemplate="{StaticResource NoteMarkdownParagraphTemplate}"
+            Heading1Template="{StaticResource NoteMarkdownHeading1Template}"
+            Heading2Template="{StaticResource NoteMarkdownHeading2Template}"
+            Heading3Template="{StaticResource NoteMarkdownHeading3Template}"
+            UnorderedListItemTemplate="{StaticResource NoteMarkdownUnorderedListItemTemplate}"
+            OrderedListItemTemplate="{StaticResource NoteMarkdownOrderedListItemTemplate}"
+            QuoteTemplate="{StaticResource NoteMarkdownQuoteTemplate}"
+            CodeTemplate="{StaticResource NoteMarkdownCodeTemplate}" />
         <DataTemplate
             x:Key="NotesCardTemplate"
             x:DataType="layout:CardSurfaceItem">
@@ -45,28 +145,75 @@
                         </StackPanel>
                     </Grid>
                     <StackPanel Spacing="8">
-                        <TextBox
-                            x:Name="NoteTitleBox"
-                            x:Uid="NoteTitleBox"
-                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                            Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
-                            TextChanged="NoteTitleBox_TextChanged" />
-                        <TextBox
-                            x:Name="NoteBodyBox"
-                            x:Uid="NoteBodyBox"
-                            Height="128"
-                            AcceptsReturn="True"
-                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                            Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
-                            TextChanged="NoteBodyBox_TextChanged"
-                            TextWrapping="Wrap"
-                            VerticalContentAlignment="Top" />
+                        <StackPanel
+                            x:Name="NoteEditorInputPanel"
+                            Spacing="8"
+                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}">
+                            <TextBox
+                                x:Name="NoteTitleBox"
+                                x:Uid="NoteTitleBox"
+                                IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
+                                TextChanged="NoteTitleBox_TextChanged" />
+                            <TextBox
+                                x:Name="NoteBodyBox"
+                                x:Uid="NoteBodyBox"
+                                Height="128"
+                                AcceptsReturn="True"
+                                IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
+                                TextChanged="NoteBodyBox_TextChanged"
+                                TextWrapping="Wrap"
+                                VerticalContentAlignment="Top" />
+                        </StackPanel>
+                        <Border
+                            x:Name="NoteMarkdownPreviewPanel"
+                            x:Uid="NoteMarkdownPreviewPanel"
+                            Padding="8"
+                            CornerRadius="8"
+                            Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}">
+                            <ListView
+                                x:Name="NoteMarkdownPreviewText"
+                                x:Uid="NoteMarkdownPreviewText"
+                                MaxHeight="180"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                IsItemClickEnabled="False"
+                                IsTabStop="False"
+                                ItemsSource="{x:Bind NoteEditor.MarkdownPreviewBlocks, Mode=OneWay}"
+                                ItemTemplateSelector="{StaticResource NoteMarkdownPreviewTemplateSelector}"
+                                Padding="0"
+                                SelectionMode="None" />
+                        </Border>
                         <TextBlock
                             x:Name="NoteEditorStatusText"
                             Style="{ThemeResource CaptionTextBlockStyle}"
                             Opacity="0.72"
                             Text="{x:Bind NoteStatusText, Mode=OneWay}"
                             TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <CheckBox
+                            x:Name="MarkdownModeCheckBox"
+                            x:Uid="MarkdownModeCheckBox"
+                            IsChecked="{x:Bind NoteEditor.IsMarkdown, Mode=OneWay}"
+                            IsEnabled="{x:Bind NoteEditor.CanChangeMarkdownMode, Mode=OneWay}"
+                            Click="MarkdownModeCheckBox_Click" />
+                        <Button
+                            x:Name="PreviewNoteButton"
+                            x:Uid="PreviewNoteButton"
+                            IsEnabled="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}"
+                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}"
+                            Click="PreviewNoteButton_Click" />
+                        <Button
+                            x:Name="EditMarkdownButton"
+                            x:Uid="EditMarkdownButton"
+                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}"
+                            Click="EditMarkdownButton_Click" />
                     </StackPanel>
                     <StackPanel
                         Orientation="Horizontal"

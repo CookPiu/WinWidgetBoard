@@ -193,6 +193,45 @@
   <data name="NoteRedoStatus" xml:space="preserve">
     <value>Note edit redone.</value>
   </data>
+  <data name="MarkdownModeCheckBox.Content" xml:space="preserve">
+    <value>Markdown</value>
+  </data>
+  <data name="MarkdownModeCheckBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Save this note as Markdown</value>
+  </data>
+  <data name="PreviewNoteButton.Content" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="PreviewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Preview Markdown note</value>
+  </data>
+  <data name="EditMarkdownButton.Content" xml:space="preserve">
+    <value>Edit Markdown</value>
+  </data>
+  <data name="EditMarkdownButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Edit Markdown source</value>
+  </data>
+  <data name="NoteMarkdownPreviewPanel.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Rendered Markdown note</value>
+  </data>
+  <data name="NoteMarkdownPreviewText.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Rendered Markdown content</value>
+  </data>
+  <data name="NoteMarkdownEnabledStatus" xml:space="preserve">
+    <value>Markdown mode enabled; the note will be saved as Markdown.</value>
+  </data>
+  <data name="NotePlainTextEnabledStatus" xml:space="preserve">
+    <value>Plain-text mode enabled.</value>
+  </data>
+  <data name="NoteMarkdownModeBlockedStatus" xml:space="preserve">
+    <value>Markdown mode cannot be changed while the note is unavailable or saving.</value>
+  </data>
+  <data name="NoteMarkdownPreviewStatus" xml:space="preserve">
+    <value>Markdown preview shown.</value>
+  </data>
+  <data name="NoteMarkdownEditStatus" xml:space="preserve">
+    <value>Markdown source editing shown.</value>
+  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>Note title</value>
   </data>
