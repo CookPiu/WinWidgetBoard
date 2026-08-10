@@ -27,6 +27,57 @@ public sealed class NoteRepositoryTests
         Assert.AreEqual("# Hello", loaded.Body);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-027 [NTE-001/AC-005] Note reopens with the last committed state")]
+    public async Task NoteReopensWithLastCommittedState()
+    {
+        string testDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "WinWidgetBoard-NoteRecovery-" + Guid.NewGuid().ToString("N"));
+        string databasePath = Path.Combine(testDirectory, "data.db");
+
+        try
+        {
+            await using (SqliteDatabase database = await SqliteDatabase.OpenAsync(
+                new SqliteDatabaseOptions(databasePath)))
+            {
+                await database.ApplySchemaAsync();
+                var repository = new NoteRepository(database);
+                NoteRecord initial = repository.Create(
+                    "primary-note",
+                    "Initial title",
+                    "Initial body",
+                    NoteBodyFormat.PlainText,
+                    new DateTimeOffset(2026, 8, 10, 1, 2, 3, TimeSpan.Zero));
+
+                repository.Update(
+                    initial.NoteId,
+                    initial.UpdatedAtUtc,
+                    "Committed title",
+                    "Committed body",
+                    NoteBodyFormat.Markdown);
+            }
+
+            await using (SqliteDatabase reopened = await SqliteDatabase.OpenAsync(
+                new SqliteDatabaseOptions(databasePath)))
+            {
+                await reopened.ApplySchemaAsync();
+                NoteRecord? loaded = new NoteRepository(reopened).Get("primary-note");
+
+                Assert.IsNotNull(loaded);
+                Assert.AreEqual("Committed title", loaded.Title);
+                Assert.AreEqual("Committed body", loaded.Body);
+                Assert.AreEqual(NoteBodyFormat.Markdown, loaded.BodyFormat);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, recursive: true);
+            }
+        }
+    }
+
     [TestMethod(DisplayName = "UT-NOTE-002 [NTE-001] Note search escapes LIKE wildcards")]
     public async Task NoteSearchEscapesLikeWildcards()
     {
