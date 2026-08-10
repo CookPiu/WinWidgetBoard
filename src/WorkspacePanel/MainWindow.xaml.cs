@@ -517,6 +517,93 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             created ? "NoteCreatedStatus" : "NoteCreateFailedStatus");
     }
 
+    private async void DeleteCurrentNoteButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (!NoteEditor.CanDelete)
+        {
+            StatusText.Text = _resources.GetString("NoteDeleteBlockedStatus");
+            return;
+        }
+
+        string title = GetNoteDisplayTitle(NoteEditor.Title, NoteEditor.NoteId);
+        if (!await ConfirmNoteDeletionAsync(title))
+        {
+            return;
+        }
+
+        StatusText.Text = _resources.GetString("NoteDeletingStatus");
+        bool deleted = await NoteEditor.DeleteCurrentNoteAsync(
+            CancellationToken.None);
+        if (!deleted)
+        {
+            StatusText.Text = _resources.GetString("NoteDeleteFailedStatus");
+            return;
+        }
+
+        bool refreshed = await RefreshNoteResultsAfterDeleteAsync();
+        if (refreshed)
+        {
+            await LoadFirstListedNoteAsync();
+        }
+
+        StatusText.Text = _resources.GetString(
+            refreshed ? "NoteDeletedStatus" : "NoteDeleteRefreshFailedStatus");
+    }
+
+    private async void DeleteNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button ||
+            button.DataContext is not NoteSearchResult result)
+        {
+            return;
+        }
+
+        if (!NoteEditor.CanLoadNote)
+        {
+            StatusText.Text = _resources.GetString("NoteDeleteBlockedStatus");
+            return;
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            string title = GetNoteDisplayTitle(result.Title, result.NoteId);
+            if (!await ConfirmNoteDeletionAsync(title))
+            {
+                return;
+            }
+
+            bool deletingCurrent = string.Equals(
+                NoteEditor.NoteId,
+                result.NoteId,
+                StringComparison.Ordinal);
+            StatusText.Text = _resources.GetString("NoteDeletingStatus");
+            bool deleted = deletingCurrent
+                ? await NoteEditor.DeleteCurrentNoteAsync(CancellationToken.None)
+                : await NoteSearch.DeleteNoteAsync(result, CancellationToken.None);
+            if (!deleted)
+            {
+                StatusText.Text = _resources.GetString("NoteDeleteFailedStatus");
+                return;
+            }
+
+            bool refreshed = await RefreshNoteResultsAfterDeleteAsync();
+            if (deletingCurrent && refreshed)
+            {
+                await LoadFirstListedNoteAsync();
+            }
+
+            StatusText.Text = _resources.GetString(
+                refreshed ? "NoteDeletedStatus" : "NoteDeleteRefreshFailedStatus");
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
     private void OpenNotesButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not DependencyObject source)
@@ -669,6 +756,62 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             CancellationToken.None);
         StatusText.Text = _resources.GetString(
             loaded ? "NoteLoadedStatus" : "NoteLoadFailedStatus");
+    }
+
+    private async Task<bool> RefreshNoteResultsAfterDeleteAsync()
+    {
+        string query = NoteSearch.Query;
+        bool completed = query.Length == 0
+            ? await NoteSearch.LoadAllAsync(CancellationToken.None)
+            : await NoteSearch.SearchAsync(query, CancellationToken.None);
+        if (!completed || !string.Equals(
+                NoteSearch.Query,
+                query,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        NoteSearchResultsBorder.Visibility = NoteSearch.HasResults
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        return NoteSearch.Status is NoteSearchStatus.Ready or NoteSearchStatus.Empty;
+    }
+
+    private async Task LoadFirstListedNoteAsync()
+    {
+        NoteSearchResult? first = NoteSearch.Results.Count == 0
+            ? null
+            : NoteSearch.Results[0];
+        if (first is not null && NoteEditor.CanLoadNote)
+        {
+            await NoteEditor.LoadNoteAsync(first.NoteId, CancellationToken.None);
+        }
+    }
+
+    private async Task<bool> ConfirmNoteDeletionAsync(string title)
+    {
+        if (RootGrid.XamlRoot is null)
+        {
+            return false;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = _resources.GetString("NoteDeleteDialogTitle"),
+            Content = string.Format(
+                CultureInfo.CurrentCulture,
+                _resources.GetString("NoteDeleteDialogContent"),
+                title),
+            PrimaryButtonText = _resources.GetString("NoteDeleteDialogDeleteButton"),
+            CloseButtonText = _resources.GetString("NoteDeleteDialogCancelButton"),
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = RootGrid.XamlRoot,
+        };
+
+        using IDisposable modalScope = EnterModalScope();
+        ContentDialogResult result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary;
     }
 
     private async void RetryNoteSaveButton_Click(object sender, RoutedEventArgs e)
@@ -988,6 +1131,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         };
         return _resources.GetString(resourceKey);
     }
+
+    private static string GetNoteDisplayTitle(string title, string noteId) =>
+        string.IsNullOrWhiteSpace(title)
+            ? noteId
+            : title.Trim();
 
     private static string ToLayoutSizeId(CardSize size) => size switch
     {

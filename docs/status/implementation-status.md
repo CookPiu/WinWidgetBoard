@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-`M2.2 — 网格布局（M1.0 环境门禁和完整显示器矩阵仍待完成；M1.1～M1.3 当前会话验收已完成，M2.0.1～M2.0.3、M2.1.1～M2.1.6、M2.2.1～M2.2.12、M2.4.1～M2.4.9 已完成当前工作包；便签版本历史、多便签删除/编辑、其他领域 CRUD、剩余布局/卡片业务与活动数据库恢复演练待完成）`
+`M2.2 — 网格布局（M1.0 环境门禁和完整显示器矩阵仍待完成；M1.1～M1.3 当前会话验收已完成，M2.0.1～M2.0.3、M2.1.1～M2.1.6、M2.2.1～M2.2.12、M2.4.1～M2.4.10 已完成代码工作包；M2.4.7～M2.4.10 的真实 UIA 回归、便签版本历史、删除撤销、其他领域 CRUD、剩余布局/卡片业务与活动数据库恢复演练待完成）`
 
 ## 已完成
 
@@ -120,6 +120,7 @@
 - [x] M2.4.7 已为 NTE-001 增加最后一次已提交状态恢复回归：`UT-NOTE-027` 验证文件型 SQLite 关闭重开读取标题、正文和 Markdown 格式，Debug/Release UnitTests 均为 129/129，`scripts/Test-NoteCommittedStateRecovery.ps1` 覆盖真实 WorkspacePanel/CoreBroker 终止后重启读取；不新增历史表、IPC 方法或键盘移动功能；真实桌面恢复 UIA 回归已提供入口但仍待用户验收；
 - [x] M2.4.8 已为 NTE-001 增加“全部”入口和多便签只读列表：`NoteSearchViewModel.LoadAllAsync` 复用 `notes.search("")`，`UT-NOTE-028` 与 `IT-NOTE-001` 覆盖空查询列表结果，结果继续使用草稿保护的安全导航；Debug/Release UnitTests 均为 130/130，Debug 与隔离 Release WorkspacePanel 构建均为 0 警告、0 错误；`scripts/Test-NoteListInteraction.ps1` 已提供真实桌面入口，但 UIA 回归仍待用户验收；不新增创建、删除、历史版本、数据库表、IPC 方法或键盘移动功能；
 - [x] M2.4.9 已为 NTE-001 增加新建便签并安全切换：复用现有 `notes.save` 创建契约生成 `note-*` ID，`UT-NOTE-029/030/031` 覆盖成功创建、revision 为空、未保存草稿拒绝创建和创建失败保留当前便签；Debug/Release UnitTests 均为 133/133，Debug 与隔离 Release WorkspacePanel 构建均为 0 警告、0 错误；`scripts/Test-NoteCreateInteraction.ps1` 已提供真实桌面入口，但 UIA 回归仍待用户验收；不新增删除、历史版本、数据库表、IPC 方法或键盘移动功能；
+- [x] M2.4.10 已为 NTE-001 增加多便签安全编辑与删除：列表结果携带 `UpdatedAtUtc`，当前/非当前便签删除均复用既有 `notes.delete` revision 保护，删除前二次确认，无保存草稿时阻止操作，失败保留内容和列表项，删除当前便签后安全切换剩余第一条；`UT-NOTE-032/033/034/035/036` 覆盖成功、草稿保护和失败保留，Debug UnitTests 138/138，WorkspacePanel Debug 隔离输出构建 0 警告、0 错误；`scripts/Test-NoteDeleteInteraction.ps1` 已提供真实桌面入口，但 UIA 回归仍待用户验收；不新增 IPC 方法、数据库表、版本历史、删除撤销或键盘移动功能；
 - [ ] M2.1 便签完整能力、其他领域 CRUD、M2.2 剩余布局/卡片业务和活动数据库恢复；
 - [ ] CoreBroker 与 IPC。
 - [ ] 内置卡片。
@@ -177,3 +178,4 @@
 37. [x] 已按 [M2.4.7 NTE-001 便签已提交状态恢复回归工作包](../work-packages/M2.4.7-note-committed-state-recovery.md) 增加文件型 SQLite 重开验证和真实进程重启 UIA 入口；下一步运行 `scripts/Test-NoteCommittedStateRecovery.ps1` 完成真实桌面恢复回归，再单独确定便签版本历史或多便签管理的需求契约。
 38. [x] 已按 [M2.4.8 NTE-001 多便签只读列表与安全导航工作包](../work-packages/M2.4.8-note-list-navigation.md) 增加空查询列表、全部入口和现有草稿保护导航；下一步运行 `scripts/Test-NoteListInteraction.ps1` 完成真实桌面列表回归，再单独确定便签版本历史或多便签写操作的需求契约。
 39. [x] 已按 [M2.4.9 NTE-001 新建便签并安全切换工作包](../work-packages/M2.4.9-note-create-switch.md) 增加新建按钮、客户端唯一 ID、创建失败保留当前便签和多便签列表回归入口；下一步运行 `scripts/Test-NoteCreateInteraction.ps1` 完成真实桌面创建回归，再单独确定便签删除/编辑或版本历史的需求契约。
+40. [x] 已按 [M2.4.10 NTE-001 多便签删除与安全编辑工作包](../work-packages/M2.4.10-note-delete-edit.md) 增加删除确认、revision 保护、草稿门禁、当前便签安全切换和列表删除回归入口；下一步运行 `scripts/Test-NoteDeleteInteraction.ps1` 完成真实桌面删除回归，再单独确定便签版本历史或删除撤销的需求契约。

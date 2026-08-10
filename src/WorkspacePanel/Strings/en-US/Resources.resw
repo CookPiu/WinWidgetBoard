@@ -184,6 +184,45 @@
   <data name="NoteCreateFailedStatus" xml:space="preserve">
     <value>Could not create a new note; the current note was kept.</value>
   </data>
+  <data name="DeleteCurrentNoteButton.Content" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="DeleteCurrentNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Delete current note</value>
+  </data>
+  <data name="DeleteNoteButton.Content" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="DeleteNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Delete this note</value>
+  </data>
+  <data name="NoteDeleteDialogTitle" xml:space="preserve">
+    <value>Delete note?</value>
+  </data>
+  <data name="NoteDeleteDialogContent" xml:space="preserve">
+    <value>Delete “{0}”? This action cannot be undone.</value>
+  </data>
+  <data name="NoteDeleteDialogDeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="NoteDeleteDialogCancelButton" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="NoteDeletingStatus" xml:space="preserve">
+    <value>Deleting the note…</value>
+  </data>
+  <data name="NoteDeletedStatus" xml:space="preserve">
+    <value>Note deleted.</value>
+  </data>
+  <data name="NoteDeleteBlockedStatus" xml:space="preserve">
+    <value>Save the current draft before deleting a note.</value>
+  </data>
+  <data name="NoteDeleteFailedStatus" xml:space="preserve">
+    <value>Unable to delete the note; the current content was kept.</value>
+  </data>
+  <data name="NoteDeleteRefreshFailedStatus" xml:space="preserve">
+    <value>Note deleted, but the note list could not be refreshed.</value>
+  </data>
   <data name="CopyNoteButton.Content" xml:space="preserve">
     <value>Copy</value>
   </data>

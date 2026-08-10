@@ -18,7 +18,8 @@ public enum NoteSearchStatus
 public sealed record NoteSearchResult(
     string NoteId,
     string Title,
-    string Preview);
+    string Preview,
+    string UpdatedAtUtc);
 
 public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
@@ -151,6 +152,29 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         return StartQueryAsync(string.Empty, listAll: true, cancellationToken);
+    }
+
+    public Task<bool> DeleteNoteAsync(
+        NoteSearchResult result,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        long queryVersion;
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                _disposed ||
+                _status is NoteSearchStatus.Listing or NoteSearchStatus.Searching)
+            {
+                return Task.FromResult(false);
+            }
+
+            queryVersion = _queryVersion;
+        }
+
+        return DeleteNoteCoreAsync(result, queryVersion, cancellationToken);
     }
 
     private Task<bool> StartQueryAsync(
@@ -330,6 +354,86 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    private async Task<bool> DeleteNoteCoreAsync(
+        NoteSearchResult result,
+        long queryVersion,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            NoteDeleteResponse response = await _noteClient!.DeleteNoteAsync(
+                new NoteDeleteRequest
+                {
+                    ClientOperationId = Guid.NewGuid(),
+                    NoteId = result.NoteId,
+                    ExpectedUpdatedAtUtc = result.UpdatedAtUtc,
+                },
+                cancellationToken).ConfigureAwait(false);
+            if (!response.Deleted)
+            {
+                SetDeleteFailure("resource.not-found", queryVersion);
+                return false;
+            }
+
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+
+                if (queryVersion != _queryVersion)
+                {
+                    return true;
+                }
+
+                _results = _results
+                    .Where(item => !string.Equals(
+                        item.NoteId,
+                        result.NoteId,
+                        StringComparison.Ordinal))
+                    .ToArray();
+                _status = _results.Length == 0
+                    ? NoteSearchStatus.Empty
+                    : NoteSearchStatus.Ready;
+                _errorCode = null;
+            }
+
+            Publish(
+                nameof(Results),
+                nameof(HasResults),
+                nameof(Status),
+                nameof(ErrorCode));
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            SetDeleteFailure("cancelled", queryVersion);
+            return false;
+        }
+        catch (Exception exception)
+        {
+            SetDeleteFailure(GetErrorCode(exception), queryVersion);
+            return false;
+        }
+    }
+
+    private void SetDeleteFailure(string errorCode, long queryVersion)
+    {
+        lock (_gate)
+        {
+            if (_disposed || queryVersion != _queryVersion)
+            {
+                return;
+            }
+
+            _status = NoteSearchStatus.Error;
+            _errorCode = errorCode;
+        }
+
+        Publish(nameof(Status), nameof(ErrorCode));
+    }
+
     private static NoteSearchResult CreateResult(NoteDto note)
     {
         string title = string.IsNullOrWhiteSpace(note.Title)
@@ -346,7 +450,11 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
             preview = preview[..(MaxPreviewLength - 1)] + "…";
         }
 
-        return new NoteSearchResult(note.NoteId, title, preview);
+        return new NoteSearchResult(
+            note.NoteId,
+            title,
+            preview,
+            note.UpdatedAtUtc);
     }
 
     private void Publish(params string[] propertyNames)

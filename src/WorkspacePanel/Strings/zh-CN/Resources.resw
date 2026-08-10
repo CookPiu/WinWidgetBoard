@@ -184,6 +184,45 @@
   <data name="NoteCreateFailedStatus" xml:space="preserve">
     <value>无法创建新便签，当前便签已保留。</value>
   </data>
+  <data name="DeleteCurrentNoteButton.Content" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="DeleteCurrentNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>删除当前便签</value>
+  </data>
+  <data name="DeleteNoteButton.Content" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="DeleteNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>删除此便签</value>
+  </data>
+  <data name="NoteDeleteDialogTitle" xml:space="preserve">
+    <value>删除便签？</value>
+  </data>
+  <data name="NoteDeleteDialogContent" xml:space="preserve">
+    <value>确定删除“{0}”吗？此操作无法撤销。</value>
+  </data>
+  <data name="NoteDeleteDialogDeleteButton" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="NoteDeleteDialogCancelButton" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="NoteDeletingStatus" xml:space="preserve">
+    <value>正在删除便签……</value>
+  </data>
+  <data name="NoteDeletedStatus" xml:space="preserve">
+    <value>便签已删除。</value>
+  </data>
+  <data name="NoteDeleteBlockedStatus" xml:space="preserve">
+    <value>请先保存当前草稿，再删除便签。</value>
+  </data>
+  <data name="NoteDeleteFailedStatus" xml:space="preserve">
+    <value>无法删除便签，当前内容已保留。</value>
+  </data>
+  <data name="NoteDeleteRefreshFailedStatus" xml:space="preserve">
+    <value>便签已删除，但便签列表刷新失败。</value>
+  </data>
   <data name="CopyNoteButton.Content" xml:space="preserve">
     <value>复制</value>
   </data>

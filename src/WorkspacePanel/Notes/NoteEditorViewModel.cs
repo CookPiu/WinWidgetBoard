@@ -247,6 +247,24 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    public bool CanDelete
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _noteClient is not null &&
+                    _isLoaded &&
+                    !_isLoading &&
+                    !_isSaving &&
+                    !_hasUnsavedChanges &&
+                    _pendingSaveTask is null &&
+                    !string.IsNullOrWhiteSpace(_expectedUpdatedAtUtc) &&
+                    !_disposed;
+            }
+        }
+    }
+
     public bool CanUndo
     {
         get
@@ -397,6 +415,52 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(CanRedo),
             nameof(ErrorCode));
         return CreateNoteCoreAsync(noteId, cancellationToken);
+    }
+
+    public Task<bool> DeleteCurrentNoteAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        string noteId;
+        string expectedUpdatedAtUtc;
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                _isLoading ||
+                _isSaving ||
+                _hasUnsavedChanges ||
+                _pendingSaveTask is not null ||
+                string.IsNullOrWhiteSpace(_expectedUpdatedAtUtc) ||
+                _disposed)
+            {
+                return Task.FromResult(false);
+            }
+
+            noteId = _noteId;
+            expectedUpdatedAtUtc = _expectedUpdatedAtUtc;
+            _isLoading = true;
+            _status = NoteEditorStatus.Loading;
+            _errorCode = null;
+        }
+
+        Publish(
+            nameof(Status),
+            nameof(IsLoading),
+            nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
+            nameof(CanLoadNote),
+            nameof(CanDelete),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return DeleteCurrentNoteCoreAsync(
+            noteId,
+            expectedUpdatedAtUtc,
+            cancellationToken);
     }
 
     public bool Undo() => TryApplyHistory(_undoHistory, _redoHistory);
@@ -848,6 +912,86 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    private async Task<bool> DeleteCurrentNoteCoreAsync(
+        string noteId,
+        string expectedUpdatedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        using CancellationTokenSource linkedCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token,
+                cancellationToken);
+        try
+        {
+            NoteDeleteResponse deleted = await _noteClient!.DeleteNoteAsync(
+                new NoteDeleteRequest
+                {
+                    ClientOperationId = Guid.NewGuid(),
+                    NoteId = noteId,
+                    ExpectedUpdatedAtUtc = expectedUpdatedAtUtc,
+                },
+                linkedCancellation.Token).ConfigureAwait(false);
+            if (!deleted.Deleted)
+            {
+                return SetDeleteFailure("resource.not-found");
+            }
+
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+
+                _noteId = DefaultNoteId;
+                _title = string.Empty;
+                _body = string.Empty;
+                _bodyFormat = NotesContract.PlainTextFormat;
+                _expectedUpdatedAtUtc = null;
+                _isLoaded = true;
+                _isLoading = false;
+                _isSaving = false;
+                _hasUnsavedChanges = false;
+                _isMarkdownPreviewVisible = false;
+                _draftVersion++;
+                _errorCode = null;
+                _status = NoteEditorStatus.Ready;
+                _undoHistory.Clear();
+                _redoHistory.Clear();
+            }
+
+            Publish(
+                nameof(NoteId),
+                nameof(Title),
+                nameof(Body),
+                nameof(IsMarkdown),
+                nameof(IsMarkdownPreviewVisible),
+                nameof(MarkdownPreviewBlocks),
+                nameof(Status),
+                nameof(IsLoading),
+                nameof(IsSaving),
+                nameof(HasUnsavedChanges),
+                nameof(CanEdit),
+                nameof(CanChangeMarkdownMode),
+                nameof(CanPreviewMarkdown),
+                nameof(CanLoadNote),
+                nameof(CanDelete),
+                nameof(CanUndo),
+                nameof(CanRedo),
+                nameof(CanRetrySave),
+                nameof(ErrorCode));
+            return true;
+        }
+        catch (OperationCanceledException) when (linkedCancellation.IsCancellationRequested)
+        {
+            return SetDeleteFailure("cancelled");
+        }
+        catch (Exception exception)
+        {
+            return SetDeleteFailure(GetErrorCode(exception));
+        }
+    }
+
     private bool SetCreateFailure(string errorCode)
     {
         lock (_gate)
@@ -871,6 +1015,37 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(CanChangeMarkdownMode),
             nameof(CanPreviewMarkdown),
             nameof(CanLoadNote),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return false;
+    }
+
+    private bool SetDeleteFailure(string errorCode)
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            _isLoading = false;
+            _isSaving = false;
+            _status = NoteEditorStatus.Error;
+            _errorCode = errorCode;
+        }
+
+        Publish(
+            nameof(Status),
+            nameof(IsLoading),
+            nameof(IsSaving),
+            nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
+            nameof(CanLoadNote),
+            nameof(CanDelete),
             nameof(CanUndo),
             nameof(CanRedo),
             nameof(CanRetrySave),
@@ -1223,9 +1398,18 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 return;
             }
 
-            foreach (string propertyName in propertyNames.Distinct(StringComparer.Ordinal))
+            string[] distinctPropertyNames = propertyNames
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            foreach (string propertyName in distinctPropertyNames)
             {
                 handler(this, new PropertyChangedEventArgs(propertyName));
+            }
+
+            if (Array.IndexOf(distinctPropertyNames, nameof(CanLoadNote)) >= 0 &&
+                Array.IndexOf(distinctPropertyNames, nameof(CanDelete)) < 0)
+            {
+                handler(this, new PropertyChangedEventArgs(nameof(CanDelete)));
             }
         });
     }
