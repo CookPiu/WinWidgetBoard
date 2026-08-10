@@ -100,6 +100,15 @@
   <data name="NoteSearchClearedStatus" xml:space="preserve">
     <value>Note search cleared.</value>
   </data>
+  <data name="NoteLoadedStatus" xml:space="preserve">
+    <value>Selected note is open in the editor.</value>
+  </data>
+  <data name="NoteLoadFailedStatus" xml:space="preserve">
+    <value>Could not open the selected note; the current note was kept.</value>
+  </data>
+  <data name="NoteLoadBlockedStatus" xml:space="preserve">
+    <value>Save the current draft before opening another note.</value>
+  </data>
   <data name="AddCardButton.Content" xml:space="preserve">
     <value>Add</value>
   </data>

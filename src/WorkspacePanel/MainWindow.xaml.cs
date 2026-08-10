@@ -588,6 +588,28 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         };
     }
 
+    private async void NoteSearchResultButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string noteId })
+        {
+            return;
+        }
+
+        if (!NoteEditor.CanLoadNote)
+        {
+            StatusText.Text = _resources.GetString("NoteLoadBlockedStatus");
+            return;
+        }
+
+        bool loaded = await NoteEditor.LoadNoteAsync(
+            noteId,
+            CancellationToken.None);
+        StatusText.Text = _resources.GetString(
+            loaded ? "NoteLoadedStatus" : "NoteLoadFailedStatus");
+    }
+
     private async void RetryNoteSaveButton_Click(object sender, RoutedEventArgs e)
     {
         bool saved = await NoteEditor.RetrySaveAsync(CancellationToken.None);

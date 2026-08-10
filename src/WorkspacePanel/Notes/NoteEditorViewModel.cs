@@ -27,7 +27,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     private readonly TimeSpan _autosaveDelay;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
-    private readonly string _noteId;
+    private string _noteId;
     private CancellationTokenSource? _pendingSaveCancellation;
     private Task<bool>? _pendingSaveTask;
     private Task<bool>? _loadTask;
@@ -66,7 +66,16 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string NoteId => _noteId;
+    public string NoteId
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _noteId;
+            }
+        }
+    }
 
     public string Title
     {
@@ -154,6 +163,22 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    public bool CanLoadNote
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _noteClient is not null &&
+                    _isLoaded &&
+                    !_isLoading &&
+                    !_isSaving &&
+                    !_hasUnsavedChanges &&
+                    !_disposed;
+            }
+        }
+    }
+
     public bool CanEdit
     {
         get
@@ -200,6 +225,44 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    public Task<bool> LoadNoteAsync(
+        string noteId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(noteId);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                _isLoading ||
+                _isSaving ||
+                _hasUnsavedChanges ||
+                _disposed)
+            {
+                return Task.FromResult(false);
+            }
+
+            if (string.Equals(_noteId, noteId, StringComparison.Ordinal))
+            {
+                return Task.FromResult(true);
+            }
+
+            _isLoading = true;
+            _status = NoteEditorStatus.Loading;
+            _errorCode = null;
+        }
+
+        Publish(
+            nameof(IsLoading),
+            nameof(Status),
+            nameof(CanEdit),
+            nameof(CanLoadNote),
+            nameof(ErrorCode));
+        return LoadNoteCoreAsync(noteId, cancellationToken);
+    }
+
     public void MarkUnavailable(string errorCode = "transport.unavailable")
     {
         lock (_gate)
@@ -221,6 +284,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(IsLoading),
             nameof(IsSaving),
             nameof(CanEdit),
+            nameof(CanLoadNote),
             nameof(CanRetrySave),
             nameof(ErrorCode));
     }
@@ -262,6 +326,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         Publish(
             nameof(Status),
             nameof(IsSaving),
+            nameof(CanLoadNote),
             nameof(CanRetrySave),
             nameof(ErrorCode));
         return saveTask;
@@ -368,6 +433,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 nameof(IsSaving),
                 nameof(HasUnsavedChanges),
                 nameof(CanEdit),
+                nameof(CanLoadNote),
                 nameof(ErrorCode));
             return true;
         }
@@ -390,9 +456,91 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 nameof(Status),
                 nameof(IsLoading),
                 nameof(CanEdit),
+                nameof(CanLoadNote),
                 nameof(ErrorCode));
             return false;
         }
+    }
+
+    private async Task<bool> LoadNoteCoreAsync(
+        string noteId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            NoteDto? note = await _noteClient!
+                .GetNoteAsync(noteId, cancellationToken)
+                .ConfigureAwait(false);
+            if (note is null)
+            {
+                return SetSelectedNoteLoadFailure("resource.not-found");
+            }
+
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+
+                _noteId = noteId;
+                _title = note.Title;
+                _body = note.Body;
+                _expectedUpdatedAtUtc = note.UpdatedAtUtc;
+                _isLoaded = true;
+                _isLoading = false;
+                _isSaving = false;
+                _hasUnsavedChanges = false;
+                _draftVersion++;
+                _errorCode = null;
+                _status = NoteEditorStatus.Ready;
+            }
+
+            Publish(
+                nameof(NoteId),
+                nameof(Title),
+                nameof(Body),
+                nameof(Status),
+                nameof(IsLoading),
+                nameof(IsSaving),
+                nameof(HasUnsavedChanges),
+                nameof(CanEdit),
+                nameof(CanLoadNote),
+                nameof(CanRetrySave),
+                nameof(ErrorCode));
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return SetSelectedNoteLoadFailure("cancelled");
+        }
+        catch (Exception exception)
+        {
+            return SetSelectedNoteLoadFailure(GetErrorCode(exception));
+        }
+    }
+
+    private bool SetSelectedNoteLoadFailure(string errorCode)
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            _isLoading = false;
+            _status = NoteEditorStatus.Ready;
+            _errorCode = errorCode;
+        }
+
+        Publish(
+            nameof(Status),
+            nameof(IsLoading),
+            nameof(CanEdit),
+            nameof(CanLoadNote),
+            nameof(ErrorCode));
+        return false;
     }
 
     private void UpdateDraftValue(string? value, bool isTitle)
@@ -447,6 +595,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             propertyName,
             nameof(Status),
             nameof(HasUnsavedChanges),
+            nameof(CanLoadNote),
             nameof(CanRetrySave),
             nameof(ErrorCode));
     }
@@ -495,6 +644,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 Publish(
                     nameof(Status),
                     nameof(IsSaving),
+                    nameof(CanLoadNote),
                     nameof(CanRetrySave),
                     nameof(ErrorCode));
 
@@ -526,6 +676,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     nameof(Status),
                     nameof(IsSaving),
                     nameof(HasUnsavedChanges),
+                    nameof(CanLoadNote),
                     nameof(CanRetrySave),
                     nameof(ErrorCode));
                 return true;
@@ -580,6 +731,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 Publish(
                     nameof(Status),
                     nameof(IsSaving),
+                    nameof(CanLoadNote),
                     nameof(CanRetrySave),
                     nameof(ErrorCode));
             }
@@ -609,6 +761,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(IsLoading),
             nameof(CanEdit),
+            nameof(CanLoadNote),
             nameof(CanRetrySave),
             nameof(ErrorCode));
     }

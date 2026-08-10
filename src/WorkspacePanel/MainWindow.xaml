@@ -424,21 +424,28 @@
                         x:Name="NoteSearchResultsList"
                         x:Uid="NoteSearchResultsList"
                         ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
+                        IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
                         IsItemClickEnabled="False"
                         MaxHeight="224"
                         SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="notes:NoteSearchResult">
-                                <StackPanel Spacing="2" Padding="4">
-                                    <TextBlock
-                                        Text="{x:Bind Title}"
-                                        TextTrimming="CharacterEllipsis"
-                                        Style="{ThemeResource SubtitleTextBlockStyle}" />
-                                    <TextBlock
-                                        Text="{x:Bind Preview}"
-                                        TextWrapping="Wrap"
-                                        Opacity="0.72" />
-                                </StackPanel>
+                                <Button
+                                    Tag="{x:Bind NoteId}"
+                                    Click="NoteSearchResultButton_Click"
+                                    HorizontalContentAlignment="Stretch"
+                                    automation:AutomationProperties.Name="{x:Bind Title}">
+                                    <StackPanel Spacing="2" Padding="4">
+                                        <TextBlock
+                                            Text="{x:Bind Title}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Style="{ThemeResource SubtitleTextBlockStyle}" />
+                                        <TextBlock
+                                            Text="{x:Bind Preview}"
+                                            TextWrapping="Wrap"
+                                            Opacity="0.72" />
+                                    </StackPanel>
+                                </Button>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>

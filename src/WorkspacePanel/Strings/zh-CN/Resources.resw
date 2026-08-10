@@ -100,6 +100,15 @@
   <data name="NoteSearchClearedStatus" xml:space="preserve">
     <value>已清除便签搜索。</value>
   </data>
+  <data name="NoteLoadedStatus" xml:space="preserve">
+    <value>已在编辑器中打开所选便签。</value>
+  </data>
+  <data name="NoteLoadFailedStatus" xml:space="preserve">
+    <value>无法打开所选便签，当前便签已保留。</value>
+  </data>
+  <data name="NoteLoadBlockedStatus" xml:space="preserve">
+    <value>请先保存当前草稿，再打开其他便签。</value>
+  </data>
   <data name="AddCardButton.Content" xml:space="preserve">
     <value>添加</value>
   </data>
