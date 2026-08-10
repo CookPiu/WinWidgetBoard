@@ -82,6 +82,12 @@
   <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Search notes</value>
   </data>
+  <data name="ListNotesButton.Content" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Show all saved notes</value>
+  </data>
   <data name="NoteSearchResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Note search results</value>
   </data>
@@ -99,6 +105,18 @@
   </data>
   <data name="NoteSearchClearedStatus" xml:space="preserve">
     <value>Note search cleared.</value>
+  </data>
+  <data name="NoteListLoadingStatus" xml:space="preserve">
+    <value>Loading saved notes…</value>
+  </data>
+  <data name="NoteListResultsStatus" xml:space="preserve">
+    <value>Showing {0} saved notes.</value>
+  </data>
+  <data name="NoteListEmptyStatus" xml:space="preserve">
+    <value>No saved notes yet.</value>
+  </data>
+  <data name="NoteListFailedStatus" xml:space="preserve">
+    <value>Could not load saved notes.</value>
   </data>
   <data name="NoteLoadedStatus" xml:space="preserve">
     <value>Selected note is open in the editor.</value>

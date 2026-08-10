@@ -82,6 +82,12 @@
   <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>搜索便签</value>
   </data>
+  <data name="ListNotesButton.Content" xml:space="preserve">
+    <value>全部</value>
+  </data>
+  <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>显示所有已保存便签</value>
+  </data>
   <data name="NoteSearchResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>便签搜索结果</value>
   </data>
@@ -99,6 +105,18 @@
   </data>
   <data name="NoteSearchClearedStatus" xml:space="preserve">
     <value>已清除便签搜索。</value>
+  </data>
+  <data name="NoteListLoadingStatus" xml:space="preserve">
+    <value>正在加载已保存便签……</value>
+  </data>
+  <data name="NoteListResultsStatus" xml:space="preserve">
+    <value>正在显示 {0} 条已保存便签。</value>
+  </data>
+  <data name="NoteListEmptyStatus" xml:space="preserve">
+    <value>还没有已保存的便签。</value>
+  </data>
+  <data name="NoteListFailedStatus" xml:space="preserve">
+    <value>无法加载已保存便签。</value>
   </data>
   <data name="NoteLoadedStatus" xml:space="preserve">
     <value>已在编辑器中打开所选便签。</value>

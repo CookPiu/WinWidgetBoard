@@ -8,6 +8,7 @@ public enum NoteSearchStatus
 {
     Unavailable,
     Idle,
+    Listing,
     Searching,
     Ready,
     Empty,
@@ -97,7 +98,7 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             lock (_gate)
             {
-                return _status == NoteSearchStatus.Searching;
+                return _status is NoteSearchStatus.Listing or NoteSearchStatus.Searching;
             }
         }
     }
@@ -142,6 +143,21 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         string normalizedQuery = query?.Trim() ?? string.Empty;
+        return StartQueryAsync(normalizedQuery, listAll: false, cancellationToken);
+    }
+
+    public Task<bool> LoadAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return StartQueryAsync(string.Empty, listAll: true, cancellationToken);
+    }
+
+    private Task<bool> StartQueryAsync(
+        string normalizedQuery,
+        bool listAll,
+        CancellationToken cancellationToken)
+    {
         CancellationTokenSource? previousCancellation;
         Task<bool> task;
         lock (_gate)
@@ -154,7 +170,7 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
             _searchCancellation = null;
             _searchTask = null;
 
-            if (normalizedQuery.Length == 0)
+            if (normalizedQuery.Length == 0 && !listAll)
             {
                 _status = _noteClient is null
                     ? NoteSearchStatus.Unavailable
@@ -172,7 +188,9 @@ public sealed class NoteSearchViewModel : INotifyPropertyChanged, IAsyncDisposab
                     _lifetimeCancellation.Token,
                     cancellationToken);
                 _searchCancellation = cancellation;
-                _status = NoteSearchStatus.Searching;
+                _status = listAll
+                    ? NoteSearchStatus.Listing
+                    : NoteSearchStatus.Searching;
                 long version = _queryVersion;
                 task = RunSearchAsync(normalizedQuery, version, cancellation);
                 _searchTask = task;

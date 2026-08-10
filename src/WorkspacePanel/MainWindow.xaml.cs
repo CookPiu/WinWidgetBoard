@@ -76,6 +76,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private CardPlacement? _dragStartPlacement;
     private int _layoutRevision;
     private bool _isSavingLayout;
+    private bool _suppressNoteSearchTextChanged;
     private long _lastMotionTimestamp;
 
     public MainWindow(
@@ -551,9 +552,49 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    private async void ListNotesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NoteSearch.CanSearch)
+        {
+            return;
+        }
+
+        _suppressNoteSearchTextChanged = true;
+        try
+        {
+            SearchBox.Text = string.Empty;
+        }
+        finally
+        {
+            _suppressNoteSearchTextChanged = false;
+        }
+
+        NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+        StatusText.Text = _resources.GetString("NoteListLoadingStatus");
+        bool completed = await NoteSearch.LoadAllAsync(CancellationToken.None);
+        if (!completed || NoteSearch.Query.Length != 0)
+        {
+            return;
+        }
+
+        NoteSearchResultsBorder.Visibility = NoteSearch.HasResults
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        StatusText.Text = NoteSearch.Status switch
+        {
+            NoteSearchStatus.Ready => string.Format(
+                CultureInfo.CurrentCulture,
+                _resources.GetString("NoteListResultsStatus"),
+                NoteSearch.Results.Count),
+            NoteSearchStatus.Empty => _resources.GetString("NoteListEmptyStatus"),
+            NoteSearchStatus.Error => _resources.GetString("NoteListFailedStatus"),
+            _ => StatusText.Text,
+        };
+    }
+
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (sender is not TextBox textBox)
+        if (_suppressNoteSearchTextChanged || sender is not TextBox textBox)
         {
             return;
         }

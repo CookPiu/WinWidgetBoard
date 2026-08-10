@@ -116,6 +116,18 @@ public sealed class NoteIpcTests
             Assert.AreEqual(1, searchPayload.Notes.Count);
             Assert.AreEqual("latest body", searchPayload.Notes[0].Body);
 
+            Envelope list = await client.SendAsync(
+                CreateRequest(
+                    NotesContract.SearchMethod,
+                    new NoteSearchRequest { Query = string.Empty }),
+                CancellationToken.None);
+            Assert.IsNull(list.Error);
+            NoteSearchResponse listPayload = list.Payload.Deserialize<NoteSearchResponse>(
+                ContractJson.Options)!;
+            Assert.AreEqual(1, listPayload.Notes.Count);
+            Assert.AreEqual("note-1", listPayload.Notes[0].NoteId);
+            Assert.AreEqual("latest body", listPayload.Notes[0].Body);
+
             Guid deleteOperationId = Guid.NewGuid();
             var deleteRequest = new NoteDeleteRequest
             {

@@ -537,6 +537,12 @@
                             TextChanged="SearchBox_TextChanged"
                             VerticalContentAlignment="Center" />
                         <Button
+                            x:Name="ListNotesButton"
+                            x:Uid="ListNotesButton"
+                            IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
+                            MinWidth="36"
+                            Click="ListNotesButton_Click" />
+                        <Button
                             x:Name="AddCardButton"
                             x:Uid="AddCardButton"
                             MinWidth="36"

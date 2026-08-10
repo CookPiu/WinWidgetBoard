@@ -37,6 +37,45 @@ public sealed class NoteSearchViewModelTests
         Assert.AreEqual("first line second line", viewModel.Results[0].Preview);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-028 [NTE-001] List loads all saved notes through an empty search query")]
+    public async Task ListLoadsAllSavedNotesThroughEmptySearchQuery()
+    {
+        var fake = new FakeNoteClient
+        {
+            ResultsByQuery =
+            {
+                [string.Empty] =
+                [
+                    new NoteDto
+                    {
+                        NoteId = "primary-note",
+                        Title = "Primary",
+                        Body = "saved body",
+                    },
+                    new NoteDto
+                    {
+                        NoteId = "secondary-note",
+                        Title = "Secondary",
+                        Body = "another body",
+                    },
+                ],
+            },
+        };
+        await using var viewModel = new NoteSearchViewModel(
+            fake,
+            searchDebounce: TimeSpan.FromMilliseconds(10));
+
+        Assert.IsTrue(await viewModel.LoadAllAsync());
+
+        Assert.AreEqual(1, fake.Queries.Count);
+        Assert.AreEqual(string.Empty, fake.Queries[0]);
+        Assert.AreEqual(string.Empty, viewModel.Query);
+        Assert.AreEqual(NoteSearchStatus.Ready, viewModel.Status);
+        Assert.AreEqual(2, viewModel.Results.Count);
+        Assert.AreEqual("primary-note", viewModel.Results[0].NoteId);
+        Assert.AreEqual("Secondary", viewModel.Results[1].Title);
+    }
+
     [TestMethod(DisplayName = "UT-NOTE-015 [NTE-001] Search cancels stale queries and keeps the latest result")]
     public async Task SearchCancelsStaleQueriesAndKeepsLatestResult()
     {
