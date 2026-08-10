@@ -67,12 +67,21 @@
                             Text="{x:Bind NoteStatusText, Mode=OneWay}"
                             TextWrapping="Wrap" />
                     </StackPanel>
-                    <Button
-                        x:Name="OpenNotesButton"
-                        x:Uid="OpenNotesButton"
+                    <StackPanel
+                        Orientation="Horizontal"
                         HorizontalAlignment="Left"
-                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                        Click="OpenNotesButton_Click" />
+                        Spacing="8">
+                        <Button
+                            x:Name="OpenNotesButton"
+                            x:Uid="OpenNotesButton"
+                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                            Click="OpenNotesButton_Click" />
+                        <Button
+                            x:Name="CopyNoteButton"
+                            x:Uid="CopyNoteButton"
+                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                            Click="CopyNoteButton_Click" />
+                    </StackPanel>
                     <StackPanel
                         Orientation="Horizontal"
                         Spacing="8"

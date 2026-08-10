@@ -121,6 +121,21 @@
   <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Focus note editor</value>
   </data>
+  <data name="CopyNoteButton.Content" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="CopyNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Copy note</value>
+  </data>
+  <data name="NoteCopiedStatus" xml:space="preserve">
+    <value>Note copied to the clipboard.</value>
+  </data>
+  <data name="NoteCopyEmptyStatus" xml:space="preserve">
+    <value>The note is empty.</value>
+  </data>
+  <data name="NoteCopyFailedStatus" xml:space="preserve">
+    <value>Could not copy the note to the clipboard.</value>
+  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>Note title</value>
   </data>

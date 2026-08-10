@@ -32,6 +32,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardGridDropTargetCalculator.cs" Link="WorkspacePanel\Layout\CardGridDropTargetCalculator.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardSurfaceItem.cs" Link="WorkspacePanel\Layout\CardSurfaceItem.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutSurfaceViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutSurfaceViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Notes\NoteClipboardFormatter.cs" Link="WorkspacePanel\Notes\NoteClipboardFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteEditorViewModel.cs" Link="WorkspacePanel\Notes\NoteEditorViewModel.cs" />
   </ItemGroup>
 

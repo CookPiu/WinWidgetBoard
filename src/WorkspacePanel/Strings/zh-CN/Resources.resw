@@ -121,6 +121,21 @@
   <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>聚焦便签编辑器</value>
   </data>
+  <data name="CopyNoteButton.Content" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="CopyNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>复制便签</value>
+  </data>
+  <data name="NoteCopiedStatus" xml:space="preserve">
+    <value>便签已复制到剪贴板。</value>
+  </data>
+  <data name="NoteCopyEmptyStatus" xml:space="preserve">
+    <value>便签内容为空。</value>
+  </data>
+  <data name="NoteCopyFailedStatus" xml:space="preserve">
+    <value>无法将便签复制到剪贴板。</value>
+  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>便签标题</value>
   </data>

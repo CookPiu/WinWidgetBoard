@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 using Windows.UI.ViewManagement;
 using WinRT.Interop;
@@ -509,6 +510,34 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         FindDescendant<TextBox>(cardRoot, "NoteBodyBox")?.Focus(
             FocusState.Programmatic);
+    }
+
+    private void CopyNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        string content = NoteClipboardFormatter.Format(
+            NoteEditor.Title,
+            NoteEditor.Body);
+        if (content.Length == 0)
+        {
+            StatusText.Text = _resources.GetString("NoteCopyEmptyStatus");
+            return;
+        }
+
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(content);
+            Clipboard.SetContent(package);
+            Clipboard.Flush();
+            StatusText.Text = _resources.GetString("NoteCopiedStatus");
+        }
+        catch (Exception exception)
+            when (exception is COMException or UnauthorizedAccessException or
+                InvalidOperationException)
+        {
+            Debug.WriteLine($"WorkspacePanel note copy failed: {exception.Message}");
+            StatusText.Text = _resources.GetString("NoteCopyFailedStatus");
+        }
     }
 
     private void NoteTitleBox_TextChanged(object sender, TextChangedEventArgs e)
