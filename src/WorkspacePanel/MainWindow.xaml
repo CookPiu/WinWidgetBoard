@@ -84,7 +84,7 @@
                 Orientation="Horizontal"
                 Spacing="8">
                 <TextBlock
-                    Opacity="0.72"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                     Text="{x:Bind Marker}" />
                 <TextBlock
                     Text="{x:Bind Text}"
@@ -96,7 +96,7 @@
             x:DataType="notes:NoteMarkdownPreviewBlock">
             <TextBlock
                 FontFamily="Consolas"
-                Opacity="0.84"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Text="{x:Bind Text}"
                 TextWrapping="Wrap" />
         </DataTemplate>
@@ -116,9 +116,243 @@
             x:DataType="layout:CardSurfaceItem">
             <Border
                 MinHeight="360"
-                Padding="16"
-                CornerRadius="16"
-                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid
+                        x:Name="DemoNotesCardSurface"
+                        Grid.Row="0"
+                        MinHeight="112"
+                        Background="Transparent">
+                        <StackPanel Spacing="12">
+                            <TextBlock
+                                x:Uid="NotesCardTitle"
+                                Style="{StaticResource WwbCardTitleStyle}" />
+                            <TextBlock
+                                x:Uid="NotesCardBody"
+                                Style="{StaticResource WwbCardBodyStyle}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer
+                        x:Name="NotesCardScrollViewer"
+                        x:Uid="NotesCardScrollViewer"
+                        Grid.Row="1"
+                        Margin="0,4,0,0"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollMode="Disabled"
+                        VerticalScrollBarVisibility="Auto"
+                        VerticalScrollMode="Enabled">
+                        <StackPanel Spacing="12">
+                            <StackPanel
+                                x:Name="NoteEditorInputPanel"
+                                Spacing="8"
+                                Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}">
+                                <TextBox
+                                    x:Name="NoteTitleBox"
+                                    x:Uid="NoteTitleBox"
+                                    Style="{StaticResource WwbNoteTitleTextBoxStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
+                                    TextChanged="NoteTitleBox_TextChanged" />
+                                <TextBox
+                                    x:Name="NoteBodyBox"
+                                    x:Uid="NoteBodyBox"
+                                    Height="128"
+                                    Style="{StaticResource WwbNoteBodyTextBoxStyle}"
+                                    AcceptsReturn="True"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
+                                    TextChanged="NoteBodyBox_TextChanged"
+                                    TextWrapping="Wrap"
+                                    VerticalContentAlignment="Top" />
+                            </StackPanel>
+                            <Border
+                                x:Name="NoteMarkdownPreviewPanel"
+                                x:Uid="NoteMarkdownPreviewPanel"
+                                Style="{StaticResource WwbSecondarySurfaceStyle}"
+                                Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}">
+                                <ListView
+                                    x:Name="NoteMarkdownPreviewText"
+                                    x:Uid="NoteMarkdownPreviewText"
+                                    MaxHeight="180"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    IsItemClickEnabled="False"
+                                    IsTabStop="False"
+                                    ItemsSource="{x:Bind NoteEditor.MarkdownPreviewBlocks, Mode=OneWay}"
+                                    ItemTemplateSelector="{StaticResource NoteMarkdownPreviewTemplateSelector}"
+                                    Padding="0"
+                                    SelectionMode="None" />
+                            </Border>
+                            <TextBlock
+                                x:Name="NoteEditorStatusText"
+                                Style="{StaticResource WwbCardCaptionStyle}"
+                                Text="{x:Bind NoteStatusText, Mode=OneWay}"
+                                TextWrapping="Wrap" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox
+                                    x:Name="MarkdownModeCheckBox"
+                                    x:Uid="MarkdownModeCheckBox"
+                                    Grid.Column="0"
+                                    Style="{StaticResource WwbModeCheckBoxStyle}"
+                                    IsChecked="{x:Bind NoteEditor.IsMarkdown, Mode=OneWay}"
+                                    IsEnabled="{x:Bind NoteEditor.CanChangeMarkdownMode, Mode=OneWay}"
+                                    Click="MarkdownModeCheckBox_Click" />
+                                <Button
+                                    x:Name="PreviewNoteButton"
+                                    x:Uid="PreviewNoteButton"
+                                    Grid.Column="1"
+                                    Style="{StaticResource WwbCardActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}"
+                                    Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}"
+                                    Click="PreviewNoteButton_Click" />
+                                <Button
+                                    x:Name="EditMarkdownButton"
+                                    x:Uid="EditMarkdownButton"
+                                    Grid.Column="2"
+                                    Style="{StaticResource WwbCardActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}"
+                                    Click="EditMarkdownButton_Click" />
+                            </Grid>
+                            <Grid
+                                ColumnSpacing="8"
+                                RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Button
+                                    x:Name="NewNoteButton"
+                                    x:Uid="NewNoteButton"
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                                    Click="NewNoteButton_Click" />
+                                <Button
+                                    x:Name="DeleteCurrentNoteButton"
+                                    x:Uid="DeleteCurrentNoteButton"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                    IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
+                                    Click="DeleteCurrentNoteButton_Click" />
+                                <Button
+                                    x:Name="OpenNotesButton"
+                                    x:Uid="OpenNotesButton"
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    Click="OpenNotesButton_Click" />
+                                <Button
+                                    x:Name="CopyNoteButton"
+                                    x:Uid="CopyNoteButton"
+                                    Grid.Row="0"
+                                    Grid.Column="3"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    Click="CopyNoteButton_Click" />
+                                <Button
+                                    x:Name="RetryNoteSaveButton"
+                                    x:Uid="RetryNoteSaveButton"
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
+                                    Click="RetryNoteSaveButton_Click" />
+                                <Button
+                                    x:Name="UndoNoteButton"
+                                    x:Uid="UndoNoteButton"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
+                                    Click="UndoNoteButton_Click" />
+                                <Button
+                                    x:Name="RedoNoteButton"
+                                    x:Uid="RedoNoteButton"
+                                    Grid.Row="1"
+                                    Grid.Column="2"
+                                    Style="{StaticResource WwbNoteActionButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
+                                    Click="RedoNoteButton_Click" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Border
+                        Grid.Row="2"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Border
+                                Tag="{x:Bind InstanceId}"
+                                Style="{StaticResource WwbDragHandleStyle}">
+                                <TextBlock
+                                    x:Name="NotesCardDragHandle"
+                                    x:Uid="DragCardHandle"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <Button
+                                x:Uid="DecreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="DecreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="IncreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="IncreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="RemoveCardButton"
+                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="RemoveCardButton_Click" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="TimerCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="180"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
                 Tag="{x:Bind InstanceId}"
                 PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
@@ -134,267 +368,59 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid
-                        x:Name="DemoNotesCardSurface"
-                        Grid.Row="0"
-                        MinHeight="112"
-                        Background="Transparent">
-                        <StackPanel Spacing="8">
-                            <TextBlock
-                                x:Uid="NotesCardTitle"
-                                Style="{ThemeResource SubtitleTextBlockStyle}" />
-                            <TextBlock
-                                x:Uid="NotesCardBody"
-                                TextWrapping="Wrap"
-                                Opacity="0.72" />
-                        </StackPanel>
-                    </Grid>
-                    <ScrollViewer
-                        x:Name="NotesCardScrollViewer"
-                        x:Uid="NotesCardScrollViewer"
-                        Grid.Row="1"
-                        HorizontalScrollBarVisibility="Disabled"
-                        HorizontalScrollMode="Disabled"
-                        VerticalScrollBarVisibility="Auto"
-                        VerticalScrollMode="Enabled">
-                        <StackPanel Spacing="8">
-                        <StackPanel
-                            x:Name="NoteEditorInputPanel"
-                            Spacing="8"
-                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}">
-                            <TextBox
-                                x:Name="NoteTitleBox"
-                                x:Uid="NoteTitleBox"
-                                IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                                Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
-                                TextChanged="NoteTitleBox_TextChanged" />
-                            <TextBox
-                                x:Name="NoteBodyBox"
-                                x:Uid="NoteBodyBox"
-                                Height="128"
-                                AcceptsReturn="True"
-                                IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                                Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
-                                TextChanged="NoteBodyBox_TextChanged"
-                                TextWrapping="Wrap"
-                                VerticalContentAlignment="Top" />
-                        </StackPanel>
-                        <Border
-                            x:Name="NoteMarkdownPreviewPanel"
-                            x:Uid="NoteMarkdownPreviewPanel"
-                            Padding="8"
-                            CornerRadius="8"
-                            Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
-                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}">
-                            <ListView
-                                x:Name="NoteMarkdownPreviewText"
-                                x:Uid="NoteMarkdownPreviewText"
-                                MaxHeight="180"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                IsItemClickEnabled="False"
-                                IsTabStop="False"
-                                ItemsSource="{x:Bind NoteEditor.MarkdownPreviewBlocks, Mode=OneWay}"
-                                ItemTemplateSelector="{StaticResource NoteMarkdownPreviewTemplateSelector}"
-                                Padding="0"
-                                SelectionMode="None" />
-                        </Border>
-                        <TextBlock
-                            x:Name="NoteEditorStatusText"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
-                            Opacity="0.72"
-                            Text="{x:Bind NoteStatusText, Mode=OneWay}"
-                            TextWrapping="Wrap" />
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <CheckBox
-                            x:Name="MarkdownModeCheckBox"
-                            x:Uid="MarkdownModeCheckBox"
-                            Grid.Column="0"
-                            IsChecked="{x:Bind NoteEditor.IsMarkdown, Mode=OneWay}"
-                            IsEnabled="{x:Bind NoteEditor.CanChangeMarkdownMode, Mode=OneWay}"
-                            Click="MarkdownModeCheckBox_Click" />
-                        <Button
-                            x:Name="PreviewNoteButton"
-                            x:Uid="PreviewNoteButton"
-                            Grid.Column="1"
-                            IsEnabled="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}"
-                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}"
-                            Click="PreviewNoteButton_Click" />
-                        <Button
-                            x:Name="EditMarkdownButton"
-                            x:Uid="EditMarkdownButton"
-                            Grid.Column="2"
-                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                            Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}"
-                            Click="EditMarkdownButton_Click" />
-                    </Grid>
-                    <Grid
-                        ColumnSpacing="8"
-                        RowSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Button
-                            x:Name="NewNoteButton"
-                            x:Uid="NewNoteButton"
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
-                            Click="NewNoteButton_Click" />
-                        <Button
-                            x:Name="DeleteCurrentNoteButton"
-                            x:Uid="DeleteCurrentNoteButton"
-                            Grid.Row="0"
-                            Grid.Column="1"
-                            IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
-                            Click="DeleteCurrentNoteButton_Click" />
-                        <Button
-                            x:Name="OpenNotesButton"
-                            x:Uid="OpenNotesButton"
-                            Grid.Row="0"
-                            Grid.Column="2"
-                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                            Click="OpenNotesButton_Click" />
-                        <Button
-                            x:Name="CopyNoteButton"
-                            x:Uid="CopyNoteButton"
-                            Grid.Row="0"
-                            Grid.Column="3"
-                            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                            Click="CopyNoteButton_Click" />
-                        <Button
-                            x:Name="RetryNoteSaveButton"
-                            x:Uid="RetryNoteSaveButton"
-                            Grid.Row="1"
-                            Grid.Column="0"
-                            IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
-                            Click="RetryNoteSaveButton_Click" />
-                        <Button
-                            x:Name="UndoNoteButton"
-                            x:Uid="UndoNoteButton"
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
-                            Click="UndoNoteButton_Click" />
-                        <Button
-                            x:Name="RedoNoteButton"
-                            x:Uid="RedoNoteButton"
-                            Grid.Row="1"
-                            Grid.Column="2"
-                            IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
-                            Click="RedoNoteButton_Click" />
-                    </Grid>
-                        </StackPanel>
-                    </ScrollViewer>
-                    <StackPanel
-                        Grid.Row="2"
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
-                        <Border
-                            Tag="{x:Bind InstanceId}"
-                            Padding="4"
-                            MinWidth="32"
-                            MinHeight="32"
-                            CornerRadius="4"
-                            Background="Transparent">
-                            <TextBlock
-                                x:Name="NotesCardDragHandle"
-                                x:Uid="DragCardHandle"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                        </Border>
-                        <Button
-                            x:Uid="DecreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="DecreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="IncreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="IncreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="RemoveCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="RemoveCardButton_Click" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-        </DataTemplate>
-
-        <DataTemplate
-            x:Key="TimerCardTemplate"
-            x:DataType="layout:CardSurfaceItem">
-            <Border
-                MinHeight="180"
-                Padding="16"
-                CornerRadius="16"
-                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
-                RenderTransformOrigin="0.5,0.5"
-                Tag="{x:Bind InstanceId}"
-                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
-                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
-                PointerMoved="DemoNotesCardSurface_PointerMoved"
-                PointerPressed="DemoNotesCardSurface_PointerPressed"
-                PointerReleased="DemoNotesCardSurface_PointerReleased">
-                <Border.RenderTransform>
-                    <CompositeTransform />
-                </Border.RenderTransform>
-                <StackPanel Spacing="8">
                     <TextBlock
                         x:Uid="TimerCardTitle"
-                        Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        Style="{StaticResource WwbCardTitleStyle}" />
                     <TextBlock
                         x:Uid="TimerCardBody"
-                        TextWrapping="Wrap"
-                        Opacity="0.72" />
+                        Grid.Row="1"
+                        VerticalAlignment="Top"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        TextWrapping="Wrap" />
                     <Button
                         x:Uid="StartTimerButton"
+                        Grid.Row="2"
+                        Style="{StaticResource WwbCardActionButtonStyle}"
                         HorizontalAlignment="Left"
                         Click="ShellCommandButton_Click" />
-                    <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
-                        <Border
-                            Tag="{x:Bind InstanceId}"
-                            Padding="4"
-                            MinWidth="32"
-                            MinHeight="32"
-                            CornerRadius="4"
-                            Background="Transparent">
-                            <TextBlock
-                                x:Name="TimerCardDragHandle"
-                                x:Uid="DragCardHandle"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                        </Border>
-                        <Button
-                            x:Uid="DecreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="DecreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="IncreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="IncreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="RemoveCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="RemoveCardButton_Click" />
-                    </StackPanel>
-                </StackPanel>
+                    <Border
+                        Grid.Row="3"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Border
+                                    Tag="{x:Bind InstanceId}"
+                                    Style="{StaticResource WwbDragHandleStyle}">
+                                    <TextBlock
+                                        x:Name="TimerCardDragHandle"
+                                        x:Uid="DragCardHandle"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                                </Border>
+                                <Button
+                                    x:Uid="DecreaseCardButton"
+                                    Style="{StaticResource WwbEditActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="DecreaseCardSizeButton_Click" />
+                                <Button
+                                    x:Uid="IncreaseCardButton"
+                                    Style="{StaticResource WwbEditActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="IncreaseCardSizeButton_Click" />
+                                <Button
+                                    x:Uid="RemoveCardButton"
+                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="RemoveCardButton_Click" />
+                            </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
         </DataTemplate>
 
@@ -403,9 +429,8 @@
             x:DataType="layout:CardSurfaceItem">
             <Border
                 MinHeight="180"
-                Padding="16"
-                CornerRadius="16"
-                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
                 Tag="{x:Bind InstanceId}"
                 PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
@@ -416,49 +441,64 @@
                 <Border.RenderTransform>
                     <CompositeTransform />
                 </Border.RenderTransform>
-                <StackPanel Spacing="8">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <TextBlock
                         x:Uid="TodoCardTitle"
-                        Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        Style="{StaticResource WwbCardTitleStyle}" />
                     <TextBlock
                         x:Uid="TodoCardBody"
-                        TextWrapping="Wrap"
-                        Opacity="0.72" />
+                        Grid.Row="1"
+                        VerticalAlignment="Top"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        TextWrapping="Wrap" />
                     <Button
                         x:Uid="OpenTodoButton"
+                        Grid.Row="2"
+                        Style="{StaticResource WwbCardActionButtonStyle}"
                         HorizontalAlignment="Left"
                         Click="ShellCommandButton_Click" />
-                    <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
-                        <Border
-                            Tag="{x:Bind InstanceId}"
-                            Padding="4"
-                            MinWidth="32"
-                            MinHeight="32"
-                            CornerRadius="4"
-                            Background="Transparent">
-                            <TextBlock
-                                x:Name="TodoCardDragHandle"
-                                x:Uid="DragCardHandle"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                        </Border>
-                        <Button
-                            x:Uid="DecreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="DecreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="IncreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="IncreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="RemoveCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="RemoveCardButton_Click" />
-                    </StackPanel>
-                </StackPanel>
+                    <Border
+                        Grid.Row="3"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Border
+                                    Tag="{x:Bind InstanceId}"
+                                    Style="{StaticResource WwbDragHandleStyle}">
+                                    <TextBlock
+                                        x:Name="TodoCardDragHandle"
+                                        x:Uid="DragCardHandle"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                                </Border>
+                                <Button
+                                    x:Uid="DecreaseCardButton"
+                                    Style="{StaticResource WwbEditActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="DecreaseCardSizeButton_Click" />
+                                <Button
+                                    x:Uid="IncreaseCardButton"
+                                    Style="{StaticResource WwbEditActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="IncreaseCardSizeButton_Click" />
+                                <Button
+                                    x:Uid="RemoveCardButton"
+                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="RemoveCardButton_Click" />
+                            </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
         </DataTemplate>
 
@@ -467,9 +507,8 @@
             x:DataType="layout:CardSurfaceItem">
             <Border
                 MinHeight="180"
-                Padding="16"
-                CornerRadius="16"
-                Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
                 Tag="{x:Bind InstanceId}"
                 PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
@@ -480,49 +519,64 @@
                 <Border.RenderTransform>
                     <CompositeTransform />
                 </Border.RenderTransform>
-                <StackPanel Spacing="8">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <TextBlock
                         x:Uid="CalendarCardTitle"
-                        Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        Style="{StaticResource WwbCardTitleStyle}" />
                     <TextBlock
                         x:Uid="CalendarCardBody"
-                        TextWrapping="Wrap"
-                        Opacity="0.72" />
+                        Grid.Row="1"
+                        VerticalAlignment="Top"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        TextWrapping="Wrap" />
                     <Button
                         x:Uid="OpenCalendarButton"
+                        Grid.Row="2"
+                        Style="{StaticResource WwbCardActionButtonStyle}"
                         HorizontalAlignment="Left"
                         Click="ShellCommandButton_Click" />
-                    <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
-                        <Border
-                            Tag="{x:Bind InstanceId}"
-                            Padding="4"
-                            MinWidth="32"
-                            MinHeight="32"
-                            CornerRadius="4"
-                            Background="Transparent">
-                            <TextBlock
-                                x:Name="CalendarCardDragHandle"
-                                x:Uid="DragCardHandle"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center" />
-                        </Border>
-                        <Button
-                            x:Uid="DecreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="DecreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="IncreaseCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="IncreaseCardSizeButton_Click" />
-                        <Button
-                            x:Uid="RemoveCardButton"
-                            Tag="{x:Bind InstanceId}"
-                            Click="RemoveCardButton_Click" />
-                    </StackPanel>
-                </StackPanel>
+                    <Border
+                        Grid.Row="3"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Border
+                                    Tag="{x:Bind InstanceId}"
+                                    Style="{StaticResource WwbDragHandleStyle}">
+                                    <TextBlock
+                                        x:Name="CalendarCardDragHandle"
+                                        x:Uid="DragCardHandle"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                                </Border>
+                                <Button
+                                    x:Uid="DecreaseCardButton"
+                                    Style="{StaticResource WwbEditActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="DecreaseCardSizeButton_Click" />
+                                <Button
+                                    x:Uid="IncreaseCardButton"
+                                    Style="{StaticResource WwbEditActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="IncreaseCardSizeButton_Click" />
+                                <Button
+                                    x:Uid="RemoveCardButton"
+                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                    Tag="{x:Bind InstanceId}"
+                                    Click="RemoveCardButton_Click" />
+                            </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
         </DataTemplate>
 
@@ -534,181 +588,186 @@
             CalendarTemplate="{StaticResource CalendarCardTemplate}"
             DefaultTemplate="{StaticResource TimerCardTemplate}" />
         </Grid.Resources>
-        <Grid x:Name="RootGrid"
+        <Grid
+            x:Name="RootGrid"
+            Style="{StaticResource WwbPanelRootStyle}"
             IsTabStop="True"
             KeyDown="RootGrid_KeyDown"
-            Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
             RenderTransformOrigin="0.5,0.5">
             <Grid.RenderTransform>
                 <CompositeTransform x:Name="PanelMotionTransform" />
             </Grid.RenderTransform>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <Border
-            x:Name="HeaderBar"
-            Grid.Row="0"
-            Padding="20,16,20,12"
-            Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-            <Grid RowSpacing="8">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid
-                    Grid.Row="0"
-                    ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <Border
+                x:Name="HeaderBar"
+                Grid.Row="0"
+                Style="{StaticResource WwbHeaderSurfaceStyle}">
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <StackPanel Spacing="4">
+                    <StackPanel
+                        Grid.Row="0"
+                        Spacing="2">
                         <TextBlock
                             x:Name="GreetingText"
                             x:Uid="GreetingText"
-                            Style="{ThemeResource TitleTextBlockStyle}"
+                            Style="{StaticResource WwbPanelTitleStyle}"
                             TextWrapping="Wrap"
                             automation:AutomationProperties.HeadingLevel="Level1" />
                         <TextBlock
                             x:Name="DateText"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
-                            Opacity="0.72" />
+                            Style="{StaticResource WwbPanelMetaStyle}" />
                         <TextBlock
                             x:Name="ContextText"
-                            Style="{ThemeResource CaptionTextBlockStyle}"
-                            Opacity="0.62" />
+                            Style="{StaticResource WwbPanelContextStyle}" />
                     </StackPanel>
 
-                    <StackPanel
-                        Grid.Column="1"
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        VerticalAlignment="Center">
+                    <Grid
+                        x:Name="HeaderCommandBar"
+                        Grid.Row="1"
+                        ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <TextBox
                             x:Name="SearchBox"
                             x:Uid="SearchBox"
-                            Width="180"
-                            MinHeight="36"
+                            MinWidth="180"
+                            Style="{StaticResource WwbSearchBoxStyle}"
                             IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
-                            TextChanged="SearchBox_TextChanged"
-                            VerticalContentAlignment="Center" />
-                        <Button
-                            x:Name="ListNotesButton"
-                            x:Uid="ListNotesButton"
-                            IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
-                            MinWidth="36"
-                            Click="ListNotesButton_Click" />
-                        <Button
-                            x:Name="AddCardButton"
-                            x:Uid="AddCardButton"
-                            MinWidth="36"
-                            Click="ShellCommandButton_Click" />
-                        <Button
-                            x:Name="EditLayoutButton"
-                            x:Uid="EditLayoutButton"
-                            MinWidth="36"
-                            Click="EditLayoutButton_Click" />
-                        <Button
-                            x:Name="UndoLayoutButton"
-                            x:Uid="UndoLayoutButton"
-                            MinWidth="36"
-                            Visibility="Collapsed"
-                            Click="UndoLayoutButton_Click" />
-                        <Button
-                            x:Name="RedoLayoutButton"
-                            x:Uid="RedoLayoutButton"
-                            MinWidth="36"
-                            Visibility="Collapsed"
-                            Click="RedoLayoutButton_Click" />
-                        <Button
-                            x:Name="SettingsButton"
-                            x:Uid="SettingsButton"
-                            MinWidth="36"
-                            Click="ShellCommandButton_Click" />
-                        <Button
-                            x:Name="ClosePanelButton"
-                            x:Uid="ClosePanelButton"
-                            MinWidth="36"
-                            Click="ClosePanelButton_Click" />
-                    </StackPanel>
-                </Grid>
-                <Border
-                    x:Name="NoteSearchResultsBorder"
-                    Grid.Row="1"
-                    Padding="8"
-                    CornerRadius="8"
-                    Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
-                    Visibility="Collapsed">
-                    <ListView
-                        x:Name="NoteSearchResultsList"
-                        x:Uid="NoteSearchResultsList"
-                        ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
-                        IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
-                        IsItemClickEnabled="False"
-                        MaxHeight="224"
-                        SelectionMode="None">
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="notes:NoteSearchResult">
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button
-                                        Grid.Column="0"
-                                        Tag="{x:Bind NoteId}"
-                                        Click="NoteSearchResultButton_Click"
-                                        HorizontalContentAlignment="Stretch"
-                                        automation:AutomationProperties.Name="{x:Bind Title}">
-                                        <StackPanel Spacing="2" Padding="4">
-                                            <TextBlock
-                                                Text="{x:Bind Title}"
-                                                TextTrimming="CharacterEllipsis"
-                                                Style="{ThemeResource SubtitleTextBlockStyle}" />
-                                            <TextBlock
-                                                Text="{x:Bind Preview}"
-                                                TextWrapping="Wrap"
-                                                Opacity="0.72" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button
-                                        Grid.Column="1"
-                                        x:Uid="DeleteNoteButton"
-                                        Click="DeleteNoteButton_Click" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Border>
-            </Grid>
-        </Border>
+                            TextChanged="SearchBox_TextChanged" />
+                        <StackPanel
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                            <Button
+                                x:Name="ListNotesButton"
+                                x:Uid="ListNotesButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
+                                Click="ListNotesButton_Click" />
+                            <Button
+                                x:Name="AddCardButton"
+                                x:Uid="AddCardButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                Click="ShellCommandButton_Click" />
+                            <Button
+                                x:Name="EditLayoutButton"
+                                x:Uid="EditLayoutButton"
+                                Style="{StaticResource WwbPrimaryToolbarButtonStyle}"
+                                Click="EditLayoutButton_Click" />
+                            <Button
+                                x:Name="UndoLayoutButton"
+                                x:Uid="UndoLayoutButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                Visibility="Collapsed"
+                                Click="UndoLayoutButton_Click" />
+                            <Button
+                                x:Name="RedoLayoutButton"
+                                x:Uid="RedoLayoutButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                Visibility="Collapsed"
+                                Click="RedoLayoutButton_Click" />
+                            <Button
+                                x:Name="SettingsButton"
+                                x:Uid="SettingsButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                Click="ShellCommandButton_Click" />
+                            <Button
+                                x:Name="ClosePanelButton"
+                                x:Uid="ClosePanelButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                Click="ClosePanelButton_Click" />
+                        </StackPanel>
+                    </Grid>
 
-        <ScrollViewer
-            x:Name="ContentScrollViewer"
-            Grid.Row="1"
-            Padding="20,8,20,24"
-            VerticalScrollBarVisibility="Auto"
-            HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="16">
-                <TextBlock
-                    x:Name="StatusText"
-                    x:Uid="StatusText"
-                    Style="{ThemeResource BodyTextBlockStyle}"
-                    TextWrapping="Wrap" />
-
-                <Grid
-                    x:Name="CardGridHost"
-                    x:Uid="CardGridHost"
-                    SizeChanged="CardGridHost_SizeChanged">
-                    <controls:ItemsRepeater
-                        x:Name="CardItemsRepeater"
-                        ItemTemplate="{StaticResource CardTemplateSelector}" />
+                    <Border
+                        x:Name="NoteSearchResultsBorder"
+                        Grid.Row="2"
+                        Style="{StaticResource WwbSecondarySurfaceStyle}"
+                        Visibility="Collapsed">
+                        <ListView
+                            x:Name="NoteSearchResultsList"
+                            x:Uid="NoteSearchResultsList"
+                            ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
+                            IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                            IsItemClickEnabled="False"
+                            MaxHeight="224"
+                            SelectionMode="None">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="notes:NoteSearchResult">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button
+                                            Grid.Column="0"
+                                            Tag="{x:Bind NoteId}"
+                                            Style="{StaticResource WwbSearchResultButtonStyle}"
+                                            Click="NoteSearchResultButton_Click"
+                                            automation:AutomationProperties.Name="{x:Bind Title}">
+                                            <StackPanel
+                                                Padding="4"
+                                                Spacing="2">
+                                                <TextBlock
+                                                    Text="{x:Bind Title}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    Style="{StaticResource WwbSearchResultTitleStyle}" />
+                                                <TextBlock
+                                                    Text="{x:Bind Preview}"
+                                                    TextWrapping="Wrap"
+                                                    Style="{StaticResource WwbSearchResultPreviewStyle}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button
+                                            Grid.Column="1"
+                                            x:Uid="DeleteNoteButton"
+                                            Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                            Click="DeleteNoteButton_Click" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Border>
                 </Grid>
-            </StackPanel>
-        </ScrollViewer>
+            </Border>
+
+            <ScrollViewer
+                x:Name="ContentScrollViewer"
+                Grid.Row="1"
+                Padding="{StaticResource WwbContentPadding}"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="16">
+                    <Border Style="{StaticResource WwbStatusSurfaceStyle}">
+                        <TextBlock
+                            x:Name="StatusText"
+                            x:Uid="StatusText"
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            TextWrapping="Wrap" />
+                    </Border>
+
+                    <Grid
+                        x:Name="CardGridHost"
+                        x:Uid="CardGridHost"
+                        SizeChanged="CardGridHost_SizeChanged">
+                        <controls:ItemsRepeater
+                            x:Name="CardItemsRepeater"
+                            ItemTemplate="{StaticResource CardTemplateSelector}" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Window>

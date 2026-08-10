@@ -42,11 +42,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\src\WorkspacePanel\App.xaml"
+          Link="TestAssets\App.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\WorkspacePanel\MainWindow.xaml"
           Link="TestAssets\MainWindow.xaml"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\WorkspacePanel\MainWindow.xaml.cs"
           Link="TestAssets\MainWindow.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\WorkspacePanel\Styles\WorkspaceVisualStyles.xaml"
+          Link="TestAssets\Styles\WorkspaceVisualStyles.xaml"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\Run-WinWidgetBoard.ps1"
           Link="TestAssets\Run-WinWidgetBoard.ps1"

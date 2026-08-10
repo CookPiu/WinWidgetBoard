@@ -2,7 +2,8 @@
 param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
-    [string]$PortableDotnetRoot = 'C:\tmp\winwidgetboard-dotnet-10.0.302'
+    [string]$PortableDotnetRoot = 'C:\tmp\winwidgetboard-dotnet-10.0.302',
+    [switch]$SkipKeyboardShortcuts
 )
 
 $ErrorActionPreference = 'Stop'
@@ -189,6 +190,18 @@ function Wait-VisibleElementByAutomationId {
     throw "Visible UI Automation element not found: $AutomationId. Last state: $lastState. Process: $processState. Root: $rootState"
 }
 
+function Assert-ElementHiddenByAutomationId {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$AutomationId
+    )
+
+    $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
+    if ($null -ne $element -and -not $element.Current.IsOffscreen) {
+        throw "UI Automation element must be hidden outside layout edit mode: $AutomationId"
+    }
+}
+
 function Invoke-Element {
     param(
         [System.Windows.Automation.AutomationElement]$Element
@@ -260,9 +273,16 @@ try {
         -Root $window `
         -AutomationId 'EditLayoutButton' `
         -Timeout ([TimeSpan]::FromSeconds(5))
+    Assert-ElementHiddenByAutomationId `
+        -Root $window `
+        -AutomationId 'TimerCardDragHandle'
     Invoke-Element -Element $editButton
     Start-Sleep -Milliseconds 500
 
+    [void](Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'TimerCardDragHandle' `
+        -Timeout ([TimeSpan]::FromSeconds(5)))
     $undoButton = Wait-VisibleElementByAutomationId `
         -Root $window `
         -AutomationId 'UndoLayoutButton' `
@@ -309,6 +329,11 @@ try {
         throw 'Undo/redo state is incorrect after redo.'
     }
 
+    if ($SkipKeyboardShortcuts) {
+        Write-Output 'REAL-HISTORY-PASS mode-visibility+resize+buttons keyboard-skipped'
+        return
+    }
+
     [void][WinWidgetBoardHistoryInput]::BringWindowToTop($windowHandle)
     [void][WinWidgetBoardHistoryInput]::SetForegroundWindow($windowHandle)
     try {
@@ -349,7 +374,7 @@ try {
         throw 'Ctrl+Y did not redo the real layout resize.'
     }
 
-    Write-Output 'REAL-HISTORY-PASS resize+buttons+ctrl-z+ctrl-y'
+    Write-Output 'REAL-HISTORY-PASS mode-visibility+resize+buttons+ctrl-z+ctrl-y'
 }
 finally {
     if ($null -ne $panelProcess -and -not $panelProcess.HasExited) {
