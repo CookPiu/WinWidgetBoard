@@ -81,6 +81,72 @@ public sealed class NoteEditorViewModelTests
         Assert.IsTrue(viewModel.HasUnsavedChanges);
         Assert.AreEqual(NoteEditorStatus.Error, viewModel.Status);
         Assert.AreEqual("transport.unavailable", viewModel.ErrorCode);
+        Assert.IsTrue(viewModel.CanRetrySave);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-012 [NTE-001] Editor retries a failed save with the retained draft")]
+    public async Task EditorRetriesFailedSaveWithRetainedDraft()
+    {
+        var fake = new FakeNoteClient();
+        fake.SaveFailures.Enqueue(new CoreBrokerClientException(
+            NotesContract.SaveMethod,
+            "transport.unavailable",
+            "transient test failure"));
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(20));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        viewModel.Title = "Retry title";
+        viewModel.Body = "Retry body";
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await viewModel.WaitForIdleAsync(timeout.Token);
+
+        Assert.AreEqual(NoteEditorStatus.Error, viewModel.Status);
+        Assert.IsTrue(viewModel.CanRetrySave);
+        Assert.IsTrue(await viewModel.RetrySaveAsync(timeout.Token));
+
+        await viewModel.WaitForIdleAsync(timeout.Token);
+        Assert.AreEqual(2, fake.Saves.Count);
+        Assert.AreEqual("Retry title", fake.Saves[1].Title);
+        Assert.AreEqual("Retry body", fake.Saves[1].Body);
+        Assert.AreEqual(NoteEditorStatus.Saved, viewModel.Status);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+        Assert.IsFalse(viewModel.CanRetrySave);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-013 [NTE-001] Editor keeps retry available after a second save failure")]
+    public async Task EditorKeepsRetryAvailableAfterSecondSaveFailure()
+    {
+        var fake = new FakeNoteClient();
+        fake.SaveFailures.Enqueue(new CoreBrokerClientException(
+            NotesContract.SaveMethod,
+            "transport.unavailable",
+            "first test failure"));
+        fake.SaveFailures.Enqueue(new CoreBrokerClientException(
+            NotesContract.SaveMethod,
+            "transport.timeout",
+            "second test failure"));
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(20));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        viewModel.Body = "draft survives another failure";
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await viewModel.WaitForIdleAsync(timeout.Token);
+        Assert.IsTrue(viewModel.CanRetrySave);
+
+        Assert.IsFalse(await viewModel.RetrySaveAsync(timeout.Token));
+        await viewModel.WaitForIdleAsync(timeout.Token);
+
+        Assert.AreEqual("draft survives another failure", viewModel.Body);
+        Assert.IsTrue(viewModel.HasUnsavedChanges);
+        Assert.AreEqual(NoteEditorStatus.Error, viewModel.Status);
+        Assert.AreEqual("transport.timeout", viewModel.ErrorCode);
+        Assert.IsTrue(viewModel.CanRetrySave);
     }
 
     [TestMethod(DisplayName = "UT-NOTE-009 [NTE-001] Editor leaves loading when CoreBroker is unavailable")]
@@ -104,6 +170,8 @@ public sealed class NoteEditorViewModelTests
         public NoteDto? Existing { get; init; }
 
         public Exception? SaveException { get; init; }
+
+        public Queue<Exception> SaveFailures { get; } = [];
 
         public List<NoteSaveRequest> Saves { get; } = [];
 
@@ -131,6 +199,11 @@ public sealed class NoteEditorViewModelTests
             CancellationToken cancellationToken)
         {
             Saves.Add(request);
+            if (SaveFailures.TryDequeue(out Exception? queuedException))
+            {
+                return Task.FromException<NoteDto>(queuedException);
+            }
+
             if (SaveException is not null)
             {
                 return Task.FromException<NoteDto>(SaveException);

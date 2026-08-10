@@ -81,6 +81,11 @@
                             x:Uid="CopyNoteButton"
                             IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                             Click="CopyNoteButton_Click" />
+                        <Button
+                            x:Name="RetryNoteSaveButton"
+                            x:Uid="RetryNoteSaveButton"
+                            IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
+                            Click="RetryNoteSaveButton_Click" />
                     </StackPanel>
                     <StackPanel
                         Orientation="Horizontal"

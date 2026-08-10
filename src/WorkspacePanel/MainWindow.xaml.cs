@@ -540,6 +540,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    private async void RetryNoteSaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        bool saved = await NoteEditor.RetrySaveAsync(CancellationToken.None);
+        StatusText.Text = _resources.GetString(
+            saved ? "NoteSaveRetrySucceededStatus" : "NoteSaveRetryFailedStatus");
+    }
+
     private void NoteTitleBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (sender is TextBox textBox)

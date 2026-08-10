@@ -29,7 +29,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly string _noteId;
     private CancellationTokenSource? _pendingSaveCancellation;
-    private Task? _pendingSaveTask;
+    private Task<bool>? _pendingSaveTask;
     private Task<bool>? _loadTask;
     private string _title = string.Empty;
     private string _body = string.Empty;
@@ -136,6 +136,24 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    public bool CanRetrySave
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _noteClient is not null &&
+                    _isLoaded &&
+                    _status == NoteEditorStatus.Error &&
+                    _hasUnsavedChanges &&
+                    !_isLoading &&
+                    !_isSaving &&
+                    _pendingSaveTask is null &&
+                    !_disposed;
+            }
+        }
+    }
+
     public bool CanEdit
     {
         get
@@ -203,7 +221,50 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(IsLoading),
             nameof(IsSaving),
             nameof(CanEdit),
+            nameof(CanRetrySave),
             nameof(ErrorCode));
+    }
+
+    public Task<bool> RetrySaveAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        CancellationTokenSource cancellation;
+        Task<bool> saveTask;
+        lock (_gate)
+        {
+            if (_noteClient is null ||
+                !_isLoaded ||
+                _isLoading ||
+                _isSaving ||
+                !_hasUnsavedChanges ||
+                _status != NoteEditorStatus.Error ||
+                _pendingSaveTask is not null ||
+                _disposed)
+            {
+                return Task.FromResult(false);
+            }
+
+            cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                _lifetimeCancellation.Token,
+                cancellationToken);
+            _pendingSaveCancellation = cancellation;
+            _isSaving = true;
+            _status = NoteEditorStatus.Saving;
+            _errorCode = null;
+            saveTask = RunSaveAsync(
+                _draftVersion,
+                cancellation,
+                skipDebounce: true);
+            _pendingSaveTask = saveTask;
+        }
+
+        Publish(
+            nameof(Status),
+            nameof(IsSaving),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return saveTask;
     }
 
     public async Task WaitForIdleAsync(CancellationToken cancellationToken = default)
@@ -338,7 +399,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     {
         value ??= string.Empty;
         CancellationTokenSource? previousCancellation;
-        Task? saveTask = null;
+        Task<bool>? saveTask = null;
         string propertyName;
         lock (_gate)
         {
@@ -377,7 +438,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _lifetimeCancellation.Token);
             _pendingSaveCancellation = cancellation;
             long version = _draftVersion;
-            saveTask = RunAutosaveAsync(version, cancellation);
+            saveTask = RunSaveAsync(version, cancellation, skipDebounce: false);
             _pendingSaveTask = saveTask;
         }
 
@@ -386,16 +447,30 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             propertyName,
             nameof(Status),
             nameof(HasUnsavedChanges),
+            nameof(CanRetrySave),
             nameof(ErrorCode));
     }
 
-    private async Task RunAutosaveAsync(
+    private async Task<bool> RunSaveAsync(
         long version,
-        CancellationTokenSource cancellationSource)
+        CancellationTokenSource cancellationSource,
+        bool skipDebounce)
     {
+        bool publishErrorAfterCleanup = false;
         try
         {
-            await Task.Delay(_autosaveDelay, cancellationSource.Token).ConfigureAwait(false);
+            if (skipDebounce)
+            {
+                // Keep the task asynchronous so the pending-task slot is assigned
+                // before an immediate retry can complete and clean itself up.
+                await Task.Yield();
+            }
+            else
+            {
+                await Task.Delay(_autosaveDelay, cancellationSource.Token)
+                    .ConfigureAwait(false);
+            }
+
             await _saveGate.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
             try
             {
@@ -406,7 +481,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 {
                     if (_disposed || version != _draftVersion)
                     {
-                        return;
+                        return false;
                     }
 
                     title = _title;
@@ -420,6 +495,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 Publish(
                     nameof(Status),
                     nameof(IsSaving),
+                    nameof(CanRetrySave),
                     nameof(ErrorCode));
 
                 NoteDto saved = await _noteClient!.SaveNoteAsync(
@@ -450,7 +526,9 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     nameof(Status),
                     nameof(IsSaving),
                     nameof(HasUnsavedChanges),
+                    nameof(CanRetrySave),
                     nameof(ErrorCode));
+                return true;
             }
             finally
             {
@@ -461,9 +539,12 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             lock (_gate)
             {
-                if (version == _draftVersion)
+                if (version == _draftVersion && !_disposed)
                 {
                     _isSaving = false;
+                    _status = NoteEditorStatus.Error;
+                    _errorCode = "cancelled";
+                    publishErrorAfterCleanup = true;
                 }
             }
         }
@@ -476,41 +557,35 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     _isSaving = false;
                     _status = NoteEditorStatus.Error;
                     _errorCode = GetErrorCode(exception);
+                    publishErrorAfterCleanup = true;
                 }
-            }
-
-            if (version == CurrentDraftVersion)
-            {
-                Publish(
-                    nameof(Status),
-                    nameof(IsSaving),
-                    nameof(ErrorCode));
             }
         }
         finally
         {
+            bool clearedPendingTask = false;
             lock (_gate)
             {
                 if (ReferenceEquals(_pendingSaveCancellation, cancellationSource))
                 {
                     _pendingSaveCancellation = null;
                     _pendingSaveTask = null;
+                    clearedPendingTask = true;
                 }
             }
 
             cancellationSource.Dispose();
-        }
-    }
-
-    private long CurrentDraftVersion
-    {
-        get
-        {
-            lock (_gate)
+            if (publishErrorAfterCleanup && clearedPendingTask)
             {
-                return _draftVersion;
+                Publish(
+                    nameof(Status),
+                    nameof(IsSaving),
+                    nameof(CanRetrySave),
+                    nameof(ErrorCode));
             }
         }
+
+        return false;
     }
 
     private void SetState(
@@ -534,6 +609,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(Status),
             nameof(IsLoading),
             nameof(CanEdit),
+            nameof(CanRetrySave),
             nameof(ErrorCode));
     }
 

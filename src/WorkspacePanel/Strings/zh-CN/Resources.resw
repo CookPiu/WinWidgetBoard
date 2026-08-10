@@ -127,6 +127,12 @@
   <data name="CopyNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>复制便签</value>
   </data>
+  <data name="RetryNoteSaveButton.Content" xml:space="preserve">
+    <value>重试保存</value>
+  </data>
+  <data name="RetryNoteSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>重试保存便签</value>
+  </data>
   <data name="NoteCopiedStatus" xml:space="preserve">
     <value>便签已复制到剪贴板。</value>
   </data>
@@ -135,6 +141,12 @@
   </data>
   <data name="NoteCopyFailedStatus" xml:space="preserve">
     <value>无法将便签复制到剪贴板。</value>
+  </data>
+  <data name="NoteSaveRetrySucceededStatus" xml:space="preserve">
+    <value>便签已保存。</value>
+  </data>
+  <data name="NoteSaveRetryFailedStatus" xml:space="preserve">
+    <value>便签保存失败，当前草稿仍然保留。</value>
   </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>便签标题</value>
