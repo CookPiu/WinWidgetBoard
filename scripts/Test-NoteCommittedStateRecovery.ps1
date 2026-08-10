@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
@@ -48,10 +48,8 @@ foreach ($requiredPath in @($panelPath, $brokerPath, $PortableDotnetRoot)) {
     }
 }
 
-$running = Get-Process -Name @(
-    'WinWidgetBoard.CoreBroker',
-    'WinWidgetBoard.WorkspacePanel'
-) -ErrorAction SilentlyContinue
+$running = Get-Process -Name 'WinWidgetBoard.LauncherHost' `
+    -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     $runningText = ($running | ForEach-Object { '{0}#{1}' -f $_.ProcessName, $_.Id }) -join ', '
     throw "Existing WinWidgetBoard processes detected: $runningText"
@@ -111,7 +109,9 @@ function Wait-VisibleElementByAutomationId {
         [System.Windows.Automation.AutomationElement]$Root,
         [string]$AutomationId,
         [TimeSpan]$Timeout,
-        [switch]$Enabled
+        [switch]$Enabled,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer,
+        [double]$ScrollPercent = 100
     )
 
     $deadline = [DateTime]::UtcNow + $Timeout
@@ -123,6 +123,11 @@ function Wait-VisibleElementByAutomationId {
             return $element
         }
 
+        if ($null -ne $element -and $null -ne $ScrollContainer) {
+            Set-VerticalScrollPercent `
+                -Element $ScrollContainer `
+                -Percent $ScrollPercent
+        }
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
 
@@ -176,13 +181,15 @@ function Wait-ElementValue {
 function Wait-SavedStatus {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
-        [TimeSpan]$Timeout
+        [TimeSpan]$Timeout,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
     )
 
     $element = Wait-VisibleElementByAutomationId `
         -Root $Root `
         -AutomationId 'NoteEditorStatusText' `
-        -Timeout $Timeout
+        -Timeout $Timeout `
+        -ScrollContainer $ScrollContainer
     $deadline = [DateTime]::UtcNow + $Timeout
     $savedMarker = [string]::Concat(
         [char]0x5DF2,
@@ -198,6 +205,36 @@ function Wait-SavedStatus {
     } while ([DateTime]::UtcNow -lt $deadline)
 
     throw "Note editor did not report a completed save. Last status: $text"
+}
+
+function Wait-SaveFailedStatus {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [TimeSpan]$Timeout,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
+    )
+
+    $element = Wait-VisibleElementByAutomationId `
+        -Root $Root `
+        -AutomationId 'NoteEditorStatusText' `
+        -Timeout $Timeout `
+        -ScrollContainer $ScrollContainer
+    $deadline = [DateTime]::UtcNow + $Timeout
+    $failedMarker = -join @(
+        [char]0x4FDD,
+        [char]0x5B58,
+        [char]0x5931,
+        [char]0x8D25)
+    do {
+        $text = Get-ElementText -Element $element
+        if ($text -match ('Save failed|' + [regex]::Escape($failedMarker))) {
+            return $element
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw "Note editor did not report a failed save. Last status: $text"
 }
 
 function Set-TextValue {
@@ -216,18 +253,55 @@ function Set-TextValue {
     ([System.Windows.Automation.ValuePattern]$pattern).SetValue($Value)
 }
 
+function Invoke-Element {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element
+    )
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.InvokePattern]::Pattern,
+            [ref]$pattern)) {
+        throw "InvokePattern unavailable: $($Element.Current.Name)"
+    }
+
+    ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
+}
+
+function Set-VerticalScrollPercent {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element,
+        [double]$Percent
+    )
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ScrollPattern]::Pattern,
+            [ref]$pattern)) {
+        throw "ScrollPattern unavailable: $($Element.Current.Name)"
+    }
+
+    $scroll = [System.Windows.Automation.ScrollPattern]$pattern
+    if ($scroll.Current.VerticallyScrollable) {
+        $scroll.SetScrollPercent(
+            [System.Windows.Automation.ScrollPattern]::NoScroll,
+            $Percent)
+        Start-Sleep -Milliseconds 300
+    }
+}
+
 function Focus-PanelWindow {
     param(
         [System.Windows.Automation.AutomationElement]$Window
     )
 
     $windowHandle = [IntPtr]$Window.Current.NativeWindowHandle
-    $shown = [WinWidgetBoardNoteRecoveryInput]::ShowWindow($windowHandle, 5)
     $zeroHandle = [IntPtr]::Zero
-    if (($windowHandle -eq $zeroHandle) -or (-not $shown)) {
-        throw 'WorkspacePanel could not be shown for UI Automation.'
+    if ($windowHandle -eq $zeroHandle) {
+        throw 'WorkspacePanel returned an invalid native window handle.'
     }
 
+    [void][WinWidgetBoardNoteRecoveryInput]::ShowWindow($windowHandle, 5)
     [void][WinWidgetBoardNoteRecoveryInput]::BringWindowToTop($windowHandle)
     [void][WinWidgetBoardNoteRecoveryInput]::SetActiveWindow($windowHandle)
     $foregroundSet = [WinWidgetBoardNoteRecoveryInput]::SetForegroundWindow($windowHandle)
@@ -239,15 +313,21 @@ function Focus-PanelWindow {
     catch {
     }
 
-    if (-not $foregroundSet -and -not $focusSet) {
-        throw 'WorkspacePanel could not be focused for UI Automation.'
-    }
+    # ValuePattern remains usable for a visible UIA target even when the
+    # foreground lock rejects cross-process keyboard focus.
 }
 
 function Start-TestBroker {
     $process = Start-Process `
         -FilePath $brokerPath `
-        -ArgumentList @('--session-token', $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN) `
+        -ArgumentList @(
+            '--session-token',
+            $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN,
+            '--acceptance-test',
+            '--test-instance-id',
+            [Guid]::NewGuid().ToString('N'),
+            '--data-directory',
+            $testDataRoot) `
         -WindowStyle Hidden `
         -PassThru
     Start-Sleep -Milliseconds 500
@@ -261,6 +341,9 @@ function Start-TestBroker {
 function Start-TestPanel {
     $panelInfo = [Diagnostics.ProcessStartInfo]::new($panelPath)
     $panelInfo.UseShellExecute = $false
+    $acceptanceInstanceId = [Guid]::NewGuid().ToString('N')
+    $panelInfo.Arguments =
+        "--acceptance-test --test-instance-id $acceptanceInstanceId"
     $panelInfo.EnvironmentVariables['DOTNET_ROOT'] = $PortableDotnetRoot
     $panelInfo.EnvironmentVariables['DOTNET_ROOT_X64'] = $PortableDotnetRoot
     $panelInfo.EnvironmentVariables['LOCALAPPDATA'] = $env:LOCALAPPDATA
@@ -343,7 +426,79 @@ try {
         -Expected $committedBody `
         -Timeout ([TimeSpan]::FromSeconds(5)) `
         -Enabled)
-    [void](Wait-SavedStatus -Root $firstWindow -Timeout ([TimeSpan]::FromSeconds(10)))
+    $noteScroll = Wait-VisibleElementByAutomationId `
+        -Root $firstWindow `
+        -AutomationId 'NotesCardScrollViewer' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    [void](Wait-SavedStatus `
+        -Root $firstWindow `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -ScrollContainer $noteScroll)
+
+    $redoBody = 'redo-sentinel-' + [Guid]::NewGuid().ToString('N')
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
+    Set-TextValue -Element $bodyBox -Value $redoBody
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    $undoButton = Wait-VisibleElementByAutomationId `
+        -Root $firstWindow `
+        -AutomationId 'UndoNoteButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5)) `
+        -Enabled `
+        -ScrollContainer $noteScroll
+    Invoke-Element -Element $undoButton
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
+    [void](Wait-ElementValue `
+        -Root $firstWindow `
+        -AutomationId 'NoteBodyBox' `
+        -Expected $committedBody `
+        -Timeout ([TimeSpan]::FromSeconds(5)) `
+        -Enabled)
+
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    $redoButton = Wait-VisibleElementByAutomationId `
+        -Root $firstWindow `
+        -AutomationId 'RedoNoteButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5)) `
+        -Enabled `
+        -ScrollContainer $noteScroll
+    Invoke-Element -Element $redoButton
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
+    [void](Wait-ElementValue `
+        -Root $firstWindow `
+        -AutomationId 'NoteBodyBox' `
+        -Expected $redoBody `
+        -Timeout ([TimeSpan]::FromSeconds(5)) `
+        -Enabled)
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    [void](Wait-SavedStatus `
+        -Root $firstWindow `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -ScrollContainer $noteScroll)
+
+    Stop-TestProcess -Process $brokerProcess
+    $brokerProcess = $null
+    $retriedBody = 'retry-sentinel-' + [Guid]::NewGuid().ToString('N')
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
+    Set-TextValue -Element $bodyBox -Value $retriedBody
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    [void](Wait-SaveFailedStatus `
+        -Root $firstWindow `
+        -Timeout ([TimeSpan]::FromSeconds(15)) `
+        -ScrollContainer $noteScroll)
+    $retryButton = Wait-VisibleElementByAutomationId `
+        -Root $firstWindow `
+        -AutomationId 'RetryNoteSaveButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5)) `
+        -Enabled `
+        -ScrollContainer $noteScroll
+
+    $brokerProcess = Start-TestBroker
+    Invoke-Element -Element $retryButton
+    [void](Wait-SavedStatus `
+        -Root $firstWindow `
+        -Timeout ([TimeSpan]::FromSeconds(15)) `
+        -ScrollContainer $noteScroll)
 
     Stop-TestProcess -Process $panelProcess
     $panelProcess = $null
@@ -365,11 +520,11 @@ try {
     [void](Wait-ElementValue `
         -Root $secondWindow `
         -AutomationId 'NoteBodyBox' `
-        -Expected $committedBody `
+        -Expected $retriedBody `
         -Timeout ([TimeSpan]::FromSeconds(15)) `
         -Enabled)
 
-    Write-Output 'REAL-NOTE-RECOVERY-PASS committed-state-reloaded'
+    Write-Output 'REAL-NOTE-RECOVERY-PASS undo+redo+retry+committed-state-reloaded'
 }
 finally {
     Stop-TestProcess -Process $panelProcess

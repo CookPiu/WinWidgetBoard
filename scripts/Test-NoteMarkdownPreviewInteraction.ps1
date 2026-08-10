@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
@@ -48,10 +48,8 @@ foreach ($requiredPath in @($panelPath, $brokerPath)) {
     }
 }
 
-$running = Get-Process -Name @(
-    'WinWidgetBoard.CoreBroker',
-    'WinWidgetBoard.WorkspacePanel'
-) -ErrorAction SilentlyContinue
+$running = Get-Process -Name 'WinWidgetBoard.LauncherHost' `
+    -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     $runningText = ($running | ForEach-Object { '{0}#{1}' -f $_.ProcessName, $_.Id }) -join ', '
     throw "Existing WinWidgetBoard processes detected: $runningText"
@@ -111,22 +109,30 @@ function Wait-VisibleElementByAutomationId {
         [System.Windows.Automation.AutomationElement]$Root,
         [string]$AutomationId,
         [TimeSpan]$Timeout,
-        [switch]$Enabled
+        [switch]$Enabled,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
     )
 
     $deadline = [DateTime]::UtcNow + $Timeout
+    $lastState = 'not found'
     do {
         $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
-        if ($null -ne $element -and
-            -not $element.Current.IsOffscreen -and
-            (-not $Enabled -or $element.Current.IsEnabled)) {
-            return $element
+        if ($null -ne $element) {
+            $lastState = "offscreen=$($element.Current.IsOffscreen); enabled=$($element.Current.IsEnabled)"
+            if (-not $element.Current.IsOffscreen -and
+                (-not $Enabled -or $element.Current.IsEnabled)) {
+                return $element
+            }
+
+            if ($null -ne $ScrollContainer) {
+                Set-VerticalScrollPercent -Element $ScrollContainer -Percent 100
+            }
         }
 
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
 
-    throw "Visible UI Automation element not found: $AutomationId"
+    throw "Visible UI Automation element not found: $AutomationId. Last state: $lastState"
 }
 
 function Invoke-Element {
@@ -162,6 +168,28 @@ function Set-TextValue {
     }
 
     ([System.Windows.Automation.ValuePattern]$pattern).SetValue($Value)
+}
+
+function Set-VerticalScrollPercent {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element,
+        [double]$Percent
+    )
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ScrollPattern]::Pattern,
+            [ref]$pattern)) {
+        throw "ScrollPattern unavailable: $($Element.Current.Name)"
+    }
+
+    $scroll = [System.Windows.Automation.ScrollPattern]$pattern
+    if ($scroll.Current.VerticallyScrollable) {
+        $scroll.SetScrollPercent(
+            [System.Windows.Automation.ScrollPattern]::NoScroll,
+            $Percent)
+        Start-Sleep -Milliseconds 300
+    }
 }
 
 function Ensure-CheckBoxOn {
@@ -200,7 +228,14 @@ try {
 
     $brokerStartParameters = @{
         FilePath = $brokerPath
-        ArgumentList = @('--session-token', $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN)
+        ArgumentList = @(
+            '--session-token',
+            $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN,
+            '--acceptance-test',
+            '--test-instance-id',
+            [Guid]::NewGuid().ToString('N'),
+            '--data-directory',
+            $testDataRoot)
         WindowStyle = 'Hidden'
         PassThru = $true
     }
@@ -212,6 +247,9 @@ try {
 
     $panelInfo = [Diagnostics.ProcessStartInfo]::new($panelPath)
     $panelInfo.UseShellExecute = $false
+    $acceptanceInstanceId = [Guid]::NewGuid().ToString('N')
+    $panelInfo.Arguments =
+        "--acceptance-test --test-instance-id $acceptanceInstanceId"
     $panelInfo.Environment['DOTNET_ROOT'] = $PortableDotnetRoot
     $panelInfo.Environment['DOTNET_ROOT_X64'] = $PortableDotnetRoot
     $panelInfo.Environment['LOCALAPPDATA'] = $testDataRoot
@@ -220,11 +258,11 @@ try {
     $panelProcess = [Diagnostics.Process]::Start($panelInfo)
     $window = Get-PanelWindow -ProcessId $panelProcess.Id -Timeout ([TimeSpan]::FromSeconds(10))
     $windowHandle = [IntPtr]$window.Current.NativeWindowHandle
-    if ($windowHandle -eq [IntPtr]::Zero -or
-        -not [WinWidgetBoardMarkdownInput]::ShowWindow($windowHandle, 5)) {
-        throw 'WorkspacePanel could not be brought to the foreground for UI Automation.'
+    if ($windowHandle -eq [IntPtr]::Zero) {
+        throw 'WorkspacePanel returned an invalid native window handle.'
     }
 
+    [void][WinWidgetBoardMarkdownInput]::ShowWindow($windowHandle, 5)
     [void][WinWidgetBoardMarkdownInput]::BringWindowToTop($windowHandle)
     [void][WinWidgetBoardMarkdownInput]::SetActiveWindow($windowHandle)
     $foregroundSet = [WinWidgetBoardMarkdownInput]::SetForegroundWindow($windowHandle)
@@ -235,36 +273,52 @@ try {
     }
     catch {
     }
-    if (-not $foregroundSet -and -not $focusSet) {
-        throw 'WorkspacePanel could not be focused for UI Automation.'
-    }
+    # ValuePattern and InvokePattern remain valid when Windows foreground
+    # locking rejects a cross-process SetForegroundWindow request.
 
     $bodyBox = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'NoteBodyBox' -Timeout ([TimeSpan]::FromSeconds(10)) -Enabled
     $markdownBody = '# UI preview' + [Environment]::NewLine + [Environment]::NewLine + '- **item**'
     Set-TextValue -Element $bodyBox -Value $markdownBody
 
-    $markdownCheckBox = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'MarkdownModeCheckBox' -Timeout ([TimeSpan]::FromSeconds(10)) -Enabled
+    $noteScroll = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'NotesCardScrollViewer' -Timeout ([TimeSpan]::FromSeconds(5))
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    $markdownCheckBox = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'MarkdownModeCheckBox' -Timeout ([TimeSpan]::FromSeconds(10)) -Enabled -ScrollContainer $noteScroll
     Ensure-CheckBoxOn -Element $markdownCheckBox
 
-    $previewButton = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'PreviewNoteButton' -Timeout ([TimeSpan]::FromSeconds(10)) -Enabled
+    $previewButton = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'PreviewNoteButton' -Timeout ([TimeSpan]::FromSeconds(10)) -Enabled -ScrollContainer $noteScroll
     Invoke-Element -Element $previewButton
 
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
     [void](Wait-VisibleElementByAutomationId -Root $window -AutomationId 'NoteMarkdownPreviewPanel' -Timeout ([TimeSpan]::FromSeconds(5)))
-    [void](Wait-VisibleElementByAutomationId -Root $window -AutomationId 'EditMarkdownButton' -Timeout ([TimeSpan]::FromSeconds(5)) -Enabled)
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    $editButton = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'EditMarkdownButton' -Timeout ([TimeSpan]::FromSeconds(5)) -Enabled -ScrollContainer $noteScroll
+    Invoke-Element -Element $editButton
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
+    $bodyBox = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'NoteBodyBox' -Timeout ([TimeSpan]::FromSeconds(5)) -Enabled
+    $valuePattern = $bodyBox.GetCurrentPattern(
+        [System.Windows.Automation.ValuePattern]::Pattern)
+    $actualBody = $valuePattern.Current.Value
+    $normalizedExpected = $markdownBody.Replace("`r`n", "`n").Replace("`r", "`n")
+    $normalizedActual = $actualBody.Replace("`r`n", "`n").Replace("`r", "`n")
+    if ($normalizedActual -ne $normalizedExpected) {
+        $expectedDisplay = $markdownBody.Replace("`r", '<CR>').Replace("`n", '<LF>')
+        $actualDisplay = $actualBody.Replace("`r", '<CR>').Replace("`n", '<LF>')
+        throw "Markdown source text changed after preview round trip. Expected '$expectedDisplay'; actual '$actualDisplay'."
+    }
 
-    Write-Output 'REAL-NOTE-MARKDOWN-PASS mode+preview'
+    Write-Output 'REAL-NOTE-MARKDOWN-PASS mode+preview+roundtrip'
 }
 finally {
     if ($null -ne $panelProcess -and -not $panelProcess.HasExited) {
         [void]$panelProcess.CloseMainWindow()
         if (-not $panelProcess.WaitForExit(3000)) {
-            $panelProcess.Kill($true)
+            $panelProcess.Kill()
             [void]$panelProcess.WaitForExit(3000)
         }
     }
 
     if ($null -ne $brokerProcess -and -not $brokerProcess.HasExited) {
-        $brokerProcess.Kill($true)
+        $brokerProcess.Kill()
         [void]$brokerProcess.WaitForExit(3000)
     }
 

@@ -56,6 +56,67 @@ public sealed class CardTemplateDragContractTests
         }
     }
 
+    [TestMethod(DisplayName = "UT-GRID-039 [LYT-003/NFR-A11Y-002] Every card drag handle has a stable unique automation ID")]
+    public void EveryCardDragHandleHasStableUniqueAutomationId()
+    {
+        string xamlPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestAssets",
+            "MainWindow.xaml");
+        XDocument document = XDocument.Load(xamlPath);
+        XNamespace presentation =
+            "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace xaml =
+            "http://schemas.microsoft.com/winfx/2006/xaml";
+        string[] expectedNames = [
+            "NotesCardDragHandle",
+            "TimerCardDragHandle",
+            "TodoCardDragHandle",
+            "CalendarCardDragHandle",
+        ];
+
+        string[] actualNames = document
+            .Descendants(presentation + "TextBlock")
+            .Where(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Uid"),
+                    "DragCardHandle",
+                    StringComparison.Ordinal))
+            .Select(element => (string?)element.Attribute(xaml + "Name"))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Cast<string>()
+            .ToArray();
+
+        CollectionAssert.AreEquivalent(expectedNames, actualNames);
+        Assert.AreEqual(expectedNames.Length, actualNames.Distinct().Count());
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-045 [LYT-001/NFR-A11Y-002] Card grid exposes a stable automation anchor")]
+    public void CardGridExposesStableAutomationAnchor()
+    {
+        string xamlPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestAssets",
+            "MainWindow.xaml");
+        XDocument document = XDocument.Load(xamlPath);
+        XNamespace presentation =
+            "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace xaml =
+            "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        XElement cardGridHost = document
+            .Descendants(presentation + "Grid")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Name"),
+                    "CardGridHost",
+                    StringComparison.Ordinal));
+
+        Assert.AreEqual(
+            "CardGridHost",
+            (string?)cardGridHost.Attribute(xaml + "Uid"));
+    }
+
     [TestMethod(DisplayName = "UT-GRID-029 [LYT-004] Unified entry selects the validated x64 panel artifact")]
     public void UnifiedEntrySelectsValidatedX64PanelArtifact()
     {
@@ -125,6 +186,71 @@ public sealed class CardTemplateDragContractTests
             StringComparison.Ordinal);
         Assert.IsTrue(replaceIndex >= 0);
         Assert.IsTrue(bindIndex > replaceIndex);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-037 [NTE-001/NFR-A11Y-001] Note actions remain reachable inside the fixed card height")]
+    public void NoteActionsRemainReachableInsideFixedCardHeight()
+    {
+        string xamlPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestAssets",
+            "MainWindow.xaml");
+        XDocument document = XDocument.Load(xamlPath);
+        XNamespace presentation =
+            "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace xaml =
+            "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement notesTemplate = document
+            .Descendants(presentation + "DataTemplate")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Key"),
+                    "NotesCardTemplate",
+                    StringComparison.Ordinal));
+        XElement scrollViewer = notesTemplate
+            .Descendants(presentation + "ScrollViewer")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Name"),
+                    "NotesCardScrollViewer",
+                    StringComparison.Ordinal));
+
+        Assert.AreEqual(
+            "Enabled",
+            (string?)scrollViewer.Attribute("VerticalScrollMode"));
+        Assert.AreEqual(
+            "Disabled",
+            (string?)scrollViewer.Attribute("HorizontalScrollMode"));
+
+        string[] reachableActions = [
+            "MarkdownModeCheckBox",
+            "PreviewNoteButton",
+            "NewNoteButton",
+            "DeleteCurrentNoteButton",
+            "CopyNoteButton",
+            "RetryNoteSaveButton",
+            "UndoNoteButton",
+            "RedoNoteButton",
+        ];
+        foreach (string actionName in reachableActions)
+        {
+            Assert.IsNotNull(scrollViewer
+                .Descendants()
+                .SingleOrDefault(element =>
+                    string.Equals(
+                        (string?)element.Attribute(xaml + "Name"),
+                        actionName,
+                        StringComparison.Ordinal)));
+        }
+
+        XElement dragSurface = notesTemplate
+            .Descendants(presentation + "Grid")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Name"),
+                    "DemoNotesCardSurface",
+                    StringComparison.Ordinal));
+        Assert.IsFalse(dragSurface.Ancestors().Contains(scrollViewer));
     }
 
     private static string LoadMainWindowCodeBehind()

@@ -64,6 +64,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly CardLayoutViewModel _cardLayout;
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
+    private readonly bool _keepOpenForAcceptance;
     private bool _cardItemsBound;
     private bool _nativeOpacitySupported;
     private int _modalScopeDepth;
@@ -81,9 +82,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     public MainWindow(
         INoteClient? noteClient = null,
-        ILayoutClient? layoutClient = null)
+        ILayoutClient? layoutClient = null,
+        bool keepOpenForAcceptance = false)
     {
         _layoutClient = layoutClient;
+        _keepOpenForAcceptance = keepOpenForAcceptance;
         _uiDispatcherQueue = UiDispatcherQueue.GetForCurrentThread();
         NoteEditor = new NoteEditorViewModel(
             noteClient,
@@ -241,7 +244,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            if (_hasBeenActivated && _modalScopeDepth == 0)
+            if (PanelActivationClosePolicy.ShouldRequestClose(
+                    _keepOpenForAcceptance,
+                    _hasBeenActivated,
+                    _modalScopeDepth,
+                    isDeactivated: true))
             {
                 RequestCloseMotion();
             }

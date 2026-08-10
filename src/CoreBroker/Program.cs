@@ -11,7 +11,7 @@ namespace WinWidgetBoard.CoreBroker;
 internal static class Program
 {
     private const int DuplicateInstanceExitCode = 17;
-    private const string InstanceMutexName = "Local\\WinWidgetBoard.CoreBroker";
+    private const int InvalidArgumentsExitCode = 2;
 
     public static async Task<int> Main(string[] args)
     {
@@ -23,7 +23,33 @@ internal static class Program
             return await RunPipeHandshakeSmokeAsync().ConfigureAwait(false);
         }
 
-        using var instanceLock = new CoreBrokerInstanceLock(InstanceMutexName);
+        if (!CoreBrokerDataDirectoryResolver.TryResolve(
+                args,
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                Path.GetTempPath(),
+                out string? dataDirectory,
+                out string? dataDirectoryError))
+        {
+            Console.Error.WriteLine(
+                $"CoreBroker argument validation failed: {dataDirectoryError}");
+            return InvalidArgumentsExitCode;
+        }
+
+        string instanceMutexName;
+        try
+        {
+            instanceMutexName =
+                CoreBrokerInstanceIdentity.ResolveMutexName(args);
+        }
+        catch (ArgumentException exception)
+        {
+            Console.Error.WriteLine(
+                $"CoreBroker argument validation failed: {exception.Message}");
+            return InvalidArgumentsExitCode;
+        }
+
+        using var instanceLock = new CoreBrokerInstanceLock(instanceMutexName);
         if (!instanceLock.IsAcquired)
         {
             return DuplicateInstanceExitCode;
@@ -40,11 +66,8 @@ internal static class Program
             cancellation.Cancel();
         };
 
-        string dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WinWidgetBoard");
         await using SqliteDatabase database = await SqliteDatabase.OpenAsync(
-            new SqliteDatabaseOptions(Path.Combine(dataDirectory, "data.db")),
+            new SqliteDatabaseOptions(Path.Combine(dataDirectory!, "data.db")),
             cancellation.Token).ConfigureAwait(false);
         await database.ApplySchemaAsync(cancellation.Token).ConfigureAwait(false);
 

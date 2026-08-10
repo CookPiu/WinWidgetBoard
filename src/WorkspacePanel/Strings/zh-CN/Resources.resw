@@ -319,6 +319,9 @@
   <data name="NoteBodyBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>便签正文</value>
   </data>
+  <data name="NotesCardScrollViewer.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>便签编辑与操作</value>
+  </data>
   <data name="NoteEditorUnavailableStatus" xml:space="preserve">
     <value>CoreBroker 不可用，编辑器当前为只读。</value>
   </data>
@@ -366,6 +369,9 @@
   </data>
   <data name="CalendarCardTitle.Text" xml:space="preserve">
     <value>本地日历</value>
+  </data>
+  <data name="CardGridHost.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>卡片网格</value>
   </data>
   <data name="CalendarCardBody.Text" xml:space="preserve">
     <value>日历摘要与提醒将在本地数据工作包中接入。</value>

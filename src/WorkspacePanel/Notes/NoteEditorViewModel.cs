@@ -360,7 +360,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 return Task.FromResult(false);
             }
 
-            if (string.Equals(_noteId, noteId, StringComparison.Ordinal))
+            if (string.Equals(_noteId, noteId, StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(_expectedUpdatedAtUtc))
             {
                 return Task.FromResult(true);
             }

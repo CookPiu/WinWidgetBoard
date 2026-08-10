@@ -25,3 +25,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0014](0014-logical-layout-cell-replay.md) | Accepted | 持久化逻辑网格行列以恢复用户布局空位 |
 | [0015](0015-bounded-layout-gap-recovery.md) | Accepted | 仅在内存中恢复异常大的持久化布局空行 |
 | [0016](0016-note-delete-edit-boundary.md) | Accepted | 便签删除复用 revision 并以确认和草稿保护隔离 |
+| [0017](0017-acceptance-process-and-data-isolation.md) | Accepted | 验收进程使用独立身份和临时数据目录 |

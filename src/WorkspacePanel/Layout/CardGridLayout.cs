@@ -69,7 +69,7 @@ public sealed class CardGridLayout : VirtualizingLayout
         double cellWidth = GetCellWidth(width);
         double contentHeight = GetContentHeight(context);
 
-        for (int index = 0; index < context.ItemCount; index++)
+        foreach (int index in GetRealizedIndices(context))
         {
             CardPlacement placement = GetPlacement(context, index);
             UIElement element = context.GetOrCreateElementAt(index);
@@ -88,7 +88,7 @@ public sealed class CardGridLayout : VirtualizingLayout
         double width = ResolveWidth(finalSize.Width);
         double cellWidth = GetCellWidth(width);
 
-        for (int index = 0; index < context.ItemCount; index++)
+        foreach (int index in GetRealizedIndices(context))
         {
             CardPlacement placement = GetPlacement(context, index);
             UIElement element = context.GetOrCreateElementAt(index);
@@ -146,6 +146,25 @@ public sealed class CardGridLayout : VirtualizingLayout
             ? 0
             : bottomRowExclusive * RowHeight +
                 (bottomRowExclusive - 1) * RowGap;
+    }
+
+    private IReadOnlyList<int> GetRealizedIndices(
+        VirtualizingLayoutContext context)
+    {
+        var placements = new CardPlacement[context.ItemCount];
+        for (int index = 0; index < placements.Length; index++)
+        {
+            placements[index] = GetPlacement(context, index);
+        }
+
+        Rect realizationRect = context.RealizationRect;
+        return CardGridRealizationPlanner.GetRealizedIndices(
+            placements,
+            RowHeight,
+            RowGap,
+            realizationRect.Y,
+            realizationRect.Height,
+            context.RecommendedAnchorIndex);
     }
 
     private static CardPlacement GetPlacement(

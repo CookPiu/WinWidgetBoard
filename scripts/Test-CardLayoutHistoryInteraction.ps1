@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
@@ -15,6 +15,13 @@ using System.Runtime.InteropServices;
 
 public static class WinWidgetBoardHistoryInput
 {
+    private const uint KeyEventKeyUp = 0x0002;
+    private const byte VirtualKeyControl = 0x11;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpShowWindow = 0x0040;
+    private static readonly IntPtr HwndTopmost = new IntPtr(-1);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindow(IntPtr window, int command);
@@ -29,6 +36,47 @@ public static class WinWidgetBoardHistoryInput
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr window);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(
+        byte virtualKey,
+        byte scanCode,
+        uint flags,
+        UIntPtr extraInfo);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr window,
+        IntPtr insertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
+
+    public static bool MakeTopmost(IntPtr window)
+    {
+        return SetWindowPos(
+            window,
+            HwndTopmost,
+            0,
+            0,
+            0,
+            0,
+            SwpNoMove | SwpNoSize | SwpShowWindow);
+    }
+
+    public static void SendControlShortcut(byte virtualKey)
+    {
+        keybd_event(VirtualKeyControl, 0, 0, UIntPtr.Zero);
+        keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
+        keybd_event(virtualKey, 0, KeyEventKeyUp, UIntPtr.Zero);
+        keybd_event(VirtualKeyControl, 0, KeyEventKeyUp, UIntPtr.Zero);
+    }
 }
 '@
 
@@ -41,12 +89,15 @@ if (-not (Test-Path -LiteralPath $panelPath -PathType Leaf)) {
     throw "WorkspacePanel executable was not found: $panelPath"
 }
 
-if ($null -ne (Get-Process -Name 'WinWidgetBoard.WorkspacePanel' -ErrorAction SilentlyContinue)) {
-    throw 'A WinWidgetBoard.WorkspacePanel process is already running.'
+if ($null -ne (Get-Process -Name 'WinWidgetBoard.LauncherHost' -ErrorAction SilentlyContinue)) {
+    throw 'A WinWidgetBoard.LauncherHost process is already running.'
 }
 
 $startInfo = [Diagnostics.ProcessStartInfo]::new($panelPath)
 $startInfo.UseShellExecute = $false
+$acceptanceInstanceId = [Guid]::NewGuid().ToString('N')
+$startInfo.Arguments =
+    "--acceptance-test --test-instance-id $acceptanceInstanceId"
 $startInfo.Environment['DOTNET_ROOT'] = $PortableDotnetRoot
 $startInfo.Environment['DOTNET_ROOT_X64'] = $PortableDotnetRoot
 $panelProcess = $null
@@ -99,16 +150,43 @@ function Wait-VisibleElementByAutomationId {
     )
 
     $deadline = [DateTime]::UtcNow + $Timeout
+    $lastState = 'not found'
     do {
         $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
-        if ($null -ne $element -and -not $element.Current.IsOffscreen) {
-            return $element
+        if ($null -ne $element) {
+            $rectangle = $element.Current.BoundingRectangle
+            $lastState = 'name={0}; offscreen={1}; enabled={2}; bounds={3},{4},{5},{6}' -f
+                $element.Current.Name,
+                $element.Current.IsOffscreen,
+                $element.Current.IsEnabled,
+                [Math]::Round($rectangle.X),
+                [Math]::Round($rectangle.Y),
+                [Math]::Round($rectangle.Width),
+                [Math]::Round($rectangle.Height)
+            if (-not $element.Current.IsOffscreen) {
+                return $element
+            }
         }
 
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
 
-    throw "Visible UI Automation element not found: $AutomationId"
+    $processState = if ($null -eq $script:panelProcess) {
+        'not-started'
+    }
+    elseif ($script:panelProcess.HasExited) {
+        "exited:$($script:panelProcess.ExitCode)"
+    }
+    else {
+        'running'
+    }
+    $rootState = try {
+        "offscreen=$($Root.Current.IsOffscreen); enabled=$($Root.Current.IsEnabled)"
+    }
+    catch {
+        "unavailable:$($_.Exception.GetType().Name)"
+    }
+    throw "Visible UI Automation element not found: $AutomationId. Last state: $lastState. Process: $processState. Root: $rootState"
 }
 
 function Invoke-Element {
@@ -154,11 +232,14 @@ try {
     $panelProcess = [Diagnostics.Process]::Start($startInfo)
     $window = Get-PanelWindow -ProcessId $panelProcess.Id -Timeout ([TimeSpan]::FromSeconds(10))
     $windowHandle = [IntPtr]$window.Current.NativeWindowHandle
-    if ($windowHandle -eq [IntPtr]::Zero -or
-        -not [WinWidgetBoardHistoryInput]::ShowWindow($windowHandle, 5)) {
-        throw 'WorkspacePanel could not be brought to the foreground for UI Automation.'
+    if ($windowHandle -eq [IntPtr]::Zero) {
+        throw 'WorkspacePanel returned an invalid native window handle.'
     }
 
+    [void][WinWidgetBoardHistoryInput]::ShowWindow($windowHandle, 5)
+    if (-not [WinWidgetBoardHistoryInput]::MakeTopmost($windowHandle)) {
+        throw 'WorkspacePanel could not be made temporarily topmost for keyboard acceptance.'
+    }
     [void][WinWidgetBoardHistoryInput]::BringWindowToTop($windowHandle)
     [void][WinWidgetBoardHistoryInput]::SetActiveWindow($windowHandle)
     $foregroundSet = [WinWidgetBoardHistoryInput]::SetForegroundWindow($windowHandle)
@@ -170,9 +251,9 @@ try {
     catch {
         # UIA focus can be unavailable in a non-interactive desktop session.
     }
-    if (-not $foregroundSet -and -not $focusSet) {
-        throw 'WorkspacePanel could not be focused for UI Automation.'
-    }
+    # InvokePattern does not require the tested window to own the keyboard
+    # foreground. Windows can reject SetForegroundWindow for a valid,
+    # visible cross-process UIA target, so focus is best effort here.
 
     Start-Sleep -Milliseconds 300
     $editButton = Wait-VisibleElementByAutomationId `
@@ -228,13 +309,53 @@ try {
         throw 'Undo/redo state is incorrect after redo.'
     }
 
-    Write-Output 'REAL-HISTORY-PASS resize+undo+redo UIA'
+    [void][WinWidgetBoardHistoryInput]::BringWindowToTop($windowHandle)
+    [void][WinWidgetBoardHistoryInput]::SetForegroundWindow($windowHandle)
+    try {
+        $window.SetFocus()
+    }
+    catch {
+    }
+    Start-Sleep -Milliseconds 200
+    if ([WinWidgetBoardHistoryInput]::GetForegroundWindow() -ne $windowHandle) {
+        throw 'WorkspacePanel did not own keyboard foreground for shortcut acceptance.'
+    }
+
+    [WinWidgetBoardHistoryInput]::SendControlShortcut(0x5A)
+    Start-Sleep -Milliseconds 500
+    $undoButton = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'UndoLayoutButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    $redoButton = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'RedoLayoutButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    if ($undoButton.Current.IsEnabled -or -not $redoButton.Current.IsEnabled) {
+        throw 'Ctrl+Z did not undo the real layout resize.'
+    }
+
+    [WinWidgetBoardHistoryInput]::SendControlShortcut(0x59)
+    Start-Sleep -Milliseconds 500
+    $undoButton = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'UndoLayoutButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    $redoButton = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'RedoLayoutButton' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    if (-not $undoButton.Current.IsEnabled -or $redoButton.Current.IsEnabled) {
+        throw 'Ctrl+Y did not redo the real layout resize.'
+    }
+
+    Write-Output 'REAL-HISTORY-PASS resize+buttons+ctrl-z+ctrl-y'
 }
 finally {
     if ($null -ne $panelProcess -and -not $panelProcess.HasExited) {
         [void]$panelProcess.CloseMainWindow()
         if (-not $panelProcess.WaitForExit(3000)) {
-            $panelProcess.Kill($true)
+            $panelProcess.Kill()
             [void]$panelProcess.WaitForExit(3000)
         }
     }

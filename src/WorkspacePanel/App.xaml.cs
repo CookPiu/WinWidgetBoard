@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using System.Diagnostics;
 using WinWidgetBoard.WorkspacePanel.Ipc;
+using WinWidgetBoard.WorkspacePanel.Shell;
 
 namespace WinWidgetBoard.WorkspacePanel;
 
@@ -8,10 +9,9 @@ public partial class App : Application, IAsyncDisposable, IDisposable
 {
     private const int WindowInitializationFailedExitCode = 20;
     private const int BrokerSmokeTestFailedExitCode = 21;
-    private const string InstanceMutexName = "Local\\WinWidgetBoard.WorkspacePanel";
-
     private readonly bool _isSmokeTest;
     private readonly bool _isBrokerSmokeTest;
+    private readonly bool _isAcceptanceTest;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private static Mutex? _instanceMutex;
     private Window? _window;
@@ -20,12 +20,20 @@ public partial class App : Application, IAsyncDisposable, IDisposable
 
     public App()
     {
-        _isSmokeTest = Environment.GetCommandLineArgs()
+        string[] arguments = Environment.GetCommandLineArgs();
+        _isSmokeTest = arguments
             .Any(argument => string.Equals(argument, "--smoke-test", StringComparison.OrdinalIgnoreCase));
-        _isBrokerSmokeTest = Environment.GetCommandLineArgs()
+        _isBrokerSmokeTest = arguments
             .Any(argument => string.Equals(argument, "--broker-smoke-test", StringComparison.OrdinalIgnoreCase));
+        _isAcceptanceTest = arguments
+            .Any(argument => string.Equals(
+                argument,
+                WorkspacePanelInstanceIdentity.AcceptanceTestSwitch,
+                StringComparison.OrdinalIgnoreCase));
 
-        _instanceMutex = new Mutex(true, InstanceMutexName, out bool createdNew);
+        string instanceMutexName =
+            WorkspacePanelInstanceIdentity.ResolveMutexName(arguments);
+        _instanceMutex = new Mutex(true, instanceMutexName, out bool createdNew);
         if (!createdNew)
         {
             Environment.Exit(0);
@@ -45,7 +53,8 @@ public partial class App : Application, IAsyncDisposable, IDisposable
 
             _window = new MainWindow(
                 _brokerSession?.Notes,
-                _brokerSession?.Layout);
+                _brokerSession?.Layout,
+                keepOpenForAcceptance: _isAcceptanceTest);
 
             if (_isSmokeTest)
             {

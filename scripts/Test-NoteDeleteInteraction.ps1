@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
@@ -48,10 +48,8 @@ foreach ($requiredPath in @($panelPath, $brokerPath, $PortableDotnetRoot)) {
     }
 }
 
-$running = Get-Process -Name @(
-    'WinWidgetBoard.CoreBroker',
-    'WinWidgetBoard.WorkspacePanel'
-) -ErrorAction SilentlyContinue
+$running = Get-Process -Name 'WinWidgetBoard.LauncherHost' `
+    -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     $runningText = ($running | ForEach-Object { '{0}#{1}' -f $_.ProcessName, $_.Id }) -join ', '
     throw "Existing WinWidgetBoard processes detected: $runningText"
@@ -125,7 +123,8 @@ function Wait-VisibleElementByAutomationId {
         [System.Windows.Automation.AutomationElement]$Root,
         [string]$AutomationId,
         [TimeSpan]$Timeout,
-        [switch]$Enabled
+        [switch]$Enabled,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
     )
 
     $deadline = [DateTime]::UtcNow + $Timeout
@@ -137,6 +136,9 @@ function Wait-VisibleElementByAutomationId {
             return $element
         }
 
+        if ($null -ne $element -and $null -ne $ScrollContainer) {
+            Set-VerticalScrollPercent -Element $ScrollContainer -Percent 100
+        }
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
 
@@ -221,9 +223,11 @@ function Wait-ElementValue {
         -Timeout $Timeout `
         -Enabled:$Enabled
     $deadline = [DateTime]::UtcNow + $Timeout
+    $actual = $null
     do {
+        $actual = Get-ElementText -Element $element
         if ([string]::Equals(
-                (Get-ElementText -Element $element),
+                $actual,
                 $Expected,
                 [StringComparison]::Ordinal)) {
             return $element
@@ -232,7 +236,19 @@ function Wait-ElementValue {
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
 
-    throw "UI Automation value did not become the expected value: $AutomationId"
+    $statusElement = Get-ElementByAutomationId -Root $Root -AutomationId 'StatusText'
+    $status = if ($null -eq $statusElement) {
+        '<missing>'
+    }
+    else {
+        Get-ElementText -Element $statusElement
+    }
+    throw (("UI Automation value did not become the expected value: {0}. " +
+        "Expected='{1}', Actual='{2}', Status='{3}'") -f
+        $AutomationId,
+        $Expected,
+        $actual,
+        $status)
 }
 
 function Set-TextValue {
@@ -273,13 +289,15 @@ function Invoke-Element {
 function Wait-SavedStatus {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
-        [TimeSpan]$Timeout
+        [TimeSpan]$Timeout,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
     )
 
     $element = Wait-VisibleElementByAutomationId `
         -Root $Root `
         -AutomationId 'NoteEditorStatusText' `
-        -Timeout $Timeout
+        -Timeout $Timeout `
+        -ScrollContainer $ScrollContainer
     $deadline = [DateTime]::UtcNow + $Timeout
     $savedMarker = [string]::Concat(
         [char]0x5DF2,
@@ -297,18 +315,69 @@ function Wait-SavedStatus {
     throw "Note editor did not report a completed save. Last status: $text"
 }
 
+function Wait-DeletedStatus {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [TimeSpan]$Timeout
+    )
+
+    $element = Wait-VisibleElementByAutomationId `
+        -Root $Root `
+        -AutomationId 'StatusText' `
+        -Timeout $Timeout
+    $deadline = [DateTime]::UtcNow + $Timeout
+    $deletedMarker = [string]::Concat(
+        [char]0x4FBF,
+        [char]0x7B7E,
+        [char]0x5DF2,
+        [char]0x5220,
+        [char]0x9664)
+    do {
+        $text = Get-ElementText -Element $element
+        if ($text -match ('Note deleted\.|' + [regex]::Escape($deletedMarker))) {
+            return $element
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw "Note deletion did not complete. Last status: $text"
+}
+
+function Set-VerticalScrollPercent {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element,
+        [double]$Percent
+    )
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ScrollPattern]::Pattern,
+            [ref]$pattern)) {
+        throw "ScrollPattern unavailable: $($Element.Current.Name)"
+    }
+
+    $scroll = [System.Windows.Automation.ScrollPattern]$pattern
+    if ($scroll.Current.VerticallyScrollable) {
+        $scroll.SetScrollPercent(
+            [System.Windows.Automation.ScrollPattern]::NoScroll,
+            $Percent)
+        Start-Sleep -Milliseconds 300
+    }
+}
+
 function Focus-PanelWindow {
     param(
         [System.Windows.Automation.AutomationElement]$Window
     )
 
     $windowHandle = [IntPtr]$Window.Current.NativeWindowHandle
-    $shown = [WinWidgetBoardNoteDeleteInput]::ShowWindow($windowHandle, 5)
     $zeroHandle = [IntPtr]::Zero
-    if (($windowHandle -eq $zeroHandle) -or (-not $shown)) {
-        throw 'WorkspacePanel could not be shown for UI Automation.'
+    if ($windowHandle -eq $zeroHandle) {
+        throw 'WorkspacePanel returned an invalid native window handle.'
     }
 
+    [void][WinWidgetBoardNoteDeleteInput]::ShowWindow($windowHandle, 5)
     [void][WinWidgetBoardNoteDeleteInput]::BringWindowToTop($windowHandle)
     [void][WinWidgetBoardNoteDeleteInput]::SetActiveWindow($windowHandle)
     $foregroundSet = [WinWidgetBoardNoteDeleteInput]::SetForegroundWindow($windowHandle)
@@ -320,15 +389,20 @@ function Focus-PanelWindow {
     catch {
     }
 
-    if (-not $foregroundSet -and -not $focusSet) {
-        throw 'WorkspacePanel could not be focused for UI Automation.'
-    }
+    # InvokePattern and ValuePattern do not require foreground keyboard focus.
 }
 
 function Start-TestBroker {
     $process = Start-Process `
         -FilePath $brokerPath `
-        -ArgumentList @('--session-token', $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN) `
+        -ArgumentList @(
+            '--session-token',
+            $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN,
+            '--acceptance-test',
+            '--test-instance-id',
+            [Guid]::NewGuid().ToString('N'),
+            '--data-directory',
+            $testDataRoot) `
         -WindowStyle Hidden `
         -PassThru
     Start-Sleep -Milliseconds 500
@@ -342,6 +416,9 @@ function Start-TestBroker {
 function Start-TestPanel {
     $panelInfo = [Diagnostics.ProcessStartInfo]::new($panelPath)
     $panelInfo.UseShellExecute = $false
+    $acceptanceInstanceId = [Guid]::NewGuid().ToString('N')
+    $panelInfo.Arguments =
+        "--acceptance-test --test-instance-id $acceptanceInstanceId"
     $panelInfo.EnvironmentVariables['DOTNET_ROOT'] = $PortableDotnetRoot
     $panelInfo.EnvironmentVariables['DOTNET_ROOT_X64'] = $PortableDotnetRoot
     $panelInfo.EnvironmentVariables['LOCALAPPDATA'] = $env:LOCALAPPDATA
@@ -411,18 +488,28 @@ try {
     $originalBody = 'original-sentinel-' + [Guid]::NewGuid().ToString('N')
     Set-TextValue -Element $titleBox -Value $originalTitle
     Set-TextValue -Element $bodyBox -Value $originalBody
-    [void](Wait-SavedStatus -Root $window -Timeout ([TimeSpan]::FromSeconds(10)))
+    $noteScroll = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'NotesCardScrollViewer' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    [void](Wait-SavedStatus `
+        -Root $window `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -ScrollContainer $noteScroll)
 
     $newButton = Wait-VisibleElementByAutomationId `
         -Root $window `
         -AutomationId 'NewNoteButton' `
         -Timeout ([TimeSpan]::FromSeconds(10)) `
-        -Enabled
+        -Enabled `
+        -ScrollContainer $noteScroll
     Invoke-Element -Element $newButton
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
     [void](Wait-ElementValue `
         -Root $window `
         -AutomationId 'NoteTitleBox' `
-        -Expected string.Empty `
+        -Expected ([string]::Empty) `
         -Timeout ([TimeSpan]::FromSeconds(10)) `
         -Enabled)
 
@@ -430,13 +517,18 @@ try {
     $createdBody = 'created-sentinel-' + [Guid]::NewGuid().ToString('N')
     Set-TextValue -Element $titleBox -Value $createdTitle
     Set-TextValue -Element $bodyBox -Value $createdBody
-    [void](Wait-SavedStatus -Root $window -Timeout ([TimeSpan]::FromSeconds(10)))
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    [void](Wait-SavedStatus `
+        -Root $window `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -ScrollContainer $noteScroll)
 
     $deleteButton = Wait-VisibleElementByAutomationId `
         -Root $window `
         -AutomationId 'DeleteCurrentNoteButton' `
         -Timeout ([TimeSpan]::FromSeconds(10)) `
-        -Enabled
+        -Enabled `
+        -ScrollContainer $noteScroll
     Invoke-Element -Element $deleteButton
 
     $confirmButton = Wait-VisibleElementByAnyName `
@@ -445,6 +537,10 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10)) `
         -Enabled
     Invoke-Element -Element $confirmButton
+    [void](Wait-DeletedStatus `
+        -Root $window `
+        -Timeout ([TimeSpan]::FromSeconds(10)))
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
 
     [void](Wait-ElementValue `
         -Root $window `
@@ -465,10 +561,6 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10)) `
         -Enabled
     Invoke-Element -Element $listButton
-    [void](Wait-VisibleElementByAutomationId `
-        -Root $window `
-        -AutomationId 'NoteSearchResultsBorder' `
-        -Timeout ([TimeSpan]::FromSeconds(10)))
     [void](Wait-VisibleElementByName `
         -Root $window `
         -Name $originalTitle `

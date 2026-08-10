@@ -152,6 +152,33 @@ public sealed class NoteDeleteViewModelTests
         Assert.AreEqual("transport.unavailable", viewModel.ErrorCode);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-038 [NTE-001] Editor reloads the default note after deleting another note")]
+    public async Task EditorReloadsDefaultNoteAfterDeletingAnotherNote()
+    {
+        var fake = new FakeNoteClient();
+        fake.Notes[NoteEditorViewModel.DefaultNoteId] = CreateNote(
+            NoteEditorViewModel.DefaultNoteId,
+            "Primary",
+            "Primary body",
+            "2026-08-10T00:00:01.0000000+00:00");
+        fake.Notes["secondary-note"] = CreateNote(
+            "secondary-note",
+            "Secondary",
+            "Secondary body",
+            "2026-08-10T00:00:02.0000000+00:00");
+        await using var viewModel = new NoteEditorViewModel(fake);
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        Assert.IsTrue(await viewModel.LoadNoteAsync("secondary-note"));
+        Assert.IsTrue(await viewModel.DeleteCurrentNoteAsync());
+
+        Assert.IsTrue(await viewModel.LoadNoteAsync(NoteEditorViewModel.DefaultNoteId));
+        Assert.AreEqual(NoteEditorViewModel.DefaultNoteId, viewModel.NoteId);
+        Assert.AreEqual("Primary", viewModel.Title);
+        Assert.AreEqual("Primary body", viewModel.Body);
+        Assert.IsTrue(viewModel.CanDelete);
+    }
+
     private static NoteDto CreateNote(
         string noteId,
         string title,

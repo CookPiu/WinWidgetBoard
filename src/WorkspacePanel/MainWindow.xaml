@@ -129,9 +129,15 @@
                 <Border.RenderTransform>
                     <CompositeTransform />
                 </Border.RenderTransform>
-                <StackPanel Spacing="8">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid
                         x:Name="DemoNotesCardSurface"
+                        Grid.Row="0"
                         MinHeight="112"
                         Background="Transparent">
                         <StackPanel Spacing="8">
@@ -144,7 +150,15 @@
                                 Opacity="0.72" />
                         </StackPanel>
                     </Grid>
-                    <StackPanel Spacing="8">
+                    <ScrollViewer
+                        x:Name="NotesCardScrollViewer"
+                        x:Uid="NotesCardScrollViewer"
+                        Grid.Row="1"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollMode="Disabled"
+                        VerticalScrollBarVisibility="Auto"
+                        VerticalScrollMode="Enabled">
+                        <StackPanel Spacing="8">
                         <StackPanel
                             x:Name="NoteEditorInputPanel"
                             Spacing="8"
@@ -192,70 +206,101 @@
                             Opacity="0.72"
                             Text="{x:Bind NoteStatusText, Mode=OneWay}"
                             TextWrapping="Wrap" />
-                    </StackPanel>
-                    <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="8">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <CheckBox
                             x:Name="MarkdownModeCheckBox"
                             x:Uid="MarkdownModeCheckBox"
+                            Grid.Column="0"
                             IsChecked="{x:Bind NoteEditor.IsMarkdown, Mode=OneWay}"
                             IsEnabled="{x:Bind NoteEditor.CanChangeMarkdownMode, Mode=OneWay}"
                             Click="MarkdownModeCheckBox_Click" />
                         <Button
                             x:Name="PreviewNoteButton"
                             x:Uid="PreviewNoteButton"
+                            Grid.Column="1"
                             IsEnabled="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}"
                             Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}"
                             Click="PreviewNoteButton_Click" />
                         <Button
                             x:Name="EditMarkdownButton"
                             x:Uid="EditMarkdownButton"
+                            Grid.Column="2"
                             IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                             Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}"
                             Click="EditMarkdownButton_Click" />
-                    </StackPanel>
-                    <StackPanel
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Left"
-                        Spacing="8">
+                    </Grid>
+                    <Grid
+                        ColumnSpacing="8"
+                        RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Button
                             x:Name="NewNoteButton"
                             x:Uid="NewNoteButton"
+                            Grid.Row="0"
+                            Grid.Column="0"
                             IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
                             Click="NewNoteButton_Click" />
                         <Button
                             x:Name="DeleteCurrentNoteButton"
                             x:Uid="DeleteCurrentNoteButton"
+                            Grid.Row="0"
+                            Grid.Column="1"
                             IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
                             Click="DeleteCurrentNoteButton_Click" />
                         <Button
                             x:Name="OpenNotesButton"
                             x:Uid="OpenNotesButton"
+                            Grid.Row="0"
+                            Grid.Column="2"
                             IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                             Click="OpenNotesButton_Click" />
                         <Button
                             x:Name="CopyNoteButton"
                             x:Uid="CopyNoteButton"
+                            Grid.Row="0"
+                            Grid.Column="3"
                             IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                             Click="CopyNoteButton_Click" />
                         <Button
                             x:Name="RetryNoteSaveButton"
                             x:Uid="RetryNoteSaveButton"
+                            Grid.Row="1"
+                            Grid.Column="0"
                             IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
                             Click="RetryNoteSaveButton_Click" />
                         <Button
                             x:Name="UndoNoteButton"
                             x:Uid="UndoNoteButton"
+                            Grid.Row="1"
+                            Grid.Column="1"
                             IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
                             Click="UndoNoteButton_Click" />
                         <Button
                             x:Name="RedoNoteButton"
                             x:Uid="RedoNoteButton"
+                            Grid.Row="1"
+                            Grid.Column="2"
                             IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
                             Click="RedoNoteButton_Click" />
-                    </StackPanel>
+                    </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
                     <StackPanel
+                        Grid.Row="2"
                         Orientation="Horizontal"
                         Spacing="8"
                         Visibility="{Binding IsEditing, Converter={StaticResource EditModeVisibilityConverter}}">
@@ -267,6 +312,7 @@
                             CornerRadius="4"
                             Background="Transparent">
                             <TextBlock
+                                x:Name="NotesCardDragHandle"
                                 x:Uid="DragCardHandle"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
@@ -284,7 +330,7 @@
                             Tag="{x:Bind InstanceId}"
                             Click="RemoveCardButton_Click" />
                     </StackPanel>
-                </StackPanel>
+                </Grid>
             </Border>
         </DataTemplate>
 
@@ -330,6 +376,7 @@
                             CornerRadius="4"
                             Background="Transparent">
                             <TextBlock
+                                x:Name="TimerCardDragHandle"
                                 x:Uid="DragCardHandle"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
@@ -393,6 +440,7 @@
                             CornerRadius="4"
                             Background="Transparent">
                             <TextBlock
+                                x:Name="TodoCardDragHandle"
                                 x:Uid="DragCardHandle"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
@@ -456,6 +504,7 @@
                             CornerRadius="4"
                             Background="Transparent">
                             <TextBlock
+                                x:Name="CalendarCardDragHandle"
                                 x:Uid="DragCardHandle"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
@@ -652,6 +701,7 @@
 
                 <Grid
                     x:Name="CardGridHost"
+                    x:Uid="CardGridHost"
                     SizeChanged="CardGridHost_SizeChanged">
                     <controls:ItemsRepeater
                         x:Name="CardItemsRepeater"

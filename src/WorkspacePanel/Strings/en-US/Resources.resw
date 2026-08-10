@@ -319,6 +319,9 @@
   <data name="NoteBodyBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Note body</value>
   </data>
+  <data name="NotesCardScrollViewer.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Note editor actions</value>
+  </data>
   <data name="NoteEditorUnavailableStatus" xml:space="preserve">
     <value>CoreBroker is unavailable; the editor is read-only.</value>
   </data>
@@ -366,6 +369,9 @@
   </data>
   <data name="CalendarCardTitle.Text" xml:space="preserve">
     <value>Local calendar</value>
+  </data>
+  <data name="CardGridHost.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Card grid</value>
   </data>
   <data name="CalendarCardBody.Text" xml:space="preserve">
     <value>Calendar summaries and reminders arrive with local data.</value>

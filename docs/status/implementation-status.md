@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-`M2.2 — 网格布局（M1.0 环境门禁和完整显示器矩阵仍待完成；M1.1～M1.3 当前会话验收已完成，M2.0.1～M2.0.3、M2.1.1～M2.1.6、M2.2.1～M2.2.12、M2.4.1～M2.4.10 已完成代码工作包；M2.4.7～M2.4.10 的真实 UIA 回归、便签版本历史、删除撤销、其他领域 CRUD、剩余布局/卡片业务与活动数据库恢复演练待完成）`
+`M2.2 / M2.4 当前代码范围已收口（M2.2.13 / M2.4.11 已完成当前单显示器真实桌面验收、验收进程/数据隔离和自动回归；M1.0 干净环境与 CI、真实多显示器/DPI/无障碍/性能矩阵、便签版本历史、删除撤销、其他领域 CRUD、剩余卡片业务和正式数据库恢复演练仍待完成）`
 
 ## 已完成
 
@@ -99,28 +99,29 @@
 - [x] M2.1.5 已加入 `notes.save/get/search/delete` CoreBroker IPC、写操作幂等缓存、输入长度/格式校验和生产 CoreBroker 本地数据库初始化；Debug/Release 均为 58/58 单元测试通过；
 - [x] M2.1.6 已加入 `CoreBrokerNotesClient`、`NoteEditorViewModel` 和 WorkspacePanel 单便签标题/正文编辑区；保存采用 debounce、revision token 和失败草稿保留策略；并修复 CoreBroker 不可用时永久停留在加载态的问题；Debug/Release 均为 64/64 测试通过，WorkspacePanel 构建 0 警告、0 错误，WinUI Debug/Release smoke 均返回 0；用户已确认真实 CoreBroker + WorkspacePanel 便签加载、保存、重开恢复和编辑/拖拽交互成功；
 - [ ] M2.1.1 的干净网络 restore、完整 `.sln`/CI 和跨 Windows 11 构建矩阵仍待完成；当前 restore 使用缓存包并记录 NuGet 源不可访问警告；
-- [x] M2.2.1 已加入响应式网格纯函数、S/M/L/W/XL 尺寸映射、2/4/6 列选择、确定性 first-fit 排布和 100 张随机卡片属性测试；Debug/Release 均为 70/70，WorkspacePanel 构建 0 警告、0 错误；真实卡片布局交互仍待接入；
+- [x] M2.2.1 已加入响应式网格纯函数、S/M/L/W/XL 尺寸映射、2/4/6 列选择、确定性 first-fit 排布和 100 张随机卡片属性测试；后续 M2.2.13 已补齐视口实现边界和当前单屏真实布局回归；
 - [x] M2.2.2 已加入 `CardLayoutViewModel`，提供响应式列数切换、只读 Items/Placements 快照、卡片增删改尺寸、确定性重排和非法输入原子失败保护；Debug/Release 均为 75/75，WorkspacePanel 构建 0 警告、0 错误，WinUI smoke 均返回 0；ItemsRepeater 和真实卡片交互仍待接入；
-- [x] M2.2.3 已将 `CardLayoutSurfaceViewModel`、模板选择器和 `CardGridLayout` 接入 WorkspacePanel ItemsRepeater，四张演示卡片按 placement 快照响应式排布；Debug/Release 均为 77/77，WorkspacePanel 构建 0 警告、0 错误，WinUI smoke 均返回 0；虚拟化回收和真实卡片交互仍待接入；
+- [x] M2.2.3 已将 `CardLayoutSurfaceViewModel`、模板选择器和 `CardGridLayout` 接入 WorkspacePanel ItemsRepeater，四张演示卡片按 placement 快照响应式排布；后续 M2.2.13 已根据 `RealizationRect` 实现视口内卡片并完成真实四卡交互；
 - [x] M2.2.4 已加入 `CardLayoutEditViewModel` 和显式编辑模式门禁；普通模式拒绝卡片缩放/删除/演示拖动，编辑模式支持尺寸操作、移除、Esc 取消恢复快照和完成提交；Debug/Release 均为 80/80，WorkspacePanel 构建 0 警告、0 错误，WinUI smoke 均返回 0；真实鼠标交互和持久化仍待接入；
 - [x] M2.2.5 已加入 `CardDragPlacementProjector` 和编辑模式下的 `TryPreviewDrop`，支持尺寸感知边界夹紧、最近合法落点和无重叠确定性投影；Debug/Release 均为 83/83，WorkspacePanel 构建 0 警告、0 错误，WinUI smoke 均返回 0；真实指针接入和落点提交仍待完成；
-- [x] M2.2.6 已将拖动把手、pointer capture、1:1 卡片变换和释放 placement 提交接入 ItemsRepeater 卡片；Debug/Release 均为 85/85，WorkspacePanel 构建 0 警告、0 错误，WinUI smoke 均返回 0；实时让位预览、真实桌面人工验收和持久化仍待完成；
-- [x] M2.2.7 已修复拖动提交后旧 `CompositeTransform` 被 ItemsRepeater 回收复用、释放点使用旧 `PointerMoved` 落点以及网格列边界夹紧问题；Debug/Release 均为 87/87，WorkspacePanel 构建 0 警告、0 错误，WinUI smoke 均返回 0；真实桌面连续拖动和边界回归仍待用户验收；
-- [x] M2.2.8 已接入 `layout.get/layout.save`、SQLite 布局仓储、revision/幂等保护、启动加载和完成编辑保存，并修复完成按钮状态切换、拖放后 ItemsRepeater 顺序重建导致的卡片互换、第二轮编辑残留拖动偏移，以及 Broker 启动竞态导致的布局能力不可用；Debug/Release 均为 94/94，WorkspacePanel/CoreBroker 构建通过；真实重启后布局恢复仍待用户验收；
-- [x] M2.2.9 已修复便签动态状态被 `x:Uid` 静态文本覆盖的问题，并通过 SQLite schema v2、`preferredRow` 契约和当前 placement 行列快照恢复布局空位；Release 97/97 测试、WorkspacePanel/CoreBroker 构建均通过；真实桌面迁移、重启恢复和第二轮编辑仍待用户验收；
-- [x] M2.2.10 已统一便签、计时器、待办和本地日历的卡片根表面拖动入口，将占用单元格投影改为确定性让位，并以不替换 ItemsRepeater 数据源的方式接入实时预览；修复统一入口误启旧非 `x64` 面板产物的问题；Debug/Release 均为 102/102，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，WinUI smoke 均返回 0；Windows 11 25H2 `26200.8737` Release x64 下，计时器/日历经拖动柄和非交互卡片表面双向换位回归通过并输出 `REAL-DRAG-PASS`；便签/待办、交互控件隔离、逐帧让位和完整显示矩阵仍待验收；
+- [x] M2.2.6 已将拖动把手、pointer capture、1:1 卡片变换和释放 placement 提交接入 ItemsRepeater；后续工作包已补齐实时让位、真实四卡交互和布局持久化重启回归；
+- [x] M2.2.7 已修复拖动提交后旧 `CompositeTransform` 被 ItemsRepeater 回收复用、释放点使用旧 `PointerMoved` 落点以及网格列边界夹紧问题；当前桌面连续四卡回归已通过，完整边缘释放矩阵仍待完成；
+- [x] M2.2.8 已接入 `layout.get/layout.save`、SQLite 布局仓储、revision/幂等保护、启动加载和完成编辑保存，并修复完成按钮状态切换、卡片顺序、第二轮编辑偏移和 Broker 启动竞态；当前隔离桌面已通过保存、Broker/Panel 重启和第二轮编辑；
+- [x] M2.2.9 已修复便签动态状态被 `x:Uid` 静态文本覆盖的问题，并通过 SQLite schema v2、`preferredRow` 契约和当前 placement 行列快照恢复布局空位；当前桌面重启恢复和第二轮编辑已通过，完整旧 schema 真实迁移矩阵仍待完成；
+- [x] M2.2.10 已统一便签、计时器、待办和本地日历的卡片根表面拖动入口，将占用单元格投影改为确定性让位，并以不替换 ItemsRepeater 数据源的方式接入实时预览；M2.2.13 已补齐四卡拖动柄/非交互表面、交互控件隔离和 `Esc` 取消真实回归；逐帧动效、边缘阻力和完整显示矩阵仍待验收；
 - [x] M2.2.11 已根据当前数据库 revision 18、`demo.timer.preferred_row = 7` 的复现证据，增加异常持久化空行的有界内存恢复；同时修复异步加载前默认模板抢先实现、卡片身份顺序变化和 placement 提交后自定义网格未重新排列的问题；Debug/Release 均为 107/107，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误；真实 Broker + 当前数据库及无 Broker 默认布局两条路径均通过计时器/日历拖动柄和卡片表面双向换位并输出 `REAL-DRAG-PASS`；测试未点击“完成”，只读复查数据库仍为 revision 18、第 7 行，证明没有启动时静默写库；
-- [x] M2.2.12 已为显式布局编辑会话加入最多 20 步的移动/缩放/删除撤销与重做，新增操作清空 redo 栈，完成或取消编辑清空历史，并接入标题区按钮与 `Ctrl+Z`/`Ctrl+Y`；Debug/Release UnitTests 均为 111/111，WorkspacePanel Debug/Release 构建 0 警告、0 错误；真实 UIA 回归已加入但当前桌面焦点受限，屏幕阅读器和文本框快捷键优先级仍待人工验收；
+- [x] M2.2.12 已为显式布局编辑会话加入最多 20 步的移动/缩放/删除撤销与重做，新增操作清空 redo 栈，完成或取消编辑清空历史，并接入标题区按钮与 `Ctrl+Z`/`Ctrl+Y`；当前桌面已通过按钮和快捷键真实回归；屏幕阅读器和文本框快捷键优先级仍待人工验收；
 - [x] M2.4.1 已为 NTE-001 便签卡片加入显式复制按钮，复制标题和正文原文到 Windows 当前剪贴板，不写入应用数据库；`UT-NOTE-010/011` 覆盖格式化和空段处理，Release UnitTests 113/113，WorkspacePanel Release x64 构建 0 警告、0 错误，WinUI smoke 返回 0；用户已确认真实桌面剪贴板验证成功；
-- [x] M2.4.2 已为 NTE-001 便签保存失败增加显式重试入口，复用内存草稿且不做无界自动重试；`UT-NOTE-008/012/013` 覆盖失败保留、重试成功和连续失败，Debug/Release UnitTests 目标为 115/115，WorkspacePanel Debug/Release x64 构建与 WinUI smoke 目标通过；真实跨进程故障恢复仍待用户验收；
-- [x] M2.4.3 已将标题区搜索框接入 `notes.search`，增加 debounce、旧查询取消、结果预览和错误/空查询状态；`UT-NOTE-014/015/016` 覆盖结果映射、最新查询胜出和状态清理，Debug/Release UnitTests 目标为 118/118，WorkspacePanel Debug/Release x64 构建与 WinUI smoke 目标通过；真实桌面搜索回归仍待用户验收；
-- [x] M2.4.4 已将搜索结果接入便签编辑器安全加载，未保存草稿或保存进行中时阻止切换，目标不存在时保留当前便签；`UT-NOTE-017/018/019` 覆盖目标加载、草稿保护和缺失目标恢复，Debug/Release UnitTests 目标为 121/121，WorkspacePanel Debug/Release x64 构建与 WinUI smoke 目标通过；真实桌面搜索结果打开回归仍待用户验收；
-- [x] M2.4.5 已为便签标题/正文增加最多 20 步显式撤销与重做，复用自动保存且新编辑清空 redo；`UT-NOTE-020/021/022` 覆盖快照恢复、redo 清理和历史上限，Debug/Release UnitTests 目标为 124/124，WorkspacePanel Debug/Release x64 构建与 WinUI smoke 目标通过；真实桌面按钮和焦点回归仍待用户验收；
-- [x] M2.4.6 已为 NTE-001 便签增加 Markdown/纯文本模式、基础块级预览和源文往返切换，保存请求保留原始正文并携带正确正文格式；`UT-NOTE-023/024/025/026` 覆盖格式化、预览切换和格式保存，Debug/Release UnitTests 目标为 128/128，WorkspacePanel Release x64 构建 0 警告、0 错误；真实桌面 Markdown UIA 回归已提供入口但仍待用户验收；
-- [x] M2.4.7 已为 NTE-001 增加最后一次已提交状态恢复回归：`UT-NOTE-027` 验证文件型 SQLite 关闭重开读取标题、正文和 Markdown 格式，Debug/Release UnitTests 均为 129/129，`scripts/Test-NoteCommittedStateRecovery.ps1` 覆盖真实 WorkspacePanel/CoreBroker 终止后重启读取；不新增历史表、IPC 方法或键盘移动功能；真实桌面恢复 UIA 回归已提供入口但仍待用户验收；
-- [x] M2.4.8 已为 NTE-001 增加“全部”入口和多便签只读列表：`NoteSearchViewModel.LoadAllAsync` 复用 `notes.search("")`，`UT-NOTE-028` 与 `IT-NOTE-001` 覆盖空查询列表结果，结果继续使用草稿保护的安全导航；Debug/Release UnitTests 均为 130/130，Debug 与隔离 Release WorkspacePanel 构建均为 0 警告、0 错误；`scripts/Test-NoteListInteraction.ps1` 已提供真实桌面入口，但 UIA 回归仍待用户验收；不新增创建、删除、历史版本、数据库表、IPC 方法或键盘移动功能；
-- [x] M2.4.9 已为 NTE-001 增加新建便签并安全切换：复用现有 `notes.save` 创建契约生成 `note-*` ID，`UT-NOTE-029/030/031` 覆盖成功创建、revision 为空、未保存草稿拒绝创建和创建失败保留当前便签；Debug/Release UnitTests 均为 133/133，Debug 与隔离 Release WorkspacePanel 构建均为 0 警告、0 错误；`scripts/Test-NoteCreateInteraction.ps1` 已提供真实桌面入口，但 UIA 回归仍待用户验收；不新增删除、历史版本、数据库表、IPC 方法或键盘移动功能；
-- [x] M2.4.10 已为 NTE-001 增加多便签安全编辑与删除：列表结果携带 `UpdatedAtUtc`，当前/非当前便签删除均复用既有 `notes.delete` revision 保护，删除前二次确认，无保存草稿时阻止操作，失败保留内容和列表项，删除当前便签后安全切换剩余第一条；`UT-NOTE-032/033/034/035/036` 覆盖成功、草稿保护和失败保留，Debug UnitTests 138/138，WorkspacePanel Debug 隔离输出构建 0 警告、0 错误；`scripts/Test-NoteDeleteInteraction.ps1` 已提供真实桌面入口，但 UIA 回归仍待用户验收；不新增 IPC 方法、数据库表、版本历史、删除撤销或键盘移动功能；
+- [x] M2.4.2 已为 NTE-001 便签保存失败增加显式重试入口，复用内存草稿且不做无界自动重试；当前隔离桌面已通过 Broker 故障、显式重试和重启读取回归；
+- [x] M2.4.3 已将标题区搜索框接入 `notes.search`，增加 debounce、旧查询取消、结果预览和错误/空查询状态；当前隔离桌面已通过最新查询胜出、旧结果消失和结果打开回归；
+- [x] M2.4.4 已将搜索结果接入便签编辑器安全加载，未保存草稿或保存进行中时阻止切换，目标不存在时保留当前便签；当前隔离桌面已通过搜索打开和未保存草稿门禁；
+- [x] M2.4.5 已为便签标题/正文增加最多 20 步显式撤销与重做，复用自动保存且新编辑清空 redo；当前隔离桌面已通过撤销、重做、保存和重启恢复；
+- [x] M2.4.6 已为 NTE-001 便签增加 Markdown/纯文本模式、基础块级预览和源文往返切换，保存请求保留原始正文并携带正确正文格式；当前隔离桌面已通过模式、预览和源文往返回归；
+- [x] M2.4.7 已为 NTE-001 增加最后一次已提交状态恢复回归；当前隔离桌面已通过 WorkspacePanel/CoreBroker 终止、重启和已提交状态读取，不新增历史表、IPC 方法或键盘移动功能；
+- [x] M2.4.8 已为 NTE-001 增加“全部”入口和多便签只读列表，复用 `notes.search("")` 和草稿保护的安全导航；当前隔离桌面已通过列表与已保存便签回归；
+- [x] M2.4.9 已为 NTE-001 增加新建便签并安全切换，复用现有 `notes.save` 创建契约生成 `note-*` ID；当前隔离桌面已通过新建、列表、搜索、打开和草稿保护回归；
+- [x] M2.4.10 已为 NTE-001 增加多便签安全编辑与删除，复用 `notes.delete` revision、确认和草稿保护；修复删除其他便签后默认便签重载短路，当前隔离桌面已通过当前/列表删除和安全切换回归；
+- [x] M2.2.13 / M2.4.11 已完成桌面验收收口：CardGrid 视口实现、四卡稳定 UIA 锚点、便签固定高度内部滚动、验收实例/临时数据库隔离；Debug/Release UnitTests 163/163，WorkspacePanel/CoreBroker Debug/Release x64 构建 0 警告、0 错误，WinUI smoke 退出码 0；当前单显示器真实桌面通过四卡拖动、布局历史、2/4/6 列、布局重启恢复和 5 条便签 UIA 链路，生产数据库三张表只读哈希与基线一致；
 - [ ] M2.1 便签完整能力、其他领域 CRUD、M2.2 剩余布局/卡片业务和活动数据库恢复；
 - [ ] CoreBroker 与 IPC。
 - [ ] 内置卡片。
@@ -166,16 +167,17 @@
 25. [x] 已按 [M2.2.7 LYT-004 拖动落点与视觉状态修复工作包](../work-packages/M2.2.7-drag-drop-boundary-fix.md) 修复错误吸附、边界越界和回收后卡片消失问题；下一步补实时让位预览、真实桌面回归验收和撤销/重做。
 26. [x] 已按 [M2.2.8 LYT-006 卡片布局持久化工作包](../work-packages/M2.2.8-layout-persistence.md) 接入 CoreBroker/SQLite 布局保存和启动加载，并完成首轮保存反馈及卡片顺序稳定性修复；下一步完成真实重启恢复验收、实时让位预览和撤销/重做。
 27. [x] 已按 [M2.2.9 LYT-006 布局逻辑位置重放修复工作包](../work-packages/M2.2.9-layout-position-replay.md) 接入 `preferredRow`、schema v2 迁移和空位重放，并修复便签动态状态覆盖；下一步完成真实桌面迁移、保存和重开验收。
-28. [x] 已按 [M2.2.10 LYT-003/004/005 卡片拖动入口与实时让位修复工作包](../work-packages/M2.2.10-card-drag-reflow-preview.md) 统一四种卡片拖动入口、实现占用单元格确定性让位和 ItemsRepeater 原地预览，修复统一入口的旧产物路由，并完成计时器/日历拖动柄及卡片表面的真实双向换位回归；下一步补齐便签/待办与显示矩阵、让位弹簧补间和撤销/重做。
+28. [x] 已按 [M2.2.10 LYT-003/004/005 卡片拖动入口与实时让位修复工作包](../work-packages/M2.2.10-card-drag-reflow-preview.md) 统一四种卡片拖动入口、实现占用单元格确定性让位和 ItemsRepeater 原地预览；M2.2.13 已补齐四卡双入口、控件隔离与 `Esc` 取消回归，显示/性能矩阵和让位动效仍待后续。
 29. [x] 已按 [M2.2.11 LYT-004/005/DAT-001 持久化空行与拖动视觉恢复工作包](../work-packages/M2.2.11-bounded-layout-gap-recovery.md) 完成异常第 7 行的有界内存恢复、布局完成后首次绑定和提交后的网格失效，并在真实 Broker + 当前数据库及无 Broker 默认布局下完成双入口拖动回归；下一步由用户点击“完成”保存恢复位置，再补齐便签/待办与显示矩阵。
-30. [x] 已按 [M2.2.12 LYT-006 布局撤销与重做工作包](../work-packages/M2.2.12-layout-undo-redo.md) 完成编辑会话 20 步历史、撤销/重做按钮和 `Ctrl+Z`/`Ctrl+Y` 接入；下一步补真实桌面焦点/可访问性验收、便签/待办与显示矩阵，并继续评估让位动效和虚拟化。
+30. [x] 已按 [M2.2.12 LYT-006 布局撤销与重做工作包](../work-packages/M2.2.12-layout-undo-redo.md) 完成编辑会话 20 步历史、撤销/重做按钮和 `Ctrl+Z`/`Ctrl+Y` 接入，并通过当前桌面按钮/快捷键回归；屏幕阅读器和完整焦点矩阵待后续。
 31. [x] 已按 [M2.4.1 NTE-001 便签显式复制动作工作包](../work-packages/M2.4.1-note-copy-action.md) 完成复制格式化器、双语按钮和剪贴板写入，并完成真实桌面剪贴板验证；
-32. [x] 已按 [M2.4.2 NTE-001 便签保存失败显式重试工作包](../work-packages/M2.4.2-note-save-retry.md) 完成失败草稿保留、显式重试和连续失败恢复状态；下一步补真实跨进程故障恢复验收，再进入便签搜索/恢复或其他有界卡片业务。
-33. [x] 已按 [M2.4.3 NTE-001 便签搜索结果展示工作包](../work-packages/M2.4.3-note-search-results.md) 完成搜索状态层、标题区结果列表和双语状态；下一步补真实桌面搜索回归，再进入便签恢复或其他有界卡片业务。
-34. [x] 已按 [M2.4.4 NTE-001 从搜索结果打开便签工作包](../work-packages/M2.4.4-note-search-open.md) 完成安全切换、草稿保护和缺失目标保留；下一步补真实桌面结果打开回归，再进入便签恢复历史或其他有界卡片业务。
-35. [x] 已按 [M2.4.5 NTE-001 便签编辑撤销与重做工作包](../work-packages/M2.4.5-note-undo-redo.md) 完成文本快照历史、撤销/重做按钮和自动保存接线；下一步补真实桌面按钮回归，再进入便签恢复历史或其他有界卡片业务。
-36. [x] 已按 [M2.4.6 NTE-001 便签基础 Markdown 预览工作包](../work-packages/M2.4.6-note-markdown-preview.md) 完成模式切换、基础预览、保存格式和拖动控件隔离接线；下一步运行 `scripts/Test-NoteMarkdownPreviewInteraction.ps1` 完成真实桌面回归，再进入便签恢复历史或多便签管理。
-37. [x] 已按 [M2.4.7 NTE-001 便签已提交状态恢复回归工作包](../work-packages/M2.4.7-note-committed-state-recovery.md) 增加文件型 SQLite 重开验证和真实进程重启 UIA 入口；下一步运行 `scripts/Test-NoteCommittedStateRecovery.ps1` 完成真实桌面恢复回归，再单独确定便签版本历史或多便签管理的需求契约。
-38. [x] 已按 [M2.4.8 NTE-001 多便签只读列表与安全导航工作包](../work-packages/M2.4.8-note-list-navigation.md) 增加空查询列表、全部入口和现有草稿保护导航；下一步运行 `scripts/Test-NoteListInteraction.ps1` 完成真实桌面列表回归，再单独确定便签版本历史或多便签写操作的需求契约。
-39. [x] 已按 [M2.4.9 NTE-001 新建便签并安全切换工作包](../work-packages/M2.4.9-note-create-switch.md) 增加新建按钮、客户端唯一 ID、创建失败保留当前便签和多便签列表回归入口；下一步运行 `scripts/Test-NoteCreateInteraction.ps1` 完成真实桌面创建回归，再单独确定便签删除/编辑或版本历史的需求契约。
-40. [x] 已按 [M2.4.10 NTE-001 多便签删除与安全编辑工作包](../work-packages/M2.4.10-note-delete-edit.md) 增加删除确认、revision 保护、草稿门禁、当前便签安全切换和列表删除回归入口；下一步运行 `scripts/Test-NoteDeleteInteraction.ps1` 完成真实桌面删除回归，再单独确定便签版本历史或删除撤销的需求契约。
+32. [x] 已按 [M2.4.2 NTE-001 便签保存失败显式重试工作包](../work-packages/M2.4.2-note-save-retry.md) 完成失败草稿保留、显式重试和连续失败恢复状态，并通过当前桌面 Broker 故障/恢复回归。
+33. [x] 已按 [M2.4.3 NTE-001 便签搜索结果展示工作包](../work-packages/M2.4.3-note-search-results.md) 完成搜索状态层、标题区结果列表和双语状态，并通过当前桌面搜索回归。
+34. [x] 已按 [M2.4.4 NTE-001 从搜索结果打开便签工作包](../work-packages/M2.4.4-note-search-open.md) 完成安全切换、草稿保护和缺失目标保留，并通过当前桌面打开/草稿门禁回归。
+35. [x] 已按 [M2.4.5 NTE-001 便签编辑撤销与重做工作包](../work-packages/M2.4.5-note-undo-redo.md) 完成文本快照历史、撤销/重做按钮和自动保存接线，并通过当前桌面恢复回归。
+36. [x] 已按 [M2.4.6 NTE-001 便签基础 Markdown 预览工作包](../work-packages/M2.4.6-note-markdown-preview.md) 完成模式切换、基础预览、保存格式和拖动控件隔离接线，并通过当前桌面模式/预览/往返回归。
+37. [x] 已按 [M2.4.7 NTE-001 便签已提交状态恢复回归工作包](../work-packages/M2.4.7-note-committed-state-recovery.md) 增加文件型 SQLite 重开验证和真实进程重启 UIA，并通过当前桌面重启恢复；版本历史仍需独立需求契约。
+38. [x] 已按 [M2.4.8 NTE-001 多便签只读列表与安全导航工作包](../work-packages/M2.4.8-note-list-navigation.md) 增加空查询列表、全部入口和草稿保护导航，并通过当前桌面列表回归。
+39. [x] 已按 [M2.4.9 NTE-001 新建便签并安全切换工作包](../work-packages/M2.4.9-note-create-switch.md) 增加新建按钮、客户端唯一 ID 和失败保留，并通过当前桌面新建/搜索/草稿保护回归。
+40. [x] 已按 [M2.4.10 NTE-001 多便签删除与安全编辑工作包](../work-packages/M2.4.10-note-delete-edit.md) 增加删除确认、revision 保护、草稿门禁和安全切换，并通过当前桌面当前/列表删除回归。
+41. [x] 已按 [M2.2.13 / M2.4.11 桌面验收与隔离收口工作包](../work-packages/M2.2.13-M2.4.11-desktop-acceptance-closeout.md) 完成视口实现、UIA 可达性、验收进程/数据隔离、当前单屏真实交互和生产数据只读复核；下一步回到完整硬件/无障碍/性能矩阵及剩余产品范围。

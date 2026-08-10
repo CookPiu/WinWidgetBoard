@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
@@ -48,10 +48,8 @@ foreach ($requiredPath in @($panelPath, $brokerPath, $PortableDotnetRoot)) {
     }
 }
 
-$running = Get-Process -Name @(
-    'WinWidgetBoard.CoreBroker',
-    'WinWidgetBoard.WorkspacePanel'
-) -ErrorAction SilentlyContinue
+$running = Get-Process -Name 'WinWidgetBoard.LauncherHost' `
+    -ErrorAction SilentlyContinue
 if ($null -ne $running) {
     $runningText = ($running | ForEach-Object { '{0}#{1}' -f $_.ProcessName, $_.Id }) -join ', '
     throw "Existing WinWidgetBoard processes detected: $runningText"
@@ -125,7 +123,8 @@ function Wait-VisibleElementByAutomationId {
         [System.Windows.Automation.AutomationElement]$Root,
         [string]$AutomationId,
         [TimeSpan]$Timeout,
-        [switch]$Enabled
+        [switch]$Enabled,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
     )
 
     $deadline = [DateTime]::UtcNow + $Timeout
@@ -137,6 +136,9 @@ function Wait-VisibleElementByAutomationId {
             return $element
         }
 
+        if ($null -ne $element -and $null -ne $ScrollContainer) {
+            Set-VerticalScrollPercent -Element $ScrollContainer -Percent 100
+        }
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
 
@@ -197,6 +199,28 @@ function Set-TextValue {
     ([System.Windows.Automation.ValuePattern]$pattern).SetValue($Value)
 }
 
+function Set-VerticalScrollPercent {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element,
+        [double]$Percent
+    )
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ScrollPattern]::Pattern,
+            [ref]$pattern)) {
+        throw "ScrollPattern unavailable: $($Element.Current.Name)"
+    }
+
+    $scroll = [System.Windows.Automation.ScrollPattern]$pattern
+    if ($scroll.Current.VerticallyScrollable) {
+        $scroll.SetScrollPercent(
+            [System.Windows.Automation.ScrollPattern]::NoScroll,
+            $Percent)
+        Start-Sleep -Milliseconds 300
+    }
+}
+
 function Invoke-Element {
     param(
         [System.Windows.Automation.AutomationElement]$Element
@@ -219,13 +243,15 @@ function Invoke-Element {
 function Wait-SavedStatus {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
-        [TimeSpan]$Timeout
+        [TimeSpan]$Timeout,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
     )
 
     $element = Wait-VisibleElementByAutomationId `
         -Root $Root `
         -AutomationId 'NoteEditorStatusText' `
-        -Timeout $Timeout
+        -Timeout $Timeout `
+        -ScrollContainer $ScrollContainer
     $deadline = [DateTime]::UtcNow + $Timeout
     $savedMarker = [string]::Concat(
         [char]0x5DF2,
@@ -249,12 +275,12 @@ function Focus-PanelWindow {
     )
 
     $windowHandle = [IntPtr]$Window.Current.NativeWindowHandle
-    $shown = [WinWidgetBoardNoteListInput]::ShowWindow($windowHandle, 5)
     $zeroHandle = [IntPtr]::Zero
-    if (($windowHandle -eq $zeroHandle) -or (-not $shown)) {
-        throw 'WorkspacePanel could not be shown for UI Automation.'
+    if ($windowHandle -eq $zeroHandle) {
+        throw 'WorkspacePanel returned an invalid native window handle.'
     }
 
+    [void][WinWidgetBoardNoteListInput]::ShowWindow($windowHandle, 5)
     [void][WinWidgetBoardNoteListInput]::BringWindowToTop($windowHandle)
     [void][WinWidgetBoardNoteListInput]::SetActiveWindow($windowHandle)
     $foregroundSet = [WinWidgetBoardNoteListInput]::SetForegroundWindow($windowHandle)
@@ -266,15 +292,20 @@ function Focus-PanelWindow {
     catch {
     }
 
-    if (-not $foregroundSet -and -not $focusSet) {
-        throw 'WorkspacePanel could not be focused for UI Automation.'
-    }
+    # InvokePattern and ValuePattern do not require foreground keyboard focus.
 }
 
 function Start-TestBroker {
     $process = Start-Process `
         -FilePath $brokerPath `
-        -ArgumentList @('--session-token', $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN) `
+        -ArgumentList @(
+            '--session-token',
+            $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN,
+            '--acceptance-test',
+            '--test-instance-id',
+            [Guid]::NewGuid().ToString('N'),
+            '--data-directory',
+            $testDataRoot) `
         -WindowStyle Hidden `
         -PassThru
     Start-Sleep -Milliseconds 500
@@ -288,6 +319,9 @@ function Start-TestBroker {
 function Start-TestPanel {
     $panelInfo = [Diagnostics.ProcessStartInfo]::new($panelPath)
     $panelInfo.UseShellExecute = $false
+    $acceptanceInstanceId = [Guid]::NewGuid().ToString('N')
+    $panelInfo.Arguments =
+        "--acceptance-test --test-instance-id $acceptanceInstanceId"
     $panelInfo.EnvironmentVariables['DOTNET_ROOT'] = $PortableDotnetRoot
     $panelInfo.EnvironmentVariables['DOTNET_ROOT_X64'] = $PortableDotnetRoot
     $panelInfo.EnvironmentVariables['LOCALAPPDATA'] = $env:LOCALAPPDATA
@@ -358,7 +392,15 @@ try {
 
     Set-TextValue -Element $titleBox -Value $seedTitle
     Set-TextValue -Element $bodyBox -Value $seedBody
-    [void](Wait-SavedStatus -Root $window -Timeout ([TimeSpan]::FromSeconds(10)))
+    $noteScroll = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'NotesCardScrollViewer' `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
+    [void](Wait-SavedStatus `
+        -Root $window `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -ScrollContainer $noteScroll)
 
     $listButton = Wait-VisibleElementByAutomationId `
         -Root $window `
@@ -367,10 +409,6 @@ try {
         -Enabled
     Invoke-Element -Element $listButton
 
-    [void](Wait-VisibleElementByAutomationId `
-        -Root $window `
-        -AutomationId 'NoteSearchResultsBorder' `
-        -Timeout ([TimeSpan]::FromSeconds(10)))
     $resultButton = Wait-VisibleElementByName `
         -Root $window `
         -Name $seedTitle `
