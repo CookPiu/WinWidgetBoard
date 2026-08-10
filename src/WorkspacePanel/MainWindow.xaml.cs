@@ -1,5 +1,6 @@
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -106,6 +107,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         CardItemsRepeater.Layout = _cardGridLayout;
         _cardLayout.PropertyChanged += CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged += CardSurface_PropertyChanged;
+        _cardEdit.PropertyChanged += CardEdit_PropertyChanged;
 
         _windowHandle = WindowNative.GetWindowHandle(this);
         WindowId windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
@@ -260,6 +262,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSurface.Dispose();
         _cardLayout.PropertyChanged -= CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged -= CardSurface_PropertyChanged;
+        _cardEdit.PropertyChanged -= CardEdit_PropertyChanged;
         await NoteEditor.DisposeAsync();
     }
 
@@ -277,6 +280,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void RootGrid_KeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (_cardEdit.IsEditing &&
+            !_isSavingLayout &&
+            IsControlPressed() &&
+            e.Key is VirtualKey.Z or VirtualKey.Y)
+        {
+            bool changed = e.Key == VirtualKey.Z
+                ? TryUndoLayout()
+                : TryRedoLayout();
+            if (changed)
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
+
         if (e.Key != VirtualKey.Escape)
         {
             return;
@@ -322,6 +341,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             EditLayoutButton.IsEnabled = false;
             _isSavingLayout = true;
             StatusText.Text = _resources.GetString("LayoutSavingStatus");
+            UpdateLayoutHistoryButtons();
         });
         try
         {
@@ -345,8 +365,19 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 _isSavingLayout = false;
                 EditLayoutButton.IsEnabled = true;
                 UpdateEditLayoutButton();
+                UpdateLayoutHistoryButtons();
             });
         }
+    }
+
+    private void UndoLayoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = TryUndoLayout();
+    }
+
+    private void RedoLayoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = TryRedoLayout();
     }
 
     private void CancelLayoutEdit()
@@ -367,6 +398,56 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             : _resources.GetString("EditLayoutButton.Content");
         EditLayoutButton.Content = content;
         AutomationProperties.SetName(EditLayoutButton, automationName);
+        UpdateLayoutHistoryButtons();
+    }
+
+    private void CardEdit_PropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CardLayoutEditViewModel.IsEditing)
+            or nameof(CardLayoutEditViewModel.CanUndo)
+            or nameof(CardLayoutEditViewModel.CanRedo))
+        {
+            UpdateLayoutHistoryButtons();
+        }
+    }
+
+    private void UpdateLayoutHistoryButtons()
+    {
+        Visibility visibility = _cardEdit.IsEditing
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        UndoLayoutButton.Visibility = visibility;
+        RedoLayoutButton.Visibility = visibility;
+        UndoLayoutButton.IsEnabled = !_isSavingLayout && _cardEdit.CanUndo;
+        RedoLayoutButton.IsEnabled = !_isSavingLayout && _cardEdit.CanRedo;
+    }
+
+    private bool TryUndoLayout()
+    {
+        if (!_cardEdit.TryUndo())
+        {
+            return false;
+        }
+
+        ClearDemoNotesCardVisual();
+        ResetCardDropPreview();
+        StatusText.Text = _resources.GetString("LayoutUndoStatus");
+        return true;
+    }
+
+    private bool TryRedoLayout()
+    {
+        if (!_cardEdit.TryRedo())
+        {
+            return false;
+        }
+
+        ClearDemoNotesCardVisual();
+        ResetCardDropPreview();
+        StatusText.Text = _resources.GetString("LayoutRedoStatus");
+        return true;
     }
 
     private void DecreaseCardSizeButton_Click(object sender, RoutedEventArgs e)
@@ -1219,6 +1300,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         return false;
+    }
+
+    private static bool IsControlPressed()
+    {
+        return InputKeyboardSource
+            .GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
     }
 
     private static T? FindDescendant<T>(

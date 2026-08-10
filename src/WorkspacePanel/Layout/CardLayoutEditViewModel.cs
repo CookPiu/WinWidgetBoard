@@ -4,7 +4,11 @@ namespace WinWidgetBoard.WorkspacePanel.Layout;
 
 public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
 {
+    public const int MaxHistoryDepth = 20;
+
     private readonly CardLayoutViewModel _layout;
+    private readonly List<LayoutSnapshot> _undoHistory = [];
+    private readonly List<LayoutSnapshot> _redoHistory = [];
     private IReadOnlyList<CardLayoutItem>? _editSnapshot;
     private bool _isEditing;
 
@@ -20,6 +24,10 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
 
     public bool IsEditing => _isEditing;
 
+    public bool CanUndo => _isEditing && _undoHistory.Count > 0;
+
+    public bool CanRedo => _isEditing && _redoHistory.Count > 0;
+
     public void BeginEdit()
     {
         if (_isEditing)
@@ -27,7 +35,8 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
             return;
         }
 
-        _editSnapshot = _layout.GetItemsInPlacementOrder().ToArray();
+        _editSnapshot = CaptureSnapshot().Items;
+        ClearHistory();
         SetEditing(true);
     }
 
@@ -39,6 +48,7 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
         }
 
         _editSnapshot = null;
+        ClearHistory();
         SetEditing(false);
     }
 
@@ -51,18 +61,75 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
 
         IReadOnlyList<CardLayoutItem> snapshot = _editSnapshot ?? [];
         _editSnapshot = null;
+        ClearHistory();
         SetEditing(false);
         _layout.ReplaceItems(snapshot);
     }
 
+    public bool TryUndo()
+    {
+        if (!CanUndo)
+        {
+            return false;
+        }
+
+        int lastIndex = _undoHistory.Count - 1;
+        LayoutSnapshot target = _undoHistory[lastIndex];
+        _undoHistory.RemoveAt(lastIndex);
+        _redoHistory.Add(CaptureSnapshot());
+        RestoreSnapshot(target);
+        PublishHistoryState();
+        return true;
+    }
+
+    public bool TryRedo()
+    {
+        if (!CanRedo)
+        {
+            return false;
+        }
+
+        int lastIndex = _redoHistory.Count - 1;
+        LayoutSnapshot target = _redoHistory[lastIndex];
+        _redoHistory.RemoveAt(lastIndex);
+        _undoHistory.Add(CaptureSnapshot());
+        RestoreSnapshot(target);
+        PublishHistoryState();
+        return true;
+    }
+
     public bool TryResizeCard(string instanceId, CardSize size)
     {
-        return _isEditing && _layout.ResizeCard(instanceId, size);
+        if (!_isEditing)
+        {
+            return false;
+        }
+
+        LayoutSnapshot before = CaptureSnapshot();
+        if (!_layout.ResizeCard(instanceId, size))
+        {
+            return false;
+        }
+
+        RecordMutation(before);
+        return true;
     }
 
     public bool TryRemoveCard(string instanceId)
     {
-        return _isEditing && _layout.RemoveCard(instanceId);
+        if (!_isEditing)
+        {
+            return false;
+        }
+
+        LayoutSnapshot before = CaptureSnapshot();
+        if (!_layout.RemoveCard(instanceId))
+        {
+            return false;
+        }
+
+        RecordMutation(before);
+        return true;
     }
 
     public bool TryPreviewDrop(
@@ -103,7 +170,14 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
             return false;
         }
 
+        if (PlacementsEqual(_layout.Placements, placements))
+        {
+            return true;
+        }
+
+        LayoutSnapshot before = CaptureSnapshot();
         _layout.ApplyPlacements(placements);
+        RecordMutation(before);
         return true;
     }
 
@@ -118,5 +192,74 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(
             this,
             new PropertyChangedEventArgs(nameof(IsEditing)));
+        PublishHistoryState();
     }
+
+    private LayoutSnapshot CaptureSnapshot()
+    {
+        return new LayoutSnapshot(
+            _layout.GetItemsInPlacementOrder()
+                .Select(item => item with { })
+                .ToArray());
+    }
+
+    private void RestoreSnapshot(LayoutSnapshot snapshot)
+    {
+        _layout.ReplaceItems(snapshot.Items);
+    }
+
+    private void RecordMutation(LayoutSnapshot before)
+    {
+        _undoHistory.Add(before);
+        if (_undoHistory.Count > MaxHistoryDepth)
+        {
+            _undoHistory.RemoveAt(0);
+        }
+
+        _redoHistory.Clear();
+        PublishHistoryState();
+    }
+
+    private void ClearHistory()
+    {
+        _undoHistory.Clear();
+        _redoHistory.Clear();
+        PublishHistoryState();
+    }
+
+    private void PublishHistoryState()
+    {
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(nameof(CanUndo)));
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(nameof(CanRedo)));
+    }
+
+    private static bool PlacementsEqual(
+        IReadOnlyList<CardPlacement> left,
+        IReadOnlyList<CardPlacement> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        Dictionary<string, CardPlacement> leftById = left.ToDictionary(
+            placement => placement.InstanceId,
+            StringComparer.Ordinal);
+        foreach (CardPlacement placement in right)
+        {
+            if (!leftById.TryGetValue(placement.InstanceId, out CardPlacement current) ||
+                current != placement)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private sealed record LayoutSnapshot(IReadOnlyList<CardLayoutItem> Items);
 }

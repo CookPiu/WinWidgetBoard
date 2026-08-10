@@ -208,11 +208,29 @@
   <data name="FinishEditLayoutButtonAutomationName" xml:space="preserve">
     <value>Finish layout editing</value>
   </data>
+  <data name="UndoLayoutButton.Content" xml:space="preserve">
+    <value>Undo</value>
+  </data>
+  <data name="UndoLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Undo layout operation</value>
+  </data>
+  <data name="RedoLayoutButton.Content" xml:space="preserve">
+    <value>Redo</value>
+  </data>
+  <data name="RedoLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Redo layout operation</value>
+  </data>
   <data name="LayoutEditStartedStatus" xml:space="preserve">
-    <value>Layout editing is on; cards can now be resized, removed, or dragged.</value>
+    <value>Layout editing is on; cards can now be resized, removed, dragged, or undone.</value>
   </data>
   <data name="LayoutEditCommittedStatus" xml:space="preserve">
     <value>Layout editing completed.</value>
+  </data>
+  <data name="LayoutUndoStatus" xml:space="preserve">
+    <value>The previous layout operation was undone.</value>
+  </data>
+  <data name="LayoutRedoStatus" xml:space="preserve">
+    <value>The layout operation was redone.</value>
   </data>
   <data name="LayoutReadyToSaveStatus" xml:space="preserve">
     <value>Layout is ready; changes will be saved when editing is finished.</value>

@@ -208,11 +208,29 @@
   <data name="FinishEditLayoutButtonAutomationName" xml:space="preserve">
     <value>完成布局编辑</value>
   </data>
+  <data name="UndoLayoutButton.Content" xml:space="preserve">
+    <value>撤销</value>
+  </data>
+  <data name="UndoLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>撤销布局操作</value>
+  </data>
+  <data name="RedoLayoutButton.Content" xml:space="preserve">
+    <value>重做</value>
+  </data>
+  <data name="RedoLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>重做布局操作</value>
+  </data>
   <data name="LayoutEditStartedStatus" xml:space="preserve">
-    <value>已进入布局编辑模式；现在可以调整尺寸、删除或拖动卡片。</value>
+    <value>已进入布局编辑模式；现在可以调整尺寸、删除、拖动并撤销布局操作。</value>
   </data>
   <data name="LayoutEditCommittedStatus" xml:space="preserve">
     <value>布局编辑已完成。</value>
+  </data>
+  <data name="LayoutUndoStatus" xml:space="preserve">
+    <value>已撤销上一步布局操作。</value>
+  </data>
+  <data name="LayoutRedoStatus" xml:space="preserve">
+    <value>已重做布局操作。</value>
   </data>
   <data name="LayoutReadyToSaveStatus" xml:space="preserve">
     <value>布局已准备就绪，完成编辑时会保存修改。</value>

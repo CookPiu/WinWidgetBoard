@@ -51,6 +51,8 @@ public sealed class CardLayoutEditViewModelTests
             layout.Items.Select(item => item.InstanceId).ToArray());
         Assert.AreEqual(CardSize.S, layout.Items[0].Size);
         Assert.AreEqual(CardSize.M, layout.Items[1].Size);
+        Assert.IsFalse(editMode.CanUndo);
+        Assert.IsFalse(editMode.CanRedo);
         CollectionAssert.Contains(changed, nameof(CardLayoutEditViewModel.IsEditing));
     }
 
@@ -67,8 +69,123 @@ public sealed class CardLayoutEditViewModelTests
         editMode.CommitEdit();
 
         Assert.IsFalse(editMode.IsEditing);
+        Assert.IsFalse(editMode.CanUndo);
+        Assert.IsFalse(editMode.CanRedo);
         Assert.AreEqual(CardSize.XL, layout.Items[0].Size);
         Assert.IsFalse(editMode.TryRemoveCard("card"));
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-035 [LYT-006] Undo and redo restore resize and move commands")]
+    public void UndoAndRedoRestoreResizeAndMoveCommands()
+    {
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("first", CardSize.M),
+                new CardLayoutItem("dragged", CardSize.S),
+            ]);
+        CardPlacement originalDragged = layout.Placements.Single(
+            placement => placement.InstanceId == "dragged");
+        var editMode = new CardLayoutEditViewModel(layout);
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryResizeCard("first", CardSize.L));
+        Assert.IsTrue(editMode.TryCommitDrop(
+            "dragged",
+            new GridCell(3, 0),
+            out _));
+        Assert.IsTrue(editMode.CanUndo);
+        Assert.IsFalse(editMode.CanRedo);
+
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.AreEqual(CardSize.L, layout.Items.Single(
+            item => item.InstanceId == "first").Size);
+        Assert.AreEqual(
+            originalDragged,
+            layout.Placements.Single(placement => placement.InstanceId == "dragged"));
+
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.AreEqual(CardSize.M, layout.Items.Single(
+            item => item.InstanceId == "first").Size);
+        Assert.AreEqual(
+            originalDragged,
+            layout.Placements.Single(placement => placement.InstanceId == "dragged"));
+        Assert.IsFalse(editMode.CanUndo);
+        Assert.IsTrue(editMode.CanRedo);
+
+        Assert.IsTrue(editMode.TryRedo());
+        Assert.AreEqual(CardSize.L, layout.Items.Single(
+            item => item.InstanceId == "first").Size);
+        Assert.IsTrue(editMode.TryRedo());
+        Assert.AreEqual(
+            3,
+            layout.Placements.Single(placement => placement.InstanceId == "dragged").Column);
+        Assert.IsFalse(editMode.CanRedo);
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-036 [LYT-006] New edit command clears redo history")]
+    public void NewEditCommandClearsRedoHistory()
+    {
+        var layout = new CardLayoutViewModel(
+            4,
+            [new CardLayoutItem("card", CardSize.S)]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryResizeCard("card", CardSize.M));
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.IsTrue(editMode.CanRedo);
+
+        Assert.IsTrue(editMode.TryResizeCard("card", CardSize.L));
+        Assert.IsFalse(editMode.CanRedo);
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.AreEqual(CardSize.S, layout.Items[0].Size);
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-037 [LYT-006] Layout history is bounded to twenty undo steps")]
+    public void LayoutHistoryIsBoundedToTwentyUndoSteps()
+    {
+        var layout = new CardLayoutViewModel(
+            4,
+            [new CardLayoutItem("card", CardSize.S)]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        editMode.BeginEdit();
+
+        for (int index = 0; index < CardLayoutEditViewModel.MaxHistoryDepth + 1; index++)
+        {
+            CardSize nextSize = index % 2 == 0 ? CardSize.M : CardSize.S;
+            Assert.IsTrue(editMode.TryResizeCard("card", nextSize));
+        }
+
+        int undoCount = 0;
+        while (editMode.TryUndo())
+        {
+            undoCount++;
+        }
+
+        Assert.AreEqual(CardLayoutEditViewModel.MaxHistoryDepth, undoCount);
+        Assert.IsFalse(editMode.CanUndo);
+        Assert.AreEqual(CardSize.M, layout.Items[0].Size);
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-038 [LYT-006] Undo restores a removed card")]
+    public void UndoRestoresRemovedCard()
+    {
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("first", CardSize.M),
+                new CardLayoutItem("second", CardSize.S),
+            ]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryRemoveCard("first"));
+        Assert.IsFalse(layout.Items.Any(item => item.InstanceId == "first"));
+
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.IsTrue(layout.Items.Any(item => item.InstanceId == "first"));
+        Assert.AreEqual(2, layout.Items.Count);
     }
 
     [TestMethod(DisplayName = "UT-GRID-020 [LYT-004] Commit drop applies the projected placement")]

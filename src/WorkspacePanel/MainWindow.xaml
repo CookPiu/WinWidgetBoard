@@ -366,6 +366,18 @@
                         MinWidth="36"
                         Click="EditLayoutButton_Click" />
                     <Button
+                        x:Name="UndoLayoutButton"
+                        x:Uid="UndoLayoutButton"
+                        MinWidth="36"
+                        Visibility="Collapsed"
+                        Click="UndoLayoutButton_Click" />
+                    <Button
+                        x:Name="RedoLayoutButton"
+                        x:Uid="RedoLayoutButton"
+                        MinWidth="36"
+                        Visibility="Collapsed"
+                        Click="RedoLayoutButton_Click" />
+                    <Button
                         x:Name="SettingsButton"
                         x:Uid="SettingsButton"
                         MinWidth="36"
