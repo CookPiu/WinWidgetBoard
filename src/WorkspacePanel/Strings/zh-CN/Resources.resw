@@ -370,6 +370,12 @@
   <data name="CalendarCardTitle.Text" xml:space="preserve">
     <value>本地日历</value>
   </data>
+  <data name="UnknownCardTitle.Text" xml:space="preserve">
+    <value>不可用卡片</value>
+  </data>
+  <data name="UnknownCardBody.Text" xml:space="preserve">
+    <value>当前卡片类型不可用，可在布局编辑模式中将其移除。</value>
+  </data>
   <data name="CardGridHost.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>卡片网格</value>
   </data>

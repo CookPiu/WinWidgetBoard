@@ -10,6 +10,7 @@ public sealed class CardTemplateDragContractTests
         "TimerCardTemplate",
         "TodoCardTemplate",
         "CalendarCardTemplate",
+        "UnknownCardTemplate",
     ];
 
     private static readonly string[] PointerHandlerAttributes = [
@@ -73,6 +74,7 @@ public sealed class CardTemplateDragContractTests
             "TimerCardDragHandle",
             "TodoCardDragHandle",
             "CalendarCardDragHandle",
+            "UnknownCardDragHandle",
         ];
 
         string[] actualNames = document
@@ -89,6 +91,59 @@ public sealed class CardTemplateDragContractTests
 
         CollectionAssert.AreEquivalent(expectedNames, actualNames);
         Assert.AreEqual(expectedNames.Length, actualNames.Distinct().Count());
+    }
+
+    [TestMethod(DisplayName = "UT-CARD-013 [CRD-001] Unknown cards use a non-actionable fallback template")]
+    public void UnknownCardsUseNonActionableFallbackTemplate()
+    {
+        string xamlPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestAssets",
+            "MainWindow.xaml");
+        XDocument document = XDocument.Load(xamlPath);
+        XNamespace presentation =
+            "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace xaml =
+            "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement selector = document
+            .Descendants()
+            .Single(element =>
+                string.Equals(
+                    element.Name.LocalName,
+                    "CardSurfaceTemplateSelector",
+                    StringComparison.Ordinal) &&
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Key"),
+                    "CardTemplateSelector",
+                    StringComparison.Ordinal));
+
+        Assert.AreEqual(
+            "{StaticResource UnknownCardTemplate}",
+            (string?)selector.Attribute("DefaultTemplate"));
+
+        XElement unknownTemplate = document
+            .Descendants(presentation + "DataTemplate")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Key"),
+                    "UnknownCardTemplate",
+                    StringComparison.Ordinal));
+        string[] allowedButtonUids =
+        [
+            "DecreaseCardButton",
+            "IncreaseCardButton",
+            "RemoveCardButton",
+        ];
+        string[] actualButtonUids = unknownTemplate
+            .Descendants(presentation + "Button")
+            .Select(element => (string?)element.Attribute(xaml + "Uid"))
+            .Where(uid => !string.IsNullOrWhiteSpace(uid))
+            .Cast<string>()
+            .ToArray();
+
+        CollectionAssert.AreEquivalent(
+            allowedButtonUids,
+            actualButtonUids);
     }
 
     [TestMethod(DisplayName = "UT-GRID-045 [LYT-001/NFR-A11Y-002] Card grid exposes a stable automation anchor")]

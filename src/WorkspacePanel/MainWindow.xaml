@@ -580,13 +580,84 @@
             </Border>
         </DataTemplate>
 
+        <DataTemplate
+            x:Key="UnknownCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="180"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            x:Uid="UnknownCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <TextBlock
+                            x:Uid="UnknownCardBody"
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Border
+                        Grid.Row="2"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Border
+                                Tag="{x:Bind InstanceId}"
+                                Style="{StaticResource WwbDragHandleStyle}">
+                                <TextBlock
+                                    x:Name="UnknownCardDragHandle"
+                                    x:Uid="DragCardHandle"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <Button
+                                x:Uid="DecreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="DecreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="IncreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="IncreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="RemoveCardButton"
+                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="RemoveCardButton_Click" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
         <layout:CardSurfaceTemplateSelector
             x:Key="CardTemplateSelector"
             NotesTemplate="{StaticResource NotesCardTemplate}"
             TimerTemplate="{StaticResource TimerCardTemplate}"
             TodoTemplate="{StaticResource TodoCardTemplate}"
             CalendarTemplate="{StaticResource CalendarCardTemplate}"
-            DefaultTemplate="{StaticResource TimerCardTemplate}" />
+            DefaultTemplate="{StaticResource UnknownCardTemplate}" />
         </Grid.Resources>
         <Grid
             x:Name="RootGrid"

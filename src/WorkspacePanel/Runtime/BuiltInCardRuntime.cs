@@ -1,0 +1,263 @@
+using System.Text.Json;
+using WinWidgetBoard.WorkspacePanel.Layout;
+using WinWidgetBoard.WorkspacePanel.Notes;
+
+namespace WinWidgetBoard.WorkspacePanel.Runtime;
+
+public static class BuiltInCardCatalog
+{
+    public const string NotesInstanceId = "demo.notes";
+    public const string TimerInstanceId = "demo.timer";
+    public const string TodoInstanceId = "demo.todo";
+    public const string CalendarInstanceId = "demo.calendar";
+
+    public const string NotesCardTypeId = "builtin.notes";
+    public const string TimerCardTypeId = "builtin.timer";
+    public const string TodoCardTypeId = "builtin.todo";
+    public const string CalendarCardTypeId = "builtin.calendar";
+    public const string UnknownCardTypeId = "builtin.unknown";
+
+    private static readonly CardSize[] StandardSizes =
+    [
+        CardSize.S,
+        CardSize.M,
+        CardSize.L,
+        CardSize.W,
+        CardSize.XL,
+    ];
+
+    public static ICardDefinition Notes { get; } = new CardDefinition(
+        NotesCardTypeId,
+        "NotesCardTitle.Text",
+        CardSize.L,
+        StandardSizes);
+
+    public static ICardDefinition Timer { get; } = new CardDefinition(
+        TimerCardTypeId,
+        "TimerCardTitle.Text",
+        CardSize.M,
+        StandardSizes);
+
+    public static ICardDefinition Todo { get; } = new CardDefinition(
+        TodoCardTypeId,
+        "TodoCardTitle.Text",
+        CardSize.M,
+        StandardSizes);
+
+    public static ICardDefinition Calendar { get; } = new CardDefinition(
+        CalendarCardTypeId,
+        "CalendarCardTitle.Text",
+        CardSize.M,
+        StandardSizes);
+
+    public static ICardDefinition Unknown { get; } = new CardDefinition(
+        UnknownCardTypeId,
+        "UnknownCardTitle.Text",
+        CardSize.M,
+        StandardSizes);
+
+    public static IReadOnlyList<ICardDefinition> All { get; } =
+        Array.AsReadOnly(
+        [
+            Notes,
+            Timer,
+            Todo,
+            Calendar,
+            Unknown,
+        ]);
+
+    public static ICardDefinition ResolveInstance(string instanceId)
+    {
+        CardRuntimeContractGuards.RequireIdentifier(
+            instanceId,
+            nameof(instanceId));
+        return instanceId switch
+        {
+            NotesInstanceId => Notes,
+            TimerInstanceId => Timer,
+            TodoInstanceId => Todo,
+            CalendarInstanceId => Calendar,
+            _ => Unknown,
+        };
+    }
+}
+
+public static class BuiltInCardRuntimeFactory
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public static CardRuntimeInstance Create(
+        string instanceId,
+        NoteEditorViewModel noteEditor,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(noteEditor);
+        ICardDefinition definition =
+            BuiltInCardCatalog.ResolveInstance(instanceId);
+        DateTimeOffset timestampUtc =
+            (timeProvider ?? TimeProvider.System).GetUtcNow();
+        CardRuntimeSnapshot initialSnapshot =
+            definition.CardTypeId switch
+            {
+                BuiltInCardCatalog.NotesCardTypeId =>
+                    CreateNoteSnapshot(
+                        instanceId,
+                        noteEditor,
+                        sequence: 0,
+                        timestampUtc),
+                BuiltInCardCatalog.UnknownCardTypeId =>
+                    CreateUnknownSnapshot(
+                        instanceId,
+                        sequence: 0,
+                        timestampUtc),
+                _ => CreatePlaceholderSnapshot(
+                    instanceId,
+                    definition.CardTypeId,
+                    sequence: 0,
+                    timestampUtc),
+            };
+        var runtime = new CardRuntimeInstance(
+            definition,
+            instanceId,
+            initialSnapshot);
+        runtime.Initialize();
+        return runtime;
+    }
+
+    public static bool SynchronizeNote(
+        CardRuntimeInstance runtime,
+        NoteEditorViewModel noteEditor,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(noteEditor);
+        if (!string.Equals(
+                runtime.Definition.CardTypeId,
+                BuiltInCardCatalog.NotesCardTypeId,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Only the built-in notes runtime can synchronize a note editor.",
+                nameof(runtime));
+        }
+
+        CardRuntimeSnapshot snapshot = CreateNoteSnapshot(
+            runtime.InstanceId,
+            noteEditor,
+            checked(runtime.Snapshot.Sequence + 1),
+            (timeProvider ?? TimeProvider.System).GetUtcNow());
+        return runtime.ApplySnapshot(snapshot);
+    }
+
+    private static CardRuntimeSnapshot CreateNoteSnapshot(
+        string instanceId,
+        NoteEditorViewModel noteEditor,
+        long sequence,
+        DateTimeOffset timestampUtc)
+    {
+        CardRuntimeStatus status = MapNoteStatus(noteEditor.Status);
+        CardRuntimeFreshness freshness = status switch
+        {
+            CardRuntimeStatus.Ready => CardRuntimeFreshness.Fresh,
+            CardRuntimeStatus.Error => CardRuntimeFreshness.Stale,
+            _ => CardRuntimeFreshness.Unknown,
+        };
+        string? errorCode = status switch
+        {
+            CardRuntimeStatus.Unavailable => NormalizeErrorCode(
+                noteEditor.ErrorCode,
+                CardRuntimeErrorCodes.NoteUnavailable),
+            CardRuntimeStatus.Error => NormalizeErrorCode(
+                noteEditor.ErrorCode,
+                CardRuntimeErrorCodes.NoteFailed),
+            CardRuntimeStatus.Unknown =>
+                CardRuntimeErrorCodes.NoteStatusUnknown,
+            _ => null,
+        };
+        string[] allowedActions = status switch
+        {
+            CardRuntimeStatus.Ready =>
+                [CardRuntimeActionIds.Edit],
+            CardRuntimeStatus.Unavailable or CardRuntimeStatus.Error =>
+            [
+                CardRuntimeActionIds.Retry,
+                CardRuntimeActionIds.OpenDiagnostics,
+                CardRuntimeActionIds.Disable,
+            ],
+            _ => [],
+        };
+        JsonElement payload = JsonSerializer.SerializeToElement(
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["noteId"] = noteEditor.NoteId,
+                ["editorStatus"] = noteEditor.Status.ToString(),
+            });
+
+        return new CardRuntimeSnapshot(
+            instanceId,
+            BuiltInCardCatalog.NotesCardTypeId,
+            CurrentSchemaVersion,
+            sequence,
+            timestampUtc,
+            freshness,
+            status,
+            payload,
+            allowedActions,
+            errorCode);
+    }
+
+    private static CardRuntimeSnapshot CreatePlaceholderSnapshot(
+        string instanceId,
+        string cardTypeId,
+        long sequence,
+        DateTimeOffset timestampUtc) =>
+        new(
+            instanceId,
+            cardTypeId,
+            CurrentSchemaVersion,
+            sequence,
+            timestampUtc,
+            CardRuntimeFreshness.Unknown,
+            CardRuntimeStatus.Unavailable,
+            allowedActionIds: [CardRuntimeActionIds.Disable],
+            errorCode: CardRuntimeErrorCodes.NotImplemented);
+
+    private static CardRuntimeSnapshot CreateUnknownSnapshot(
+        string instanceId,
+        long sequence,
+        DateTimeOffset timestampUtc) =>
+        new(
+            instanceId,
+            BuiltInCardCatalog.UnknownCardTypeId,
+            CurrentSchemaVersion,
+            sequence,
+            timestampUtc,
+            CardRuntimeFreshness.Unknown,
+            CardRuntimeStatus.Unknown,
+            errorCode: CardRuntimeErrorCodes.UnknownCard);
+
+    internal static CardRuntimeStatus MapNoteStatus(
+        NoteEditorStatus status) =>
+        status switch
+        {
+            NoteEditorStatus.Unavailable =>
+                CardRuntimeStatus.Unavailable,
+            NoteEditorStatus.Loading =>
+                CardRuntimeStatus.Loading,
+            NoteEditorStatus.Ready or
+                NoteEditorStatus.PendingSave or
+                NoteEditorStatus.Saving or
+                NoteEditorStatus.Saved =>
+                CardRuntimeStatus.Ready,
+            NoteEditorStatus.Error =>
+                CardRuntimeStatus.Error,
+            _ => CardRuntimeStatus.Unknown,
+        };
+
+    private static string NormalizeErrorCode(
+        string? errorCode,
+        string fallback) =>
+        CardRuntimeContractGuards.IsValidIdentifier(errorCode)
+            ? errorCode!
+            : fallback;
+}

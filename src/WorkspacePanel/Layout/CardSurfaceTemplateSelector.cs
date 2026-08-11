@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using WinWidgetBoard.WorkspacePanel.Runtime;
 
 namespace WinWidgetBoard.WorkspacePanel.Layout;
 
@@ -22,12 +23,12 @@ public sealed class CardSurfaceTemplateSelector : DataTemplateSelector
             return DefaultTemplate;
         }
 
-        return card.InstanceId switch
+        return card.CardTypeId switch
         {
-            "demo.notes" => NotesTemplate,
-            "demo.timer" => TimerTemplate,
-            "demo.todo" => TodoTemplate,
-            "demo.calendar" => CalendarTemplate,
+            BuiltInCardCatalog.NotesCardTypeId => NotesTemplate,
+            BuiltInCardCatalog.TimerCardTypeId => TimerTemplate,
+            BuiltInCardCatalog.TodoCardTypeId => TodoTemplate,
+            BuiltInCardCatalog.CalendarCardTypeId => CalendarTemplate,
             _ => DefaultTemplate,
         };
     }

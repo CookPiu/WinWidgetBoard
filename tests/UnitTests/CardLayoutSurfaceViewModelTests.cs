@@ -2,6 +2,7 @@ using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Client;
 using WinWidgetBoard.WorkspacePanel.Layout;
 using WinWidgetBoard.WorkspacePanel.Notes;
+using WinWidgetBoard.WorkspacePanel.Runtime;
 
 namespace WinWidgetBoard.UnitTests;
 
@@ -29,6 +30,9 @@ public sealed class CardLayoutSurfaceViewModelTests
             noteEditor,
             status => status.ToString());
         CardSurfaceItem[] originalItems = surface.Items.ToArray();
+        CardRuntimeInstance[] originalRuntimes = surface.Items
+            .Select(item => item.Runtime)
+            .ToArray();
         var changed = new List<string>();
         surface.PropertyChanged += (_, args) => changed.Add(args.PropertyName!);
 
@@ -49,6 +53,9 @@ public sealed class CardLayoutSurfaceViewModelTests
         Assert.AreEqual(2, surface.Items.Count);
         Assert.AreEqual(2, surface.Items[0].Placement.ColumnSpan);
         CollectionAssert.AreEqual(originalItems, surface.Items.ToArray());
+        CollectionAssert.AreEqual(
+            originalRuntimes,
+            surface.Items.Select(item => item.Runtime).ToArray());
         CollectionAssert.DoesNotContain(
             changed,
             nameof(CardLayoutSurfaceViewModel.Items));
@@ -92,8 +99,28 @@ public sealed class CardLayoutSurfaceViewModelTests
             status => status.ToString());
 
         Assert.AreEqual("Loading", surface.Items[0].NoteStatusText);
+        Assert.AreEqual(
+            CardRuntimeStatus.Loading,
+            surface.Items[0].RuntimeStatus);
         Assert.IsTrue(await noteEditor.LoadAsync(CancellationToken.None));
         Assert.AreEqual("Ready", surface.Items[0].NoteStatusText);
+        Assert.AreEqual(
+            CardRuntimeStatus.Ready,
+            surface.Items[0].RuntimeStatus);
+        Assert.AreEqual(
+            NoteEditorViewModel.DefaultNoteId,
+            surface.Items[0].RuntimeSnapshot.Payload
+                .GetProperty("noteId")
+                .GetString());
+
+        noteEditor.MarkUnavailable("transport.timeout");
+
+        Assert.AreEqual(
+            CardRuntimeStatus.Unavailable,
+            surface.Items[0].RuntimeStatus);
+        Assert.AreEqual(
+            "transport.timeout",
+            surface.Items[0].RuntimeSnapshot.ErrorCode);
     }
 
     [TestMethod(DisplayName = "UT-GRID-027 [LYT-004] Drop preview reflows in place without moving the dragged base")]
@@ -162,6 +189,11 @@ public sealed class CardLayoutSurfaceViewModelTests
             status => status.ToString());
         Dictionary<string, CardSurfaceItem> originalItems = surface.Items
             .ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
+        Dictionary<string, CardRuntimeInstance> originalRuntimes =
+            surface.Items.ToDictionary(
+                item => item.InstanceId,
+                item => item.Runtime,
+                StringComparer.Ordinal);
         var changed = new List<string>();
         surface.PropertyChanged += (_, args) => changed.Add(args.PropertyName!);
 
@@ -186,10 +218,55 @@ public sealed class CardLayoutSurfaceViewModelTests
         foreach (CardSurfaceItem item in surface.Items)
         {
             Assert.AreSame(originalItems[item.InstanceId], item);
+            Assert.AreSame(originalRuntimes[item.InstanceId], item.Runtime);
         }
         CollectionAssert.Contains(
             changed,
             nameof(CardLayoutSurfaceViewModel.Items));
+    }
+
+    [TestMethod(DisplayName = "UT-CARD-012 [CRD-001] Built-in surfaces resolve stable runtime types")]
+    public async Task BuiltInSurfacesResolveStableRuntimeTypes()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("demo.notes", CardSize.L),
+                new CardLayoutItem("demo.timer", CardSize.M),
+                new CardLayoutItem("demo.todo", CardSize.M),
+                new CardLayoutItem("demo.calendar", CardSize.M),
+                new CardLayoutItem("custom.unknown", CardSize.M),
+            ]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        using var surface = new CardLayoutSurfaceViewModel(
+            editMode,
+            noteEditor);
+
+        string[] expectedTypeIds =
+        [
+            BuiltInCardCatalog.NotesCardTypeId,
+            BuiltInCardCatalog.TimerCardTypeId,
+            BuiltInCardCatalog.TodoCardTypeId,
+            BuiltInCardCatalog.CalendarCardTypeId,
+            BuiltInCardCatalog.UnknownCardTypeId,
+        ];
+        CollectionAssert.AreEqual(
+            expectedTypeIds,
+            surface.Items.Select(item => item.CardTypeId).ToArray());
+        Assert.IsTrue(surface.Items.All(
+            item => item.Runtime.LifecycleState ==
+                CardLifecycleState.Initialized));
+        Assert.IsTrue(surface.Items.All(
+            item => item.RuntimeStatus is
+                CardRuntimeStatus.Unavailable or
+                CardRuntimeStatus.Unknown));
+        Assert.AreEqual(
+            CardRuntimeErrorCodes.UnknownCard,
+            surface.Items[^1].RuntimeSnapshot.ErrorCode);
+        Assert.AreEqual(
+            0,
+            surface.Items[^1].RuntimeSnapshot.AllowedActionIds.Count);
     }
 
     private sealed class ReadyNoteClient : INoteClient

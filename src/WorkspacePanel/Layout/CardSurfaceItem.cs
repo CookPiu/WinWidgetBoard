@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using WinWidgetBoard.WorkspacePanel.Notes;
+using WinWidgetBoard.WorkspacePanel.Runtime;
 
 namespace WinWidgetBoard.WorkspacePanel.Layout;
 
@@ -21,8 +22,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         NoteEditor = noteEditor;
         _editMode = editMode;
         _statusFormatter = statusFormatter ?? (status => status.ToString());
+        Runtime = BuiltInCardRuntimeFactory.Create(
+            placement.InstanceId,
+            noteEditor);
         NoteEditor.PropertyChanged += NoteEditor_PropertyChanged;
         _editMode.PropertyChanged += EditMode_PropertyChanged;
+        Runtime.PropertyChanged += Runtime_PropertyChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -32,6 +37,14 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string InstanceId => Placement.InstanceId;
 
     public NoteEditorViewModel NoteEditor { get; }
+
+    public CardRuntimeInstance Runtime { get; }
+
+    public string CardTypeId => Runtime.Definition.CardTypeId;
+
+    public CardRuntimeSnapshot RuntimeSnapshot => Runtime.Snapshot;
+
+    public CardRuntimeStatus RuntimeStatus => RuntimeSnapshot.Status;
 
     public bool IsEditing => _editMode.IsEditing;
 
@@ -71,6 +84,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         _disposed = true;
         NoteEditor.PropertyChanged -= NoteEditor_PropertyChanged;
         _editMode.PropertyChanged -= EditMode_PropertyChanged;
+        Runtime.PropertyChanged -= Runtime_PropertyChanged;
+        Runtime.Dispose();
     }
 
     private void NoteEditor_PropertyChanged(
@@ -80,6 +95,16 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         if (e.PropertyName is nameof(NoteEditorViewModel.Status)
             or nameof(NoteEditorViewModel.ErrorCode))
         {
+            if (string.Equals(
+                    CardTypeId,
+                    BuiltInCardCatalog.NotesCardTypeId,
+                    StringComparison.Ordinal))
+            {
+                BuiltInCardRuntimeFactory.SynchronizeNote(
+                    Runtime,
+                    NoteEditor);
+            }
+
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(NoteStatusText)));
@@ -95,6 +120,21 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(IsEditing)));
+        }
+    }
+
+    private void Runtime_PropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CardRuntimeInstance.Snapshot))
+        {
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(RuntimeSnapshot)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(RuntimeStatus)));
         }
     }
 }
