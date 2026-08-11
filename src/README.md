@@ -15,4 +15,4 @@ src/
 
 M2.2.1 已增加独立的 `WorkspacePanel/Layout/ResponsiveGridLayout` 纯布局核心，M2.2.2 已增加 `CardLayoutViewModel` 作为响应式卡片状态层，M2.2.3 已接入 `CardLayoutSurfaceViewModel`、`CardGridLayout` 和 ItemsRepeater，M2.2.4 已加入 `CardLayoutEditViewModel` 编辑模式门禁，M2.2.5 已加入 `CardDragPlacementProjector`，M2.2.6～M2.2.7 已接入指针拖动、placement 提交和边界修复，M2.2.8～M2.2.9 已接入 CoreBroker/SQLite 持久化与逻辑单元重放，M2.2.10 已统一四种卡片根表面的拖动入口并接入占用单元格的实时让位预览，M2.2.11 已加入 `CardLayoutReplaySanitizer`、布局完成后首次绑定和 placement 提交后的网格失效，M2.2.12 已加入编辑会话布局撤销/重做；让位弹簧补间、虚拟化回收和完整可访问性验收仍待完成。
 
-M2.3.0 已建立 WorkspacePanel 视觉 Token 和共享卡片外壳；M2.3.1 已建立稳定卡片类型目录、实例生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 已用集中式事件调度器把面板开关与 ItemsRepeater 实现/回收接入 Hidden/Visible，并为隐藏取消、恢复新鲜快照、迟到结果拒绝和有界释放提供测试边界。真实 Provider 周期/退避、设置草稿和通用状态视觉仍待后续工作包。
+M2.3.0 已建立 WorkspacePanel 视觉 Token 和共享卡片外壳；M2.3.1 已建立稳定卡片类型目录、实例生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 已用集中式事件调度器把面板开关与 ItemsRepeater 实现/回收接入 Hidden/Visible，并为隐藏取消、恢复新鲜快照、迟到结果拒绝和有界释放提供测试边界；M2.3.3 已在 Runtime 层建立不可变设置快照、声明式写入策略、预览取消恢复和两阶段提交门禁，不包含 UI、IPC 或数据库接入。真实 Provider 周期/退避、设置界面与持久化、通用状态视觉仍待后续工作包。

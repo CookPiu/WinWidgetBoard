@@ -427,8 +427,14 @@ DPI 192 真实窗口、四卡拖拽、布局历史和便签 UIA 回归。该工�
 使用单一事件驱动调度器把面板开关和 ItemsRepeater 实现/回收接入 Hidden/Visible，
 Hidden 取消纯 UI 快照刷新，恢复 Visible 时请求一次当前本地快照；generation 和
 runtime identity 门禁拒绝隐藏、注销或释放后的迟到 Ready/Error 结果。本包没有
-引入每卡 Timer、周期循环、真实 Provider、网络或新 IPC。设置草稿、通用状态视觉
-和真实 Provider 的周期、退避与节能策略仍属于后续工作包。
+引入每卡 Timer、周期循环、真实 Provider、网络或新 IPC。通用状态视觉和真实
+Provider 的周期、退避与节能策略仍属于后续工作包。
+
+已完成工作包 [M2.3.3 CRD-004/SET-003 卡片设置草稿与取消恢复](work-packages/M2.3.3-card-settings-draft.md)：
+在 WorkspacePanel Runtime 内建立不可变设置快照、声明式 setting schema，以及
+`PreviewSafe`/`CommitOnly` 写入策略；取消按首次触碰逆序恢复实际预览项，单项失败
+不阻断其余恢复。提交请求携带 session、draft version 和 expected revision，仅在
+持久化方确认 `expected + 1` 后接受；本包不新增设置 UI、IPC、数据库或外部副作用。
 
 任务：
 
