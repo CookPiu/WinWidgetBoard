@@ -110,7 +110,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSurface = new CardLayoutSurfaceViewModel(
             _cardEdit,
             NoteEditor,
-            FormatNoteStatus);
+            FormatNoteStatus,
+            runtimeResourceResolver: key => _resources.GetString(
+                key.Replace('.', '/')));
         _cardGridLayout = new CardGridLayout
         {
             ColumnCount = _cardLayout.ColumnCount,

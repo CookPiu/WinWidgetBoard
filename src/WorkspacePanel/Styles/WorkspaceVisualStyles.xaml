@@ -99,6 +99,69 @@
     </Style>
 
     <Style
+        x:Key="WwbCardRuntimeStatusSurfaceStyle"
+        TargetType="Border"
+        BasedOn="{StaticResource WwbSecondarySurfaceStyle}">
+        <Setter Property="Padding" Value="12" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style
+        x:Key="WwbCardRuntimeStatusTitleStyle"
+        TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style
+        x:Key="WwbCardRuntimeStatusSummaryStyle"
+        TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style
+        x:Key="WwbCardRuntimeStatusFreshnessStyle"
+        TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style
+        x:Key="WwbCardRuntimeStatusCriticalIconStyle"
+        TargetType="TextBlock">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="MinWidth" Value="20" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource SystemFillColorCriticalBrush}" />
+    </Style>
+
+    <Style
+        x:Key="WwbCardRuntimeStatusSkeletonBlockStyle"
+        TargetType="Border">
+        <Setter Property="Height" Value="12" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+    </Style>
+
+    <Style
         x:Key="WwbEditToolbarSurfaceStyle"
         TargetType="Border">
         <Setter

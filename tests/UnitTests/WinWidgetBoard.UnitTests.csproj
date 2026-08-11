@@ -42,6 +42,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\BuiltInCardRuntime.cs" Link="WorkspacePanel\Runtime\BuiltInCardRuntime.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\CardRuntimeVisibilityScheduler.cs" Link="WorkspacePanel\Runtime\CardRuntimeVisibilityScheduler.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\CardSettingsDraft.cs" Link="WorkspacePanel\Runtime\CardSettingsDraft.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Runtime\CardRuntimeStatusPresentation.cs" Link="WorkspacePanel\Runtime\CardRuntimeStatusPresentation.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteClipboardFormatter.cs" Link="WorkspacePanel\Notes\NoteClipboardFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteMarkdownPreviewFormatter.cs" Link="WorkspacePanel\Notes\NoteMarkdownPreviewFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteEditorViewModel.cs" Link="WorkspacePanel\Notes\NoteEditorViewModel.cs" />
@@ -60,6 +61,12 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\WorkspacePanel\Styles\WorkspaceVisualStyles.xaml"
           Link="TestAssets\Styles\WorkspaceVisualStyles.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\WorkspacePanel\Strings\en-US\Resources.resw"
+          Link="TestAssets\Strings\en-US\Resources.resw"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\WorkspacePanel\Strings\zh-CN\Resources.resw"
+          Link="TestAssets\Strings\zh-CN\Resources.resw"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\Run-WinWidgetBoard.ps1"
           Link="TestAssets\Run-WinWidgetBoard.ps1"

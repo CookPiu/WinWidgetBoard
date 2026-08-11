@@ -1130,28 +1130,21 @@ try {
         -Mode Surface `
         -ProcessId $panelProcess.Id
 
-    $timerTitle = Get-ElementByNames `
-        -Root $window `
-        -Names @('计时器', 'Timer')
-    $timerButton = Get-ElementByNames `
-        -Root $window `
-        -Names @('启动计时器', 'Start timer')
-    $timerBeforeControlDrag = Get-ElementCenter -Element $timerTitle
-    $timerButtonCenter = Get-ElementCenter -Element $timerButton
-    $timerButtonDragEnd = [pscustomobject]@{
-        X = $timerButtonCenter.X + 100
-        Y = $timerButtonCenter.Y
+    $placeholderActions = [ordered]@{
+        Timer = @('启动计时器', 'Start timer')
+        Todo = @('打开待办', 'Open to-do')
+        Calendar = @('打开日历', 'Open calendar')
     }
-    Invoke-MouseDrag -Start $timerButtonCenter -End $timerButtonDragEnd
-    Start-Sleep -Milliseconds 500
-    $timerTitle = Get-ElementByNames `
-        -Root $window `
-        -Names @('计时器', 'Timer')
-    Assert-Near `
-        -Actual (Get-ElementCenter -Element $timerTitle) `
-        -Expected $timerBeforeControlDrag `
-        -Tolerance 16 `
-        -Description 'Timer after interactive button drag'
+    foreach ($entry in $placeholderActions.GetEnumerator()) {
+        $placeholderAction = Get-ElementByNames `
+            -Root $window `
+            -Names $entry.Value `
+            -Optional
+        if ($null -ne $placeholderAction) {
+            throw "Removed placeholder action for $($entry.Key) was still exposed: '$($placeholderAction.Current.Name)'."
+        }
+    }
+    Write-Output 'STATUS-ACTION-GUARD-PASS timer+todo+calendar actions absent'
 
     if ($WithBroker) {
         $notesTitle = Get-ElementByNames `

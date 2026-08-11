@@ -343,6 +343,90 @@
   <data name="NoteEditorErrorStatus" xml:space="preserve">
     <value>保存失败，当前草稿仍保留在编辑器中。</value>
   </data>
+  <data name="CardStatus.Unknown.Title" xml:space="preserve">
+    <value>状态未知</value>
+  </data>
+  <data name="CardStatus.Unknown.Summary" xml:space="preserve">
+    <value>无法确认此卡片的当前状态。</value>
+  </data>
+  <data name="CardStatus.Loading.Title" xml:space="preserve">
+    <value>正在加载</value>
+  </data>
+  <data name="CardStatus.Loading.Summary" xml:space="preserve">
+    <value>正在准备卡片内容。</value>
+  </data>
+  <data name="CardStatus.Ready.Title" xml:space="preserve">
+    <value>已就绪</value>
+  </data>
+  <data name="CardStatus.Ready.Summary" xml:space="preserve">
+    <value>卡片内容已更新。</value>
+  </data>
+  <data name="CardStatus.Empty.Title" xml:space="preserve">
+    <value>暂无内容</value>
+  </data>
+  <data name="CardStatus.Empty.Summary" xml:space="preserve">
+    <value>当前没有可显示的内容。</value>
+  </data>
+  <data name="CardStatus.Stale.Title" xml:space="preserve">
+    <value>内容已过期</value>
+  </data>
+  <data name="CardStatus.Stale.Summary" xml:space="preserve">
+    <value>卡片数据可能不是最新；若有最近有效内容将继续显示。</value>
+  </data>
+  <data name="CardStatus.Offline.Title" xml:space="preserve">
+    <value>处于离线状态</value>
+  </data>
+  <data name="CardStatus.Offline.Summary" xml:space="preserve">
+    <value>连接不可用；若有最近有效内容将继续显示。</value>
+  </data>
+  <data name="CardStatus.PermissionRequired.Title" xml:space="preserve">
+    <value>需要权限</value>
+  </data>
+  <data name="CardStatus.PermissionRequired.Summary" xml:space="preserve">
+    <value>允许所需权限后才能显示卡片内容。</value>
+  </data>
+  <data name="CardStatus.Unavailable.Title" xml:space="preserve">
+    <value>暂不可用</value>
+  </data>
+  <data name="CardStatus.Unavailable.Summary" xml:space="preserve">
+    <value>当前无法提供此卡片内容。</value>
+  </data>
+  <data name="CardStatus.Error.Title" xml:space="preserve">
+    <value>卡片出现问题</value>
+  </data>
+  <data name="CardStatus.Error.Summary" xml:space="preserve">
+    <value>卡片无法刷新；若有最近有效内容将继续显示，可稍后重试。</value>
+  </data>
+  <data name="CardStatus.Disabled.Title" xml:space="preserve">
+    <value>卡片已停用</value>
+  </data>
+  <data name="CardStatus.Disabled.Summary" xml:space="preserve">
+    <value>此卡片已被停用。</value>
+  </data>
+  <data name="CardStatus.Freshness.Stale" xml:space="preserve">
+    <value>最后更新：{0}</value>
+  </data>
+  <data name="CardStatus.Freshness.Offline" xml:space="preserve">
+    <value>离线；最后更新：{0}</value>
+  </data>
+  <data name="CardAction.Retry" xml:space="preserve">
+    <value>重试</value>
+  </data>
+  <data name="CardAction.Refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="CardAction.Edit" xml:space="preserve">
+    <value>编辑</value>
+  </data>
+  <data name="CardAction.Configure" xml:space="preserve">
+    <value>配置</value>
+  </data>
+  <data name="CardAction.OpenDiagnostics" xml:space="preserve">
+    <value>打开诊断</value>
+  </data>
+  <data name="CardAction.Disable" xml:space="preserve">
+    <value>停用</value>
+  </data>
   <data name="TimerCardTitle.Text" xml:space="preserve">
     <value>计时器</value>
   </data>

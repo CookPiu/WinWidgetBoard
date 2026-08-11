@@ -8,8 +8,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 {
     private readonly CardLayoutEditViewModel _editMode;
     private readonly Func<NoteEditorStatus, string> _statusFormatter;
+    private readonly Func<string, string?> _runtimeResourceResolver;
     private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
     private readonly CardRuntimeRegistration? _visibilityRegistration;
+    private CardRuntimeStatusPresentation _runtimePresentation;
     private bool _disposed;
 
     public CardSurfaceItem(
@@ -17,7 +19,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         NoteEditorViewModel noteEditor,
         CardLayoutEditViewModel editMode,
         Func<NoteEditorStatus, string>? statusFormatter = null,
-        CardRuntimeVisibilityScheduler? visibilityScheduler = null)
+        CardRuntimeVisibilityScheduler? visibilityScheduler = null,
+        Func<string, string?>? runtimeResourceResolver = null)
     {
         ArgumentNullException.ThrowIfNull(noteEditor);
         ArgumentNullException.ThrowIfNull(editMode);
@@ -25,10 +28,15 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         NoteEditor = noteEditor;
         _editMode = editMode;
         _statusFormatter = statusFormatter ?? (status => status.ToString());
+        _runtimeResourceResolver = runtimeResourceResolver ??
+            (static key => key);
         _visibilityScheduler = visibilityScheduler;
         Runtime = BuiltInCardRuntimeFactory.Create(
             placement.InstanceId,
             noteEditor);
+        _runtimePresentation = CardRuntimeStatusPresentation.Create(
+            Runtime.Snapshot,
+            _runtimeResourceResolver);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
             RefreshSnapshotAsync);
@@ -52,6 +60,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public CardRuntimeSnapshot RuntimeSnapshot => Runtime.Snapshot;
 
     public CardRuntimeStatus RuntimeStatus => RuntimeSnapshot.Status;
+
+    public CardRuntimeStatusPresentation RuntimePresentation =>
+        Volatile.Read(ref _runtimePresentation);
 
     public bool SetViewportVisibility(bool isInViewport) =>
         _visibilityScheduler?.SetViewportVisibility(Runtime, isInViewport)
@@ -156,12 +167,20 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     {
         if (e.PropertyName == nameof(CardRuntimeInstance.Snapshot))
         {
+            CardRuntimeStatusPresentation presentation =
+                CardRuntimeStatusPresentation.Create(
+                    Runtime.Snapshot,
+                    _runtimeResourceResolver);
+            Interlocked.Exchange(ref _runtimePresentation, presentation);
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(RuntimeSnapshot)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(RuntimeStatus)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(RuntimePresentation)));
         }
     }
 }

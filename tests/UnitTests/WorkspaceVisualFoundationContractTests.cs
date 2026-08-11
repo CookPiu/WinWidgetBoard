@@ -107,22 +107,39 @@ public sealed class WorkspaceVisualFoundationContractTests
                 "{x:Bind IsEditing, Mode=OneWay}",
                 (string?)editToolbar.Attribute("Visibility"));
 
+            string runtimeStatusName = templateKey switch
+            {
+                "NotesCardTemplate" => "NotesCardRuntimeStatus",
+                "TimerCardTemplate" => "TimerCardRuntimeStatus",
+                "TodoCardTemplate" => "TodoCardRuntimeStatus",
+                "CalendarCardTemplate" => "CalendarCardRuntimeStatus",
+                _ => throw new AssertFailedException(
+                    $"Unexpected card template: {templateKey}"),
+            };
+            XElement runtimeStatusHost = template
+                .Descendants()
+                .Single(element =>
+                    string.Equals(
+                        (string?)element.Attribute(Xaml + "Name"),
+                        runtimeStatusName,
+                        StringComparison.Ordinal));
+            StringAssert.Contains(
+                runtimeStatusHost.ToString(SaveOptions.DisableFormatting),
+                "RuntimePresentation");
+
             if (!string.Equals(
                     templateKey,
                     "NotesCardTemplate",
                     StringComparison.Ordinal))
             {
-                XElement primaryAction = template
+                Assert.IsFalse(template
                     .Descendants(Presentation + "Button")
-                    .Single(element =>
+                    .Any(element =>
                         string.Equals(
                             (string?)element.Attribute("Style"),
                             "{StaticResource WwbCardActionButtonStyle}",
-                            StringComparison.Ordinal));
-                Assert.IsNull(primaryAction.Attribute("Visibility"));
-                Assert.AreEqual(
-                    "2",
-                    (string?)primaryAction.Attribute("Grid.Row"));
+                            StringComparison.Ordinal)),
+                    $"{templateKey} must not expose an unimplemented business action.");
                 Assert.AreEqual(
                     "3",
                     (string?)editToolbar.Attribute("Grid.Row"));

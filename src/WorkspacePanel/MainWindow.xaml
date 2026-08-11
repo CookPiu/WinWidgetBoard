@@ -5,7 +5,8 @@
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:layout="using:WinWidgetBoard.WorkspacePanel.Layout"
-    xmlns:notes="using:WinWidgetBoard.WorkspacePanel.Notes">
+    xmlns:notes="using:WinWidgetBoard.WorkspacePanel.Notes"
+    xmlns:runtime="using:WinWidgetBoard.WorkspacePanel.Runtime">
 
     <Grid>
         <Grid.Resources>
@@ -112,6 +113,52 @@
             QuoteTemplate="{StaticResource NoteMarkdownQuoteTemplate}"
             CodeTemplate="{StaticResource NoteMarkdownCodeTemplate}" />
         <DataTemplate
+            x:Key="CardRuntimeStatusTemplate"
+            x:DataType="runtime:CardRuntimeStatusPresentation">
+            <Border Style="{StaticResource WwbCardRuntimeStatusSurfaceStyle}">
+                <StackPanel Spacing="4">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            Style="{StaticResource WwbCardRuntimeStatusCriticalIconStyle}"
+                            Text="!"
+                            Visibility="{Binding IsCritical, Converter={StaticResource EditModeVisibilityConverter}}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource WwbCardRuntimeStatusTitleStyle}"
+                            Text="{x:Bind Title}"
+                            TextWrapping="Wrap" />
+                    </Grid>
+                    <TextBlock
+                        Style="{StaticResource WwbCardRuntimeStatusSummaryStyle}"
+                        Text="{x:Bind Summary}"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Style="{StaticResource WwbCardRuntimeStatusFreshnessStyle}"
+                        Text="{x:Bind FreshnessText}"
+                        TextWrapping="Wrap"
+                        Visibility="{Binding HasFreshnessText, Converter={StaticResource EditModeVisibilityConverter}}" />
+                    <Border
+                        x:Name="CardRuntimeLoadingSkeleton"
+                        Padding="8"
+                        Style="{StaticResource WwbCardRuntimeStatusSurfaceStyle}"
+                        Visibility="{Binding IsLoading, Converter={StaticResource EditModeVisibilityConverter}}">
+                        <StackPanel Spacing="8">
+                            <Border Style="{StaticResource WwbCardRuntimeStatusSkeletonBlockStyle}" />
+                            <Border
+                                Width="180"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource WwbCardRuntimeStatusSkeletonBlockStyle}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate
             x:Key="NotesCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
@@ -146,6 +193,14 @@
                                 x:Uid="NotesCardBody"
                                 Style="{StaticResource WwbCardBodyStyle}"
                                 TextWrapping="Wrap" />
+                            <ContentControl
+                                x:Name="NotesCardRuntimeStatus"
+                                automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                                automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
+                                Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                                ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                                IsTabStop="False"
+                                Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
                         </StackPanel>
                     </Grid>
                     <ScrollViewer
@@ -156,7 +211,8 @@
                         HorizontalScrollBarVisibility="Disabled"
                         HorizontalScrollMode="Disabled"
                         VerticalScrollBarVisibility="Auto"
-                        VerticalScrollMode="Enabled">
+                        VerticalScrollMode="Enabled"
+                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}">
                         <StackPanel Spacing="12">
                             <StackPanel
                                 x:Name="NoteEditorInputPanel"
@@ -370,21 +426,28 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        x:Uid="TimerCardTitle"
-                        Style="{StaticResource WwbCardTitleStyle}" />
+                    <StackPanel
+                        Grid.Row="0"
+                        Spacing="8">
+                        <TextBlock
+                            x:Uid="TimerCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <ContentControl
+                            x:Name="TimerCardRuntimeStatus"
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                    </StackPanel>
                     <TextBlock
                         x:Uid="TimerCardBody"
                         Grid.Row="1"
                         VerticalAlignment="Top"
                         Style="{StaticResource WwbCardBodyStyle}"
-                        TextWrapping="Wrap" />
-                    <Button
-                        x:Uid="StartTimerButton"
-                        Grid.Row="2"
-                        Style="{StaticResource WwbCardActionButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Click="ShellCommandButton_Click" />
+                        TextWrapping="Wrap"
+                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -448,21 +511,28 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        x:Uid="TodoCardTitle"
-                        Style="{StaticResource WwbCardTitleStyle}" />
+                    <StackPanel
+                        Grid.Row="0"
+                        Spacing="8">
+                        <TextBlock
+                            x:Uid="TodoCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <ContentControl
+                            x:Name="TodoCardRuntimeStatus"
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                    </StackPanel>
                     <TextBlock
                         x:Uid="TodoCardBody"
                         Grid.Row="1"
                         VerticalAlignment="Top"
                         Style="{StaticResource WwbCardBodyStyle}"
-                        TextWrapping="Wrap" />
-                    <Button
-                        x:Uid="OpenTodoButton"
-                        Grid.Row="2"
-                        Style="{StaticResource WwbCardActionButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Click="ShellCommandButton_Click" />
+                        TextWrapping="Wrap"
+                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -526,21 +596,28 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        x:Uid="CalendarCardTitle"
-                        Style="{StaticResource WwbCardTitleStyle}" />
+                    <StackPanel
+                        Grid.Row="0"
+                        Spacing="8">
+                        <TextBlock
+                            x:Uid="CalendarCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <ContentControl
+                            x:Name="CalendarCardRuntimeStatus"
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                    </StackPanel>
                     <TextBlock
                         x:Uid="CalendarCardBody"
                         Grid.Row="1"
                         VerticalAlignment="Top"
                         Style="{StaticResource WwbCardBodyStyle}"
-                        TextWrapping="Wrap" />
-                    <Button
-                        x:Uid="OpenCalendarButton"
-                        Grid.Row="2"
-                        Style="{StaticResource WwbCardActionButtonStyle}"
-                        HorizontalAlignment="Left"
-                        Click="ShellCommandButton_Click" />
+                        TextWrapping="Wrap"
+                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -607,10 +684,19 @@
                         <TextBlock
                             x:Uid="UnknownCardTitle"
                             Style="{StaticResource WwbCardTitleStyle}" />
+                        <ContentControl
+                            x:Name="UnknownCardRuntimeStatus"
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
                         <TextBlock
                             x:Uid="UnknownCardBody"
                             Style="{StaticResource WwbCardBodyStyle}"
-                            TextWrapping="Wrap" />
+                            TextWrapping="Wrap"
+                            Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
                     </StackPanel>
                     <Border
                         Grid.Row="2"
