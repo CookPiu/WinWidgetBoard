@@ -835,6 +835,8 @@
                         SizeChanged="CardGridHost_SizeChanged">
                         <controls:ItemsRepeater
                             x:Name="CardItemsRepeater"
+                            ElementPrepared="CardItemsRepeater_ElementPrepared"
+                            ElementClearing="CardItemsRepeater_ElementClearing"
                             ItemTemplate="{StaticResource CardTemplateSelector}" />
                     </Grid>
                 </StackPanel>

@@ -149,6 +149,35 @@ public static class BuiltInCardRuntimeFactory
         return runtime.ApplySnapshot(snapshot);
     }
 
+    public static CardRuntimeSnapshot CreateFreshSnapshot(
+        CardRuntimeInstance runtime,
+        NoteEditorViewModel noteEditor,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(noteEditor);
+        long sequence = checked(runtime.Snapshot.Sequence + 1);
+        DateTimeOffset timestampUtc =
+            (timeProvider ?? TimeProvider.System).GetUtcNow();
+        return runtime.Definition.CardTypeId switch
+        {
+            BuiltInCardCatalog.NotesCardTypeId => CreateNoteSnapshot(
+                runtime.InstanceId,
+                noteEditor,
+                sequence,
+                timestampUtc),
+            BuiltInCardCatalog.UnknownCardTypeId => CreateUnknownSnapshot(
+                runtime.InstanceId,
+                sequence,
+                timestampUtc),
+            _ => CreatePlaceholderSnapshot(
+                runtime.InstanceId,
+                runtime.Definition.CardTypeId,
+                sequence,
+                timestampUtc),
+        };
+    }
+
     private static CardRuntimeSnapshot CreateNoteSnapshot(
         string instanceId,
         NoteEditorViewModel noteEditor,

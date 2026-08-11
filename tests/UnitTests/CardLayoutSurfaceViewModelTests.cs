@@ -97,6 +97,8 @@ public sealed class CardLayoutSurfaceViewModelTests
             editMode,
             noteEditor,
             status => status.ToString());
+        surface.SetPanelVisibility(true);
+        surface.Items[0].SetViewportVisibility(true);
 
         Assert.AreEqual("Loading", surface.Items[0].NoteStatusText);
         Assert.AreEqual(
@@ -121,6 +123,37 @@ public sealed class CardLayoutSurfaceViewModelTests
         Assert.AreEqual(
             "transport.timeout",
             surface.Items[0].RuntimeSnapshot.ErrorCode);
+    }
+
+    [TestMethod(DisplayName = "UT-CARD-031 [CRD-003] Hidden note status changes defer runtime snapshots until visible")]
+    public async Task HiddenNoteStatusChangesDeferRuntimeSnapshotsUntilVisible()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        var layout = new CardLayoutViewModel(
+            4,
+            [new CardLayoutItem("demo.notes", CardSize.L)]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        using var surface = new CardLayoutSurfaceViewModel(
+            editMode,
+            noteEditor);
+        CardSurfaceItem item = surface.Items[0];
+        long hiddenSequence = item.RuntimeSnapshot.Sequence;
+        string? hiddenError = item.RuntimeSnapshot.ErrorCode;
+
+        noteEditor.MarkUnavailable("transport.timeout");
+
+        Assert.AreEqual(hiddenSequence, item.RuntimeSnapshot.Sequence);
+        Assert.AreEqual(hiddenError, item.RuntimeSnapshot.ErrorCode);
+        Assert.AreEqual(CardLifecycleState.Hidden, item.Runtime.LifecycleState);
+
+        surface.SetPanelVisibility(true);
+        item.SetViewportVisibility(true);
+
+        Assert.AreEqual(hiddenSequence + 1, item.RuntimeSnapshot.Sequence);
+        Assert.AreEqual(
+            "transport.timeout",
+            item.RuntimeSnapshot.ErrorCode);
+        Assert.AreEqual(CardLifecycleState.Visible, item.Runtime.LifecycleState);
     }
 
     [TestMethod(DisplayName = "UT-GRID-027 [LYT-004] Drop preview reflows in place without moving the dragged base")]
@@ -256,7 +289,7 @@ public sealed class CardLayoutSurfaceViewModelTests
             surface.Items.Select(item => item.CardTypeId).ToArray());
         Assert.IsTrue(surface.Items.All(
             item => item.Runtime.LifecycleState ==
-                CardLifecycleState.Initialized));
+                CardLifecycleState.Hidden));
         Assert.IsTrue(surface.Items.All(
             item => item.RuntimeStatus is
                 CardRuntimeStatus.Unavailable or
@@ -267,6 +300,46 @@ public sealed class CardLayoutSurfaceViewModelTests
         Assert.AreEqual(
             0,
             surface.Items[^1].RuntimeSnapshot.AllowedActionIds.Count);
+    }
+
+    [TestMethod(DisplayName = "UT-CARD-027 [CRD-003] Surface registrations follow removal and runtime identity reuse")]
+    public async Task SurfaceRegistrationsFollowRemovalAndRuntimeIdentityReuse()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("demo.notes", CardSize.L),
+                new CardLayoutItem("demo.timer", CardSize.M),
+            ]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        var scheduler = new CardRuntimeVisibilityScheduler(panelVisible: true);
+        using var surface = new CardLayoutSurfaceViewModel(
+            editMode,
+            noteEditor,
+            visibilityScheduler: scheduler);
+
+        Assert.AreEqual(2, scheduler.RegistrationCount);
+        CardRuntimeInstance oldNotesRuntime = surface.Items[0].Runtime;
+        layout.ReplaceItems(
+        [
+            new CardLayoutItem("demo.timer", CardSize.M),
+        ]);
+
+        Assert.AreEqual(1, scheduler.RegistrationCount);
+        Assert.AreEqual(
+            CardLifecycleState.Disposed,
+            oldNotesRuntime.LifecycleState);
+
+        layout.ReplaceItems(
+        [
+            new CardLayoutItem("demo.notes", CardSize.L),
+        ]);
+        CardRuntimeInstance newNotesRuntime = surface.Items[0].Runtime;
+        Assert.AreNotSame(oldNotesRuntime, newNotesRuntime);
+        Assert.IsFalse(surface.SetViewportVisibility(oldNotesRuntime, true));
+        Assert.IsTrue(surface.SetViewportVisibility(newNotesRuntime, true));
+        Assert.AreEqual(CardLifecycleState.Visible, newNotesRuntime.LifecycleState);
     }
 
     private sealed class ReadyNoteClient : INoteClient

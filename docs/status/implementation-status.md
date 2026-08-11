@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-`M2.2 / M2.4 当前代码范围与 M2.3.0 UI 基础层、M2.3.1 统一卡片运行时基础已收口（M2.2.13 / M2.4.11 已完成当前单显示器真实桌面验收、验收进程/数据隔离和自动回归；M2.3.1 已完成 Definition/Instance、生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 可见性与 Provider 调度尚未开始；M1.0 干净环境与 CI、真实多显示器/DPI/无障碍/性能矩阵、便签版本历史、删除撤销、其他领域 CRUD、剩余卡片业务和正式数据库恢复演练仍待完成）`
+`M2.2 / M2.4 当前代码范围与 M2.3.0～M2.3.2 已收口（M2.2.13 / M2.4.11 已完成当前单显示器真实桌面验收、验收进程/数据隔离和自动回归；M2.3.1 已完成 Definition/Instance、生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 已完成面板/ItemsRepeater 实现视口驱动的 Hidden/Visible、集中式本地快照调度、取消和迟到结果门禁；设置草稿、真实 Provider 周期/退避、M1.0 干净环境与 CI、真实多显示器/DPI/无障碍/性能矩阵、便签版本历史、删除撤销、其他领域 CRUD、剩余卡片业务和正式数据库恢复演练仍待完成）`
 
 ## 已完成
 
@@ -123,7 +123,8 @@
 - [x] M2.4.10 已为 NTE-001 增加多便签安全编辑与删除，复用 `notes.delete` revision、确认和草稿保护；修复删除其他便签后默认便签重载短路，当前隔离桌面已通过当前/列表删除和安全切换回归；
 - [x] M2.2.13 / M2.4.11 已完成桌面验收收口：CardGrid 视口实现、四卡稳定 UIA 锚点、便签固定高度内部滚动、验收实例/临时数据库隔离；Debug/Release UnitTests 163/163，WorkspacePanel/CoreBroker Debug/Release x64 构建 0 警告、0 错误，WinUI smoke 退出码 0；当前单显示器真实桌面通过四卡拖动、布局历史、2/4/6 列、布局重启恢复和 5 条便签 UIA 链路，生产数据库三张表只读哈希与基线一致；
 - [x] M2.3.0 已建立 WorkspacePanel UI 基础视觉层：应用级四像素间距与圆角 Token、系统主题画刷、标题/命令分层、共享卡片/输入/状态/编辑工具样式；Debug/Release UnitTests 167/167，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，WinUI smoke 退出码 0；DPI 192 普通态/编辑态截图、四卡真实拖拽、布局按钮与 `Ctrl+Z`/`Ctrl+Y`、便签新建链路均通过；完整暗色/高对比度/文本缩放/多显示器矩阵和 M2.3 卡片运行时仍待后续；
-- [x] M2.3.1 已建立统一卡片 Definition/Instance、六态生命周期、不可变快照与订阅、单实例刷新错误边界和内置四卡类型目录；现有卡片表面按类型 ID 选择模板，便签 Loading/Ready/Unavailable/Error 经适配器同步，未知状态不暴露推断动作并使用无业务按钮的安全模板；Debug/Release UnitTests 180/180，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，Release WinUI smoke 退出码 0，隔离 Broker 下四卡双入口拖动、控件隔离和 `Esc` 取消输出 `REAL-DRAG-PASS`；实际可见性/Provider 调度、设置草稿和通用状态视觉仍待后续；
+- [x] M2.3.1 已建立统一卡片 Definition/Instance、六态生命周期、不可变快照与订阅、单实例刷新错误边界和内置四卡类型目录；现有卡片表面按类型 ID 选择模板，便签 Loading/Ready/Unavailable/Error 经适配器同步，未知状态不暴露推断动作并使用无业务按钮的安全模板；Debug/Release UnitTests 180/180，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，Release WinUI smoke 退出码 0，隔离 Broker 下四卡双入口拖动、控件隔离和 `Esc` 取消输出 `REAL-DRAG-PASS`；M2.3.2 已补可见性与本地快照调度，设置草稿、真实 Provider 周期/退避和通用状态视觉仍待后续；
+- [x] M2.3.2 已建立单一事件驱动 `CardRuntimeVisibilityScheduler`，将面板开关和 ItemsRepeater 实现/回收接入卡片 Hidden/Visible，Hidden 取消纯 UI 快照刷新，恢复 Visible 请求一次当前本地快照；generation、runtime identity 和 commit gate 拒绝隐藏、注销或释放后的迟到 Ready/Error，在途刷新完成等待共享全局 250ms 预算且不创建每卡 Timer/循环；Debug/Release UnitTests 198/198，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，Release WinUI smoke 退出码 0，隔离 Broker 下四卡双入口拖动、控件隔离和 `Esc` 取消输出 `REAL-DRAG-PASS`；严格像素级 EffectiveViewport、真实 Provider 周期/退避/节能和性能矩阵仍待后续；
 - [ ] M2.1 便签完整能力、其他领域 CRUD、M2.2 剩余布局/卡片业务和活动数据库恢复；
 - [ ] CoreBroker 与 IPC。
 - [ ] 内置卡片。
@@ -140,7 +141,7 @@
 
 ## 下一步
 
-下一工作包按顺序进入 M2.3.2 可见性与快照调度：先把面板/视口状态接入生命周期，再验证 Hidden 停止纯 UI 工作、恢复 Visible 时请求新鲜快照；不得在每张卡片创建独立高频定时器。以下保留累计路线与完成记录：
+下一工作包按批准顺序拆分 M2.3.3 卡片设置草稿与取消恢复：先建立 UI 无关、可测试的草稿边界，视觉设置预览可取消恢复，外部副作用和持久化提交不得混入预览；M2.3.2 只完成事件驱动的本地快照调度，真实 Provider 周期/退避/节能仍需后续独立工作包。以下保留累计路线与完成记录：
 
 1. 在安装锁定 SDK 的干净环境或 CI 执行完整 `.sln` Debug/Release x64 构建；
 2. 人工目视验证 WorkspacePanel M1.2 面板壳层的内容、布局和交互；
@@ -185,3 +186,4 @@
 41. [x] 已按 [M2.2.13 / M2.4.11 桌面验收与隔离收口工作包](../work-packages/M2.2.13-M2.4.11-desktop-acceptance-closeout.md) 完成视口实现、UIA 可达性、验收进程/数据隔离、当前单屏真实交互和生产数据只读复核；下一步回到完整硬件/无障碍/性能矩阵及剩余产品范围。
 42. [x] 已按 [M2.3.0 UI 基础样式与共享卡片外壳工作包](../work-packages/M2.3.0-ui-visual-foundation.md) 建立共享视觉 Token、系统主题样式和普通态/编辑态层级，并通过当前 DPI 192 截图、四卡拖拽、布局历史与便签 UIA 回归；下一步在不回退该视觉契约的前提下拆分 M2.3 统一卡片运行时。
 43. [x] 已按 [M2.3.1 CRD-001/002/005 统一卡片运行时基础工作包](../work-packages/M2.3.1-card-runtime-foundation.md) 建立卡片定义、实例、生命周期、不可变快照、订阅、错误隔离和未知卡片安全模板，并通过 180/180 自动测试、Debug/Release 构建、WinUI smoke 与当前隔离四卡真实拖动回归；下一步进入 M2.3.2 可见性与快照调度。
+44. [x] 已按 [M2.3.2 CRD-003 可见性与快照调度工作包](../work-packages/M2.3.2-card-visibility-snapshot-scheduling.md) 建立集中式 panel/viewport 生命周期与本地快照调度、取消、迟到 Ready/Error 门禁和有界释放，并通过 198/198 自动测试、Debug/Release 构建、WinUI smoke 与当前隔离四卡真实拖动回归；下一步拆分 M2.3.3 设置草稿与取消恢复，真实 Provider 周期/退避另行实施。

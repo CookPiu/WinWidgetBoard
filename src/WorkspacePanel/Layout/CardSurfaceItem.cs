@@ -8,13 +8,16 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 {
     private readonly CardLayoutEditViewModel _editMode;
     private readonly Func<NoteEditorStatus, string> _statusFormatter;
+    private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
+    private readonly CardRuntimeRegistration? _visibilityRegistration;
     private bool _disposed;
 
     public CardSurfaceItem(
         CardPlacement placement,
         NoteEditorViewModel noteEditor,
         CardLayoutEditViewModel editMode,
-        Func<NoteEditorStatus, string>? statusFormatter = null)
+        Func<NoteEditorStatus, string>? statusFormatter = null,
+        CardRuntimeVisibilityScheduler? visibilityScheduler = null)
     {
         ArgumentNullException.ThrowIfNull(noteEditor);
         ArgumentNullException.ThrowIfNull(editMode);
@@ -22,9 +25,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         NoteEditor = noteEditor;
         _editMode = editMode;
         _statusFormatter = statusFormatter ?? (status => status.ToString());
+        _visibilityScheduler = visibilityScheduler;
         Runtime = BuiltInCardRuntimeFactory.Create(
             placement.InstanceId,
             noteEditor);
+        _visibilityRegistration = visibilityScheduler?.Register(
+            Runtime,
+            RefreshSnapshotAsync);
         NoteEditor.PropertyChanged += NoteEditor_PropertyChanged;
         _editMode.PropertyChanged += EditMode_PropertyChanged;
         Runtime.PropertyChanged += Runtime_PropertyChanged;
@@ -45,6 +52,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public CardRuntimeSnapshot RuntimeSnapshot => Runtime.Snapshot;
 
     public CardRuntimeStatus RuntimeStatus => RuntimeSnapshot.Status;
+
+    public bool SetViewportVisibility(bool isInViewport) =>
+        _visibilityScheduler?.SetViewportVisibility(Runtime, isInViewport)
+            ?? false;
 
     public bool IsEditing => _editMode.IsEditing;
 
@@ -82,10 +93,23 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         }
 
         _disposed = true;
+        _visibilityRegistration?.Dispose();
         NoteEditor.PropertyChanged -= NoteEditor_PropertyChanged;
         _editMode.PropertyChanged -= EditMode_PropertyChanged;
         Runtime.PropertyChanged -= Runtime_PropertyChanged;
         Runtime.Dispose();
+    }
+
+    private ValueTask<CardRuntimeSnapshot> RefreshSnapshotAsync(
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CardRuntimeSnapshot snapshot =
+            BuiltInCardRuntimeFactory.CreateFreshSnapshot(
+                Runtime,
+                NoteEditor);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(snapshot);
     }
 
     private void NoteEditor_PropertyChanged(
@@ -98,7 +122,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             if (string.Equals(
                     CardTypeId,
                     BuiltInCardCatalog.NotesCardTypeId,
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal) &&
+                (_visibilityScheduler is null ||
+                    Runtime.LifecycleState ==
+                        CardLifecycleState.Visible))
             {
                 BuiltInCardRuntimeFactory.SynchronizeNote(
                     Runtime,

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using WinWidgetBoard.WorkspacePanel.Notes;
+using WinWidgetBoard.WorkspacePanel.Runtime;
 
 namespace WinWidgetBoard.WorkspacePanel.Layout;
 
@@ -10,13 +11,15 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
     private readonly CardLayoutEditViewModel _editMode;
     private readonly NoteEditorViewModel _noteEditor;
     private readonly Func<NoteEditorStatus, string> _statusFormatter;
+    private readonly CardRuntimeVisibilityScheduler _visibilityScheduler;
     private readonly ObservableCollection<CardSurfaceItem> _items = [];
     private bool _disposed;
 
     public CardLayoutSurfaceViewModel(
         CardLayoutEditViewModel editMode,
         NoteEditorViewModel noteEditor,
-        Func<NoteEditorStatus, string>? statusFormatter = null)
+        Func<NoteEditorStatus, string>? statusFormatter = null,
+        CardRuntimeVisibilityScheduler? visibilityScheduler = null)
     {
         ArgumentNullException.ThrowIfNull(editMode);
         ArgumentNullException.ThrowIfNull(noteEditor);
@@ -24,6 +27,8 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
         _layout = editMode.Layout;
         _noteEditor = noteEditor;
         _statusFormatter = statusFormatter ?? (status => status.ToString());
+        _visibilityScheduler = visibilityScheduler ??
+            new CardRuntimeVisibilityScheduler();
         _layout.PropertyChanged += Layout_PropertyChanged;
         SynchronizeItems();
     }
@@ -31,6 +36,25 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public IReadOnlyList<CardSurfaceItem> Items => _items;
+
+    public CardRuntimeVisibilityScheduler VisibilityScheduler =>
+        _visibilityScheduler;
+
+    public bool SetPanelVisibility(bool panelVisible) =>
+        _visibilityScheduler.SetPanelVisibility(panelVisible);
+
+    public bool SetViewportVisibility(
+        CardRuntimeInstance runtime,
+        bool isInViewport) =>
+        _visibilityScheduler.SetViewportVisibility(runtime, isInViewport);
+
+    public bool ClearViewportVisibility() =>
+        _visibilityScheduler.ClearViewportVisibility();
+
+    public CardSurfaceItem? GetItemAt(int index) =>
+        index >= 0 && index < _items.Count
+            ? _items[index]
+            : null;
 
     public bool ApplyDropPreview(
         string draggedInstanceId,
@@ -96,6 +120,12 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
 
     public void Dispose()
     {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
+        GC.SuppressFinalize(this);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
         if (_disposed)
         {
             return;
@@ -105,6 +135,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
         _layout.PropertyChanged -= Layout_PropertyChanged;
         DisposeItems(_items);
         _items.Clear();
+        await _visibilityScheduler.DisposeAsync().ConfigureAwait(false);
     }
 
     private void Layout_PropertyChanged(
@@ -151,7 +182,8 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
                     placement,
                     _noteEditor,
                     _editMode,
-                    _statusFormatter);
+                    _statusFormatter,
+                    _visibilityScheduler);
                 _items.Insert(desiredIndex, item);
                 structureChanged = true;
             }

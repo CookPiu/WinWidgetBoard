@@ -421,8 +421,14 @@ DPI 192 真实窗口、四卡拖拽、布局历史和便签 UIA 回归。该工�
 已完成工作包 [M2.3.1 CRD-001/002/005 统一卡片运行时基础](work-packages/M2.3.1-card-runtime-foundation.md)：
 建立内置卡片 Definition、布局实例对应的独立 Runtime、生命周期状态机和不可变
 快照订阅；现有四卡模板已改按稳定卡片类型路由，便签编辑器状态经适配器进入快照，
-实例级刷新异常保留上一份 payload 且不改变其他实例。实际可见性/Provider 调度、
-设置草稿和通用状态视觉仍属于后续工作包。
+实例级刷新异常保留上一份 payload 且不改变其他实例。
+
+已完成工作包 [M2.3.2 CRD-003 可见性与快照调度](work-packages/M2.3.2-card-visibility-snapshot-scheduling.md)：
+使用单一事件驱动调度器把面板开关和 ItemsRepeater 实现/回收接入 Hidden/Visible，
+Hidden 取消纯 UI 快照刷新，恢复 Visible 时请求一次当前本地快照；generation 和
+runtime identity 门禁拒绝隐藏、注销或释放后的迟到 Ready/Error 结果。本包没有
+引入每卡 Timer、周期循环、真实 Provider、网络或新 IPC。设置草稿、通用状态视觉
+和真实 Provider 的周期、退避与节能策略仍属于后续工作包。
 
 任务：
 

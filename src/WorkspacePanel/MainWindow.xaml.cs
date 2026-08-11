@@ -22,6 +22,7 @@ using WinWidgetBoard.WorkspacePanel.Interaction;
 using WinWidgetBoard.WorkspacePanel.Layout;
 using WinWidgetBoard.WorkspacePanel.Motion;
 using WinWidgetBoard.WorkspacePanel.Notes;
+using WinWidgetBoard.WorkspacePanel.Runtime;
 using WinWidgetBoard.WorkspacePanel.Shell;
 using UiDispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue;
 using UiDispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
@@ -64,6 +65,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly CardLayoutViewModel _cardLayout;
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
+    private readonly Dictionary<UIElement, CardRuntimeInstance>
+        _realizedCardRuntimes = [];
     private readonly bool _keepOpenForAcceptance;
     private bool _cardItemsBound;
     private bool _nativeOpacitySupported;
@@ -266,17 +269,25 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _motionTimer.Stop();
+        _cardSurface.SetPanelVisibility(false);
+        _realizedCardRuntimes.Clear();
         _appWindow.Closing -= AppWindow_Closing;
         Activated -= MainWindow_Activated;
         Closed -= MainWindow_Closed;
+        CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
+        CardItemsRepeater.ElementClearing -= CardItemsRepeater_ElementClearing;
     }
 
     public async ValueTask DisposeAsync()
     {
-        _cardSurface.Dispose();
+        _cardSurface.SetPanelVisibility(false);
+        _realizedCardRuntimes.Clear();
         _cardLayout.PropertyChanged -= CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged -= CardSurface_PropertyChanged;
         _cardEdit.PropertyChanged -= CardEdit_PropertyChanged;
+        CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
+        CardItemsRepeater.ElementClearing -= CardItemsRepeater_ElementClearing;
+        await _cardSurface.DisposeAsync();
         await NoteEditor.DisposeAsync();
         await NoteSearch.DisposeAsync();
     }
@@ -1099,9 +1110,61 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             // timer/calendar/etc. templates are selected for their new items.
             // Placement-only changes never enter this path.
             ClearDemoNotesCardVisual();
+            _realizedCardRuntimes.Clear();
+            _cardSurface.ClearViewportVisibility();
             CardItemsRepeater.ItemsSource = null;
             CardItemsRepeater.ItemsSource = _cardSurface.Items;
         }
+    }
+
+    private void CardItemsRepeater_ElementPrepared(
+        ItemsRepeater sender,
+        ItemsRepeaterElementPreparedEventArgs args)
+    {
+        CardSurfaceItem? item = ResolveCardSurfaceItem(sender, args.Element);
+        if (_realizedCardRuntimes.TryGetValue(
+                args.Element,
+                out CardRuntimeInstance? previousRuntime) &&
+            (item is null ||
+                !ReferenceEquals(previousRuntime, item.Runtime)))
+        {
+            _cardSurface.SetViewportVisibility(previousRuntime, false);
+            _realizedCardRuntimes.Remove(args.Element);
+        }
+
+        if (item is null)
+        {
+            return;
+        }
+
+        _realizedCardRuntimes[args.Element] = item.Runtime;
+        _cardSurface.SetViewportVisibility(item.Runtime, true);
+    }
+
+    private void CardItemsRepeater_ElementClearing(
+        ItemsRepeater sender,
+        ItemsRepeaterElementClearingEventArgs args)
+    {
+        if (_realizedCardRuntimes.Remove(
+                args.Element,
+                out CardRuntimeInstance? runtime))
+        {
+            _cardSurface.SetViewportVisibility(runtime, false);
+        }
+    }
+
+    private CardSurfaceItem? ResolveCardSurfaceItem(
+        ItemsRepeater sender,
+        UIElement element)
+    {
+        if (element is FrameworkElement frameworkElement &&
+            frameworkElement.DataContext is CardSurfaceItem item)
+        {
+            return item;
+        }
+
+        int index = sender.GetElementIndex(element);
+        return _cardSurface.GetItemAt(index);
     }
 
     private void EnsureCardItemsBound()
@@ -1217,6 +1280,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void RequestOpenMotion()
     {
+        _cardSurface.SetPanelVisibility(true);
         _closeWhenMotionSettles = false;
         _panelMotion.RequestOpen();
         ApplyPanelMotion(_panelMotion.Value);
@@ -1230,6 +1294,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
+        _cardSurface.SetPanelVisibility(false);
         _closeWhenMotionSettles = true;
         _panelMotion.RequestClose();
         ApplyPanelMotion(_panelMotion.Value);

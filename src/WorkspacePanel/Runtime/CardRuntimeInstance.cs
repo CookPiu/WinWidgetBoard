@@ -129,15 +129,28 @@ public sealed class CardRuntimeInstance :
             snapshotProvider,
         CancellationToken cancellationToken)
     {
+        return await RefreshAsync(
+            snapshotProvider,
+            ApplySnapshot,
+            cancellationToken);
+    }
+
+    public async Task<bool> RefreshAsync(
+        Func<CancellationToken, ValueTask<CardRuntimeSnapshot>>
+            snapshotProvider,
+        Func<CardRuntimeSnapshot, bool> snapshotApplier,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(snapshotProvider);
+        ArgumentNullException.ThrowIfNull(snapshotApplier);
         ThrowIfDisposed();
 
+        CardRuntimeSnapshot snapshot;
         try
         {
-            CardRuntimeSnapshot snapshot = await snapshotProvider(
+            snapshot = await snapshotProvider(
                 cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            return ApplySnapshot(snapshot);
         }
         catch (OperationCanceledException)
             when (cancellationToken.IsCancellationRequested)
@@ -147,8 +160,11 @@ public sealed class CardRuntimeInstance :
         catch (Exception exception)
             when (IsRecoverableCardFailure(exception))
         {
-            return ApplyProviderFailure();
+            snapshotApplier(CreateProviderFailureSnapshot());
+            return false;
         }
+
+        return snapshotApplier(snapshot);
     }
 
     public void Dispose()
@@ -156,7 +172,7 @@ public sealed class CardRuntimeInstance :
         DisposeCore();
     }
 
-    private bool ApplyProviderFailure()
+    private CardRuntimeSnapshot CreateProviderFailureSnapshot()
     {
         CardRuntimeSnapshot errorSnapshot;
         lock (_gate)
@@ -168,11 +184,9 @@ public sealed class CardRuntimeInstance :
                 _snapshot,
                 CardRuntimeErrorCodes.SnapshotProviderFailed,
                 DateTimeOffset.UtcNow);
-            _snapshot = errorSnapshot;
         }
 
-        PublishSnapshot(errorSnapshot);
-        return false;
+        return errorSnapshot;
     }
 
     private bool DisposeCore()
