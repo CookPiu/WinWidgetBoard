@@ -442,6 +442,13 @@ runtime identity 门禁拒绝隐藏、注销或释放后的迟到 Ready/Error �
 保留内容，Unknown 安全隐藏内容和动作。计时器、待办和日历尚未建模的主动作已移除。
 本包不执行动作，不新增 Provider、网络、IPC、数据库或设置界面。
 
+已完成工作包 [M2.3.5 CRD-001/002/003/005 集中 Provider 刷新调度核心](work-packages/M2.3.5-provider-refresh-scheduler-core.md)：
+在 CoreBroker 内建立 Scheduled Provider 的纯 C# 合同和显式 pump 调度器，按稳定
+请求键合并同源工作并 fan-out 结果；注入时钟和 jitter，确定性处理 cadence、
+timeout、Retry-After、指数退避、手动限流、可见性/网络/电源暂停、迟到结果拒绝和
+共享有界 Dispose。该工作包仅有内存 fake 单元证据，不包含生产宿主循环、真实
+Provider、HTTP、`cards.subscribe` IPC、SQLite 缓存或系统电源/网络事件接入。
+
 任务：
 
 - Definition/Instance；
@@ -450,6 +457,7 @@ runtime identity 门禁拒绝隐藏、注销或释放后的迟到 Ready/Error �
 - 快照订阅；
 - 可见性调度；
 - 设置草稿；
+- 集中 Provider 调度核心；
 - 错误边界；
 - 示例卡片。
 
