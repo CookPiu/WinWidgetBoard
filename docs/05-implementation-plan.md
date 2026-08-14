@@ -449,6 +449,12 @@ timeout、Retry-After、指数退避、手动限流、可见性/网络/电源暂
 共享有界 Dispose。该工作包仅有内存 fake 单元证据，不包含生产宿主循环、真实
 Provider、HTTP、`cards.subscribe` IPC、SQLite 缓存或系统电源/网络事件接入。
 
+已完成工作包 [M2.3.6 Provider 生产宿主与卡片快照边界](work-packages/M2.3.6-provider-host-and-card-snapshot-boundary.md)：
+由 CoreBroker 的唯一 `ProviderRefreshHost` 驱动显式 pump，使用
+`ProviderProcessFatalSupervisor` 观察不可恢复 Provider 异常，并以共享 Contracts
+中的 `CardStateSnapshot` 和有界事件缓冲承接结果适配。该工作包不广告或接通
+`cards.subscribe` 长连接，不选择天气源，不接入真实 HTTP、缓存或 OS 网络/电源事件。
+
 任务：
 
 - Definition/Instance；

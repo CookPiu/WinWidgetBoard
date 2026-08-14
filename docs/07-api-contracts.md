@@ -321,10 +321,16 @@ CoreBroker 提交后返回新 revision 和规范化布局。
 
 - `fresh`；
 - `stale`；
-- `expired`；
+- `expired`（保留值，当前 M2.3.6 DTO 以 `stale` 表达过期）；
 - `unknown`。
 
 WorkspacePanel 只接受 sequence 大于当前已应用 sequence 的快照。
+
+Provider 结果在 CoreBroker 内先转换为 `CardStateSnapshot`，再进入订阅传输。转换必须
+为每个 `instanceId` 独立递增 `sequence`，保留 JSON payload 的所有权，并显式给出
+`status`、`freshness`、`diagnosticCode` 和 `allowedActions`；WorkspacePanel 不根据
+payload 缺失字段推断动作或权限。当前快照合同不增加独立的 `expired` 枚举，过期时间
+通过 `freshness: "stale"` 表达。
 
 ## 8. Action
 
@@ -675,6 +681,34 @@ WorkspacePanel 订阅：
   }
 }
 ```
+
+成功响应使用连接范围内的订阅 ID，并可携带当前已缓存的初始快照：
+
+```json
+{
+  "subscriptionId": "uuid",
+  "initialSnapshots": [
+    {
+      "instanceId": "uuid-1",
+      "cardTypeId": "app.winwidgetboard.system-monitor",
+      "schemaVersion": 1,
+      "sequence": 424,
+      "generatedAtUtc": "2026-08-06T09:30:00.000Z",
+      "validUntilUtc": "2026-08-06T09:30:05.000Z",
+      "status": "ready",
+      "freshness": "fresh",
+      "payload": {},
+      "allowedActions": ["refresh"],
+      "diagnosticCode": null
+    }
+  ]
+}
+```
+
+后续状态使用 `Event` Envelope 发送，方法为 `cards.snapshot`，payload 为
+`{ "snapshot": <CardStateSnapshot> }`。M2.3.6 只落地共享 DTO、结果适配和有限事件
+缓冲；Named Pipe 长连接发送、断线重连和 WorkspacePanel dispatcher 接入仍属于后续
+工作包，因此在传输实现完成前不得把 `cards.subscribe` 加入 CoreBroker 握手能力列表。
 
 规则：
 

@@ -5,6 +5,7 @@ using WinWidgetBoard.CoreBroker.Commands;
 using WinWidgetBoard.CoreBroker.Hosting;
 using WinWidgetBoard.CoreBroker.Ipc;
 using WinWidgetBoard.CoreBroker.Persistence;
+using WinWidgetBoard.CoreBroker.Providers;
 
 namespace WinWidgetBoard.CoreBroker;
 
@@ -12,6 +13,7 @@ internal static class Program
 {
     private const int DuplicateInstanceExitCode = 17;
     private const int InvalidArgumentsExitCode = 2;
+    private const int ProviderFatalExitCode = 70;
 
     public static async Task<int> Main(string[] args)
     {
@@ -66,6 +68,22 @@ internal static class Program
             cancellation.Cancel();
         };
 
+        var refreshClock = new TimeProviderRefreshClock();
+        var fatalSupervisor = new ProviderProcessFatalSupervisor(
+            exception =>
+            {
+                Console.Error.WriteLine(
+                    $"CoreBroker provider process-fatal fault: {exception.GetType().Name}");
+                cancellation.Cancel();
+            });
+        await using var providerScheduler = new ProviderRefreshScheduler(
+            clock: refreshClock,
+            processFatalFaultHandler: fatalSupervisor.Observe);
+        await using var providerHost = new ProviderRefreshHost(
+            providerScheduler,
+            refreshClock);
+        Task providerHostTask = providerHost.RunAsync(cancellation.Token);
+
         await using SqliteDatabase database = await SqliteDatabase.OpenAsync(
             new SqliteDatabaseOptions(Path.Combine(dataDirectory!, "data.db")),
             cancellation.Token).ConfigureAwait(false);
@@ -79,7 +97,8 @@ internal static class Program
                 new NoteRepository(database),
                 new LayoutRepository(database)));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
-        return 0;
+        await providerHostTask.ConfigureAwait(false);
+        return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;
     }
 
     private static async Task<int> RunPipeHandshakeSmokeAsync()

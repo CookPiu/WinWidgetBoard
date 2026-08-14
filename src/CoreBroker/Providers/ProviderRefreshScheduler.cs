@@ -250,6 +250,7 @@ public sealed class ProviderRefreshScheduler : IAsyncDisposable, IDisposable
     private readonly IProviderRefreshClock _clock;
     private readonly Func<double> _jitter;
     private readonly TimeSpan _disposeTimeout;
+    private readonly Action<Exception>? _processFatalFaultHandler;
     private bool _disposed;
     private Task? _disposeTask;
     private ProviderNetworkState _networkState = ProviderNetworkState.Unknown;
@@ -258,7 +259,8 @@ public sealed class ProviderRefreshScheduler : IAsyncDisposable, IDisposable
     public ProviderRefreshScheduler(
         IProviderRefreshClock? clock = null,
         Func<double>? jitter = null,
-        TimeSpan? disposeTimeout = null)
+        TimeSpan? disposeTimeout = null,
+        Action<Exception>? processFatalFaultHandler = null)
     {
         TimeSpan timeout = disposeTimeout ?? DefaultDisposeTimeout;
         if (timeout <= TimeSpan.Zero || timeout == Timeout.InfiniteTimeSpan)
@@ -272,6 +274,7 @@ public sealed class ProviderRefreshScheduler : IAsyncDisposable, IDisposable
         _clock = clock ?? new TimeProviderRefreshClock();
         _jitter = jitter ?? (static () => 0.5);
         _disposeTimeout = timeout;
+        _processFatalFaultHandler = processFatalFaultHandler;
     }
 
     public int GroupCount
@@ -1346,7 +1349,7 @@ public sealed class ProviderRefreshScheduler : IAsyncDisposable, IDisposable
 
     private void StartExecution(Execution execution)
     {
-        ObserveLateFault(ExecuteAsync(execution));
+        ObserveLateFault(ExecuteAsync(execution), _processFatalFaultHandler);
     }
 
     private static void SafeCancel(CancellationTokenSource cancellation)
@@ -1468,10 +1471,27 @@ public sealed class ProviderRefreshScheduler : IAsyncDisposable, IDisposable
     private static TimeSpan Max(TimeSpan first, TimeSpan second) =>
         first >= second ? first : second;
 
-    private static void ObserveLateFault(Task task)
+    private static void ObserveLateFault(
+        Task task,
+        Action<Exception>? processFatalFaultHandler = null)
     {
         _ = task.ContinueWith(
-            completed => _ = completed.Exception,
+            completed =>
+            {
+                AggregateException? aggregate = completed.Exception;
+                if (aggregate is null || processFatalFaultHandler is null)
+                {
+                    return;
+                }
+
+                foreach (Exception exception in aggregate.Flatten().InnerExceptions)
+                {
+                    if (IsProcessFatal(exception))
+                    {
+                        processFatalFaultHandler(exception);
+                    }
+                }
+            },
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted |
                 TaskContinuationOptions.ExecuteSynchronously,

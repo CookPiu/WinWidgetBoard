@@ -232,6 +232,13 @@ RoundTripPersistence
 - Provider 抛异常；
 - 系统时钟变化。
 
+M2.3.6 另外覆盖：
+
+- 唯一生产 pump host 与注册注销；
+- Provider 结果到 `CardStateSnapshot` 的状态、freshness、sequence 和动作映射；
+- 每实例状态事件合并与慢消费者 overflow；
+- 进程级不可恢复异常到宿主监督策略的单次传播。
+
 ### 6.6 数据
 
 - 每个 migration；
@@ -320,6 +327,9 @@ Contracts 项目应为 C++ 和 C# 生成或共享相同 golden payload，防止�
 - Provider crash；
 - 退避；
 - 缓存新鲜度。
+
+当前 M2.3.6 只完成 fake source/sink、快照合同和宿主生命周期测试；Fake Weather
+Server、真实 HTTP、缓存和 `cards.subscribe` 长连接事件传输仍未完成。
 
 ## 9. UI Automation
 

@@ -488,6 +488,12 @@ WorkspacePanel 不根据缺失字段推测权限或动作。
 - 连续失败进入 Stale/Error；
 - 用户手动刷新可绕过一次退避，但有限流。
 
+M2.3.6 将该调度核心接入 CoreBroker 的唯一 `ProviderRefreshHost`。生产宿主负责显式
+调用 `PumpDueAsync` 和有界等待，不为每张卡片创建独立定时器；Provider 进程级不可恢复
+异常交给宿主监督策略，不归一化为普通失败。Provider 结果先经过无 UI 依赖的
+`ProviderCardSnapshotAdapter` 转换为共享 `CardStateSnapshot`，每实例递增 sequence，
+再由后续 `cards.subscribe` 传输层发送。当前工作包不选择天气数据源、不接 HTTP 或缓存。
+
 ## 12. IPC
 
 ### 12.1 传输

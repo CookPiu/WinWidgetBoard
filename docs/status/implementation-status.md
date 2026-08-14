@@ -1,10 +1,10 @@
 # 实施状态
 
-最后更新：2026-08-11
+最后更新：2026-08-14
 
 ## 当前阶段
 
-`M2.2 / M2.4 当前代码范围与 M2.3.0～M2.3.5 已收口（M2.2.13 / M2.4.11 已完成当前单显示器真实桌面验收、验收进程/数据隔离和自动回归；M2.3.1 已完成 Definition/Instance、生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 已完成面板/ItemsRepeater 实现视口驱动的 Hidden/Visible、集中式本地快照调度、取消和迟到结果门禁；M2.3.3 已完成 UI 无关的设置草稿、预览取消恢复和提交门禁；M2.3.4 已完成十态纯投影、五模板共享状态区、双语资源、静态加载骨架和未建模动作门禁；M2.3.5 已完成 CoreBroker 内 Scheduled Provider 纯 C# 合同、集中刷新、退避、手动限流、状态暂停和有界释放核心；设置 UI/IPC/持久化、生产 Provider 宿主/HTTP/IPC/缓存、M1.0 干净环境与 CI、真实多显示器/DPI/完整无障碍与性能矩阵、便签版本历史、删除撤销、其他领域 CRUD、剩余卡片业务和正式数据库恢复演练仍待完成）`
+`M2.2 / M2.4 当前代码范围与 M2.3.0～M2.3.6 已收口（M2.2.13 / M2.4.11 已完成当前单显示器真实桌面验收、验收进程/数据隔离和自动回归；M2.3.1 已完成 Definition/Instance、生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 已完成面板/ItemsRepeater 实现视口驱动的 Hidden/Visible、集中式本地快照调度、取消和迟到结果门禁；M2.3.3 已完成 UI 无关的设置草稿、预览取消恢复和提交门禁；M2.3.4 已完成十态纯投影、五模板共享状态区、双语资源、静态加载骨架和未建模动作门禁；M2.3.5 已完成 CoreBroker 内 Scheduled Provider 纯 C# 合同、集中刷新、退避、手动限流、状态暂停和有界释放核心；M2.3.6 已完成唯一生产 pump host、fatal fault 监督、CardStateSnapshot 结果适配和有界事件缓冲；设置 UI/IPC/持久化、真实 Provider/HTTP/IPC/缓存、M1.0 干净环境与 CI、真实多显示器/DPI/完整无障碍与性能矩阵、便签版本历史、删除撤销、其他领域 CRUD、剩余卡片业务和正式数据库恢复演练仍待完成）`
 
 ## 已完成
 
@@ -128,6 +128,7 @@
 - [x] M2.3.3 已建立 UI 无关的卡片设置草稿合同：不可变 JSON 快照保留未知字段并限制为 64 KiB，schema 区分 `PreviewSafe`/`CommitOnly`，取消按首次触碰逆序恢复且聚合单项失败，提交以 session/draft version/expected revision 拒绝旧请求并只接受 `expected + 1`；Debug/Release UnitTests 224/224，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，Release WinUI smoke 退出码 0；本包未接入设置 UI、IPC、数据库或真实外部副作用；
 - [x] M2.3.4 已建立 UI 无关的十态 `CardRuntimeStatusPresentation`，将 Ready+Stale、显式 Stale、Offline、Error、Unknown 和既有 AllowedActionIds 投影为本地化状态、内容可见性与安全动作门禁；五种卡片模板复用静态状态区，计时器/待办/日历未建模主动作已移除。Debug/Release UnitTests 237/237，WorkspacePanel Debug/Release x64 构建 0 警告、0 错误，Release WinUI smoke 退出码 0；当前无 Broker 的真实 UIA 已读取四个可见 Unavailable 状态锚点并正常关闭，隔离 Broker 下既有四卡拖拽输出 `REAL-DRAG-PASS`。Loading/Stale/Error 的真实 Provider 状态切换、动作执行、双语运行时切换和完整无障碍/显示矩阵仍未验收；
 - [x] M2.3.5 已在 CoreBroker 内建立 Scheduled Provider 纯 C# 集中调度核心：稳定 request key 合并与 fan-out、注入单调时钟和 jitter、visible/hidden/power cadence、timeout、Retry-After、指数退避、手动刷新门禁、network/power/visibility 暂停、generation/registration identity 迟到拒绝、每 key 有界前驱和共享 Dispose 预算；Debug/Release UnitTests 265/265，CoreBroker 与 WorkspacePanel Debug/Release x64 构建均为 0 警告、0 错误，Release WinUI smoke 退出码 0。该 E1 证据仅覆盖内存 fake 和现有 UI 回归，不代表生产宿主循环、真实 Provider/HTTP/IPC/SQLite、系统电源/网络事件或 NFR 性能指标完成；
+- [x] M2.3.6 已接入 CoreBroker 唯一 `ProviderRefreshHost` pump 生命周期、`ProviderProcessFatalSupervisor` 单次 fatal fault 监督、`CardsContract`/`CardStateSnapshot` 共享合同、Provider 结果到状态/freshness/sequence/动作的纯适配，以及按 instance ID 合并的有界事件缓冲；CT-CARD-001/002 与 UT-CARD-099/100/101/102/103/104 共 8 项新增测试通过，全量 UnitTests Debug/Release 均为 273/273，CoreBroker 与 WorkspacePanel Debug/Release x64 构建均为 0 警告、0 错误。证据等级为 E1/E2，`cards.subscribe` 长连接传输、真实 Provider/HTTP/IPC/SQLite、系统网络/电源事件和 NFR 性能指标仍未完成；
 - [ ] M2.1 便签完整能力、其他领域 CRUD、M2.2 剩余布局/卡片业务和活动数据库恢复；
 - [ ] CoreBroker 与 IPC。
 - [ ] 内置卡片。
@@ -144,7 +145,7 @@
 
 ## 下一步
 
-M2.3.5 纯调度核心已收口。下一工作包应先冻结 CoreBroker Provider scheduler 生产宿主、`cards.subscribe` 结果适配和进程级不可恢复异常监督的边界，并评估 IPC/API/ADR 变更；在首发天气数据源、网络权限、缓存和隐私范围确认前，不接入真实 HTTP 或把内存 fake 描述为真实 Provider。以下保留累计路线与完成记录：
+M2.3.6 已冻结并实现 Provider 生产宿主、`cards.subscribe` 共享结果合同/适配边界和进程级不可恢复异常监督。下一工作包应接通连接范围内的 `cards.subscribe`/`cards.snapshot` 事件传输、慢客户端断开和 WorkspacePanel dispatcher 适配，但在首发天气数据源、网络权限、缓存和隐私范围确认前，仍不接入真实 HTTP 或把内存 fake 描述为真实 Provider。以下保留累计路线与完成记录：
 
 1. 在安装锁定 SDK 的干净环境或 CI 执行完整 `.sln` Debug/Release x64 构建；
 2. 人工目视验证 WorkspacePanel M1.2 面板壳层的内容、布局和交互；
@@ -193,3 +194,4 @@ M2.3.5 纯调度核心已收口。下一工作包应先冻结 CoreBroker Provide
 45. [x] 已按 [M2.3.3 CRD-004/SET-003 卡片设置草稿与取消恢复工作包](../work-packages/M2.3.3-card-settings-draft.md) 建立不可变设置快照、声明式写入策略、预览取消恢复、64 KiB 边界和两阶段提交门禁，并通过 224/224 自动测试、WorkspacePanel Debug/Release 构建与 Release WinUI smoke；本包无设置 UI、IPC 或数据库变更，随后已完成 M2.3.4 通用状态视觉与示例快照。
 46. [x] 已按 [M2.3.4 CRD-001/002/005 通用卡片状态视觉与示例快照工作包](../work-packages/M2.3.4-card-runtime-state-visuals.md) 建立十态纯投影、五模板共享状态区、双语主题资源、静态加载骨架和未建模动作门禁，并通过 237/237 自动测试、WorkspacePanel Debug/Release 构建、Release smoke、当前 Unavailable 状态 UIA 与隔离四卡拖拽回归；真实 Provider 状态切换、动作执行和完整无障碍/显示矩阵仍待后续。
 47. [x] 已按 [M2.3.5 CRD-001/002/003/005 集中 Provider 刷新调度核心工作包](../work-packages/M2.3.5-provider-refresh-scheduler-core.md) 在 CoreBroker 内建立 Scheduled Provider 合同、同源合并/fan-out、确定性 cadence/timeout/Retry-After/退避/手动限流、状态暂停、迟到拒绝和有界释放，并通过 Debug/Release 265/265 自动测试、CoreBroker/WorkspacePanel 双配置构建和 Release smoke；证据等级为 E1 纯内存 fake，生产宿主、HTTP、IPC、缓存、系统事件和性能指标仍待后续。
+48. [x] 已按 [M2.3.6 Provider 生产宿主与卡片快照边界工作包](../work-packages/M2.3.6-provider-host-and-card-snapshot-boundary.md) 接入唯一生产 pump host、fatal fault 监督、共享 CardStateSnapshot 合同、Provider 结果适配和有界事件缓冲，并通过新增 8 项合同/宿主/适配器测试、Debug/Release 全量 273/273 和 CoreBroker/WorkspacePanel Debug/Release 构建；证据等级为 E1/E2，长连接 IPC、WorkspacePanel dispatcher、真实 Provider、HTTP、缓存、系统事件和性能指标仍待后续。
