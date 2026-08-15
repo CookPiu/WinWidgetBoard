@@ -56,6 +56,8 @@ public sealed class CoreBrokerSession : IAsyncDisposable
 
     public CoreBrokerCardsClient Cards { get; }
 
+    public event EventHandler? Reconnected;
+
     public async Task<bool> ReportVisibilityAsync(
         bool panelVisible,
         CancellationToken cancellationToken)
@@ -219,11 +221,17 @@ public sealed class CoreBrokerSession : IAsyncDisposable
                 (_, bool wasReconnected) = await _client
                     .SendHeartbeatWithStatusAsync(cancellationToken)
                     .ConfigureAwait(false);
+                bool visibilityReported = true;
                 if (wasReconnected && Volatile.Read(ref _hasReportedVisibility) != 0)
                 {
-                    await ReportVisibilityAsync(
+                    visibilityReported = await ReportVisibilityAsync(
                         _desiredPanelVisible,
                         cancellationToken).ConfigureAwait(false);
+                }
+
+                if (wasReconnected && visibilityReported)
+                {
+                    NotifyReconnected();
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -249,5 +257,20 @@ public sealed class CoreBrokerSession : IAsyncDisposable
     {
         Debug.WriteLine(message);
         Console.Error.WriteLine(message);
+    }
+
+    private void NotifyReconnected()
+    {
+        try
+        {
+            Reconnected?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception)
+            when (exception is not OutOfMemoryException &&
+                exception is not StackOverflowException &&
+                exception is not AccessViolationException)
+        {
+            WriteDiagnostic($"CoreBroker reconnect callback failed: {exception.Message}");
+        }
     }
 }

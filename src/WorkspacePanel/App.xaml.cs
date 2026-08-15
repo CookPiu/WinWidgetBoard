@@ -54,7 +54,13 @@ public partial class App : Application, IAsyncDisposable, IDisposable
             _window = new MainWindow(
                 _brokerSession?.Notes,
                 _brokerSession?.Layout,
-                keepOpenForAcceptance: _isAcceptanceTest);
+                keepOpenForAcceptance: _isAcceptanceTest,
+                cardsClient: _brokerSession?.Cards);
+
+            if (_brokerSession is not null && _window is MainWindow createdMainWindow)
+            {
+                _brokerSession.Reconnected += createdMainWindow.HandleBrokerReconnected;
+            }
 
             if (_isSmokeTest)
             {
@@ -118,6 +124,8 @@ public partial class App : Application, IAsyncDisposable, IDisposable
                     .ConfigureAwait(false);
                 await mainWindow.InitializeNoteEditorAsync(cancellationToken)
                     .ConfigureAwait(false);
+                await mainWindow.InitializeCardSubscriptionAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             return visible;
@@ -177,6 +185,7 @@ public partial class App : Application, IAsyncDisposable, IDisposable
         _lifetimeCancellation.Cancel();
         if (_window is MainWindow mainWindow)
         {
+            _brokerSession?.Reconnected -= mainWindow.HandleBrokerReconnected;
             await mainWindow.DisposeAsync();
         }
 

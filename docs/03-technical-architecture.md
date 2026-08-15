@@ -492,7 +492,9 @@ M2.3.6 将该调度核心接入 CoreBroker 的唯一 `ProviderRefreshHost`。生
 调用 `PumpDueAsync` 和有界等待，不为每张卡片创建独立定时器；Provider 进程级不可恢复
 异常交给宿主监督策略，不归一化为普通失败。Provider 结果先经过无 UI 依赖的
 `ProviderCardSnapshotAdapter` 转换为共享 `CardStateSnapshot`，每实例递增 sequence，
-再由 M2.3.7 的 `CardSnapshotSubscriptionHub` 按连接可见性发送。当前工作包不选择天气数据源、不接 HTTP 或缓存。
+再由 M2.3.7 的 `CardSnapshotSubscriptionHub` 按连接可见性发送，M2.3.8 再由
+WorkspacePanel 的 `CardSnapshotSubscriptionCoordinator` 注册运行时并通过
+DispatcherQueue 应用。当前工作包不选择天气数据源、不接 HTTP 或缓存。
 
 ## 12. IPC
 
@@ -507,6 +509,8 @@ M2.3.6 将该调度核心接入 CoreBroker 的唯一 `ProviderRefreshHost`。生
 - 所有连接有握手、心跳和超时；
 - `cards.snapshot` 事件与命令响应共用写锁，客户端使用单独读取泵分流；
 - 每连接订阅使用有界、按实例合并的事件队列，溢出时断开慢客户端。
+- WorkspacePanel 只在运行时集合或 ItemsRepeater 可见实例变化时通过单一去抖计时器更新
+  订阅，Broker 重连后重新建立连接级订阅。
 
 ### 12.2 连接
 

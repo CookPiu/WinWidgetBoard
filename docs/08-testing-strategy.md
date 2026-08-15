@@ -247,6 +247,13 @@ M2.3.7 另外覆盖：
 - 有界按实例合并队列及 overflow 后的慢客户端断开；
 - WorkspacePanel dispatcher 的类型、schema 和 sequence 门禁。
 
+M2.3.8 另外覆盖：
+
+- WorkspacePanel 运行时注册/注销与布局结构变化；
+- DispatcherQueue 上的初始快照和异步快照应用；
+- ItemsRepeater 准备/回收触发的单一去抖订阅更新；
+- Broker 心跳重连后的订阅恢复回调。
+
 ### 6.6 数据
 
 - 每个 migration；
@@ -336,8 +343,8 @@ Contracts 项目应为 C++ 和 C# 生成或共享相同 golden payload，防止�
 - 退避；
 - 缓存新鲜度。
 
-当前 M2.3.7 已完成 fake snapshot 到 Named Pipe 的长连接事件传输和 dispatcher adapter；
-Fake Weather Server、真实 HTTP、缓存、OS 网络/电源事件和真实性能测量仍未完成。
+当前 M2.3.8 已完成 fake snapshot 到 Named Pipe、WorkspacePanel dispatcher 和重连重订阅的
+本地事件链路；Fake Weather Server、真实 HTTP、缓存、OS 网络/电源事件和真实性能测量仍未完成。
 
 ## 9. UI Automation
 

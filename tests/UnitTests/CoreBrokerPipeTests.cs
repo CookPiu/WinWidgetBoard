@@ -388,6 +388,9 @@ public sealed class CoreBrokerPipeTests
                 connectTimeout: TimeSpan.FromSeconds(1),
                 requestTimeout: TimeSpan.FromMilliseconds(250)),
             heartbeatInterval: TimeSpan.FromMilliseconds(25));
+        var reconnected = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        session.Reconnected += (_, _) => reconnected.TrySetResult(null);
 
         try
         {
@@ -412,6 +415,7 @@ public sealed class CoreBrokerPipeTests
             await WaitUntilAsync(
                 () => secondRouter.VisibilityReportCount > 0,
                 TimeSpan.FromSeconds(3));
+            await reconnected.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.IsTrue(secondRouter.PanelVisible);
         }
         finally

@@ -709,7 +709,9 @@ WorkspacePanel 订阅：
 `{ "snapshot": <CardStateSnapshot> }`。M2.3.7 已将该事件接入当前用户 Named Pipe：
 CoreBroker 握手在具备订阅 hub 时声明 `cards.subscribe` 能力，客户端读取泵按
 `MessageType` 和 correlation ID 分流命令响应与异步事件。连接断开后订阅不会跨连接
-保留，客户端重新握手后必须重新提交订阅请求。
+保留，低层客户端重新握手后必须重新提交订阅请求；WorkspacePanel 的
+`CardSnapshotSubscriptionCoordinator` 由 `CoreBrokerSession.Reconnected` 自动完成这次
+重订阅。
 
 规则：
 

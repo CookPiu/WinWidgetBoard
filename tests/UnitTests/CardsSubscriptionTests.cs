@@ -5,6 +5,7 @@ using WinWidgetBoard.CoreBroker.Client;
 using WinWidgetBoard.CoreBroker.Commands;
 using WinWidgetBoard.CoreBroker.Ipc;
 using WinWidgetBoard.WorkspacePanel.Layout;
+using WinWidgetBoard.WorkspacePanel.Ipc;
 using WinWidgetBoard.WorkspacePanel.Runtime;
 
 namespace WinWidgetBoard.UnitTests;
@@ -148,6 +149,68 @@ public sealed class CardsSubscriptionTests
         Assert.AreEqual(CardRuntimeStatus.Ready, runtime.Snapshot.Status);
         Assert.IsFalse(dispatcher.Register(runtime));
         Assert.IsTrue(dispatcher.Unregister(runtime.InstanceId, runtime));
+    }
+
+    [TestMethod(DisplayName = "UT-CARDS-004 [CRD-001/CRD-003] WorkspacePanel coordinator registers runtimes and applies live snapshots")]
+    public async Task WorkspacePanelCoordinatorAppliesLiveSnapshots()
+    {
+        string pipeName = CoreBrokerPipeNames.CreateTestName();
+        string token = "cards-coordinator-token";
+        var hub = new CardSnapshotSubscriptionHub();
+        await hub.PublishAsync(CreateSnapshot("demo.coordinator", 1), CancellationToken.None);
+        var router = new CoreBrokerCommandRouter(cardSnapshotSubscriptionHub: hub);
+        using var cancellation = new CancellationTokenSource();
+        var server = new CoreBrokerPipeServer(pipeName, token, "0.1.0", router);
+        Task serverTask = server.RunAsync(cancellation.Token);
+
+        try
+        {
+            using CardRuntimeInstance runtime = CreateRuntime("demo.coordinator");
+            await using var pipeClient = new CoreBrokerPipeClient(pipeName);
+            using var cardsClient = new CoreBrokerCardsClient(pipeClient);
+            var dispatcher = new CardSnapshotDispatcher(
+                action => ValueTask.FromResult(action()));
+            await using var coordinator = new CardSnapshotSubscriptionCoordinator(
+                cardsClient,
+                dispatcher);
+            var received = new TaskCompletionSource<object?>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            runtime.SnapshotChanged += (_, args) =>
+            {
+                if (args.Snapshot.Sequence == 2)
+                {
+                    received.TrySetResult(null);
+                }
+            };
+
+            Envelope hello = await pipeClient.HandshakeAsync(
+                SessionHelloContract.WorkspacePanelClientType,
+                token,
+                CancellationToken.None);
+            Assert.IsNull(hello.Error);
+
+            CardsSubscribeResponse response = await coordinator.SubscribeAsync(
+                [runtime],
+                panelVisible: true,
+                visibleInstanceIds: [runtime.InstanceId],
+                CancellationToken.None);
+
+            Assert.AreNotEqual(Guid.Empty, response.SubscriptionId);
+            Assert.IsTrue(coordinator.IsSubscribed);
+            Assert.AreEqual(1, runtime.Snapshot.Sequence);
+
+            await hub.PublishAsync(
+                CreateSnapshot(runtime.InstanceId, 2),
+                CancellationToken.None);
+            await received.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.AreEqual(2, runtime.Snapshot.Sequence);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await serverTask;
+            hub.Dispose();
+        }
     }
 
     private static CardStateSnapshot CreateSnapshot(string instanceId, long sequence) =>
