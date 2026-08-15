@@ -82,6 +82,8 @@ internal static class Program
         await using var providerHost = new ProviderRefreshHost(
             providerScheduler,
             refreshClock);
+        providerScheduler.SetNetworkState(ProviderNetworkState.Online);
+        providerScheduler.SetPowerState(ProviderPowerState.Normal);
         Task providerHostTask = providerHost.RunAsync(cancellation.Token);
 
         await using SqliteDatabase database = await SqliteDatabase.OpenAsync(
@@ -90,6 +92,45 @@ internal static class Program
         await database.ApplySchemaAsync(cancellation.Token).ConfigureAwait(false);
 
         using var cardSnapshotSubscriptionHub = new CardSnapshotSubscriptionHub();
+        using var providerVisibilityRegistry =
+            new ProviderRefreshVisibilityRegistry(providerScheduler);
+        using var weatherHttpClient = new HttpClient
+        {
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+        var weatherProvider = new OpenMeteoWeatherProvider(weatherHttpClient);
+        WeatherLocation weatherLocation =
+            OpenMeteoWeatherProvider.DefaultLocation;
+        System.Text.Json.JsonElement weatherArguments =
+            OpenMeteoWeatherProvider.CreateArguments(weatherLocation);
+        var weatherAdapter = new ProviderCardSnapshotAdapter(
+            OpenMeteoWeatherProvider.InstanceId,
+            OpenMeteoWeatherProvider.CardTypeId,
+            schemaVersion: 1,
+            cardSnapshotSubscriptionHub,
+            readyActions: [CardsContract.RefreshActionId],
+            failureActions:
+            [
+                CardsContract.RefreshActionId,
+                CardsContract.OpenDiagnosticsActionId,
+                CardsContract.DisableActionId,
+            ],
+            utcNow: () => refreshClock.UtcNow);
+        using ProviderRefreshHostRegistration weatherRegistration =
+            providerHost.Register(
+                new ProviderRefreshSubscription(
+                    Guid.NewGuid(),
+                    OpenMeteoWeatherProvider.CreateRequestKey(weatherLocation),
+                    weatherArguments,
+                    weatherProvider,
+                    weatherAdapter,
+                    new ProviderRefreshVisibility(
+                        PanelVisible: false,
+                        InViewport: false,
+                        DisplayConnected: false)));
+        providerVisibilityRegistry.Register(
+            OpenMeteoWeatherProvider.InstanceId,
+            weatherRegistration.SubscriptionId);
         var server = new CoreBrokerPipeServer(
             CoreBrokerPipeNames.Production,
             sessionToken,
@@ -97,7 +138,8 @@ internal static class Program
             new CoreBrokerCommandRouter(
                 new NoteRepository(database),
                 new LayoutRepository(database),
-                cardSnapshotSubscriptionHub));
+                cardSnapshotSubscriptionHub,
+                providerVisibilityRegistry));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;

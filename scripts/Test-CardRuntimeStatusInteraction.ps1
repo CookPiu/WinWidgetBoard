@@ -246,6 +246,7 @@ try {
 
     $statusAnchors = [ordered]@{
         Notes = 'NotesCardRuntimeStatus'
+        Weather = 'WeatherCardRuntimeStatus'
         Timer = 'TimerCardRuntimeStatus'
         Todo = 'TodoCardRuntimeStatus'
         Calendar = 'CalendarCardRuntimeStatus'
@@ -296,7 +297,7 @@ try {
     Write-Output (
         "WINDOW-EXIT-PASS pid=$($panelProcess.Id) exitCode=$($panelProcess.ExitCode)")
     Write-Output (
-        'REAL-CARD-STATUS-PASS unavailable-anchors=4 ' +
+        'REAL-CARD-STATUS-PASS unavailable-anchors=5 ' +
         'placeholder-actions=guarded panel-exit=normal broker=false')
 }
 catch {

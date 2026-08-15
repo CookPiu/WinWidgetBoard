@@ -466,11 +466,10 @@ WorkspacePanel 使用状态设置式上报同步当前面板可见性：
 
 ```json
 {
-  "providerId": "app.winwidgetboard.weather-provider",
+  "providerId": "app.winwidgetboard.weather.open-meteo",
   "version": "1.0.0",
   "capabilities": [
-    "weather.current",
-    "weather.forecast"
+    "weather.current"
   ],
   "mode": "scheduled",
   "minimumIntervalSeconds": 900,
@@ -478,7 +477,7 @@ WorkspacePanel 使用状态设置式上报同步当前面板可见性：
     "network"
   ],
   "networkDomains": [
-    "api.example-weather.invalid"
+    "api.open-meteo.com"
   ]
 }
 ```
@@ -491,6 +490,7 @@ WorkspacePanel 使用状态设置式上报同步当前面板可见性：
   "capability": "weather.current",
   "deadlineUtc": "2026-08-06T09:30:10.000Z",
   "arguments": {
+    "label": "Singapore",
     "latitude": 1.3521,
     "longitude": 103.8198,
     "units": "metric"
@@ -499,6 +499,35 @@ WorkspacePanel 使用状态设置式上报同步当前面板可见性：
 ```
 
 Provider 不应收到不需要的用户资料。
+
+M2.3.9 的首个实现只请求 Open-Meteo 的 `current` 字段，并将结果归一化为卡片 payload：
+
+```json
+{
+  "source": "app.winwidgetboard.weather.open-meteo",
+  "sourceDomain": "api.open-meteo.com",
+  "location": {
+    "label": "Singapore",
+    "latitude": 1.3521,
+    "longitude": 103.8198,
+    "timezone": "Asia/Singapore"
+  },
+  "current": {
+    "observedAtLocal": "2026-08-15T18:00",
+    "temperatureC": 31.2,
+    "apparentTemperatureC": 36.4,
+    "relativeHumidityPercent": 72,
+    "windSpeedKmh": 11.5,
+    "weatherCode": 2
+  },
+  "attribution": "Weather data by Open-Meteo.com",
+  "attributionUrl": "https://open-meteo.com/"
+}
+```
+
+请求只携带用户选择的位置参数，不携带账号、设备标识或自动定位信息。失败时由
+Scheduler/Provider 保留当前进程内同一位置的最近成功 payload，并通过快照状态暴露
+Offline、RateLimited、Error 或 Unavailable；该缓存不跨重启持久化。
 
 ## 11. Plugin Manifest
 

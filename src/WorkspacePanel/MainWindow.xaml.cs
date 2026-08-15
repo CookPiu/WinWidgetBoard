@@ -117,10 +117,21 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardLayout = new CardLayoutViewModel(
             4,
             [
-                new CardLayoutItem("demo.notes", CardSize.L),
-                new CardLayoutItem("demo.timer", CardSize.M),
-                new CardLayoutItem("demo.todo", CardSize.M),
-                new CardLayoutItem("demo.calendar", CardSize.M),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.NotesInstanceId,
+                    CardSize.L),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.WeatherInstanceId,
+                    CardSize.M),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.TimerInstanceId,
+                    CardSize.M),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.TodoInstanceId,
+                    CardSize.M),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.CalendarInstanceId,
+                    CardSize.M),
             ]);
         _cardEdit = new CardLayoutEditViewModel(_cardLayout);
         _cardSurface = new CardLayoutSurfaceViewModel(

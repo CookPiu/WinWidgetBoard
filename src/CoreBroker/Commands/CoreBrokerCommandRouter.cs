@@ -2,6 +2,7 @@ using System.Text.Json;
 using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Ipc;
 using WinWidgetBoard.CoreBroker.Persistence;
+using WinWidgetBoard.CoreBroker.Providers;
 
 namespace WinWidgetBoard.CoreBroker.Commands;
 
@@ -16,6 +17,7 @@ public sealed class CoreBrokerCommandRouter
     private readonly NoteRepository? _noteRepository;
     private readonly LayoutRepository? _layoutRepository;
     private readonly CardSnapshotSubscriptionHub? _cardSnapshotSubscriptionHub;
+    private readonly ProviderRefreshVisibilityRegistry? _providerVisibilityRegistry;
     private readonly Dictionary<Guid, CachedNoteOperation> _cachedNoteOperations = new();
     private readonly Queue<Guid> _noteOperationOrder = new();
     private readonly Dictionary<Guid, CachedLayoutOperation> _cachedLayoutOperations = new();
@@ -27,11 +29,13 @@ public sealed class CoreBrokerCommandRouter
     public CoreBrokerCommandRouter(
         NoteRepository? noteRepository = null,
         LayoutRepository? layoutRepository = null,
-        CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null)
+        CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null,
+        ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null)
     {
         _noteRepository = noteRepository;
         _layoutRepository = layoutRepository;
         _cardSnapshotSubscriptionHub = cardSnapshotSubscriptionHub;
+        _providerVisibilityRegistry = providerVisibilityRegistry;
     }
 
     public bool NotesAvailable => _noteRepository is not null;
@@ -147,8 +151,11 @@ public sealed class CoreBrokerCommandRouter
         return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
     }
 
-    public void RemoveConnection(Guid connectionId) =>
+    public void RemoveConnection(Guid connectionId)
+    {
         _cardSnapshotSubscriptionHub?.Remove(connectionId);
+        _providerVisibilityRegistry?.Remove(connectionId);
+    }
 
     private Envelope HandleCardsSubscribe(
         Envelope request,
@@ -183,6 +190,8 @@ public sealed class CoreBrokerCommandRouter
                 subscription = null;
                 return ErrorResponse(request, "validation.invalid-argument", "validation");
             }
+
+            _providerVisibilityRegistry?.Apply(connectionId, payload);
 
             return SuccessResponse(
                 request,

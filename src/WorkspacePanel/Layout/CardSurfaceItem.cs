@@ -12,6 +12,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
     private readonly CardRuntimeRegistration? _visibilityRegistration;
     private CardRuntimeStatusPresentation _runtimePresentation;
+    private WeatherCardProjection _weatherProjection;
     private bool _disposed;
 
     public CardSurfaceItem(
@@ -37,6 +38,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         _runtimePresentation = CardRuntimeStatusPresentation.Create(
             Runtime.Snapshot,
             _runtimeResourceResolver);
+        _weatherProjection = WeatherCardProjection.FromSnapshot(
+            Runtime.Snapshot);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
             RefreshSnapshotAsync);
@@ -63,6 +66,34 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public CardRuntimeStatusPresentation RuntimePresentation =>
         Volatile.Read(ref _runtimePresentation);
+
+    public WeatherCardProjection WeatherProjection =>
+        Volatile.Read(ref _weatherProjection);
+
+    public string WeatherLocationLabel => WeatherProjection.LocationLabel;
+
+    public string WeatherTemperatureText => WeatherProjection.TemperatureText;
+
+    public string WeatherApparentTemperatureText =>
+        WeatherProjection.ApparentTemperatureText;
+
+    public string WeatherConditionText => WeatherProjection.ConditionText;
+
+    public string WeatherHumidityText => WeatherProjection.HumidityText;
+
+    public string WeatherWindText => WeatherProjection.WindText;
+
+    public string WeatherObservedAtText => WeatherProjection.ObservedAtText;
+
+    public string WeatherAttributionText => WeatherProjection.AttributionText;
+
+    public bool HasWeatherData => WeatherProjection.HasData;
+
+    public string WeatherAutomationSummary =>
+        string.Join(
+            " · ",
+            RuntimePresentation.AutomationSummary,
+            WeatherTemperatureText);
 
     public bool SetViewportVisibility(bool isInViewport) =>
         _visibilityScheduler?.SetViewportVisibility(Runtime, isInViewport)
@@ -172,6 +203,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                     Runtime.Snapshot,
                     _runtimeResourceResolver);
             Interlocked.Exchange(ref _runtimePresentation, presentation);
+            Interlocked.Exchange(
+                ref _weatherProjection,
+                WeatherCardProjection.FromSnapshot(Runtime.Snapshot));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(RuntimeSnapshot)));
@@ -181,6 +215,39 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(RuntimePresentation)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherProjection)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherLocationLabel)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherTemperatureText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherApparentTemperatureText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherConditionText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherHumidityText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherWindText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherObservedAtText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherAttributionText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherData)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherAutomationSummary)));
         }
     }
 }

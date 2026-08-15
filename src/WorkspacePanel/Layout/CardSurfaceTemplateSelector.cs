@@ -8,6 +8,8 @@ public sealed class CardSurfaceTemplateSelector : DataTemplateSelector
 {
     public DataTemplate? NotesTemplate { get; set; }
 
+    public DataTemplate? WeatherTemplate { get; set; }
+
     public DataTemplate? TimerTemplate { get; set; }
 
     public DataTemplate? TodoTemplate { get; set; }
@@ -26,6 +28,7 @@ public sealed class CardSurfaceTemplateSelector : DataTemplateSelector
         return card.CardTypeId switch
         {
             BuiltInCardCatalog.NotesCardTypeId => NotesTemplate,
+            BuiltInCardCatalog.WeatherCardTypeId => WeatherTemplate,
             BuiltInCardCatalog.TimerCardTypeId => TimerTemplate,
             BuiltInCardCatalog.TodoCardTypeId => TodoTemplate,
             BuiltInCardCatalog.CalendarCardTypeId => CalendarTemplate,

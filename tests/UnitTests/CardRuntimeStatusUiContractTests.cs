@@ -59,6 +59,7 @@ public sealed class CardRuntimeStatusUiContractTests
         XDocument document = LoadAsset("MainWindow.xaml");
         string[] expected = [
             "NotesCardRuntimeStatus",
+            "WeatherCardRuntimeStatus",
             "TimerCardRuntimeStatus",
             "TodoCardRuntimeStatus",
             "CalendarCardRuntimeStatus",
@@ -83,6 +84,7 @@ public sealed class CardRuntimeStatusUiContractTests
         XDocument document = LoadAsset("MainWindow.xaml");
         foreach (string templateKey in new[] {
             "NotesCardTemplate",
+            "WeatherCardTemplate",
             "TimerCardTemplate",
             "TodoCardTemplate",
             "CalendarCardTemplate",

@@ -160,6 +160,9 @@
   <data name="NotesCardBody.Text" xml:space="preserve">
     <value>在下方编辑本地便签，修改会通过 CoreBroker 自动保存。</value>
   </data>
+  <data name="WeatherCardTitle.Text" xml:space="preserve">
+    <value>天气</value>
+  </data>
   <data name="OpenNotesButton.Content" xml:space="preserve">
     <value>聚焦编辑器</value>
   </data>

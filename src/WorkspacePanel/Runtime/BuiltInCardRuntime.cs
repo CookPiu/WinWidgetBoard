@@ -7,11 +7,13 @@ namespace WinWidgetBoard.WorkspacePanel.Runtime;
 public static class BuiltInCardCatalog
 {
     public const string NotesInstanceId = "demo.notes";
+    public const string WeatherInstanceId = "demo.weather";
     public const string TimerInstanceId = "demo.timer";
     public const string TodoInstanceId = "demo.todo";
     public const string CalendarInstanceId = "demo.calendar";
 
     public const string NotesCardTypeId = "builtin.notes";
+    public const string WeatherCardTypeId = "builtin.weather";
     public const string TimerCardTypeId = "builtin.timer";
     public const string TodoCardTypeId = "builtin.todo";
     public const string CalendarCardTypeId = "builtin.calendar";
@@ -30,6 +32,12 @@ public static class BuiltInCardCatalog
         NotesCardTypeId,
         "NotesCardTitle.Text",
         CardSize.L,
+        StandardSizes);
+
+    public static ICardDefinition Weather { get; } = new CardDefinition(
+        WeatherCardTypeId,
+        "WeatherCardTitle.Text",
+        CardSize.M,
         StandardSizes);
 
     public static ICardDefinition Timer { get; } = new CardDefinition(
@@ -60,6 +68,7 @@ public static class BuiltInCardCatalog
         Array.AsReadOnly(
         [
             Notes,
+            Weather,
             Timer,
             Todo,
             Calendar,
@@ -74,6 +83,7 @@ public static class BuiltInCardCatalog
         return instanceId switch
         {
             NotesInstanceId => Notes,
+            WeatherInstanceId => Weather,
             TimerInstanceId => Timer,
             TodoInstanceId => Todo,
             CalendarInstanceId => Calendar,

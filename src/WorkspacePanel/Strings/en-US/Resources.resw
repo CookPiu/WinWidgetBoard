@@ -160,6 +160,9 @@
   <data name="NotesCardBody.Text" xml:space="preserve">
     <value>Edit a local note below; changes are autosaved through CoreBroker.</value>
   </data>
+  <data name="WeatherCardTitle.Text" xml:space="preserve">
+    <value>Weather</value>
+  </data>
   <data name="OpenNotesButton.Content" xml:space="preserve">
     <value>Focus editor</value>
   </data>

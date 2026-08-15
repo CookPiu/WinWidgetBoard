@@ -7,6 +7,7 @@ public sealed class CardTemplateDragContractTests
 {
     private static readonly string[] CardTemplateKeys = [
         "NotesCardTemplate",
+        "WeatherCardTemplate",
         "TimerCardTemplate",
         "TodoCardTemplate",
         "CalendarCardTemplate",
@@ -71,6 +72,7 @@ public sealed class CardTemplateDragContractTests
             "http://schemas.microsoft.com/winfx/2006/xaml";
         string[] expectedNames = [
             "NotesCardDragHandle",
+            "WeatherCardDragHandle",
             "TimerCardDragHandle",
             "TodoCardDragHandle",
             "CalendarCardDragHandle",

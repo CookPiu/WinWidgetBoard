@@ -494,7 +494,11 @@ M2.3.6 将该调度核心接入 CoreBroker 的唯一 `ProviderRefreshHost`。生
 `ProviderCardSnapshotAdapter` 转换为共享 `CardStateSnapshot`，每实例递增 sequence，
 再由 M2.3.7 的 `CardSnapshotSubscriptionHub` 按连接可见性发送，M2.3.8 再由
 WorkspacePanel 的 `CardSnapshotSubscriptionCoordinator` 注册运行时并通过
-DispatcherQueue 应用。当前工作包不选择天气数据源、不接 HTTP 或缓存。
+DispatcherQueue 应用。M2.3.9 由 `OpenMeteoWeatherProvider` 接入
+`weather.current`，由 `ProviderRefreshVisibilityRegistry` 将连接级
+`cards.subscribe` 可见性反馈到 Scheduler；天气结果只保留当前进程内的最近成功
+payload，失败时保留数据并映射 Offline/Error。自动定位、持久化天气缓存和 OS 网络/电源
+事件仍不在本包内。
 
 ## 12. IPC
 

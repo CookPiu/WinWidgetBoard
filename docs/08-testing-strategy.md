@@ -254,6 +254,14 @@ M2.3.8 另外覆盖：
 - ItemsRepeater 准备/回收触发的单一去抖订阅更新；
 - Broker 心跳重连后的订阅恢复回调。
 
+M2.3.9 另外覆盖：
+
+- Open-Meteo 请求字段、current 响应解析和来源标识；
+- 同一位置的最近成功 payload 回退、缓存新鲜度和无效响应上限；
+- 429 Retry-After、网络失败和 Provider 错误状态映射；
+- cards.subscribe 可见性/断线对真实天气 Scheduler 的启停；
+- Weather runtime payload projection 和来源链接。
+
 ### 6.6 数据
 
 - 每个 migration；
@@ -343,8 +351,9 @@ Contracts 项目应为 C++ 和 C# 生成或共享相同 golden payload，防止�
 - 退避；
 - 缓存新鲜度。
 
-当前 M2.3.8 已完成 fake snapshot 到 Named Pipe、WorkspacePanel dispatcher 和重连重订阅的
-本地事件链路；Fake Weather Server、真实 HTTP、缓存、OS 网络/电源事件和真实性能测量仍未完成。
+当前 M2.3.9 已完成 fake HTTP handler、真实 Provider 解析、进程内缓存回退、
+cards.subscribe 可见性门控、受控真实 HTTPS 和真实 CoreBroker→cards.snapshot→WorkspacePanel
+桌面链路；OS 网络/电源事件和真实性能测量仍需在最终验收阶段完成。
 
 ## 9. UI Automation
 

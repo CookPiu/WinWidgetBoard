@@ -403,6 +403,119 @@
         </DataTemplate>
 
         <DataTemplate
+            x:Key="WeatherCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="180"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel
+                        Grid.Row="0"
+                        Spacing="4">
+                        <TextBlock
+                            x:Uid="WeatherCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <TextBlock
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind WeatherLocationLabel, Mode=OneWay}" />
+                        <ContentControl
+                            x:Name="WeatherCardRuntimeStatus"
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            automation:AutomationProperties.HelpText="{x:Bind WeatherAutomationSummary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                    </StackPanel>
+                    <StackPanel
+                        Grid.Row="1"
+                        Spacing="6"
+                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}">
+                        <TextBlock
+                            automation:AutomationProperties.AutomationId="WeatherTemperatureText"
+                            automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
+                            Style="{StaticResource WwbCardTitleStyle}"
+                            Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
+                        <TextBlock
+                            automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind WeatherConditionText, Mode=OneWay}" />
+                        <TextBlock
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}" />
+                        <TextBlock
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind WeatherHumidityText, Mode=OneWay}" />
+                        <TextBlock
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind WeatherWindText, Mode=OneWay}" />
+                        <TextBlock
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind WeatherObservedAtText, Mode=OneWay}" />
+                    </StackPanel>
+                    <HyperlinkButton
+                        Grid.Row="2"
+                        HorizontalAlignment="Left"
+                        Content="{x:Bind WeatherAttributionText, Mode=OneWay}"
+                        NavigateUri="https://open-meteo.com/"
+                        Visibility="{Binding HasWeatherData, Converter={StaticResource EditModeVisibilityConverter}}" />
+                    <Border
+                        Grid.Row="3"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Border
+                                Tag="{x:Bind InstanceId}"
+                                Style="{StaticResource WwbDragHandleStyle}">
+                                <TextBlock
+                                    x:Name="WeatherCardDragHandle"
+                                    x:Uid="DragCardHandle"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <Button
+                                x:Uid="DecreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="DecreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="IncreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="IncreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="RemoveCardButton"
+                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="RemoveCardButton_Click" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate
             x:Key="TimerCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
@@ -740,6 +853,7 @@
         <layout:CardSurfaceTemplateSelector
             x:Key="CardTemplateSelector"
             NotesTemplate="{StaticResource NotesCardTemplate}"
+            WeatherTemplate="{StaticResource WeatherCardTemplate}"
             TimerTemplate="{StaticResource TimerCardTemplate}"
             TodoTemplate="{StaticResource TodoCardTemplate}"
             CalendarTemplate="{StaticResource CalendarCardTemplate}"
