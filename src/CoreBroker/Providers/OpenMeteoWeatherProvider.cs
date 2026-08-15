@@ -19,7 +19,7 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
     public const string Capability = "weather.current";
     public const string DataSourceKey = "api.open-meteo.com";
     public const string CardTypeId = "builtin.weather";
-    public const string InstanceId = "demo.weather";
+    public const string InstanceId = WeatherSettingsContract.DefaultInstanceId;
     public const string AttributionUrl = "https://open-meteo.com/";
     public const string AttributionText = "Weather data by Open-Meteo.com";
     public const int MaxResponseBytes = 64 * 1024;
@@ -90,7 +90,10 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
     }
 
     public static WeatherLocation DefaultLocation { get; } =
-        new("Singapore", 1.3521, 103.8198);
+        new(
+            WeatherSettingsContract.DefaultLabel,
+            WeatherSettingsContract.DefaultLatitude,
+            WeatherSettingsContract.DefaultLongitude);
 
     public static JsonElement CreateArguments(WeatherLocation location)
     {

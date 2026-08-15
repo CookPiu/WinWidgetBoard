@@ -88,6 +88,50 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Replaces one provider subscription while preserving the current
+    /// connection visibility requests. The old subscription is paused before
+    /// the new one receives the aggregated visibility state.
+    /// </summary>
+    public bool Replace(
+        string instanceId,
+        Guid subscriptionId)
+    {
+        if (!CardsContract.IsValidIdentifier(
+                instanceId,
+                CardsContract.MaxInstanceIdLength) ||
+            subscriptionId == Guid.Empty)
+        {
+            return false;
+        }
+
+        Guid previousSubscriptionId;
+        CardsSubscribeRequest[] connections;
+        lock (_gate)
+        {
+            if (_disposed ||
+                !_providerSubscriptions.TryGetValue(
+                    instanceId,
+                    out previousSubscriptionId) ||
+                previousSubscriptionId == subscriptionId)
+            {
+                return false;
+            }
+
+            _providerSubscriptions[instanceId] = subscriptionId;
+            connections = _connections.Values.ToArray();
+        }
+
+        _scheduler.SetVisibility(
+            previousSubscriptionId,
+            new ProviderRefreshVisibility(
+                PanelVisible: false,
+                InViewport: false,
+                DisplayConnected: false));
+        ApplyVisibility(connections);
+        return true;
+    }
+
     public bool Remove(Guid connectionId)
     {
         CardsSubscribeRequest[] connections;

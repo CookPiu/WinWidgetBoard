@@ -117,5 +117,22 @@ public static class SqliteSchema
                         CHECK (preferred_row IS NULL OR preferred_row >= 0);
                 PRAGMA user_version = 2;
                 """),
+            new SqliteMigration(
+                3,
+                "persist-weather-settings",
+                """
+                CREATE TABLE IF NOT EXISTS weather_settings (
+                    instance_id TEXT NOT NULL PRIMARY KEY,
+                    label TEXT NOT NULL CHECK (length(label) > 0 AND length(label) <= 80),
+                    latitude REAL NOT NULL CHECK (latitude >= -90 AND latitude <= 90),
+                    longitude REAL NOT NULL CHECK (longitude >= -180 AND longitude <= 180),
+                    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+                    updated_at_utc TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_weather_settings_revision
+                    ON weather_settings(revision);
+                PRAGMA user_version = 3;
+                """),
         };
 }

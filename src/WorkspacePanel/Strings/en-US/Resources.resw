@@ -145,6 +145,63 @@
   <data name="SettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Settings</value>
   </data>
+  <data name="WeatherSettingsDialog.Title" xml:space="preserve">
+    <value>Weather location</value>
+  </data>
+  <data name="WeatherSettingsDialog.CloseButtonText" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="WeatherSettingsDescription.Text" xml:space="preserve">
+    <value>Choose a label and coordinates. Automatic location is not enabled.</value>
+  </data>
+  <data name="WeatherSettingsLabelBox.Header" xml:space="preserve">
+    <value>Location label</value>
+  </data>
+  <data name="WeatherSettingsLabelBox.PlaceholderText" xml:space="preserve">
+    <value>For example, Singapore</value>
+  </data>
+  <data name="WeatherSettingsLabelBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Weather location label</value>
+  </data>
+  <data name="WeatherSettingsLatitudeBox.Header" xml:space="preserve">
+    <value>Latitude (-90 to 90)</value>
+  </data>
+  <data name="WeatherSettingsLatitudeBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Weather latitude</value>
+  </data>
+  <data name="WeatherSettingsLongitudeBox.Header" xml:space="preserve">
+    <value>Longitude (-180 to 180)</value>
+  </data>
+  <data name="WeatherSettingsLongitudeBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Weather longitude</value>
+  </data>
+  <data name="WeatherSettingsSaveButton.Content" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="WeatherSettingsSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Save weather settings</value>
+  </data>
+  <data name="WeatherSettingsLoadedStatus" xml:space="preserve">
+    <value>Current weather location loaded.</value>
+  </data>
+  <data name="WeatherSettingsUnavailableStatus" xml:space="preserve">
+    <value>CoreBroker is unavailable; weather settings cannot be saved.</value>
+  </data>
+  <data name="WeatherSettingsLoadFailedStatus" xml:space="preserve">
+    <value>Could not load the current weather location.</value>
+  </data>
+  <data name="WeatherSettingsSavedStatus" xml:space="preserve">
+    <value>Weather location saved. The weather card is refreshing.</value>
+  </data>
+  <data name="WeatherSettingsSaveFailedStatus" xml:space="preserve">
+    <value>Could not save the weather location.</value>
+  </data>
+  <data name="WeatherSettingsInvalidLocationStatus" xml:space="preserve">
+    <value>Enter a label and valid latitude and longitude values.</value>
+  </data>
+  <data name="WeatherSettingsConflictStatus" xml:space="preserve">
+    <value>These settings changed elsewhere. Close and reopen the dialog.</value>
+  </data>
   <data name="ClosePanelButton.Content" xml:space="preserve">
     <value>Close</value>
   </data>

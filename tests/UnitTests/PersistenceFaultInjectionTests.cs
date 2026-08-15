@@ -40,8 +40,8 @@ public sealed class PersistenceFaultInjectionTests
             database.Connection.ExecuteScalar(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations';"));
 
-        Assert.AreEqual(2, await database.ApplySchemaAsync());
-        Assert.AreEqual("2", database.Connection.ExecuteScalar("PRAGMA user_version;"));
+        Assert.AreEqual(3, await database.ApplySchemaAsync());
+        Assert.AreEqual("3", database.Connection.ExecuteScalar("PRAGMA user_version;"));
     }
 
     [TestMethod(DisplayName = "UT-STORAGE-012 [NFR-REL-002] Write fault leaves migration transaction clean")]
@@ -61,7 +61,7 @@ public sealed class PersistenceFaultInjectionTests
             database.Connection.ExecuteScalar(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations';"));
 
-        Assert.AreEqual(2, await database.ApplySchemaAsync());
+        Assert.AreEqual(3, await database.ApplySchemaAsync());
     }
 
     [TestMethod(DisplayName = "UT-STORAGE-013 [NFR-REL-003] Commit fault rolls back migration")]
@@ -106,7 +106,12 @@ public sealed class PersistenceFaultInjectionTests
             await using (SqliteDatabase first = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath)))
             {
-                Assert.AreEqual(2, await first.ApplySchemaAsync());
+                var legacyRunner = new SqliteMigrationRunner(
+                    new[] { SqliteSchema.Migrations[0], SqliteSchema.Migrations[1] },
+                    new NoopBackup());
+                Assert.AreEqual(2, await legacyRunner.ApplyAsync(
+                    first.Connection,
+                    first.Options));
             }
 
             var injector = new PersistenceFaultInjector();

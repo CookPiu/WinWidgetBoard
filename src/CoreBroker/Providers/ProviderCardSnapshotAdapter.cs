@@ -24,6 +24,7 @@ public sealed class ProviderCardSnapshotAdapter : IProviderRefreshSink
     private readonly ICardSnapshotPublisher _publisher;
     private readonly IReadOnlyList<string> _readyActions;
     private readonly IReadOnlyList<string> _failureActions;
+    private readonly Func<long>? _sequenceProvider;
     private long _sequence;
 
     public ProviderCardSnapshotAdapter(
@@ -34,7 +35,8 @@ public sealed class ProviderCardSnapshotAdapter : IProviderRefreshSink
         IEnumerable<string>? readyActions = null,
         IEnumerable<string>? failureActions = null,
         Func<DateTimeOffset>? utcNow = null,
-        long initialSequence = 0)
+        long initialSequence = 0,
+        Func<long>? sequenceProvider = null)
     {
         if (!CardsContract.IsValidIdentifier(
                 instanceId,
@@ -77,6 +79,7 @@ public sealed class ProviderCardSnapshotAdapter : IProviderRefreshSink
         _utcNow = utcNow ?? (static () => DateTimeOffset.UtcNow);
         _readyActions = NormalizeActions(readyActions);
         _failureActions = NormalizeActions(failureActions);
+        _sequenceProvider = sequenceProvider;
         _sequence = initialSequence;
     }
 
@@ -92,10 +95,43 @@ public sealed class ProviderCardSnapshotAdapter : IProviderRefreshSink
         DateTimeOffset now = _utcNow().ToUniversalTime();
         CardStateSnapshot snapshot = CreateSnapshot(
             result,
-            checked(Interlocked.Increment(ref _sequence)),
+            NextSequence(),
             now);
         return _publisher.PublishAsync(snapshot, cancellationToken);
     }
+
+    /// <summary>
+    /// Publishes a bounded loading state before a provider registration is
+    /// made visible again, so a changed location cannot retain the previous
+    /// location's payload while the new request is pending.
+    /// </summary>
+    public ValueTask PublishLoadingAsync(
+        JsonElement payload = default,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        DateTimeOffset now = _utcNow().ToUniversalTime();
+        var snapshot = new CardStateSnapshot
+        {
+            InstanceId = _instanceId,
+            CardTypeId = _cardTypeId,
+            SchemaVersion = _schemaVersion,
+            Sequence = NextSequence(),
+            GeneratedAtUtc = now,
+            ValidUntilUtc = null,
+            Status = CardSnapshotStatus.Loading,
+            Freshness = CardSnapshotFreshness.Unknown,
+            Payload = payload,
+            AllowedActions = _readyActions,
+            DiagnosticCode = null,
+        };
+        return _publisher.PublishAsync(snapshot, cancellationToken);
+    }
+
+    private long NextSequence() =>
+        _sequenceProvider is null
+            ? checked(Interlocked.Increment(ref _sequence))
+            : _sequenceProvider();
 
     private CardStateSnapshot CreateSnapshot(
         ProviderRefreshResult result,

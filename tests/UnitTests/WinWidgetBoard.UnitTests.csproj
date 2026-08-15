@@ -46,6 +46,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\CardRuntimeStatusPresentation.cs" Link="WorkspacePanel\Runtime\CardRuntimeStatusPresentation.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\WeatherCardProjection.cs" Link="WorkspacePanel\Runtime\WeatherCardProjection.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\CardSnapshotDispatcher.cs" Link="WorkspacePanel\Runtime\CardSnapshotDispatcher.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherSettingsViewModel.cs" Link="WorkspacePanel\Settings\WeatherSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteClipboardFormatter.cs" Link="WorkspacePanel\Notes\NoteClipboardFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteMarkdownPreviewFormatter.cs" Link="WorkspacePanel\Notes\NoteMarkdownPreviewFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteEditorViewModel.cs" Link="WorkspacePanel\Notes\NoteEditorViewModel.cs" />

@@ -18,10 +18,14 @@ public sealed class CoreBrokerCommandRouter
     private readonly LayoutRepository? _layoutRepository;
     private readonly CardSnapshotSubscriptionHub? _cardSnapshotSubscriptionHub;
     private readonly ProviderRefreshVisibilityRegistry? _providerVisibilityRegistry;
+    private readonly WeatherProviderRuntime? _weatherProviderRuntime;
     private readonly Dictionary<Guid, CachedNoteOperation> _cachedNoteOperations = new();
     private readonly Queue<Guid> _noteOperationOrder = new();
     private readonly Dictionary<Guid, CachedLayoutOperation> _cachedLayoutOperations = new();
     private readonly Queue<Guid> _layoutOperationOrder = new();
+    private readonly Dictionary<Guid, CachedWeatherSettingsOperation>
+        _cachedWeatherSettingsOperations = new();
+    private readonly Queue<Guid> _weatherSettingsOperationOrder = new();
     private bool _panelVisible;
     private long _visibilityRevision;
     private int _visibilityReportCount;
@@ -30,12 +34,14 @@ public sealed class CoreBrokerCommandRouter
         NoteRepository? noteRepository = null,
         LayoutRepository? layoutRepository = null,
         CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null,
-        ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null)
+        ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null,
+        WeatherProviderRuntime? weatherProviderRuntime = null)
     {
         _noteRepository = noteRepository;
         _layoutRepository = layoutRepository;
         _cardSnapshotSubscriptionHub = cardSnapshotSubscriptionHub;
         _providerVisibilityRegistry = providerVisibilityRegistry;
+        _weatherProviderRuntime = weatherProviderRuntime;
     }
 
     public bool NotesAvailable => _noteRepository is not null;
@@ -43,6 +49,8 @@ public sealed class CoreBrokerCommandRouter
     public bool LayoutsAvailable => _layoutRepository is not null;
 
     public bool CardsAvailable => _cardSnapshotSubscriptionHub is not null;
+
+    public bool WeatherSettingsAvailable => _weatherProviderRuntime is not null;
 
     public bool PanelVisible
     {
@@ -146,6 +154,22 @@ public sealed class CoreBrokerCommandRouter
         if (string.Equals(request.Method, NotesContract.DeleteMethod, StringComparison.Ordinal))
         {
             return HandleNoteDelete(request);
+        }
+
+        if (string.Equals(
+                request.Method,
+                WeatherSettingsContract.GetMethod,
+                StringComparison.Ordinal))
+        {
+            return HandleWeatherSettingsGet(request);
+        }
+
+        if (string.Equals(
+                request.Method,
+                WeatherSettingsContract.SaveMethod,
+                StringComparison.Ordinal))
+        {
+            return HandleWeatherSettingsSave(request);
         }
 
         return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
@@ -519,6 +543,137 @@ public sealed class CoreBrokerCommandRouter
         }
     }
 
+    private Envelope HandleWeatherSettingsGet(Envelope request)
+    {
+        if (_weatherProviderRuntime is null)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (!TryDeserializePayload(
+                request.Payload,
+                out WeatherSettingsGetRequest? payload) ||
+            payload is null ||
+            !IsValidWeatherInstanceId(payload.InstanceId))
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        lock (_gate)
+        {
+            try
+            {
+                WeatherSettingsRecord settings = _weatherProviderRuntime.GetSettings();
+                return SuccessResponse(
+                    request,
+                    WeatherSettingsContract.GetMethod,
+                    new WeatherSettingsGetResponse
+                    {
+                        Settings = ToContract(settings),
+                    });
+            }
+            catch (ObjectDisposedException)
+            {
+                return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+            }
+            catch (SqliteException)
+            {
+                return ErrorResponse(request, "storage.read-failed", "storage");
+            }
+        }
+    }
+
+    private Envelope HandleWeatherSettingsSave(Envelope request)
+    {
+        if (_weatherProviderRuntime is null)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (!TryDeserializePayload(
+                request.Payload,
+                out WeatherSettingsSaveRequest? payload) ||
+            payload is null ||
+            !IsValidOperationId(payload.ClientOperationId) ||
+            !IsValidWeatherInstanceId(payload.InstanceId) ||
+            !WeatherSettingsContract.TryNormalizeLabel(
+                payload.Label,
+                out string? normalizedLabel) ||
+            normalizedLabel is null ||
+            !WeatherSettingsContract.IsValidCoordinates(
+                payload.Latitude,
+                payload.Longitude) ||
+            payload.ExpectedRevision < 0)
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        var fingerprint = new WeatherSettingsSaveFingerprint(
+            payload.InstanceId!,
+            normalizedLabel,
+            payload.Latitude,
+            payload.Longitude,
+            payload.ExpectedRevision);
+        lock (_gate)
+        {
+            if (TryGetCachedWeatherSettingsOperation(
+                    payload.ClientOperationId,
+                    fingerprint,
+                    out WeatherSettingsSaveResponse? cachedResponse,
+                    out bool fingerprintConflict))
+            {
+                return fingerprintConflict
+                    ? ErrorResponse(request, "validation.invalid-argument", "validation")
+                    : SuccessResponse(
+                        request,
+                        WeatherSettingsContract.SaveMethod,
+                        cachedResponse!);
+            }
+
+            try
+            {
+                WeatherSettingsRecord saved = _weatherProviderRuntime.SaveSettings(
+                    payload.InstanceId!,
+                    normalizedLabel,
+                    payload.Latitude,
+                    payload.Longitude,
+                    payload.ExpectedRevision);
+                var responsePayload = new WeatherSettingsSaveResponse
+                {
+                    ClientOperationId = payload.ClientOperationId,
+                    Settings = ToContract(saved),
+                };
+                CacheWeatherSettingsOperation(
+                    payload.ClientOperationId,
+                    fingerprint,
+                    responsePayload);
+                return SuccessResponse(
+                    request,
+                    WeatherSettingsContract.SaveMethod,
+                    responsePayload);
+            }
+            catch (WeatherSettingsRevisionConflictException)
+            {
+                return ErrorResponse(
+                    request,
+                    "conflict.weather-settings-revision",
+                    "conflict");
+            }
+            catch (SqliteException)
+            {
+                return ErrorResponse(request, "storage.write-failed", "storage");
+            }
+            catch (ObjectDisposedException)
+            {
+                return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+            }
+            catch (InvalidOperationException)
+            {
+                return ErrorResponse(request, "provider.update-failed", "provider");
+            }
+        }
+    }
+
     private Envelope HandlePanelVisibilityReport(Envelope request)
     {
         if (request.Payload.ValueKind != JsonValueKind.Object ||
@@ -666,6 +821,17 @@ public sealed class CoreBrokerCommandRouter
             UpdatedAtUtc = note.UpdatedAtUtc,
         };
 
+    private static WeatherSettingsDto ToContract(WeatherSettingsRecord settings) =>
+        new()
+        {
+            InstanceId = settings.InstanceId,
+            Label = settings.Label,
+            Latitude = settings.Latitude,
+            Longitude = settings.Longitude,
+            Revision = settings.Revision,
+            UpdatedAtUtc = settings.UpdatedAtUtc ?? string.Empty,
+        };
+
     private static LayoutDto ToContract(LayoutRecord layout) =>
         new()
         {
@@ -691,6 +857,13 @@ public sealed class CoreBrokerCommandRouter
     private static bool IsValidLayoutIdentity(string? layoutId, string? displayId) =>
         IsValidRequiredText(layoutId, LayoutContract.MaxLayoutIdLength) &&
         IsValidRequiredText(displayId, LayoutContract.MaxDisplayIdLength);
+
+    private static bool IsValidWeatherInstanceId(string? instanceId) =>
+        WeatherSettingsContract.IsValidInstanceId(instanceId) &&
+        string.Equals(
+            instanceId,
+            OpenMeteoWeatherProvider.InstanceId,
+            StringComparison.Ordinal);
 
     private static bool TryMapLayoutItems(
         IReadOnlyList<LayoutItemDto>? payloadItems,
@@ -810,6 +983,43 @@ public sealed class CoreBrokerCommandRouter
         _layoutOperationOrder.Enqueue(operationId);
     }
 
+    private bool TryGetCachedWeatherSettingsOperation(
+        Guid operationId,
+        WeatherSettingsSaveFingerprint fingerprint,
+        out WeatherSettingsSaveResponse? response,
+        out bool fingerprintConflict)
+    {
+        if (!_cachedWeatherSettingsOperations.TryGetValue(
+                operationId,
+                out CachedWeatherSettingsOperation? cached))
+        {
+            response = null;
+            fingerprintConflict = false;
+            return false;
+        }
+
+        response = cached.Response;
+        fingerprintConflict = !Equals(cached.Fingerprint, fingerprint);
+        return true;
+    }
+
+    private void CacheWeatherSettingsOperation(
+        Guid operationId,
+        WeatherSettingsSaveFingerprint fingerprint,
+        WeatherSettingsSaveResponse response)
+    {
+        while (_cachedWeatherSettingsOperations.Count >= MaxCachedOperations &&
+            _weatherSettingsOperationOrder.Count > 0)
+        {
+            _cachedWeatherSettingsOperations.Remove(
+                _weatherSettingsOperationOrder.Dequeue());
+        }
+
+        _cachedWeatherSettingsOperations[operationId] =
+            new CachedWeatherSettingsOperation(fingerprint, response);
+        _weatherSettingsOperationOrder.Enqueue(operationId);
+    }
+
     private void CacheOperation(
         PanelVisibilityReportRequest request,
         PanelVisibilityReportResponse response)
@@ -883,6 +1093,10 @@ public sealed class CoreBrokerCommandRouter
         string Fingerprint,
         LayoutSaveResponse Response);
 
+    private sealed record CachedWeatherSettingsOperation(
+        WeatherSettingsSaveFingerprint Fingerprint,
+        WeatherSettingsSaveResponse Response);
+
     private sealed record NoteSaveFingerprint(
         string NoteId,
         string Title,
@@ -893,4 +1107,11 @@ public sealed class CoreBrokerCommandRouter
     private sealed record NoteDeleteFingerprint(
         string NoteId,
         string ExpectedUpdatedAtUtc);
+
+    private sealed record WeatherSettingsSaveFingerprint(
+        string InstanceId,
+        string Label,
+        double Latitude,
+        double Longitude,
+        int ExpectedRevision);
 }

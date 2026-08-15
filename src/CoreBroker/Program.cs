@@ -98,39 +98,14 @@ internal static class Program
         {
             Timeout = Timeout.InfiniteTimeSpan,
         };
-        var weatherProvider = new OpenMeteoWeatherProvider(weatherHttpClient);
-        WeatherLocation weatherLocation =
-            OpenMeteoWeatherProvider.DefaultLocation;
-        System.Text.Json.JsonElement weatherArguments =
-            OpenMeteoWeatherProvider.CreateArguments(weatherLocation);
-        var weatherAdapter = new ProviderCardSnapshotAdapter(
-            OpenMeteoWeatherProvider.InstanceId,
-            OpenMeteoWeatherProvider.CardTypeId,
-            schemaVersion: 1,
+        var weatherSettingsRepository = new WeatherSettingsRepository(database);
+        using var weatherRuntime = new WeatherProviderRuntime(
+            weatherSettingsRepository,
+            providerHost,
+            providerVisibilityRegistry,
             cardSnapshotSubscriptionHub,
-            readyActions: [CardsContract.RefreshActionId],
-            failureActions:
-            [
-                CardsContract.RefreshActionId,
-                CardsContract.OpenDiagnosticsActionId,
-                CardsContract.DisableActionId,
-            ],
-            utcNow: () => refreshClock.UtcNow);
-        using ProviderRefreshHostRegistration weatherRegistration =
-            providerHost.Register(
-                new ProviderRefreshSubscription(
-                    Guid.NewGuid(),
-                    OpenMeteoWeatherProvider.CreateRequestKey(weatherLocation),
-                    weatherArguments,
-                    weatherProvider,
-                    weatherAdapter,
-                    new ProviderRefreshVisibility(
-                        PanelVisible: false,
-                        InViewport: false,
-                        DisplayConnected: false)));
-        providerVisibilityRegistry.Register(
-            OpenMeteoWeatherProvider.InstanceId,
-            weatherRegistration.SubscriptionId);
+            weatherHttpClient,
+            refreshClock);
         var server = new CoreBrokerPipeServer(
             CoreBrokerPipeNames.Production,
             sessionToken,
@@ -139,7 +114,8 @@ internal static class Program
                 new NoteRepository(database),
                 new LayoutRepository(database),
                 cardSnapshotSubscriptionHub,
-                providerVisibilityRegistry));
+                providerVisibilityRegistry,
+                weatherRuntime));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;

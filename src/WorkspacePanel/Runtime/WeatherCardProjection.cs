@@ -70,9 +70,7 @@ public sealed record WeatherCardProjection
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         JsonElement payload = snapshot.Payload;
-        if (payload.ValueKind != JsonValueKind.Object ||
-            !payload.TryGetProperty("current", out JsonElement current) ||
-            current.ValueKind != JsonValueKind.Object)
+        if (payload.ValueKind != JsonValueKind.Object)
         {
             return Empty;
         }
@@ -87,9 +85,25 @@ public sealed record WeatherCardProjection
                 "attribution") ??
             Empty.AttributionText;
         string attributionUrl = ReadString(
-                payload,
-                "attributionUrl") ??
+            payload,
+            "attributionUrl") ??
             Empty.AttributionUrl;
+        if (!payload.TryGetProperty("current", out JsonElement current) ||
+            current.ValueKind != JsonValueKind.Object)
+        {
+            return new WeatherCardProjection(
+                locationLabel,
+                "—",
+                "—",
+                "—",
+                "—",
+                "—",
+                "—",
+                attributionText,
+                attributionUrl,
+                hasData: false);
+        }
+
         string temperatureText = FormatTemperature(
             current,
             "temperatureC");

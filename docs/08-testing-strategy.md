@@ -290,6 +290,18 @@ M2.3.9 另外覆盖：
 - hidden lifecycle；
 - invalid Provider payload。
 
+### 6.8 Weather Settings
+
+- `weather.settings.get` 的默认值和非写入读取；
+- `weather.settings.save` 的标签/经纬度边界；
+- SQLite schema v3、重启读取和 migration 前备份；
+- revision 冲突不会覆盖已有位置；
+- 相同 `clientOperationId` 重试不重复写入或替换 Provider；
+- `CardSettingsDraft` 生成 commit request 后才允许发 IPC；
+- 保存后的 Loading 快照、Provider 请求 key 替换和当前 cards.subscribe 可见性继承；
+- 无效坐标在 WorkspacePanel 端不发 IPC；
+- 自动定位权限和天气 payload 跨重启持久化保持未启用。
+
 ## 7. 契约测试
 
 基于 `docs/07-api-contracts.md`：
@@ -355,6 +367,9 @@ Contracts 项目应为 C++ 和 C# 生成或共享相同 golden payload，防止�
 cards.subscribe 可见性门控、受控真实 HTTPS 和真实 CoreBroker→cards.snapshot→WorkspacePanel
 桌面链路；OS 网络/电源事件和真实性能测量仍需在最终验收阶段完成。
 
+M2.3.10 另外覆盖天气设置 IPC、SQLite revision、幂等写入、运行时注册替换和设置保存后
+的 Loading→天气快照链路；天气 payload 仍不写入 SQLite。
+
 ## 9. UI Automation
 
 ### 9.1 覆盖范围
@@ -378,6 +393,7 @@ cards.subscribe 可见性门控、受控真实 HTTPS 和真实 CoreBroker→card
 - 启动计时器；
 - 打开剪贴板条目；
 - 设置；
+- 天气位置对话框的三个输入框、保存、非法坐标反馈和保存状态；
 - 错误和权限状态。
 
 ### 9.2 限制

@@ -25,6 +25,7 @@ using WinWidgetBoard.WorkspacePanel.Motion;
 using WinWidgetBoard.WorkspacePanel.Notes;
 using WinWidgetBoard.WorkspacePanel.Runtime;
 using WinWidgetBoard.WorkspacePanel.Shell;
+using WinWidgetBoard.WorkspacePanel.Settings;
 using UiDispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue;
 using UiDispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
@@ -56,10 +57,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly IntPtr _windowHandle;
     private readonly PanelPlacement _placement;
     private readonly ILayoutClient? _layoutClient;
+    private readonly IWeatherSettingsClient? _weatherSettingsClient;
     private readonly CardSnapshotDispatcher _cardSnapshotDispatcher;
     private readonly CardSnapshotSubscriptionCoordinator?
         _cardSnapshotSubscription;
     private readonly CancellationTokenSource _cardSnapshotCancellation = new();
+    private int _statusVersion;
     private readonly UiDispatcherQueueTimer _cardSubscriptionRefreshTimer;
     private readonly ResourceLoader _resources = new();
     private readonly CardDragController _demoNotesCardDrag = new();
@@ -95,9 +98,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         INoteClient? noteClient = null,
         ILayoutClient? layoutClient = null,
         bool keepOpenForAcceptance = false,
-        CoreBrokerCardsClient? cardsClient = null)
+        CoreBrokerCardsClient? cardsClient = null,
+        IWeatherSettingsClient? weatherSettingsClient = null)
     {
         _layoutClient = layoutClient;
+        _weatherSettingsClient = weatherSettingsClient;
         _keepOpenForAcceptance = keepOpenForAcceptance;
         _uiDispatcherQueue = UiDispatcherQueue.GetForCurrentThread();
         _cardSnapshotDispatcher = new CardSnapshotDispatcher(
@@ -399,6 +404,41 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void ShellCommandButton_Click(object sender, RoutedEventArgs e)
     {
         StatusText.Text = _resources.GetString("ShellPlaceholderStatus");
+    }
+
+    private async void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        Interlocked.Increment(ref _statusVersion);
+        try
+        {
+            var viewModel = new WeatherSettingsViewModel(
+                _weatherSettingsClient,
+                key => _resources.GetString(key));
+            if (RootGrid.XamlRoot is null)
+            {
+                return;
+            }
+
+            var dialog = new WeatherSettingsDialog(viewModel)
+            {
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            await viewModel.LoadAsync(CancellationToken.None);
+            using IDisposable modalScope = EnterModalScope();
+            await dialog.ShowAsync();
+            Interlocked.Increment(ref _statusVersion);
+            StatusText.Text = viewModel.WasSaved
+                ? _resources.GetString("WeatherSettingsSavedStatus")
+                : viewModel.StatusText;
+        }
+        catch (Exception exception)
+            when (exception is not OutOfMemoryException and
+                not StackOverflowException and
+                not AccessViolationException)
+        {
+            Debug.WriteLine($"WorkspacePanel weather settings dialog failed: {exception}");
+            StatusText.Text = _resources.GetString("WeatherSettingsLoadFailedStatus");
+        }
     }
 
     private async void EditLayoutButton_Click(object sender, RoutedEventArgs e)
@@ -1148,6 +1188,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     public async Task<bool> InitializeLayoutAsync(CancellationToken cancellationToken)
     {
+        int statusVersion = Volatile.Read(ref _statusVersion);
         if (_layoutClient is null)
         {
             MarkLayoutUnavailable();
@@ -1168,7 +1209,10 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 await RunOnUiAsync(() =>
                 {
                     EnsureCardItemsBound();
-                    StatusText.Text = _resources.GetString("LayoutReadyToSaveStatus");
+                    if (Volatile.Read(ref _statusVersion) == statusVersion)
+                    {
+                        StatusText.Text = _resources.GetString("LayoutReadyToSaveStatus");
+                    }
                 }).ConfigureAwait(false);
                 return true;
             }
@@ -1199,10 +1243,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 _layoutRevision = persisted.Revision;
                 _cardLayout.ReplaceItems(replay.Items);
                 EnsureCardItemsBound();
-                StatusText.Text = _resources.GetString(
-                    replay.RecoveredItemCount > 0
-                        ? "LayoutRecoveredStatus"
-                        : "LayoutLoadedStatus");
+                if (Volatile.Read(ref _statusVersion) == statusVersion)
+                {
+                    StatusText.Text = _resources.GetString(
+                        replay.RecoveredItemCount > 0
+                            ? "LayoutRecoveredStatus"
+                            : "LayoutLoadedStatus");
+                }
 
                 if (replay.RecoveredItemCount > 0)
                 {

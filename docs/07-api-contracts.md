@@ -460,6 +460,58 @@ WorkspacePanel 使用状态设置式上报同步当前面板可见性：
 
 更新或删除使用过期 `expectedUpdatedAtUtc` 时返回 `conflict.notes-revision`；不存在的记录返回 `resource.not-found`；相同 `clientOperationId` 搭配不同 payload 返回 `validation.invalid-argument`。
 
+### 9.5 Weather Settings Methods
+
+天气位置设置只针对内置实例 `demo.weather`，通过当前用户 CoreBroker IPC 保存。未保存过时，
+`weather.settings.get` 返回默认 Singapore 位置和 revision `0`，不会因为读取而写入数据库。
+
+读取请求：
+
+```json
+{
+  "method": "weather.settings.get",
+  "payload": {
+    "instanceId": "demo.weather"
+  }
+}
+```
+
+保存请求与响应：
+
+```json
+{
+  "method": "weather.settings.save",
+  "payload": {
+    "clientOperationId": "uuid",
+    "instanceId": "demo.weather",
+    "label": "Tokyo",
+    "latitude": 35.6762,
+    "longitude": 139.6503,
+    "expectedRevision": 0
+  }
+}
+```
+
+```json
+{
+  "clientOperationId": "uuid",
+  "settings": {
+    "instanceId": "demo.weather",
+    "label": "Tokyo",
+    "latitude": 35.6762,
+    "longitude": 139.6503,
+    "revision": 1,
+    "updatedAtUtc": "2026-08-15T10:20:30.0000000Z"
+  }
+}
+```
+
+位置名称最多 80 个字符且不得包含控制字符；纬度必须在 `[-90, 90]`，经度必须在
+`[-180, 180]`，两者都必须是有限数值。保存使用 `expectedRevision` 防止覆盖其他窗口的
+修改；冲突返回 `conflict.weather-settings-revision`。相同 `clientOperationId` 和相同字段
+返回缓存结果，不重复替换 Provider；同一 ID 搭配不同字段返回
+`validation.invalid-argument`。
+
 ## 10. Provider Contract
 
 ### 10.1 Provider Descriptor
@@ -690,6 +742,8 @@ storage.conflict
 storage.migration-failed
 layout.revision-conflict
 settings.revision-conflict
+conflict.weather-settings-revision
+provider.update-failed
 security.policy-violation
 internal.error
 ```

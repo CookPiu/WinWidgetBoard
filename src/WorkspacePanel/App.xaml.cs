@@ -55,7 +55,8 @@ public partial class App : Application, IAsyncDisposable, IDisposable
                 _brokerSession?.Notes,
                 _brokerSession?.Layout,
                 keepOpenForAcceptance: _isAcceptanceTest,
-                cardsClient: _brokerSession?.Cards);
+                cardsClient: _brokerSession?.Cards,
+                weatherSettingsClient: _brokerSession?.WeatherSettings);
 
             if (_brokerSession is not null && _window is MainWindow createdMainWindow)
             {

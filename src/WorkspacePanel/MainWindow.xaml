@@ -433,6 +433,7 @@
                             x:Uid="WeatherCardTitle"
                             Style="{StaticResource WwbCardTitleStyle}" />
                         <TextBlock
+                            automation:AutomationProperties.AutomationId="WeatherLocationText"
                             Style="{StaticResource WwbCardBodyStyle}"
                             Text="{x:Bind WeatherLocationLabel, Mode=OneWay}" />
                         <ContentControl
@@ -953,7 +954,7 @@
                                 x:Name="SettingsButton"
                                 x:Uid="SettingsButton"
                                 Style="{StaticResource WwbToolbarButtonStyle}"
-                                Click="ShellCommandButton_Click" />
+                                Click="SettingsButton_Click" />
                             <Button
                                 x:Name="ClosePanelButton"
                                 x:Uid="ClosePanelButton"

@@ -31,6 +31,7 @@
 | A-008 | SQLite 存用户内容；引导所需最小配置使用原子 JSON |
 | A-009 | 剪贴板正文默认不进入应用数据库 |
 | A-010 | 云同步以 Provider 形式后加，本地数据始终可独立工作 |
+| A-011 | 天气位置设置通过版本化本地 IPC、SQLite revision 和运行时 Provider 替换 |
 
 完整理由参见 `docs/adr/`。
 
@@ -498,7 +499,9 @@ DispatcherQueue 应用。M2.3.9 由 `OpenMeteoWeatherProvider` 接入
 `weather.current`，由 `ProviderRefreshVisibilityRegistry` 将连接级
 `cards.subscribe` 可见性反馈到 Scheduler；天气结果只保留当前进程内的最近成功
 payload，失败时保留数据并映射 Offline/Error。自动定位、持久化天气缓存和 OS 网络/电源
-事件仍不在本包内。
+事件仍不在本包内。M2.3.10 由 `WeatherSettingsViewModel` 通过 `CardSettingsDraft` 和高层
+IPC 客户端保存位置，`WeatherProviderRuntime` 替换请求 key、继承连接可见性并先发布
+Loading 快照；天气位置设置写入 SQLite，但天气 payload 仍不写入 SQLite。
 
 ## 12. IPC
 
@@ -564,6 +567,7 @@ CoreBroker 可在首次启动时生成随机会话令牌，通过受保护的启
 - card instances；
 - layouts；
 - notes；
+- weather settings（仅位置标签、经纬度和 revision）；
 - todos；
 - local calendar events；
 - timers；
@@ -592,7 +596,7 @@ CoreBroker 可在首次启动时生成随机会话令牌，通过受保护的启
 
 LauncherHost 不打开 SQLite，避免把数据库依赖带入最小常驻进程。
 
-CoreBroker 启动后打开 `%LOCALAPPDATA%\WinWidgetBoard\data.db`，完成 schema migration，并通过当前用户命名管道向 WorkspacePanel 提供便签等数据服务。WorkspacePanel 通过 `CoreBroker.Client` 和 ViewModel 使用版本化 IPC 契约，不直接持有数据库连接或可变数据库实体。
+CoreBroker 启动后打开 `%LOCALAPPDATA%\WinWidgetBoard\data.db`，完成 schema migration，并通过当前用户命名管道向 WorkspacePanel 提供便签、布局和天气位置设置等数据服务。WorkspacePanel 通过 `CoreBroker.Client` 和 ViewModel 使用版本化 IPC 契约，不直接持有数据库连接或可变数据库实体；天气 payload 不写入 SQLite。
 
 ### 13.4 密钥
 

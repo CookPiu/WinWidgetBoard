@@ -13,8 +13,8 @@ public sealed class SqliteMigrationTests
 
         int applied = await database.ApplySchemaAsync();
 
-        Assert.AreEqual(2, applied);
-        Assert.AreEqual("2", await ScalarTextAsync(database.Connection, "PRAGMA user_version;"));
+        Assert.AreEqual(3, applied);
+        Assert.AreEqual("3", await ScalarTextAsync(database.Connection, "PRAGMA user_version;"));
         foreach (string table in new[]
                  {
                      "schema_migrations",
@@ -23,6 +23,7 @@ public sealed class SqliteMigrationTests
                      "layouts",
                      "layout_items",
                      "notes",
+                     "weather_settings",
                      "todos",
                      "calendar_events",
                      "timers",
@@ -56,7 +57,7 @@ public sealed class SqliteMigrationTests
             await using (SqliteDatabase first = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath)))
             {
-                Assert.AreEqual(2, await first.ApplySchemaAsync());
+                Assert.AreEqual(3, await first.ApplySchemaAsync());
             }
 
             await using (SqliteDatabase second = await SqliteDatabase.OpenAsync(
@@ -111,7 +112,12 @@ public sealed class SqliteMigrationTests
             await using (SqliteDatabase first = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath, backupDirectory)))
             {
-                Assert.AreEqual(2, await first.ApplySchemaAsync());
+                var legacyRunner = new SqliteMigrationRunner(
+                    new[] { SqliteSchema.Migrations[0], SqliteSchema.Migrations[1] },
+                    new NoopBackup());
+                Assert.AreEqual(2, await legacyRunner.ApplyAsync(
+                    first.Connection,
+                    first.Options));
             }
 
             var runner = new SqliteMigrationRunner(
@@ -152,7 +158,12 @@ public sealed class SqliteMigrationTests
             await using (SqliteDatabase first = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath)))
             {
-                Assert.AreEqual(2, await first.ApplySchemaAsync());
+                var legacyRunner = new SqliteMigrationRunner(
+                    new[] { SqliteSchema.Migrations[0], SqliteSchema.Migrations[1] },
+                    new NoopBackup());
+                Assert.AreEqual(2, await legacyRunner.ApplyAsync(
+                    first.Connection,
+                    first.Options));
             }
 
             var runner = new SqliteMigrationRunner(
@@ -237,8 +248,8 @@ public sealed class SqliteMigrationTests
             await using (SqliteDatabase upgraded = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath)))
             {
-                Assert.AreEqual(1, await upgraded.ApplySchemaAsync());
-                Assert.AreEqual("2", await ScalarTextAsync(
+                Assert.AreEqual(2, await upgraded.ApplySchemaAsync());
+                Assert.AreEqual("3", await ScalarTextAsync(
                     upgraded.Connection,
                     "PRAGMA user_version;"));
                 Assert.IsTrue(await ColumnExistsAsync(
