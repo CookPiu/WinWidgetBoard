@@ -237,35 +237,41 @@ public sealed class CardSnapshotEventBuffer : ICardSnapshotPublisher
         }
     }
 
+    public CardSnapshotPublishOutcome Publish(CardStateSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        lock (_gate)
+        {
+            if (_overflowed)
+            {
+                return CardSnapshotPublishOutcome.IgnoredOverflow;
+            }
+
+            if (_pending.ContainsKey(snapshot.InstanceId))
+            {
+                _pending[snapshot.InstanceId] = snapshot;
+                return CardSnapshotPublishOutcome.Updated;
+            }
+
+            if (_pending.Count >= _capacity)
+            {
+                _overflowed = true;
+                return CardSnapshotPublishOutcome.Overflowed;
+            }
+
+            _pending.Add(snapshot.InstanceId, snapshot);
+            _order.Enqueue(snapshot.InstanceId);
+            return CardSnapshotPublishOutcome.Added;
+        }
+    }
+
     public ValueTask PublishAsync(
         CardStateSnapshot snapshot,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         cancellationToken.ThrowIfCancellationRequested();
-        lock (_gate)
-        {
-            if (_overflowed)
-            {
-                return ValueTask.CompletedTask;
-            }
-
-            if (_pending.ContainsKey(snapshot.InstanceId))
-            {
-                _pending[snapshot.InstanceId] = snapshot;
-                return ValueTask.CompletedTask;
-            }
-
-            if (_pending.Count >= _capacity)
-            {
-                _overflowed = true;
-                return ValueTask.CompletedTask;
-            }
-
-            _pending.Add(snapshot.InstanceId, snapshot);
-            _order.Enqueue(snapshot.InstanceId);
-        }
-
+        Publish(snapshot);
         return ValueTask.CompletedTask;
     }
 
@@ -295,4 +301,12 @@ public sealed class CardSnapshotEventBuffer : ICardSnapshotPublisher
 
         return snapshots.AsReadOnly();
     }
+}
+
+public enum CardSnapshotPublishOutcome
+{
+    Added = 0,
+    Updated,
+    Overflowed,
+    IgnoredOverflow,
 }

@@ -89,13 +89,15 @@ internal static class Program
             cancellation.Token).ConfigureAwait(false);
         await database.ApplySchemaAsync(cancellation.Token).ConfigureAwait(false);
 
+        using var cardSnapshotSubscriptionHub = new CardSnapshotSubscriptionHub();
         var server = new CoreBrokerPipeServer(
             CoreBrokerPipeNames.Production,
             sessionToken,
             "0.1.0",
             new CoreBrokerCommandRouter(
                 new NoteRepository(database),
-                new LayoutRepository(database)));
+                new LayoutRepository(database),
+                cardSnapshotSubscriptionHub));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;

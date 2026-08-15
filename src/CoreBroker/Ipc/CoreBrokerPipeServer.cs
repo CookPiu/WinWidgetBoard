@@ -87,14 +87,21 @@ public sealed class CoreBrokerPipeServer
         CancellationToken cancellationToken)
     {
         using (pipe)
+        using (var connectionCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        using (var writeGate = new SemaphoreSlim(1, 1))
         {
+            Guid connectionId = Guid.NewGuid();
             bool handshakeComplete = false;
+            CardSnapshotSubscription? subscription = null;
+            Task? snapshotWriter = null;
             try
             {
-                while (pipe.IsConnected && !cancellationToken.IsCancellationRequested)
+                while (pipe.IsConnected &&
+                       !connectionCancellation.IsCancellationRequested)
                 {
                     byte[] frame = await LengthPrefixedFrameCodec
-                        .ReadAsync(pipe, cancellationToken)
+                        .ReadAsync(pipe, connectionCancellation.Token)
                         .ConfigureAwait(false);
                     if (!EnvelopeCodec.TryDeserialize(frame, out Envelope? request, out _))
                     {
@@ -102,24 +109,55 @@ public sealed class CoreBrokerPipeServer
                     }
 
                     Envelope response;
+                    CardSnapshotSubscription? nextSubscription;
                     if (!handshakeComplete)
                     {
                         response = HandleHello(request!);
                         handshakeComplete = response.Error is null;
+                        nextSubscription = null;
                     }
                     else
                     {
-                        response = HandleEstablishedRequest(request!);
+                        response = HandleEstablishedRequest(
+                            request!,
+                            connectionId,
+                            out nextSubscription);
                     }
 
-                    if (!EnvelopeCodec.TrySerialize(response, out byte[] responseJson, out _))
+                    if (nextSubscription is not null)
+                    {
+                        nextSubscription.SetOverflowHandler(() =>
+                        {
+                            Console.Error.WriteLine(
+                                $"CoreBroker cards subscription overflow: {nextSubscription.SubscriptionId}");
+                            connectionCancellation.Cancel();
+                        });
+                    }
+
+                    if (!await WriteEnvelopeAsync(
+                            pipe,
+                            response,
+                            writeGate,
+                            connectionCancellation.Token)
+                            .ConfigureAwait(false))
                     {
                         return;
                     }
 
-                    await LengthPrefixedFrameCodec
-                        .WriteAsync(pipe, responseJson, cancellationToken)
-                        .ConfigureAwait(false);
+                    if (nextSubscription is not null)
+                    {
+                        if (snapshotWriter is not null)
+                        {
+                            await snapshotWriter.ConfigureAwait(false);
+                        }
+
+                        subscription = nextSubscription;
+                        snapshotWriter = WriteSnapshotEventsAsync(
+                            pipe,
+                            subscription,
+                            writeGate,
+                            connectionCancellation);
+                    }
 
                     if (!handshakeComplete)
                     {
@@ -127,7 +165,8 @@ public sealed class CoreBrokerPipeServer
                     }
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (
+                connectionCancellation.IsCancellationRequested)
             {
             }
             catch (ProtocolFrameException)
@@ -136,8 +175,114 @@ public sealed class CoreBrokerPipeServer
             catch (IOException)
             {
             }
+            finally
+            {
+                connectionCancellation.Cancel();
+                subscription?.Dispose();
+                if (snapshotWriter is not null)
+                {
+                    try
+                    {
+                        await snapshotWriter.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    catch (IOException)
+                    {
+                    }
+                }
+
+                _commandRouter.RemoveConnection(connectionId);
+            }
         }
     }
+
+    private static async Task<bool> WriteEnvelopeAsync(
+        NamedPipeServerStream pipe,
+        Envelope envelope,
+        SemaphoreSlim writeGate,
+        CancellationToken cancellationToken)
+    {
+        if (!EnvelopeCodec.TrySerialize(envelope, out byte[] responseJson, out _))
+        {
+            return false;
+        }
+
+        await writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await LengthPrefixedFrameCodec
+                .WriteAsync(pipe, responseJson, cancellationToken)
+                .ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            writeGate.Release();
+        }
+    }
+
+    private static async Task WriteSnapshotEventsAsync(
+        NamedPipeServerStream pipe,
+        CardSnapshotSubscription subscription,
+        SemaphoreSlim writeGate,
+        CancellationTokenSource connectionCancellation)
+    {
+        try
+        {
+            while (!connectionCancellation.IsCancellationRequested)
+            {
+                IReadOnlyList<CardStateSnapshot> snapshots =
+                    await subscription
+                        .WaitAndDrainAsync(connectionCancellation.Token)
+                        .ConfigureAwait(false);
+                foreach (CardStateSnapshot snapshot in snapshots)
+                {
+                    bool written = await WriteEnvelopeAsync(
+                        pipe,
+                        CreateSnapshotEvent(snapshot),
+                        writeGate,
+                        connectionCancellation.Token).ConfigureAwait(false);
+                    if (!written)
+                    {
+                        connectionCancellation.Cancel();
+                        return;
+                    }
+                }
+            }
+        }
+        catch (CardSnapshotSubscriptionOverflowException)
+        {
+            // A slow client must reconnect and resubscribe rather than receive
+            // an incomplete state stream.
+            connectionCancellation.Cancel();
+        }
+        catch (OperationCanceledException) when (
+            connectionCancellation.IsCancellationRequested ||
+            subscription.IsDisposed)
+        {
+        }
+        catch (IOException)
+        {
+            connectionCancellation.Cancel();
+        }
+    }
+
+    private static Envelope CreateSnapshotEvent(CardStateSnapshot snapshot) =>
+        new()
+        {
+            ProtocolVersion = ProtocolConstants.CurrentVersion,
+            MessageType = EnvelopeMessageType.Event,
+            MessageId = Guid.NewGuid(),
+            CorrelationId = null,
+            SentAtUtc = DateTimeOffset.UtcNow,
+            Method = CardsContract.SnapshotEventMethod,
+            Payload = JsonSerializer.SerializeToElement(
+                new CardSnapshotEvent { Snapshot = snapshot },
+                ContractJson.Options),
+            Error = null,
+        };
 
     private Envelope HandleHello(Envelope request)
     {
@@ -186,14 +331,20 @@ public sealed class CoreBrokerPipeServer
             .Concat(_commandRouter.NotesAvailable
                 ? NotesContract.Methods
                 : Array.Empty<string>())
+            .Concat(_commandRouter.CardsAvailable
+                ? CardsContract.Methods
+                : Array.Empty<string>())
             .ToArray(),
             MaxMessageBytes = ProtocolConstants.MaxMessageBytes,
         };
         return SuccessResponse(request, SessionHelloContract.Method, payload);
     }
 
-    private Envelope HandleEstablishedRequest(Envelope request) =>
-        _commandRouter.Handle(request);
+    private Envelope HandleEstablishedRequest(
+        Envelope request,
+        Guid connectionId,
+        out CardSnapshotSubscription? subscription) =>
+        _commandRouter.Handle(request, connectionId, out subscription);
 
     private bool IsValidHello(
         SessionHelloRequest hello,

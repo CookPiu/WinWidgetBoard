@@ -38,6 +38,7 @@ public sealed class CoreBrokerSession : IAsyncDisposable
             RequestTimeout);
         Notes = new CoreBrokerNotesClient(_client);
         Layout = new CoreBrokerLayoutClient(_client);
+        Cards = new CoreBrokerCardsClient(_client);
         _heartbeatInterval = heartbeatInterval ?? HeartbeatInterval;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             _heartbeatInterval,
@@ -52,6 +53,8 @@ public sealed class CoreBrokerSession : IAsyncDisposable
     public CoreBrokerNotesClient Notes { get; }
 
     public CoreBrokerLayoutClient Layout { get; }
+
+    public CoreBrokerCardsClient Cards { get; }
 
     public async Task<bool> ReportVisibilityAsync(
         bool panelVisible,
@@ -202,6 +205,7 @@ public sealed class CoreBrokerSession : IAsyncDisposable
         }
 
         _heartbeatCancellation?.Dispose();
+        Cards.Dispose();
         await _client.DisposeAsync().ConfigureAwait(false);
     }
 

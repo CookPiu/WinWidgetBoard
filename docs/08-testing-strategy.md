@@ -239,6 +239,14 @@ M2.3.6 另外覆盖：
 - 每实例状态事件合并与慢消费者 overflow；
 - 进程级不可恢复异常到宿主监督策略的单次传播。
 
+M2.3.7 另外覆盖：
+
+- `cards.subscribe` 能力声明、初始快照和 `cards.snapshot` 异步事件；
+- 客户端响应/事件分流和事件到达期间的命令响应；
+- 连接范围订阅替换、panel/instance 可见性和输入上限；
+- 有界按实例合并队列及 overflow 后的慢客户端断开；
+- WorkspacePanel dispatcher 的类型、schema 和 sequence 门禁。
+
 ### 6.6 数据
 
 - 每个 migration；
@@ -328,8 +336,8 @@ Contracts 项目应为 C++ 和 C# 生成或共享相同 golden payload，防止�
 - 退避；
 - 缓存新鲜度。
 
-当前 M2.3.6 只完成 fake source/sink、快照合同和宿主生命周期测试；Fake Weather
-Server、真实 HTTP、缓存和 `cards.subscribe` 长连接事件传输仍未完成。
+当前 M2.3.7 已完成 fake snapshot 到 Named Pipe 的长连接事件传输和 dispatcher adapter；
+Fake Weather Server、真实 HTTP、缓存、OS 网络/电源事件和真实性能测量仍未完成。
 
 ## 9. UI Automation
 

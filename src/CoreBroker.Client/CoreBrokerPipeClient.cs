@@ -10,7 +10,8 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
     private readonly TimeSpan _connectTimeout;
     private readonly TimeSpan _requestTimeout;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
-    private NamedPipeClientStream? _pipe;
+    private readonly object _connectionGate = new();
+    private ConnectionState? _connection;
     private string? _clientType;
     private string? _sessionToken;
     private bool _handshakeComplete;
@@ -27,7 +28,18 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
         _requestTimeout = ValidateTimeout(requestTimeout ?? TimeSpan.FromSeconds(5), nameof(requestTimeout));
     }
 
-    public bool IsConnected => _pipe?.IsConnected == true && _handshakeComplete;
+    public bool IsConnected
+    {
+        get
+        {
+            lock (_connectionGate)
+            {
+                return _handshakeComplete && _connection?.Pipe.IsConnected == true;
+            }
+        }
+    }
+
+    public event EventHandler<CoreBrokerEventReceivedEventArgs>? EventReceived;
 
     public DateTimeOffset? LastHeartbeatUtc { get; private set; }
 
@@ -241,6 +253,7 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
             _pipeName,
             PipeDirection.InOut,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        ConnectionState? state = null;
         try
         {
             int timeoutMilliseconds = (int)Math.Clamp(
@@ -248,42 +261,56 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
                 1,
                 int.MaxValue);
             await pipe.ConnectAsync(timeoutMilliseconds, cancellationToken).ConfigureAwait(false);
-            _pipe = pipe;
+            state = new ConnectionState(pipe);
+            lock (_connectionGate)
+            {
+                _connection = state;
+                _handshakeComplete = false;
+            }
 
-            Envelope response = await SendCoreAsync(CreateHelloRequest(), cancellationToken)
+            Envelope response = await SendHandshakeCoreAsync(
+                    state,
+                    CreateHelloRequest(),
+                    cancellationToken)
                 .ConfigureAwait(false);
-            _handshakeComplete = response.Error is null;
-            if (!_handshakeComplete)
+            if (response.Error is not null)
             {
                 DisconnectCore();
+            }
+            else
+            {
+                lock (_connectionGate)
+                {
+                    if (ReferenceEquals(_connection, state))
+                    {
+                        _handshakeComplete = true;
+                        state.ReaderTask = ReaderLoopAsync(state);
+                    }
+                }
             }
 
             return response;
         }
         catch
         {
-            pipe.Dispose();
-            if (ReferenceEquals(_pipe, pipe))
+            if (state is not null)
             {
-                _pipe = null;
+                DisconnectCore();
+            }
+            else
+            {
+                pipe.Dispose();
             }
 
-            _handshakeComplete = false;
             throw;
         }
     }
 
-    private async Task<Envelope> SendCoreAsync(
+    private async Task<Envelope> SendHandshakeCoreAsync(
+        ConnectionState state,
         Envelope request,
         CancellationToken cancellationToken)
     {
-        NamedPipeClientStream pipe = _pipe ??
-            throw new InvalidOperationException("The CoreBroker pipe is not connected.");
-        if (!pipe.IsConnected)
-        {
-            throw new IOException("The CoreBroker pipe is disconnected.");
-        }
-
         if (!EnvelopeCodec.TrySerialize(
                 request,
                 out byte[] requestJson,
@@ -298,10 +325,10 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
         try
         {
             await LengthPrefixedFrameCodec
-                .WriteAsync(pipe, requestJson, timeout.Token)
+                .WriteAsync(state.Pipe, requestJson, timeout.Token)
                 .ConfigureAwait(false);
             byte[] responseJson = await LengthPrefixedFrameCodec
-                .ReadAsync(pipe, timeout.Token)
+                .ReadAsync(state.Pipe, timeout.Token)
                 .ConfigureAwait(false);
             if (!EnvelopeCodec.TryDeserialize(
                     responseJson,
@@ -318,7 +345,184 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
             timeout.IsCancellationRequested &&
             !cancellationToken.IsCancellationRequested)
         {
+            throw new TimeoutException("The CoreBroker handshake timed out.");
+        }
+    }
+
+    private async Task<Envelope> SendCoreAsync(
+        Envelope request,
+        CancellationToken cancellationToken)
+    {
+        ConnectionState state = _connection ??
+            throw new InvalidOperationException("The CoreBroker pipe is not connected.");
+        if (!state.Pipe.IsConnected)
+        {
+            throw new IOException("The CoreBroker pipe is disconnected.");
+        }
+
+        if (!EnvelopeCodec.TrySerialize(
+                request,
+                out byte[] requestJson,
+                out IReadOnlyList<ContractValidationError> errors))
+        {
+            throw new InvalidOperationException(
+                $"Invalid IPC request: {string.Join(",", errors.Select(error => error.Code))}");
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_requestTimeout);
+        var pendingResponse = new TaskCompletionSource<Envelope>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (state.Gate)
+        {
+            if (state.PendingResponse is not null)
+            {
+                throw new InvalidOperationException(
+                    "Only one CoreBroker request may be active on a pipe connection.");
+            }
+
+            state.PendingRequestId = request.MessageId;
+            state.PendingResponse = pendingResponse;
+        }
+
+        try
+        {
+            await LengthPrefixedFrameCodec
+                .WriteAsync(state.Pipe, requestJson, timeout.Token)
+                .ConfigureAwait(false);
+            return await pendingResponse.Task
+                .WaitAsync(timeout.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (
+            timeout.IsCancellationRequested &&
+            !cancellationToken.IsCancellationRequested)
+        {
             throw new TimeoutException("The CoreBroker request timed out.");
+        }
+        finally
+        {
+            lock (state.Gate)
+            {
+                if (ReferenceEquals(state.PendingResponse, pendingResponse))
+                {
+                    state.PendingResponse = null;
+                }
+            }
+        }
+    }
+
+    private async Task ReaderLoopAsync(ConnectionState state)
+    {
+        Exception? terminalException = null;
+        try
+        {
+            while (state.Pipe.IsConnected &&
+                   !state.Cancellation.IsCancellationRequested)
+            {
+                byte[] frame = await LengthPrefixedFrameCodec
+                    .ReadAsync(state.Pipe, state.Cancellation.Token)
+                    .ConfigureAwait(false);
+                if (!EnvelopeCodec.TryDeserialize(
+                        frame,
+                        out Envelope? message,
+                        out IReadOnlyList<ContractValidationError> errors) ||
+                    message is null)
+                {
+                    terminalException = new InvalidOperationException(
+                        $"Invalid IPC message: {string.Join(",", errors.Select(error => error.Code))}");
+                    break;
+                }
+
+                if (message.MessageType == EnvelopeMessageType.Event)
+                {
+                    PublishEvent(message);
+                    continue;
+                }
+
+                if (message.MessageType != EnvelopeMessageType.Response)
+                {
+                    terminalException = new InvalidOperationException(
+                        "The CoreBroker sent a non-response message for a request.");
+                    break;
+                }
+
+                TaskCompletionSource<Envelope>? pendingResponse;
+                lock (state.Gate)
+                {
+                    pendingResponse = state.PendingResponse;
+                    if (pendingResponse is null ||
+                        message.CorrelationId != state.PendingRequestId)
+                    {
+                        terminalException = new InvalidOperationException(
+                            "The CoreBroker response correlation ID did not match the active request.");
+                    }
+                }
+
+                if (terminalException is not null)
+                {
+                    break;
+                }
+
+                pendingResponse!.TrySetResult(message);
+            }
+        }
+        catch (OperationCanceledException) when (
+            state.Cancellation.IsCancellationRequested)
+        {
+        }
+        catch (IOException exception)
+        {
+            terminalException = exception;
+        }
+        catch (ObjectDisposedException) when (state.Cancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            TaskCompletionSource<Envelope>? pendingResponse;
+            lock (state.Gate)
+            {
+                pendingResponse = state.PendingResponse;
+                state.PendingResponse = null;
+            }
+
+            if (pendingResponse is not null && terminalException is not null)
+            {
+                pendingResponse.TrySetException(terminalException);
+            }
+
+            lock (_connectionGate)
+            {
+                if (ReferenceEquals(_connection, state))
+                {
+                    _handshakeComplete = false;
+                }
+            }
+
+        }
+    }
+
+    private void PublishEvent(Envelope message)
+    {
+        EventHandler<CoreBrokerEventReceivedEventArgs>? handler = EventReceived;
+        if (handler is null)
+        {
+            return;
+        }
+
+        try
+        {
+            handler(
+                this,
+                new CoreBrokerEventReceivedEventArgs(message));
+        }
+        catch (Exception exception) when (
+            exception is not OutOfMemoryException &&
+            exception is not StackOverflowException &&
+            exception is not AccessViolationException)
+        {
+            // A consumer callback must not tear down the IPC reader.
         }
     }
 
@@ -407,9 +611,30 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
 
     private void DisconnectCore()
     {
-        _handshakeComplete = false;
-        _pipe?.Dispose();
-        _pipe = null;
+        ConnectionState? state;
+        lock (_connectionGate)
+        {
+            state = _connection;
+            _connection = null;
+            _handshakeComplete = false;
+        }
+
+        if (state is null)
+        {
+            return;
+        }
+
+        state.Cancellation.Cancel();
+        TaskCompletionSource<Envelope>? pendingResponse;
+        lock (state.Gate)
+        {
+            pendingResponse = state.PendingResponse;
+            state.PendingResponse = null;
+        }
+
+        pendingResponse?.TrySetException(
+            new IOException("The CoreBroker pipe connection was closed."));
+        state.Pipe.Dispose();
     }
 
     private void ThrowIfDisposed()
@@ -430,4 +655,35 @@ public sealed class CoreBrokerPipeClient : IAsyncDisposable
 
         return timeout;
     }
+
+    private sealed class ConnectionState
+    {
+        public ConnectionState(NamedPipeClientStream pipe)
+        {
+            Pipe = pipe;
+        }
+
+        public object Gate { get; } = new();
+
+        public NamedPipeClientStream Pipe { get; }
+
+        public CancellationTokenSource Cancellation { get; } = new();
+
+        public Task? ReaderTask { get; set; }
+
+        public Guid PendingRequestId { get; set; }
+
+        public TaskCompletionSource<Envelope>? PendingResponse { get; set; }
+    }
+}
+
+public sealed class CoreBrokerEventReceivedEventArgs : EventArgs
+{
+    public CoreBrokerEventReceivedEventArgs(Envelope message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        Message = message;
+    }
+
+    public Envelope Message { get; }
 }

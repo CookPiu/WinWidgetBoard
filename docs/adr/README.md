@@ -27,3 +27,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0016](0016-note-delete-edit-boundary.md) | Accepted | 便签删除复用 revision 并以确认和草稿保护隔离 |
 | [0017](0017-acceptance-process-and-data-isolation.md) | Accepted | 验收进程使用独立身份和临时数据目录 |
 | [0018](0018-provider-host-and-card-snapshot-boundary.md) | Accepted | Provider 生产 pump、卡片快照适配与 fatal fault 边界 |
+| [0019](0019-cards-subscription-event-transport.md) | Accepted | cards.subscribe 连接级事件传输与有界背压 |

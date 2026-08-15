@@ -101,7 +101,7 @@ N bytes: UTF-8 JSON payload
     "serverVersion": "0.1.0",
     "sessionId": "uuid",
     "capabilities": [
-      "cards.snapshot",
+      "cards.subscribe",
       "layout.write",
       "timers"
     ],
@@ -706,16 +706,20 @@ WorkspacePanel 订阅：
 ```
 
 后续状态使用 `Event` Envelope 发送，方法为 `cards.snapshot`，payload 为
-`{ "snapshot": <CardStateSnapshot> }`。M2.3.6 只落地共享 DTO、结果适配和有限事件
-缓冲；Named Pipe 长连接发送、断线重连和 WorkspacePanel dispatcher 接入仍属于后续
-工作包，因此在传输实现完成前不得把 `cards.subscribe` 加入 CoreBroker 握手能力列表。
+`{ "snapshot": <CardStateSnapshot> }`。M2.3.7 已将该事件接入当前用户 Named Pipe：
+CoreBroker 握手在具备订阅 hub 时声明 `cards.subscribe` 能力，客户端读取泵按
+`MessageType` 和 correlation ID 分流命令响应与异步事件。连接断开后订阅不会跨连接
+保留，客户端重新握手后必须重新提交订阅请求。
 
 规则：
 
+- 每个连接至多一个订阅，新请求替换旧订阅；
+- `instanceIds` 最多 100 个，`visibleInstanceIds` 必须是 `instanceIds` 的子集；
+- `panelVisible=false` 或实例不在可见集合时不发送状态事件；重新可见时重新提交订阅；
 - 状态事件可合并，只保留每实例最新 snapshot；
 - 命令结果不得丢弃；
-- 慢客户端超过队列上限时断开并记录；
-- 不允许无界事件队列；
+- 慢客户端超过默认 32 个待发送实例槽位时断开并记录，客户端必须重新订阅；
+- Broker 的初始快照缓存默认最多保留 1024 个实例，不允许无界事件队列或跨连接订阅状态；
 - UI 更新按帧批量应用。
 
 ## 16. 数据大小限制

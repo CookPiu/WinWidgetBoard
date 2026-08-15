@@ -1,5 +1,6 @@
 using System.Text.Json;
 using WinWidgetBoard.Contracts.Protocol;
+using WinWidgetBoard.CoreBroker.Ipc;
 using WinWidgetBoard.CoreBroker.Persistence;
 
 namespace WinWidgetBoard.CoreBroker.Commands;
@@ -14,6 +15,7 @@ public sealed class CoreBrokerCommandRouter
     private readonly Queue<Guid> _operationOrder = new();
     private readonly NoteRepository? _noteRepository;
     private readonly LayoutRepository? _layoutRepository;
+    private readonly CardSnapshotSubscriptionHub? _cardSnapshotSubscriptionHub;
     private readonly Dictionary<Guid, CachedNoteOperation> _cachedNoteOperations = new();
     private readonly Queue<Guid> _noteOperationOrder = new();
     private readonly Dictionary<Guid, CachedLayoutOperation> _cachedLayoutOperations = new();
@@ -24,15 +26,19 @@ public sealed class CoreBrokerCommandRouter
 
     public CoreBrokerCommandRouter(
         NoteRepository? noteRepository = null,
-        LayoutRepository? layoutRepository = null)
+        LayoutRepository? layoutRepository = null,
+        CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null)
     {
         _noteRepository = noteRepository;
         _layoutRepository = layoutRepository;
+        _cardSnapshotSubscriptionHub = cardSnapshotSubscriptionHub;
     }
 
     public bool NotesAvailable => _noteRepository is not null;
 
     public bool LayoutsAvailable => _layoutRepository is not null;
+
+    public bool CardsAvailable => _cardSnapshotSubscriptionHub is not null;
 
     public bool PanelVisible
     {
@@ -67,8 +73,15 @@ public sealed class CoreBrokerCommandRouter
         }
     }
 
-    public Envelope Handle(Envelope request)
+    public Envelope Handle(Envelope request) =>
+        Handle(request, Guid.Empty, out _);
+
+    public Envelope Handle(
+        Envelope request,
+        Guid connectionId,
+        out CardSnapshotSubscription? subscription)
     {
+        subscription = null;
         if (request.MessageType != EnvelopeMessageType.Request)
         {
             return ErrorResponse(request, "validation.invalid-argument", "validation");
@@ -83,6 +96,14 @@ public sealed class CoreBrokerCommandRouter
                 {
                     serverTimeUtc = DateTimeOffset.UtcNow,
                 });
+        }
+
+        if (string.Equals(
+                request.Method,
+                CardsContract.SubscribeMethod,
+                StringComparison.Ordinal))
+        {
+            return HandleCardsSubscribe(request, connectionId, out subscription);
         }
 
         if (string.Equals(
@@ -124,6 +145,55 @@ public sealed class CoreBrokerCommandRouter
         }
 
         return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+    }
+
+    public void RemoveConnection(Guid connectionId) =>
+        _cardSnapshotSubscriptionHub?.Remove(connectionId);
+
+    private Envelope HandleCardsSubscribe(
+        Envelope request,
+        Guid connectionId,
+        out CardSnapshotSubscription? subscription)
+    {
+        subscription = null;
+        if (_cardSnapshotSubscriptionHub is null)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (connectionId == Guid.Empty ||
+            !TryDeserializePayload(
+                request.Payload,
+                out CardsSubscribeRequest? payload) ||
+            payload is null)
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        try
+        {
+            if (!_cardSnapshotSubscriptionHub.TrySubscribe(
+                    connectionId,
+                    payload,
+                    out CardsSubscribeResponse? responsePayload,
+                    out subscription) ||
+                responsePayload is null ||
+                subscription is null)
+            {
+                subscription = null;
+                return ErrorResponse(request, "validation.invalid-argument", "validation");
+            }
+
+            return SuccessResponse(
+                request,
+                CardsContract.SubscribeMethod,
+                responsePayload);
+        }
+        catch (ObjectDisposedException)
+        {
+            subscription = null;
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
     }
 
     private Envelope HandleLayoutGet(Envelope request)
