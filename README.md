@@ -1,63 +1,70 @@
 # WinWidgetBoard
 
-> 工作名称，后续可重命名。
+WinWidgetBoard 是一个面向 Windows 11 的本地优先快捷工作台。它通过独立任务栏入口打开原生半屏面板，不注入或修改 `explorer.exe`。
 
-WinWidgetBoard 是一个面向 Windows 11 的本地优先快捷工作台。用户关闭系统自带 Widgets 入口后，可通过任务栏左下角的自定义按钮打开半屏卡片面板，在其中排列天气、便签、日历、计时器、待办、剪贴板和系统监控等卡片。
+项目当前采用“轻量核心版”策略：做少量高频能力，把启动速度、后台占用、可靠性和可维护性放在功能数量之前。
 
-本仓库当前处于 **M2.3 统一卡片运行时顺序实施阶段**。M1.0 已建立最小解决方案并锁定工具链；M1.1～M1.3 已完成入口、面板和基础交互 POC；M2.0 已建立版本化 IPC、当前用户 Named Pipe 和可恢复面板可见性上报；M2.1 已建立 SQLite、仓储、便签 IPC、自动保存和 WorkspacePanel 编辑器。M2.2.13 / M2.4.11 已完成当前单显示器真实桌面验收、验收进程/数据隔离和生产数据只读复核；M2.3.0～M2.3.10 已完成 UI 基础层、统一卡片定义/实例/生命周期/不可变快照、实例级错误边界、面板与 ItemsRepeater 实现视口驱动的 Hidden/Visible 和新鲜快照调度、UI 无关的设置草稿与取消恢复合同、天气位置设置 UI/IPC/SQLite、通用运行时状态投影和六模板状态呈现、CoreBroker 内 Scheduled Provider 的纯 C# 集中刷新/退避/节能策略核心、唯一生产 pump host、fatal fault 监督、Provider 到共享 Card Snapshot 的结果适配、有界事件缓冲、`cards.subscribe` 连接级实时事件传输、慢客户端断开、WorkspacePanel dispatcher、实际运行时订阅接入和 Open-Meteo 天气 Provider 垂直链路。M1.0 干净环境/CI、真实多显示器/DPI/完整无障碍与性能矩阵、跨重启天气缓存和系统网络/电源事件验证、便签版本历史、其他领域 CRUD、剩余卡片业务和完整产品功能仍未完成验收。
+## 核心范围
 
-M2.2 已具备响应式 2/4/6 列、确定性排布、ItemsRepeater 视口实现、显式编辑、四卡拖动/让位、布局持久化/重放和 20 步撤销重做；M2.3 已将现有卡片接入稳定类型目录和独立运行时实例，未知状态安全降级，单卡快照刷新异常不会污染其他实例，并以集中式事件调度暂停 Hidden 卡片的纯 UI 快照工作、在 Visible 时请求当前本地快照；设置草稿已区分 `PreviewSafe` 与 `CommitOnly`，支持取消逆序恢复、64 KiB 边界和 revision/session/version 提交门禁；M2.3.10 已将天气位置设置接入双语对话框、revision 保护的 IPC/SQLite 和 Provider 运行时切换。十种运行时状态已通过纯投影合同映射为本地化标题、摘要、新鲜度、内容可见性和动作门禁，Weather 卡片复用同一状态区并显示 Open-Meteo 当前天气数据。CoreBroker 已增加显式 pump 的 Scheduled Provider 调度核心，并已由唯一生产 host 驱动、通过共享 Card Snapshot 合同适配结果和有界合并事件；`cards.subscribe` 已进入 WorkspacePanel 实际运行时，支持初始/异步快照、UI dispatcher、视口去抖和 Broker 重连重订阅。M2.3.9 接入 Open-Meteo `weather.current`、默认 Singapore 坐标、15 分钟可见刷新、订阅可见性暂停、进程内最后成功快照回退和 Weather 卡片来源标识；M2.3.10 已补手动位置设置，但自动定位、跨重启缓存和 OS 网络/电源事件仍未完成。M2.4 已具备便签复制、保存重试、搜索/安全打开、撤销重做、Markdown 往返、多便签列表、新建和删除。当前桌面已通过四卡拖动、布局历史、布局重启恢复、5 条便签 UIA 链路和当前 Unavailable 状态锚点验收。真实 Provider 长期性能、商业许可和完整无障碍矩阵仍在后续工作包中。
+| 能力 | 当前方向 |
+| --- | --- |
+| 任务栏入口 | 原生 C++/Win32 独立覆盖窗口 |
+| 面板 | C#、.NET 10、WinUI 3，按需启动 |
+| 基础布局 | 响应式网格、拖动、持久化和已有撤销能力 |
+| 便签 | 本地 CRUD、搜索、Markdown、自动保存 |
+| 天气 | Open-Meteo 当前天气、手动位置、离线状态 |
 
-验收工具只在显式 `--acceptance-test` 下使用独立 GUID；需要数据的验收链路使用系统临时目录，panel-only 状态验收则清除 Broker 会话凭据且不访问数据层。生产单实例、数据路径与失焦关闭语义保持不变。具体证据和未完成边界见 [桌面验收与隔离收口工作包](docs/work-packages/M2.2.13-M2.4.11-desktop-acceptance-closeout.md)、[M2.3.4 通用卡片状态视觉工作包](docs/work-packages/M2.3.4-card-runtime-state-visuals.md)、[M2.3.5 集中 Provider 刷新调度核心工作包](docs/work-packages/M2.3.5-provider-refresh-scheduler-core.md)、[M2.3.6 Provider 生产宿主与卡片快照边界](docs/work-packages/M2.3.6-provider-host-and-card-snapshot-boundary.md)、[M2.3.7 cards.subscribe 实时事件传输](docs/work-packages/M2.3.7-cards-subscribe-event-transport.md)、[M2.3.8 WorkspacePanel 实时卡片订阅接入](docs/work-packages/M2.3.8-workspacepanel-card-subscription.md)、[M2.3.9 Open-Meteo 天气 Provider 垂直切片](docs/work-packages/M2.3.9-open-meteo-weather-provider.md) 与 [M2.3.10 天气位置设置](docs/work-packages/M2.3.10-weather-location-settings.md)。
-
-## 核心定位
-
-- 体验级替代 Windows 11 Widgets，不注入、不修改、不接管系统 Widgets 进程。
-- 无新闻流、无广告、无强制账号，本地功能无需联网。
-- 任务栏只保留一个入口，复杂内容集中到半屏工作台。
-- 卡片采用可拖拽、可跨列、自动避让的响应式网格。
-- 后台低占用，面板关闭后停止不可见动画并降低数据刷新频率。
-- 内置卡片使用原生 WinUI 3；第三方插件默认在独立进程运行。
-
-## 已确定的技术方向
-
-| 组件 | 技术方向 | 生命周期 |
-| --- | --- | --- |
-| `LauncherHost` | C++/Win32、DirectComposition | 常驻 |
-| `WorkspacePanel` | C#、.NET 10、WinUI 3 | 按需启动、短时保温 |
-| `CoreBroker.Client` | C#、.NET 10、Named Pipe 客户端 | 随客户端进程 |
-| `CoreBroker` | C#、.NET 10 Worker | 按功能常驻 |
-| `PluginHost` | 独立受控进程 | 按插件启动 |
-| `Contracts` | 版本化 JSON 协议 | 共享 |
-
-稳定版本明确禁止使用 Explorer 注入和未公开的任务栏 XAML 视觉树。任务栏按钮通过独立覆盖窗口实现。
-
-## 文档阅读顺序
-
-1. [产品需求文档](docs/01-product-requirements.md)
-2. [UX 与视觉交互规范](docs/02-ux-design-spec.md)
-3. [技术架构](docs/03-technical-architecture.md)
-4. [开源项目参考分析](docs/04-open-source-reference-analysis.md)
-5. [实施计划](docs/05-implementation-plan.md)
-6. [Luna 执行指南](docs/06-luna-execution-guide.md)
-7. [接口与数据契约](docs/07-api-contracts.md)
-8. [测试与验收策略](docs/08-testing-strategy.md)
-9. [安全与隐私威胁模型](docs/09-security-privacy.md)
-10. [架构决策记录](docs/adr/README.md)
-
-## 开发构建
-
-工具链前置条件、锁定版本和构建命令见 [M1.0 工具链基线](docs/development/toolchain.md)。项目当前只验证 Debug/Release x64；这不代表正式产品的平台范围已经决定。
+以下能力不属于当前轻量版：计时器、待办、剪贴板、日历、系统监控、第三方插件、账号、云同步、自动定位、复杂诊断平台和企业级发布体系。仓库中已有的占位或基础合同不代表继续实施承诺。
 
 ## 当前状态
 
-请以 [实施状态](docs/status/implementation-status.md) 为唯一进度入口。文档中标记为“待决策”的事项不得由实施模型静默假设。
+核心进程、IPC、SQLite、布局、便签、卡片快照订阅、Open-Meteo 和天气位置设置已经形成可运行链路。最近完成的天气设置链路包含双语 UI、revision 保护的本地持久化和运行时 Provider 切换。
 
-## 许可证状态
+当前不继续扩展卡片品类，优先处理：
 
-项目许可证尚未决定。在确定许可证前：
+1. 拆分 `MainWindow.xaml.cs`、命令路由和调度器等集中式大文件；
+2. 在有构建产物的参考环境验证共享 UIA 模块；
+3. 保持构建输出和 NuGet 缓存可控；
+4. 在一个明确参考环境中验证核心五项体验。
 
-- 不复制第三方项目源码；
-- 只允许根据公开行为和架构重新实现；
-- 引入任何依赖前必须记录其许可证、用途和分发影响；
-- GPL、AGPL、Anti-996 或带额外限制的代码不得进入代码库。
+准确状态见 [实施状态](docs/status/implementation-status.md)。
+
+## 进程边界
+
+| 组件 | 职责 | 生命周期 |
+| --- | --- | --- |
+| `LauncherHost` | 任务栏入口、几何、点击和面板启动 | 常驻、最小依赖 |
+| `WorkspacePanel` | WinUI 面板、布局、便签和天气视图 | 按需 |
+| `CoreBroker` | SQLite、天气 Provider、调度和 IPC | 按启用能力运行 |
+| `CoreBroker.Client` | 面板使用的高层 Named Pipe 客户端 | 随面板 |
+| `Contracts` | 版本化 JSON 协议 | 共享库 |
+
+安全边界保持不变：不注入 Explorer，不让面板直接访问数据库，不让常驻入口加载 UI 或网络框架。
+
+## 工程策略
+
+- 小改动只运行相关测试和受影响构建。
+- UI/IPC/数据库变更增加一条针对性真实流程。
+- 完整 Debug/Release、显示矩阵、性能和发布门禁只在发布候选阶段执行。
+- 普通功能不再创建独立工作包文档。
+- 构建输出只保存在被忽略的目录中，并在验证结束后清理。
+
+详细规则见 [AGENTS.md](AGENTS.md) 和 [测试策略](docs/08-testing-strategy.md)。
+
+## 文档
+
+建议只按任务需要阅读：
+
+1. [轻量产品需求](docs/01-product-requirements.md)
+2. [当前技术架构](docs/03-technical-architecture.md)
+3. [当前实施计划](docs/05-implementation-plan.md)
+4. [当前接口契约](docs/07-api-contracts.md)
+5. [风险分级测试策略](docs/08-testing-strategy.md)
+6. [安全与隐私边界](docs/09-security-privacy.md)
+7. [ADR 索引](docs/adr/README.md)
+
+工具链和构建命令见 [开发工具链](docs/development/toolchain.md)。
+
+## 许可证
+
+项目许可证尚未决定。确定前不得复制第三方源码或资源；新增依赖必须记录用途、版本和许可证。

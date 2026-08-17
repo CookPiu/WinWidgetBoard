@@ -30,3 +30,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0019](0019-cards-subscription-event-transport.md) | Accepted | cards.subscribe 连接级事件传输与有界背压 |
 | [0020](0020-open-meteo-weather-provider.md) | Accepted | Open-Meteo 天气 Provider 与网络、缓存和隐私边界 |
 | [0021](0021-weather-location-settings.md) | Accepted | 天气位置设置通过版本化本地 IPC 保存并运行时替换 Provider |
+| [0022](0022-lightweight-core-strategy.md) | Accepted | 收缩为核心五项并采用风险分级工程门禁 |

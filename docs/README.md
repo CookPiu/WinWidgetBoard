@@ -1,30 +1,24 @@
 # 文档索引
 
-| 文档 | 目的 | 主要读者 |
-| --- | --- | --- |
-| `01-product-requirements.md` | 产品范围、需求编号、验收标准 | 产品、开发、测试 |
-| `02-ux-design-spec.md` | 面板、卡片、动效、无障碍规范 | 设计、前端、UI 测试 |
-| `03-technical-architecture.md` | 进程、模块、IPC、存储和集成方案 | 架构、开发 |
-| `04-open-source-reference-analysis.md` | 可参考项目、实现模式和许可证边界 | 架构、法务、开发 |
-| `05-implementation-plan.md` | 里程碑、任务分解、风险和交付物 | 项目管理、实施模型 |
-| `06-luna-execution-guide.md` | Luna 的工作顺序、限制和输出格式 | Luna 模型 |
-| `07-api-contracts.md` | 卡片、插件、IPC、权限和状态契约 | 开发、插件作者 |
-| `08-testing-strategy.md` | 测试矩阵、性能与验收方法 | 测试、开发 |
-| `09-security-privacy.md` | 威胁模型和隐私控制 | 安全、开发 |
-| `adr/` | 重要架构决策及其理由 | 全体 |
-| `status/implementation-status.md` | 当前事实、已完成和下一步 | 全体 |
+当前文档只服务轻量核心版。已完成过程保留在 Git，不再要求开发者通读累计工作包。
 
-## 文档状态词
+| 文档 | 用途 |
+| --- | --- |
+| [01-product-requirements.md](01-product-requirements.md) | 当前核心五项范围和验收边界 |
+| [02-ux-design-spec.md](02-ux-design-spec.md) | 面板、布局、便签、天气和动效规范 |
+| [03-technical-architecture.md](03-technical-architecture.md) | 当前进程、IPC、存储和复杂度边界 |
+| [05-implementation-plan.md](05-implementation-plan.md) | 精简后的近期计划 |
+| [07-api-contracts.md](07-api-contracts.md) | 已实现的 IPC 与数据契约 |
+| [08-testing-strategy.md](08-testing-strategy.md) | 风险分级验证 |
+| [09-security-privacy.md](09-security-privacy.md) | 当前攻击面和隐私约束 |
+| [status/implementation-status.md](status/implementation-status.md) | 当前事实、债务和下一步 |
+| [history/completed-milestones.md](history/completed-milestones.md) | 已完成里程碑简表 |
+| [adr/README.md](adr/README.md) | 高成本架构决策 |
 
-- **已批准**：可直接作为实现依据。
-- **提案**：方向明确，但在编码前仍需确认。
-- **待决策**：不得由实施者自行选择。
-- **已废弃**：仅用于历史追踪。
+## 维护规则
 
-修改需求时，应同时更新：
-
-1. 对应需求文档；
-2. 验收标准；
-3. 测试策略；
-4. 实施状态；
-5. 必要时新增 ADR。
+- 同一事实只保留一个权威位置。
+- 普通功能或修复不创建工作包文档。
+- 状态页不复制历史提交和逐次测试数字。
+- ADR 只用于难回退的架构、持久化、安全、许可或产品范围决策。
+- 延期功能不是当前验收项。
