@@ -27,7 +27,6 @@ using WinWidgetBoard.WorkspacePanel.Runtime;
 using WinWidgetBoard.WorkspacePanel.Shell;
 using WinWidgetBoard.WorkspacePanel.Settings;
 using UiDispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue;
-using UiDispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace WinWidgetBoard.WorkspacePanel;
 
@@ -61,10 +60,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSubscription;
     private readonly ResourceLoader _resources = new();
     private readonly CardDragController _demoNotesCardDrag = new();
-    private readonly CardReturnMotionController _demoNotesCardReturnMotion;
-    private readonly PanelMotionController _panelMotion;
+    private readonly PanelMotionCoordinator _motion;
     private readonly UiDispatcherQueue _uiDispatcherQueue;
-    private readonly UiDispatcherQueueTimer _motionTimer;
     private readonly CardGridLayout _cardGridLayout;
     private readonly CardLayoutViewModel _cardLayout;
     private readonly LayoutPersistenceCoordinator? _layoutPersistence;
@@ -78,7 +75,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _nativeOpacitySupported;
     private int _modalScopeDepth;
     private bool _hasBeenActivated;
-    private bool _closeWhenMotionSettles;
     private bool _allowNativeClose;
     private uint? _demoNotesCardPointerId;
     private CompositeTransform? _demoNotesCardTransform;
@@ -87,7 +83,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _isSavingLayout;
     private bool _suppressNoteSearchTextChanged;
     private int _disposed;
-    private long _lastMotionTimestamp;
 
     public MainWindow(
         INoteClient? noteClient = null,
@@ -178,20 +173,20 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _placement);
         RootGrid.RenderTransformOrigin = transformOrigin;
         bool reducedMotion = !new UISettings().AnimationsEnabled;
-        _panelMotion = new PanelMotionController(
+        _motion = new PanelMotionCoordinator(
             transformOrigin.X < 0.5 ? -14 : 14,
             transformOrigin.Y < 0.5 ? -14 : 14,
-            reducedMotion);
-        _demoNotesCardReturnMotion = new CardReturnMotionController(reducedMotion);
-        _motionTimer = Microsoft.UI.Dispatching.DispatcherQueue
-            .GetForCurrentThread()
-            .CreateTimer();
-        _motionTimer.Interval = TimeSpan.FromMilliseconds(16);
-        _motionTimer.Tick += PanelMotionTimer_Tick;
+            reducedMotion,
+            _uiDispatcherQueue,
+            ApplyPanelMotion,
+            ApplyDemoNotesCardReturn,
+            () => _demoNotesCardDrag.IsActive,
+            offset => _demoNotesCardDrag.SetOffset(offset),
+            CloseAfterMotion);
         _appWindow.Closing += AppWindow_Closing;
 
         ApplyPlacement();
-        ApplyPanelMotion(_panelMotion.Value);
+        ApplyPanelMotion(_motion.PanelValue);
         DateText.Text = DateTime.Now.ToString("D", CultureInfo.CurrentCulture);
         ContextText.Text =
             $"{_placement.WindowRect.Width} × {_placement.WindowRect.Height} px · " +
@@ -298,7 +293,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         _hasBeenActivated = true;
-        if (_panelMotion.State == PanelMotionState.Closing)
+        if (_motion.IsClosing)
         {
             RequestOpenMotion();
         }
@@ -306,8 +301,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
-        _motionTimer.Stop();
+        _motion.Stop();
         _cardSubscription?.OnWindowClosed();
+        _motion.Dispose();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
         _appWindow.Closing -= AppWindow_Closing;
@@ -324,6 +320,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
+        _motion.Dispose();
         _cardSubscription?.OnWindowClosed();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
@@ -1365,10 +1362,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         _cardSurface.SetPanelVisibility(true);
         RequestCardSubscriptionRefresh();
-        _closeWhenMotionSettles = false;
-        _panelMotion.RequestOpen();
-        ApplyPanelMotion(_panelMotion.Value);
-        StartMotionTimer();
+        _motion.RequestOpen();
     }
 
     private void RequestCloseMotion()
@@ -1380,73 +1374,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         _cardSurface.SetPanelVisibility(false);
         RequestCardSubscriptionRefresh();
-        _closeWhenMotionSettles = true;
-        _panelMotion.RequestClose();
-        ApplyPanelMotion(_panelMotion.Value);
-        if (_panelMotion.State == PanelMotionState.Closed)
-        {
-            CloseAfterMotion();
-            return;
-        }
-
-        StartMotionTimer();
-    }
-
-    private void StartMotionTimer()
-    {
-        if (!_panelMotion.IsAnimating && !_demoNotesCardReturnMotion.IsAnimating)
-        {
-            return;
-        }
-
-        _lastMotionTimestamp = Stopwatch.GetTimestamp();
-        _motionTimer.Start();
-    }
-
-    private void PanelMotionTimer_Tick(UiDispatcherQueueTimer sender, object args)
-    {
-        long timestamp = Stopwatch.GetTimestamp();
-        double seconds = (timestamp - _lastMotionTimestamp) /
-            (double)Stopwatch.Frequency;
-        _lastMotionTimestamp = timestamp;
-
-        TimeSpan elapsed = TimeSpan.FromSeconds(seconds);
-        if (_panelMotion.IsAnimating)
-        {
-            ApplyPanelMotion(_panelMotion.Step(elapsed));
-        }
-
-        if (_demoNotesCardReturnMotion.IsAnimating)
-        {
-            DragOffset returnOffset = _demoNotesCardReturnMotion.Step(elapsed);
-            ApplyDemoNotesCardReturn(returnOffset);
-            if (!_demoNotesCardReturnMotion.IsAnimating &&
-                !_demoNotesCardDrag.IsActive)
-            {
-                _demoNotesCardDrag.SetOffset(returnOffset);
-            }
-        }
-
-        if (_closeWhenMotionSettles &&
-            !_panelMotion.IsAnimating &&
-            _panelMotion.State == PanelMotionState.Closed)
-        {
-            _motionTimer.Stop();
-            CloseAfterMotion();
-            return;
-        }
-
-        if (_panelMotion.IsAnimating || _demoNotesCardReturnMotion.IsAnimating)
-        {
-            return;
-        }
-
-        _motionTimer.Stop();
+        _motion.RequestClose();
     }
 
     private void CloseAfterMotion()
     {
-        _closeWhenMotionSettles = false;
         _allowNativeClose = true;
         Close();
     }
@@ -1683,14 +1615,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         DragOffset currentOffset,
         DragOffset targetOffset)
     {
-        _demoNotesCardReturnMotion.Start(currentOffset, targetOffset);
-        ApplyDemoNotesCardReturn(_demoNotesCardReturnMotion.Value);
-        if (!_demoNotesCardReturnMotion.IsAnimating &&
-            !_demoNotesCardDrag.IsActive)
-        {
-            _demoNotesCardDrag.SetOffset(_demoNotesCardReturnMotion.Value);
-        }
-        StartMotionTimer();
+        _motion.BeginCardReturn(currentOffset, targetOffset);
     }
 
     private void ApplyDemoNotesCardReturn(DragOffset offset)
@@ -1770,23 +1695,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _demoNotesCardDrag.SetOffset(DragOffset.Zero);
         }
 
-        if (_demoNotesCardReturnMotion.IsAnimating)
-        {
-            _demoNotesCardReturnMotion.StopAt(DragOffset.Zero);
-        }
+        _motion.ResetCardReturn();
     }
 
     private void InterruptDemoNotesCardReturn()
     {
-        if (!_demoNotesCardReturnMotion.IsAnimating)
-        {
-            return;
-        }
-
-        DragOffset currentOffset = _demoNotesCardReturnMotion.Value;
-        _demoNotesCardReturnMotion.StopAt(currentOffset);
-        _demoNotesCardDrag.SetOffset(currentOffset);
-        ApplyDemoNotesCardReturn(currentOffset);
+        _motion.InterruptCardReturn();
     }
 
     private DragPoint GetRootPointer(PointerRoutedEventArgs args)
