@@ -3,6 +3,7 @@ using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Ipc;
 using WinWidgetBoard.CoreBroker.Persistence;
 using WinWidgetBoard.CoreBroker.Providers;
+using static WinWidgetBoard.CoreBroker.Commands.CoreBrokerCommandSupport;
 
 namespace WinWidgetBoard.CoreBroker.Commands;
 
@@ -14,13 +15,11 @@ public sealed class CoreBrokerCommandRouter
     private readonly object _gate = new();
     private readonly Dictionary<Guid, CachedOperation> _cachedOperations = new();
     private readonly Queue<Guid> _operationOrder = new();
-    private readonly NoteRepository? _noteRepository;
+    private readonly NoteCommandHandler? _noteCommandHandler;
     private readonly LayoutRepository? _layoutRepository;
     private readonly CardSnapshotSubscriptionHub? _cardSnapshotSubscriptionHub;
     private readonly ProviderRefreshVisibilityRegistry? _providerVisibilityRegistry;
     private readonly WeatherProviderRuntime? _weatherProviderRuntime;
-    private readonly Dictionary<Guid, CachedNoteOperation> _cachedNoteOperations = new();
-    private readonly Queue<Guid> _noteOperationOrder = new();
     private readonly Dictionary<Guid, CachedLayoutOperation> _cachedLayoutOperations = new();
     private readonly Queue<Guid> _layoutOperationOrder = new();
     private readonly Dictionary<Guid, CachedWeatherSettingsOperation>
@@ -37,14 +36,16 @@ public sealed class CoreBrokerCommandRouter
         ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null,
         WeatherProviderRuntime? weatherProviderRuntime = null)
     {
-        _noteRepository = noteRepository;
+        _noteCommandHandler = noteRepository is null
+            ? null
+            : new NoteCommandHandler(noteRepository, _gate);
         _layoutRepository = layoutRepository;
         _cardSnapshotSubscriptionHub = cardSnapshotSubscriptionHub;
         _providerVisibilityRegistry = providerVisibilityRegistry;
         _weatherProviderRuntime = weatherProviderRuntime;
     }
 
-    public bool NotesAvailable => _noteRepository is not null;
+    public bool NotesAvailable => _noteCommandHandler is not null;
 
     public bool LayoutsAvailable => _layoutRepository is not null;
 
@@ -136,24 +137,10 @@ public sealed class CoreBrokerCommandRouter
             return HandleLayoutSave(request);
         }
 
-        if (string.Equals(request.Method, NotesContract.SaveMethod, StringComparison.Ordinal))
+        if (NotesContract.Methods.Contains(request.Method, StringComparer.Ordinal))
         {
-            return HandleNoteSave(request);
-        }
-
-        if (string.Equals(request.Method, NotesContract.GetMethod, StringComparison.Ordinal))
-        {
-            return HandleNoteGet(request);
-        }
-
-        if (string.Equals(request.Method, NotesContract.SearchMethod, StringComparison.Ordinal))
-        {
-            return HandleNoteSearch(request);
-        }
-
-        if (string.Equals(request.Method, NotesContract.DeleteMethod, StringComparison.Ordinal))
-        {
-            return HandleNoteDelete(request);
+            return _noteCommandHandler?.Handle(request) ??
+                ErrorResponse(request, "resource.unavailable", "resource-unavailable");
         }
 
         if (string.Equals(
@@ -319,222 +306,6 @@ public sealed class CoreBrokerCommandRouter
             catch (LayoutRevisionConflictException)
             {
                 return ErrorResponse(request, "conflict.layout-revision", "conflict");
-            }
-            catch (SqliteException)
-            {
-                return ErrorResponse(request, "storage.write-failed", "storage");
-            }
-        }
-    }
-
-    private Envelope HandleNoteSave(Envelope request)
-    {
-        if (_noteRepository is null)
-        {
-            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
-        }
-
-        if (!TryDeserializePayload(request.Payload, out NoteSaveRequest? payload) || payload is null)
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        if (!IsValidOperationId(payload.ClientOperationId) ||
-            !IsValidRequiredText(payload.NoteId, NotesContract.MaxNoteIdLength) ||
-            !IsValidText(payload.Title, NotesContract.MaxTitleLength) ||
-            !IsValidText(payload.Body, NotesContract.MaxBodyLength) ||
-            !TryParseBodyFormat(payload.BodyFormat, out NoteBodyFormat bodyFormat) ||
-            !IsValidOptionalTimestamp(payload.ExpectedUpdatedAtUtc))
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        var fingerprint = new NoteSaveFingerprint(
-            payload.NoteId!,
-            payload.Title!,
-            payload.Body!,
-            payload.BodyFormat!,
-            payload.ExpectedUpdatedAtUtc);
-
-        lock (_gate)
-        {
-            if (TryGetCachedNoteOperation(
-                    payload.ClientOperationId,
-                    fingerprint,
-                    out object? cachedResponse,
-                    out bool fingerprintConflict))
-            {
-                return fingerprintConflict
-                    ? ErrorResponse(request, "validation.invalid-argument", "validation")
-                    : SuccessResponse(request, NotesContract.SaveMethod, cachedResponse!);
-            }
-
-            try
-            {
-                NoteRecord saved = payload.ExpectedUpdatedAtUtc is null
-                    ? _noteRepository.Create(
-                        payload.NoteId!,
-                        payload.Title!,
-                        payload.Body!,
-                        bodyFormat)
-                    : _noteRepository.Update(
-                        payload.NoteId!,
-                        payload.ExpectedUpdatedAtUtc,
-                        payload.Title!,
-                        payload.Body!,
-                        bodyFormat);
-                var responsePayload = new NoteSaveResponse
-                {
-                    ClientOperationId = payload.ClientOperationId,
-                    Note = ToContract(saved),
-                };
-                CacheNoteOperation(payload.ClientOperationId, fingerprint, responsePayload);
-                return SuccessResponse(request, NotesContract.SaveMethod, responsePayload);
-            }
-            catch (NoteRevisionConflictException)
-            {
-                return ErrorResponse(request, "conflict.notes-revision", "conflict");
-            }
-            catch (NoteNotFoundException)
-            {
-                return ErrorResponse(request, "resource.not-found", "resource-unavailable");
-            }
-            catch (SqliteException)
-            {
-                return ErrorResponse(request, "storage.write-failed", "storage");
-            }
-        }
-    }
-
-    private Envelope HandleNoteGet(Envelope request)
-    {
-        if (_noteRepository is null)
-        {
-            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
-        }
-
-        if (!TryDeserializePayload(request.Payload, out NoteGetRequest? payload) || payload is null)
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        if (!IsValidRequiredText(payload.NoteId, NotesContract.MaxNoteIdLength))
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        lock (_gate)
-        {
-            try
-            {
-                NoteRecord? note = _noteRepository.Get(payload.NoteId!);
-                return note is null
-                    ? ErrorResponse(request, "resource.not-found", "resource-unavailable")
-                    : SuccessResponse(
-                        request,
-                        NotesContract.GetMethod,
-                        new NoteGetResponse { Note = ToContract(note) });
-            }
-            catch (SqliteException)
-            {
-                return ErrorResponse(request, "storage.read-failed", "storage");
-            }
-        }
-    }
-
-    private Envelope HandleNoteSearch(Envelope request)
-    {
-        if (_noteRepository is null)
-        {
-            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
-        }
-
-        if (!TryDeserializePayload(request.Payload, out NoteSearchRequest? payload) || payload is null)
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        if (!IsValidText(payload.Query, NotesContract.MaxSearchLength))
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        lock (_gate)
-        {
-            try
-            {
-                NoteDto[] notes = _noteRepository
-                    .Search(payload.Query!)
-                    .Take(NotesContract.MaxSearchResults)
-                    .Select(ToContract)
-                    .ToArray();
-                return SuccessResponse(
-                    request,
-                    NotesContract.SearchMethod,
-                    new NoteSearchResponse { Notes = notes });
-            }
-            catch (SqliteException)
-            {
-                return ErrorResponse(request, "storage.read-failed", "storage");
-            }
-        }
-    }
-
-    private Envelope HandleNoteDelete(Envelope request)
-    {
-        if (_noteRepository is null)
-        {
-            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
-        }
-
-        if (!TryDeserializePayload(request.Payload, out NoteDeleteRequest? payload) || payload is null)
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        if (!IsValidOperationId(payload.ClientOperationId) ||
-            !IsValidRequiredText(payload.NoteId, NotesContract.MaxNoteIdLength) ||
-            !IsValidRequiredText(payload.ExpectedUpdatedAtUtc, NotesContract.MaxTimestampLength) ||
-            !IsValidOptionalTimestamp(payload.ExpectedUpdatedAtUtc))
-        {
-            return ErrorResponse(request, "validation.invalid-argument", "validation");
-        }
-
-        var fingerprint = new NoteDeleteFingerprint(
-            payload.NoteId!,
-            payload.ExpectedUpdatedAtUtc!);
-
-        lock (_gate)
-        {
-            if (TryGetCachedNoteOperation(
-                    payload.ClientOperationId,
-                    fingerprint,
-                    out object? cachedResponse,
-                    out bool fingerprintConflict))
-            {
-                return fingerprintConflict
-                    ? ErrorResponse(request, "validation.invalid-argument", "validation")
-                    : SuccessResponse(request, NotesContract.DeleteMethod, cachedResponse!);
-            }
-
-            try
-            {
-                _noteRepository.Delete(payload.NoteId!, payload.ExpectedUpdatedAtUtc!);
-                var responsePayload = new NoteDeleteResponse
-                {
-                    ClientOperationId = payload.ClientOperationId,
-                    Deleted = true,
-                };
-                CacheNoteOperation(payload.ClientOperationId, fingerprint, responsePayload);
-                return SuccessResponse(request, NotesContract.DeleteMethod, responsePayload);
-            }
-            catch (NoteRevisionConflictException)
-            {
-                return ErrorResponse(request, "conflict.notes-revision", "conflict");
-            }
-            catch (NoteNotFoundException)
-            {
-                return ErrorResponse(request, "resource.not-found", "resource-unavailable");
             }
             catch (SqliteException)
             {
@@ -744,83 +515,6 @@ public sealed class CoreBrokerCommandRouter
         }
     }
 
-    private static bool TryDeserializePayload<T>(JsonElement payload, out T? value)
-        where T : class
-    {
-        value = null;
-        if (payload.ValueKind != JsonValueKind.Object)
-        {
-            return false;
-        }
-
-        try
-        {
-            value = payload.Deserialize<T>(ContractJson.Options);
-            return value is not null;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
-    private static bool IsValidOperationId(Guid value) => value != Guid.Empty;
-
-    private static bool IsValidRequiredText(string? value, int maxLength) =>
-        IsValidText(value, maxLength) && !string.IsNullOrWhiteSpace(value);
-
-    private static bool IsValidText(string? value, int maxLength) =>
-        value is not null && value.Length <= maxLength;
-
-    private static bool IsValidOptionalTimestamp(string? value)
-    {
-        if (value is null)
-        {
-            return true;
-        }
-
-        return value.Length <= NotesContract.MaxTimestampLength &&
-            DateTimeOffset.TryParse(
-                value,
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.RoundtripKind,
-                out _);
-    }
-
-    private static bool TryParseBodyFormat(string? value, out NoteBodyFormat bodyFormat)
-    {
-        if (string.Equals(value, NotesContract.PlainTextFormat, StringComparison.Ordinal))
-        {
-            bodyFormat = NoteBodyFormat.PlainText;
-            return true;
-        }
-
-        if (string.Equals(value, NotesContract.MarkdownFormat, StringComparison.Ordinal))
-        {
-            bodyFormat = NoteBodyFormat.Markdown;
-            return true;
-        }
-
-        bodyFormat = default;
-        return false;
-    }
-
-    private static NoteDto ToContract(NoteRecord note) =>
-        new()
-        {
-            NoteId = note.NoteId,
-            Title = note.Title,
-            Body = note.Body,
-            BodyFormat = note.BodyFormat switch
-            {
-                NoteBodyFormat.PlainText => NotesContract.PlainTextFormat,
-                NoteBodyFormat.Markdown => NotesContract.MarkdownFormat,
-                _ => throw new ArgumentOutOfRangeException(nameof(note)),
-            },
-            CreatedAtUtc = note.CreatedAtUtc,
-            UpdatedAtUtc = note.UpdatedAtUtc,
-        };
-
     private static WeatherSettingsDto ToContract(WeatherSettingsRecord settings) =>
         new()
         {
@@ -914,35 +608,6 @@ public sealed class CoreBrokerCommandRouter
 
         items = mapped.AsReadOnly();
         return true;
-    }
-
-    private bool TryGetCachedNoteOperation(
-        Guid operationId,
-        object fingerprint,
-        out object? response,
-        out bool fingerprintConflict)
-    {
-        if (!_cachedNoteOperations.TryGetValue(operationId, out CachedNoteOperation? cached))
-        {
-            response = null;
-            fingerprintConflict = false;
-            return false;
-        }
-
-        response = cached.Response;
-        fingerprintConflict = !Equals(cached.Fingerprint, fingerprint);
-        return true;
-    }
-
-    private void CacheNoteOperation(Guid operationId, object fingerprint, object response)
-    {
-        while (_cachedNoteOperations.Count >= MaxCachedOperations && _noteOperationOrder.Count > 0)
-        {
-            _cachedNoteOperations.Remove(_noteOperationOrder.Dequeue());
-        }
-
-        _cachedNoteOperations[operationId] = new CachedNoteOperation(fingerprint, response);
-        _noteOperationOrder.Enqueue(operationId);
     }
 
     private bool TryGetCachedLayoutOperation(
@@ -1041,53 +706,9 @@ public sealed class CoreBrokerCommandRouter
         left.PanelVisible == right.PanelVisible &&
         string.Equals(left.DisplayId, right.DisplayId, StringComparison.Ordinal);
 
-    private static Envelope SuccessResponse(
-        Envelope request,
-        string method,
-        object payload) =>
-        new()
-        {
-            ProtocolVersion = ProtocolConstants.CurrentVersion,
-            MessageType = EnvelopeMessageType.Response,
-            MessageId = Guid.NewGuid(),
-            CorrelationId = request.MessageId,
-            SentAtUtc = DateTimeOffset.UtcNow,
-            Method = method,
-            Payload = JsonSerializer.SerializeToElement(payload, ContractJson.Options),
-            Error = null,
-        };
-
-    private static Envelope ErrorResponse(
-        Envelope request,
-        string code,
-        string category) =>
-        new()
-        {
-            ProtocolVersion = ProtocolConstants.CurrentVersion,
-            MessageType = EnvelopeMessageType.Response,
-            MessageId = Guid.NewGuid(),
-            CorrelationId = request.MessageId,
-            SentAtUtc = DateTimeOffset.UtcNow,
-            Method = request.Method,
-            Payload = JsonSerializer.SerializeToElement(new { }, ContractJson.Options),
-            Error = new ContractError
-            {
-                Code = code,
-                Category = category,
-                MessageKey = $"error.{code.Replace('.', '-')}",
-                DeveloperMessage = null,
-                CorrelationId = request.MessageId,
-                IsTransient = false,
-                RetryAfterSeconds = null,
-                Details = null,
-            },
-        };
-
     private sealed record CachedOperation(
         PanelVisibilityReportRequest Request,
         PanelVisibilityReportResponse Response);
-
-    private sealed record CachedNoteOperation(object Fingerprint, object Response);
 
     private sealed record CachedLayoutOperation(
         string Fingerprint,
@@ -1096,17 +717,6 @@ public sealed class CoreBrokerCommandRouter
     private sealed record CachedWeatherSettingsOperation(
         WeatherSettingsSaveFingerprint Fingerprint,
         WeatherSettingsSaveResponse Response);
-
-    private sealed record NoteSaveFingerprint(
-        string NoteId,
-        string Title,
-        string Body,
-        string BodyFormat,
-        string? ExpectedUpdatedAtUtc);
-
-    private sealed record NoteDeleteFingerprint(
-        string NoteId,
-        string ExpectedUpdatedAtUtc);
 
     private sealed record WeatherSettingsSaveFingerprint(
         string InstanceId,
