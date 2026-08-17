@@ -8,8 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
+Import-Module -Name (Join-Path $PSScriptRoot 'WinWidgetBoard.UiAutomation.psm1') -DisableNameChecking -Force
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -103,46 +102,6 @@ $startInfo.Environment['DOTNET_ROOT'] = $PortableDotnetRoot
 $startInfo.Environment['DOTNET_ROOT_X64'] = $PortableDotnetRoot
 $panelProcess = $null
 
-function Get-PanelWindow {
-    param(
-        [int]$ProcessId,
-        [TimeSpan]$Timeout
-    )
-
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
-        $ProcessId)
-    $deadline = [DateTime]::UtcNow + $Timeout
-    do {
-        $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
-            [System.Windows.Automation.TreeScope]::Children,
-            $condition)
-        if ($null -eq $window) {
-            Start-Sleep -Milliseconds 100
-        }
-    } while ($null -eq $window -and [DateTime]::UtcNow -lt $deadline)
-
-    if ($null -eq $window) {
-        throw "WorkspacePanel window did not appear within $($Timeout.TotalSeconds) seconds."
-    }
-
-    return $window
-}
-
-function Get-ElementByAutomationId {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$AutomationId
-    )
-
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
-        $AutomationId)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
-}
-
 function Wait-VisibleElementByAutomationId {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
@@ -200,25 +159,6 @@ function Assert-ElementHiddenByAutomationId {
     if ($null -ne $element -and -not $element.Current.IsOffscreen) {
         throw "UI Automation element must be hidden outside layout edit mode: $AutomationId"
     }
-}
-
-function Invoke-Element {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element
-    )
-
-    if (-not $Element.Current.IsEnabled -or $Element.Current.IsOffscreen) {
-        throw "UI Automation element is not invokable: $($Element.Current.Name)"
-    }
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.InvokePattern]::Pattern,
-            [ref]$pattern)) {
-        throw "InvokePattern unavailable: $($Element.Current.Name)"
-    }
-
-    ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
 }
 
 function Get-EnabledResizeButton {
@@ -377,11 +317,5 @@ try {
     Write-Output 'REAL-HISTORY-PASS mode-visibility+resize+buttons+ctrl-z+ctrl-y'
 }
 finally {
-    if ($null -ne $panelProcess -and -not $panelProcess.HasExited) {
-        [void]$panelProcess.CloseMainWindow()
-        if (-not $panelProcess.WaitForExit(3000)) {
-            $panelProcess.Kill()
-            [void]$panelProcess.WaitForExit(3000)
-        }
-    }
+    Stop-OwnedProcess -Process $panelProcess
 }

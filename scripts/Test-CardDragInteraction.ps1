@@ -13,8 +13,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
+Import-Module -Name (Join-Path $PSScriptRoot 'WinWidgetBoard.UiAutomation.psm1') -DisableNameChecking -Force
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -198,73 +197,9 @@ $testDataRoot = $null
 $originalCursor = [WinWidgetBoardPointerInput+Point]::new()
 [void][WinWidgetBoardPointerInput]::GetCursorPos([ref]$originalCursor)
 
-function Get-PanelWindow {
-    param(
-        [int]$ProcessId,
-        [TimeSpan]$Timeout
-    )
 
-    $deadline = [DateTime]::UtcNow + $Timeout
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
-        $ProcessId)
-    do {
-        $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
-            [System.Windows.Automation.TreeScope]::Children,
-            $condition)
-        if ($null -ne $window) {
-            return $window
-        }
 
-        Start-Sleep -Milliseconds 100
-    } while ([DateTime]::UtcNow -lt $deadline)
 
-    throw "WorkspacePanel window did not appear within $($Timeout.TotalSeconds) seconds."
-}
-
-function Get-Descendants {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root
-    )
-
-    return $Root.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        [System.Windows.Automation.Condition]::TrueCondition)
-}
-
-function Get-ElementByAutomationId {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$AutomationId
-    )
-
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
-        $AutomationId)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
-}
-
-function Get-ElementByNames {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string[]]$Names,
-        [switch]$Optional
-    )
-
-    foreach ($element in Get-Descendants -Root $Root) {
-        if ($Names -contains $element.Current.Name) {
-            return $element
-        }
-    }
-
-    if ($Optional) {
-        return $null
-    }
-
-    throw "UI Automation element not found. Expected one of: $($Names -join ', ')."
-}
 
 function Wait-ForElementName {
     param(
@@ -293,20 +228,6 @@ function Wait-ForElementName {
     throw "Element '$AutomationId' did not reach the expected state. Last name: '$lastName'."
 }
 
-function Invoke-Element {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element
-    )
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.InvokePattern]::Pattern,
-            [ref]$pattern)) {
-        throw "Element '$($Element.Current.Name)' does not support InvokePattern."
-    }
-
-    ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
-}
 
 function Get-ElementCenter {
     param(
@@ -621,27 +542,6 @@ function Assert-Far {
     }
 }
 
-function Set-VerticalScrollPercent {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element,
-        [double]$Percent
-    )
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.ScrollPattern]::Pattern,
-            [ref]$pattern)) {
-        throw "ScrollPattern unavailable: $($Element.Current.Name)"
-    }
-
-    $scroll = [System.Windows.Automation.ScrollPattern]$pattern
-    if ($scroll.Current.VerticallyScrollable) {
-        $scroll.SetScrollPercent(
-            [System.Windows.Automation.ScrollPattern]::NoScroll,
-            $Percent)
-        Start-Sleep -Milliseconds 500
-    }
-}
 
 function Test-ResponsiveColumnCount {
     param(
@@ -664,7 +564,7 @@ function Test-ResponsiveColumnCount {
     }
     $xByCard = @{}
     foreach ($percent in @(0, 25, 50, 75, 100)) {
-        Set-VerticalScrollPercent -Element $contentScroll -Percent $percent
+        Set-VerticalScrollPercent -Element $contentScroll -Percent $percent -DelayMilliseconds 500
         foreach ($entry in $cardNames.GetEnumerator()) {
             $element = Get-ElementByNames `
                 -Root $Root `
@@ -782,27 +682,6 @@ function Test-CardDragAndUndo {
         -Description "$($SourceNames[0]) after undoing $Mode drag"
 }
 
-function Stop-TestProcess {
-    param(
-        [Diagnostics.Process]$Process
-    )
-
-    if ($null -eq $Process) {
-        return
-    }
-
-    try {
-        if (-not $Process.HasExited) {
-            [void]$Process.CloseMainWindow()
-            if (-not $Process.WaitForExit(3000)) {
-                $Process.Kill()
-                [void]$Process.WaitForExit(5000)
-            }
-        }
-    }
-    catch [InvalidOperationException] {
-    }
-}
 
 try {
     if ($PersistenceRecovery -and -not $WithBroker) {
@@ -953,7 +832,7 @@ try {
         $contentScroll = Get-ElementByAutomationId `
             -Root $window `
             -AutomationId 'ContentScrollViewer'
-        Set-VerticalScrollPercent -Element $contentScroll -Percent 0
+    Set-VerticalScrollPercent -Element $contentScroll -Percent 0 -DelayMilliseconds 500
         $timerTitle = Get-ElementByNames `
             -Root $window `
             -Names @('计时器', 'Timer')
@@ -998,9 +877,9 @@ try {
             -ExpectedNames @('布局编辑已完成。', 'Layout editing completed.') `
             -Timeout ([TimeSpan]::FromSeconds(15)))
 
-        Stop-TestProcess -Process $panelProcess
+        Stop-OwnedProcess -Process $panelProcess
         $panelProcess = $null
-        Stop-TestProcess -Process $brokerProcess
+        Stop-OwnedProcess -Process $brokerProcess
         $brokerProcess = $null
         Start-Sleep -Milliseconds 250
 
@@ -1029,7 +908,7 @@ try {
         $contentScroll = Get-ElementByAutomationId `
             -Root $window `
             -AutomationId 'ContentScrollViewer'
-        Set-VerticalScrollPercent -Element $contentScroll -Percent 0
+    Set-VerticalScrollPercent -Element $contentScroll -Percent 0 -DelayMilliseconds 500
         $cardGridHost = Get-ElementByAutomationId `
             -Root $window `
             -AutomationId 'CardGridHost'
@@ -1102,7 +981,7 @@ try {
         throw 'The card surface scroll viewer was not exposed to UI Automation.'
     }
 
-    Set-VerticalScrollPercent -Element $contentScroll -Percent 25
+    Set-VerticalScrollPercent -Element $contentScroll -Percent 25 -DelayMilliseconds 500
     Test-CardDragAndUndo `
         -Root $window `
         -SourceNames @('便签', 'Notes') `
@@ -1116,7 +995,7 @@ try {
         -Mode Surface `
         -ProcessId $panelProcess.Id
 
-    Set-VerticalScrollPercent -Element $contentScroll -Percent 0
+    Set-VerticalScrollPercent -Element $contentScroll -Percent 0 -DelayMilliseconds 500
     Test-CardDragAndUndo `
         -Root $window `
         -SourceNames @('计时器', 'Timer') `
@@ -1177,7 +1056,7 @@ try {
             -Description 'Notes after text editor drag'
     }
 
-    Set-VerticalScrollPercent -Element $contentScroll -Percent 100
+    Set-VerticalScrollPercent -Element $contentScroll -Percent 100 -DelayMilliseconds 500
     Test-CardDragAndUndo `
         -Root $window `
         -SourceNames @('待办', 'To-do') `
@@ -1203,7 +1082,7 @@ try {
         -Mode Surface `
         -ProcessId $panelProcess.Id
 
-    Set-VerticalScrollPercent -Element $contentScroll -Percent 0
+    Set-VerticalScrollPercent -Element $contentScroll -Percent 0 -DelayMilliseconds 500
     $timerTitle = Get-ElementByNames `
         -Root $window `
         -Names @('计时器', 'Timer')
@@ -1242,8 +1121,8 @@ finally {
     [void][WinWidgetBoardPointerInput]::SetCursorPos(
         $originalCursor.X,
         $originalCursor.Y)
-    Stop-TestProcess -Process $panelProcess
-    Stop-TestProcess -Process $brokerProcess
+        Stop-OwnedProcess -Process $panelProcess
+        Stop-OwnedProcess -Process $brokerProcess
     if ($null -ne $testDataRoot -and
         (Test-Path -LiteralPath $testDataRoot)) {
         $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())

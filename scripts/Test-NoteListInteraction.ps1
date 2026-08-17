@@ -7,30 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-public static class WinWidgetBoardNoteListInput
-{
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool ShowWindow(IntPtr window, int command);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool BringWindowToTop(IntPtr window);
-
-    [DllImport("user32.dll")]
-    public static extern IntPtr SetActiveWindow(IntPtr window);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool SetForegroundWindow(IntPtr window);
-}
-'@
+Import-Module -Name (Join-Path $PSScriptRoot 'WinWidgetBoard.UiAutomation.psm1') -DisableNameChecking -Force
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $panelPath = [IO.Path]::GetFullPath(
@@ -64,181 +41,14 @@ $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) (
 $brokerProcess = $null
 $panelProcess = $null
 
-function Get-PanelWindow {
-    param(
-        [int]$ProcessId,
-        [TimeSpan]$Timeout
-    )
 
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
-        $ProcessId)
-    $deadline = [DateTime]::UtcNow + $Timeout
-    do {
-        $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
-            [System.Windows.Automation.TreeScope]::Children,
-            $condition)
-        if ($null -eq $window) {
-            Start-Sleep -Milliseconds 100
-        }
-    } while ($null -eq $window -and [DateTime]::UtcNow -lt $deadline)
 
-    if ($null -eq $window) {
-        throw "WorkspacePanel window did not appear within $($Timeout.TotalSeconds) seconds."
-    }
 
-    return $window
-}
 
-function Get-ElementByAutomationId {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$AutomationId
-    )
 
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
-        $AutomationId)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
-}
 
-function Get-ElementByName {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$Name
-    )
 
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::NameProperty,
-        $Name)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
-}
 
-function Wait-VisibleElementByAutomationId {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$AutomationId,
-        [TimeSpan]$Timeout,
-        [switch]$Enabled,
-        [System.Windows.Automation.AutomationElement]$ScrollContainer
-    )
-
-    $deadline = [DateTime]::UtcNow + $Timeout
-    do {
-        $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
-        if ($null -ne $element -and
-            -not $element.Current.IsOffscreen -and
-            (-not $Enabled -or $element.Current.IsEnabled)) {
-            return $element
-        }
-
-        if ($null -ne $element -and $null -ne $ScrollContainer) {
-            Set-VerticalScrollPercent -Element $ScrollContainer -Percent 100
-        }
-        Start-Sleep -Milliseconds 100
-    } while ([DateTime]::UtcNow -lt $deadline)
-
-    throw "Visible UI Automation element not found: $AutomationId"
-}
-
-function Wait-VisibleElementByName {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$Name,
-        [TimeSpan]$Timeout,
-        [switch]$Enabled
-    )
-
-    $deadline = [DateTime]::UtcNow + $Timeout
-    do {
-        $element = Get-ElementByName -Root $Root -Name $Name
-        if ($null -ne $element -and
-            -not $element.Current.IsOffscreen -and
-            (-not $Enabled -or $element.Current.IsEnabled)) {
-            return $element
-        }
-
-        Start-Sleep -Milliseconds 100
-    } while ([DateTime]::UtcNow -lt $deadline)
-
-    throw "Visible UI Automation element with name not found: $Name"
-}
-
-function Get-ElementText {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element
-    )
-
-    $pattern = $null
-    if ($Element.TryGetCurrentPattern(
-            [System.Windows.Automation.ValuePattern]::Pattern,
-            [ref]$pattern)) {
-        return ([System.Windows.Automation.ValuePattern]$pattern).Current.Value
-    }
-
-    return $Element.Current.Name
-}
-
-function Set-TextValue {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element,
-        [string]$Value
-    )
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.ValuePattern]::Pattern,
-            [ref]$pattern)) {
-        throw "ValuePattern unavailable: $($Element.Current.Name)"
-    }
-
-    ([System.Windows.Automation.ValuePattern]$pattern).SetValue($Value)
-}
-
-function Set-VerticalScrollPercent {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element,
-        [double]$Percent
-    )
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.ScrollPattern]::Pattern,
-            [ref]$pattern)) {
-        throw "ScrollPattern unavailable: $($Element.Current.Name)"
-    }
-
-    $scroll = [System.Windows.Automation.ScrollPattern]$pattern
-    if ($scroll.Current.VerticallyScrollable) {
-        $scroll.SetScrollPercent(
-            [System.Windows.Automation.ScrollPattern]::NoScroll,
-            $Percent)
-        Start-Sleep -Milliseconds 300
-    }
-}
-
-function Invoke-Element {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element
-    )
-
-    if (-not $Element.Current.IsEnabled -or $Element.Current.IsOffscreen) {
-        throw "UI Automation element is not invokable: $($Element.Current.Name)"
-    }
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.InvokePattern]::Pattern,
-            [ref]$pattern)) {
-        throw "InvokePattern unavailable: $($Element.Current.Name)"
-    }
-
-    ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
-}
 
 function Wait-SavedStatus {
     param(
@@ -269,91 +79,9 @@ function Wait-SavedStatus {
     throw "Note editor did not report a completed save. Last status: $text"
 }
 
-function Focus-PanelWindow {
-    param(
-        [System.Windows.Automation.AutomationElement]$Window
-    )
 
-    $windowHandle = [IntPtr]$Window.Current.NativeWindowHandle
-    $zeroHandle = [IntPtr]::Zero
-    if ($windowHandle -eq $zeroHandle) {
-        throw 'WorkspacePanel returned an invalid native window handle.'
-    }
 
-    [void][WinWidgetBoardNoteListInput]::ShowWindow($windowHandle, 5)
-    [void][WinWidgetBoardNoteListInput]::BringWindowToTop($windowHandle)
-    [void][WinWidgetBoardNoteListInput]::SetActiveWindow($windowHandle)
-    $foregroundSet = [WinWidgetBoardNoteListInput]::SetForegroundWindow($windowHandle)
-    $focusSet = $false
-    try {
-        $Window.SetFocus()
-        $focusSet = $true
-    }
-    catch {
-    }
 
-    # InvokePattern and ValuePattern do not require foreground keyboard focus.
-}
-
-function Start-TestBroker {
-    $process = Start-Process `
-        -FilePath $brokerPath `
-        -ArgumentList @(
-            '--session-token',
-            $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN,
-            '--acceptance-test',
-            '--test-instance-id',
-            [Guid]::NewGuid().ToString('N'),
-            '--data-directory',
-            $testDataRoot) `
-        -WindowStyle Hidden `
-        -PassThru
-    Start-Sleep -Milliseconds 500
-    if ($process.HasExited) {
-        throw "CoreBroker failed to start. Exit code: $($process.ExitCode)."
-    }
-
-    return $process
-}
-
-function Start-TestPanel {
-    $panelInfo = [Diagnostics.ProcessStartInfo]::new($panelPath)
-    $panelInfo.UseShellExecute = $false
-    $acceptanceInstanceId = [Guid]::NewGuid().ToString('N')
-    $panelInfo.Arguments =
-        "--acceptance-test --test-instance-id $acceptanceInstanceId"
-    $panelInfo.EnvironmentVariables['DOTNET_ROOT'] = $PortableDotnetRoot
-    $panelInfo.EnvironmentVariables['DOTNET_ROOT_X64'] = $PortableDotnetRoot
-    $panelInfo.EnvironmentVariables['LOCALAPPDATA'] = $env:LOCALAPPDATA
-    $panelInfo.EnvironmentVariables['WINWIDGETBOARD_COREBROKER_SESSION_TOKEN'] =
-        $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN
-    $process = [Diagnostics.Process]::Start($panelInfo)
-    $window = Get-PanelWindow -ProcessId $process.Id -Timeout ([TimeSpan]::FromSeconds(15))
-    Focus-PanelWindow -Window $window
-    return [pscustomobject]@{
-        Process = $process
-        Window = $window
-    }
-}
-
-function Stop-TestProcess {
-    param(
-        [Diagnostics.Process]$Process
-    )
-
-    if ($null -eq $Process) {
-        return
-    }
-
-    try {
-        if (-not $Process.HasExited) {
-            $Process.Kill()
-            [void]$Process.WaitForExit(5000)
-        }
-    }
-    catch [InvalidOperationException] {
-    }
-}
 
 try {
     New-Item -ItemType Directory -Path $testDataRoot -Force | Out-Null
@@ -372,8 +100,14 @@ try {
     $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN = [Convert]::ToBase64String(
         $sessionRandomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 
-    $brokerProcess = Start-TestBroker
-    $panel = Start-TestPanel
+    $brokerProcess = Start-TestBroker `
+        -BrokerPath $brokerPath `
+        -TestDataRoot $testDataRoot `
+        -SessionToken $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN
+    $panel = Start-TestPanel `
+        -PanelPath $panelPath `
+        -PortableDotnetRoot $PortableDotnetRoot `
+        -SessionToken $env:WINWIDGETBOARD_COREBROKER_SESSION_TOKEN
     $panelProcess = $panel.Process
     $window = $panel.Window
 

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
@@ -10,92 +10,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
+Import-Module -Name (Join-Path $PSScriptRoot 'WinWidgetBoard.UiAutomation.psm1') -DisableNameChecking -Force
 
 $panelProcess = $null
 $brokerProcess = $null
 $testDataRoot = $null
 $failure = $null
-
-function Get-PanelWindow {
-    param(
-        [int]$ProcessId,
-        [TimeSpan]$Timeout
-    )
-
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
-        $ProcessId)
-    $deadline = [DateTime]::UtcNow + $Timeout
-    do {
-        $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
-            [System.Windows.Automation.TreeScope]::Children,
-            $condition)
-        if ($null -ne $window) {
-            return $window
-        }
-
-        Start-Sleep -Milliseconds 100
-    } while ([DateTime]::UtcNow -lt $deadline)
-
-    throw "WorkspacePanel window did not appear within $($Timeout.TotalSeconds) seconds."
-}
-
-function Get-Descendants {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root
-    )
-
-    return $Root.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        [System.Windows.Automation.Condition]::TrueCondition)
-}
-
-function Get-ElementByAutomationId {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$AutomationId
-    )
-
-    $condition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
-        $AutomationId)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
-}
-
-function Invoke-Element {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element
-    )
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.InvokePattern]::Pattern,
-            [ref]$pattern)) {
-        throw "Element '$($Element.Current.Name)' does not support InvokePattern."
-    }
-
-    ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
-}
-
-function Set-ElementValue {
-    param(
-        [System.Windows.Automation.AutomationElement]$Element,
-        [string]$Value
-    )
-
-    $pattern = $null
-    if (-not $Element.TryGetCurrentPattern(
-            [System.Windows.Automation.ValuePattern]::Pattern,
-            [ref]$pattern)) {
-        throw "Element '$($Element.Current.Name)' does not support ValuePattern."
-    }
-
-    ([System.Windows.Automation.ValuePattern]$pattern).SetValue($Value)
-}
 
 function Wait-ElementByAutomationId {
     param(
@@ -140,28 +60,6 @@ function Wait-ElementName {
     } while ([DateTime]::UtcNow -lt $deadline)
 
     throw "UIA element '$AutomationId' did not reach '$Pattern'; last name='$lastName'."
-}
-
-function Stop-OwnedProcess {
-    param(
-        [Diagnostics.Process]$Process
-    )
-
-    if ($null -eq $Process) {
-        return
-    }
-
-    try {
-        if (-not $Process.HasExited) {
-            [void]$Process.CloseMainWindow()
-            if (-not $Process.WaitForExit(3000)) {
-                $Process.Kill()
-                [void]$Process.WaitForExit(5000)
-            }
-        }
-    }
-    catch [InvalidOperationException] {
-    }
 }
 
 function Start-Stack {
@@ -352,7 +250,7 @@ try {
         -AutomationId 'WeatherLocationText' `
         -Pattern 'Tokyo' `
         -Timeout ([TimeSpan]::FromSeconds(30))
-    Write-Output "WEATHER-SETTINGS-RESTART-PASS location=\"$($reloadedLocation.Current.Name)\" persisted=sqlite"
+    Write-Output ("WEATHER-SETTINGS-RESTART-PASS location=`"$($reloadedLocation.Current.Name)`" persisted=sqlite")
 
     $closeButton = Wait-ElementByAutomationId -Root $window -AutomationId 'ClosePanelButton' -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $closeButton
