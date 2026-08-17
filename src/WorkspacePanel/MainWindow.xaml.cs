@@ -59,11 +59,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly ILayoutClient? _layoutClient;
     private readonly IWeatherSettingsClient? _weatherSettingsClient;
     private readonly CardSnapshotDispatcher _cardSnapshotDispatcher;
-    private readonly CardSnapshotSubscriptionCoordinator?
-        _cardSnapshotSubscription;
-    private readonly CancellationTokenSource _cardSnapshotCancellation = new();
     private int _statusVersion;
-    private readonly UiDispatcherQueueTimer _cardSubscriptionRefreshTimer;
+    private readonly CardSubscriptionLifecycleCoordinator?
+        _cardSubscription;
     private readonly ResourceLoader _resources = new();
     private readonly CardDragController _demoNotesCardDrag = new();
     private readonly CardReturnMotionController _demoNotesCardReturnMotion;
@@ -91,7 +89,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _isSavingLayout;
     private bool _suppressNoteSearchTextChanged;
     private int _disposed;
-    private bool _cardSubscriptionInitialized;
     private long _lastMotionTimestamp;
 
     public MainWindow(
@@ -107,11 +104,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _uiDispatcherQueue = UiDispatcherQueue.GetForCurrentThread();
         _cardSnapshotDispatcher = new CardSnapshotDispatcher(
             DispatchSnapshotToUiAsync);
-        _cardSnapshotSubscription = cardsClient is null
+        _cardSubscription = cardsClient is null
             ? null
-            : new CardSnapshotSubscriptionCoordinator(
+            : new CardSubscriptionLifecycleCoordinator(
                 cardsClient,
-                _cardSnapshotDispatcher);
+                _cardSnapshotDispatcher,
+                _uiDispatcherQueue,
+                CaptureCardSubscriptionStateAsync);
         NoteEditor = new NoteEditorViewModel(
             noteClient,
             dispatch: DispatchToUi);
@@ -186,9 +185,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             .CreateTimer();
         _motionTimer.Interval = TimeSpan.FromMilliseconds(16);
         _motionTimer.Tick += PanelMotionTimer_Tick;
-        _cardSubscriptionRefreshTimer = _uiDispatcherQueue.CreateTimer();
-        _cardSubscriptionRefreshTimer.Interval = TimeSpan.FromMilliseconds(100);
-        _cardSubscriptionRefreshTimer.Tick += CardSubscriptionRefreshTimer_Tick;
         _appWindow.Closing += AppWindow_Closing;
 
         ApplyPlacement();
@@ -308,8 +304,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _motionTimer.Stop();
-        _cardSubscriptionRefreshTimer.Stop();
-        _cardSnapshotCancellation.Cancel();
+        _cardSubscription?.OnWindowClosed();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
         _appWindow.Closing -= AppWindow_Closing;
@@ -326,25 +321,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        _cardSubscriptionRefreshTimer.Stop();
-        _cardSnapshotCancellation.Cancel();
+        _cardSubscription?.OnWindowClosed();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
         _cardLayout.PropertyChanged -= CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged -= CardSurface_PropertyChanged;
         _cardEdit.PropertyChanged -= CardEdit_PropertyChanged;
-        _cardSubscriptionRefreshTimer.Tick -= CardSubscriptionRefreshTimer_Tick;
         CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
         CardItemsRepeater.ElementClearing -= CardItemsRepeater_ElementClearing;
-        if (_cardSnapshotSubscription is not null)
+        if (_cardSubscription is not null)
         {
-            await _cardSnapshotSubscription.DisposeAsync();
+            await _cardSubscription.DisposeAsync();
         }
 
         await _cardSurface.DisposeAsync();
         await NoteEditor.DisposeAsync();
         await NoteSearch.DisposeAsync();
-        _cardSnapshotCancellation.Dispose();
     }
 
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
@@ -1008,79 +1000,14 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     public async Task<bool> InitializeCardSubscriptionAsync(
         CancellationToken cancellationToken)
     {
-        if (_cardSnapshotSubscription is null)
-        {
-            return false;
-        }
-
-        return await RefreshCardSubscriptionAsync(
-            markInitialized: true,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return _cardSubscription is not null &&
+            await _cardSubscription.InitializeAsync(cancellationToken)
+                .ConfigureAwait(false);
     }
 
     public void HandleBrokerReconnected(object? sender, EventArgs args)
     {
-        if (Volatile.Read(ref _disposed) != 0 ||
-            !_cardSubscriptionInitialized)
-        {
-            return;
-        }
-
-        if (_uiDispatcherQueue.HasThreadAccess)
-        {
-            RequestCardSubscriptionRefresh();
-            return;
-        }
-
-        _uiDispatcherQueue.TryEnqueue(RequestCardSubscriptionRefresh);
-    }
-
-    private async Task<bool> RefreshCardSubscriptionAsync(
-        bool markInitialized,
-        CancellationToken cancellationToken)
-    {
-        if (_cardSnapshotSubscription is null ||
-            Volatile.Read(ref _disposed) != 0)
-        {
-            return false;
-        }
-
-        try
-        {
-            CardSubscriptionState state =
-                await CaptureCardSubscriptionStateAsync(cancellationToken)
-                    .ConfigureAwait(false);
-            await _cardSnapshotSubscription
-                .SubscribeAsync(
-                    state.Runtimes,
-                    state.PanelVisible,
-                    state.VisibleInstanceIds,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            _cardSubscriptionInitialized = true;
-            return true;
-        }
-        catch (OperationCanceledException) when (
-            cancellationToken.IsCancellationRequested ||
-            _cardSnapshotCancellation.IsCancellationRequested)
-        {
-            return false;
-        }
-        catch (Exception exception)
-            when (exception is CoreBrokerClientException or
-                IOException or
-                InvalidOperationException or
-                TimeoutException)
-        {
-            Debug.WriteLine(
-                $"WorkspacePanel card subscription failed: {exception.Message}");
-            if (markInitialized)
-            {
-                _cardSubscriptionInitialized = false;
-            }
-
-            return false;
-        }
+        _cardSubscription?.HandleBrokerReconnected(sender, args);
     }
 
     private async Task<CardSubscriptionState> CaptureCardSubscriptionStateAsync(
@@ -1110,13 +1037,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void SynchronizeCardSnapshotRuntimes()
     {
-        if (_cardSnapshotSubscription is null ||
+        if (_cardSubscription is null ||
             Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
 
-        _cardSnapshotSubscription.SynchronizeRuntimes(
+        _cardSubscription.SynchronizeRuntimes(
             _cardSurface.Items
                 .Select(item => item.Runtime)
                 .ToArray());
@@ -1124,27 +1051,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void RequestCardSubscriptionRefresh()
     {
-        if (_cardSnapshotSubscription is null ||
-            !_cardSubscriptionInitialized ||
-            Volatile.Read(ref _disposed) != 0)
-        {
-            return;
-        }
-
-        _cardSubscriptionRefreshTimer.Start();
-    }
-
-    private async void CardSubscriptionRefreshTimer_Tick(
-        UiDispatcherQueueTimer sender,
-        object args)
-    {
-        sender.Stop();
-        if (Volatile.Read(ref _disposed) == 0)
-        {
-            await RefreshCardSubscriptionAsync(
-                markInitialized: false,
-                cancellationToken: _cardSnapshotCancellation.Token).ConfigureAwait(false);
-        }
+        _cardSubscription?.RequestRefresh();
     }
 
     private ValueTask<CardSnapshotDispatchResult> DispatchSnapshotToUiAsync(
@@ -1177,11 +1084,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         return new ValueTask<CardSnapshotDispatchResult>(completion.Task);
     }
-
-    private sealed record CardSubscriptionState(
-        CardRuntimeInstance[] Runtimes,
-        bool PanelVisible,
-        string[] VisibleInstanceIds);
 
     public void MarkNoteEditorUnavailable(string errorCode = "transport.unavailable") =>
         NoteEditor.MarkUnavailable(errorCode);
