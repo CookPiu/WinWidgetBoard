@@ -245,12 +245,38 @@ try {
     $brokerProcess = $stack.Broker
     $panelProcess = $stack.Panel
     $window = $stack.Window
-    $reloadedLocation = Wait-ElementName `
+    $settingsButton = Wait-ElementByAutomationId `
         -Root $window `
-        -AutomationId 'WeatherLocationText' `
-        -Pattern 'Tokyo' `
-        -Timeout ([TimeSpan]::FromSeconds(30))
-    Write-Output ("WEATHER-SETTINGS-RESTART-PASS location=`"$($reloadedLocation.Current.Name)`" persisted=sqlite")
+        -AutomationId 'SettingsButton' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    Invoke-Element -Element $settingsButton
+
+    $automationRoot = [System.Windows.Automation.AutomationElement]::RootElement
+    $reloadedLabel = Wait-ElementValue `
+        -Root $automationRoot `
+        -AutomationId 'WeatherSettingsLabelBox' `
+        -Expected 'Tokyo' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    $reloadedLatitude = Wait-ElementValue `
+        -Root $automationRoot `
+        -AutomationId 'WeatherSettingsLatitudeBox' `
+        -Expected '35.6762' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    $reloadedLongitude = Wait-ElementValue `
+        -Root $automationRoot `
+        -AutomationId 'WeatherSettingsLongitudeBox' `
+        -Expected '139.6503' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    $dialogCloseButton = Get-ElementByNames `
+        -Root $automationRoot `
+        -Names @('Cancel', '取消')
+    Invoke-Element -Element $dialogCloseButton
+    Write-Output (
+        "REAL-WEATHER-SETTINGS-RESTART-PASS settings.get " +
+        "label=`"$(Get-ElementText -Element $reloadedLabel)`" " +
+        "latitude=`"$(Get-ElementText -Element $reloadedLatitude)`" " +
+        "longitude=`"$(Get-ElementText -Element $reloadedLongitude)`" " +
+        'card_payload=not-required')
 
     $closeButton = Wait-ElementByAutomationId -Root $window -AutomationId 'ClosePanelButton' -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $closeButton

@@ -165,6 +165,43 @@ function Wait-VisibleElementByName {
     throw "Visible UI Automation element with name not found: $Name"
 }
 
+function Wait-ElementValue {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$AutomationId,
+        [string]$Expected,
+        [TimeSpan]$Timeout,
+        [switch]$Enabled,
+        [System.Windows.Automation.AutomationElement]$ScrollContainer
+    )
+
+    $element = Wait-VisibleElementByAutomationId `
+        -Root $Root `
+        -AutomationId $AutomationId `
+        -Timeout $Timeout `
+        -Enabled:$Enabled `
+        -ScrollContainer $ScrollContainer
+    $deadline = [DateTime]::UtcNow + $Timeout
+    $actual = $null
+    do {
+        $actual = Get-ElementText -Element $element
+        if ([string]::Equals(
+                $actual,
+                $Expected,
+                [StringComparison]::Ordinal)) {
+            return $element
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw ("UI Automation value did not become expected: {0}. " +
+        "Expected='{1}', Actual='{2}'") -f
+        $AutomationId,
+        $Expected,
+        $actual
+}
+
 function Get-ElementText {
     param(
         [System.Windows.Automation.AutomationElement]$Element
@@ -379,6 +416,7 @@ Export-ModuleMember -Function @(
     'Get-ElementByNames',
     'Wait-VisibleElementByAutomationId',
     'Wait-VisibleElementByName',
+    'Wait-ElementValue',
     'Get-ElementText',
     'Set-ElementValue',
     'Set-TextValue',
