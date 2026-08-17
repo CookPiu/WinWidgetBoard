@@ -28,6 +28,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Ipc\CoreBrokerSession.cs" Link="WorkspacePanel\Ipc\CoreBrokerSession.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Ipc\CardSnapshotSubscriptionCoordinator.cs" Link="WorkspacePanel\Ipc\CardSnapshotSubscriptionCoordinator.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\ResponsiveGridLayout.cs" Link="WorkspacePanel\Layout\ResponsiveGridLayout.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\LayoutPersistenceCoordinator.cs" Link="WorkspacePanel\Layout\LayoutPersistenceCoordinator.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutReplaySanitizer.cs" Link="WorkspacePanel\Layout\CardLayoutReplaySanitizer.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutEditViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutEditViewModel.cs" />

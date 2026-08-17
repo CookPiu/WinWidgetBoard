@@ -235,7 +235,7 @@ public sealed class CardTemplateDragContractTests
                 StringComparison.Ordinal));
 
         int replaceIndex = code.IndexOf(
-            "_cardLayout.ReplaceItems(replay.Items);",
+            "_cardLayout.ReplaceItems(loaded.Items);",
             StringComparison.Ordinal);
         int bindIndex = code.IndexOf(
             "EnsureCardItemsBound();",

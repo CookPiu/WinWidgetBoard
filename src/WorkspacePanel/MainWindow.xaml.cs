@@ -33,8 +33,6 @@ namespace WinWidgetBoard.WorkspacePanel;
 
 public sealed partial class MainWindow : Window, IAsyncDisposable
 {
-    private const string PersistedLayoutId = "primary-default";
-    private const string PersistedDisplayId = "primary";
     private const int GwlExStyle = -20;
     private const long WsExAppWindow = 0x00040000L;
     private const long WsExToolWindow = 0x00000080L;
@@ -56,7 +54,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly AppWindow _appWindow;
     private readonly IntPtr _windowHandle;
     private readonly PanelPlacement _placement;
-    private readonly ILayoutClient? _layoutClient;
     private readonly IWeatherSettingsClient? _weatherSettingsClient;
     private readonly CardSnapshotDispatcher _cardSnapshotDispatcher;
     private int _statusVersion;
@@ -70,6 +67,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly UiDispatcherQueueTimer _motionTimer;
     private readonly CardGridLayout _cardGridLayout;
     private readonly CardLayoutViewModel _cardLayout;
+    private readonly LayoutPersistenceCoordinator? _layoutPersistence;
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
     private readonly Dictionary<UIElement, CardRuntimeInstance>
@@ -85,7 +83,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private CompositeTransform? _demoNotesCardTransform;
     private string? _draggedCardId;
     private CardPlacement? _dragStartPlacement;
-    private int _layoutRevision;
     private bool _isSavingLayout;
     private bool _suppressNoteSearchTextChanged;
     private int _disposed;
@@ -98,7 +95,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         CoreBrokerCardsClient? cardsClient = null,
         IWeatherSettingsClient? weatherSettingsClient = null)
     {
-        _layoutClient = layoutClient;
         _weatherSettingsClient = weatherSettingsClient;
         _keepOpenForAcceptance = keepOpenForAcceptance;
         _uiDispatcherQueue = UiDispatcherQueue.GetForCurrentThread();
@@ -148,6 +144,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         {
             ColumnCount = _cardLayout.ColumnCount,
         };
+        _layoutPersistence = layoutClient is null
+            ? null
+            : new LayoutPersistenceCoordinator(
+                layoutClient,
+                _cardLayout);
         CardItemsRepeater.Layout = _cardGridLayout;
         _cardLayout.PropertyChanged += CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged += CardSurface_PropertyChanged;
@@ -1091,7 +1092,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     public async Task<bool> InitializeLayoutAsync(CancellationToken cancellationToken)
     {
         int statusVersion = Volatile.Read(ref _statusVersion);
-        if (_layoutClient is null)
+        if (_layoutPersistence is null)
         {
             MarkLayoutUnavailable();
             return false;
@@ -1099,64 +1100,32 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         try
         {
-            LayoutDto? persisted = await _layoutClient
-                .GetLayoutAsync(
-                    PersistedLayoutId,
-                    PersistedDisplayId,
-                    cancellationToken)
+            LayoutLoadResult? loaded = await _layoutPersistence
+                .LoadAsync(cancellationToken)
                 .ConfigureAwait(false);
-
-            if (persisted is null)
-            {
-                await RunOnUiAsync(() =>
-                {
-                    EnsureCardItemsBound();
-                    if (Volatile.Read(ref _statusVersion) == statusVersion)
-                    {
-                        StatusText.Text = _resources.GetString("LayoutReadyToSaveStatus");
-                    }
-                }).ConfigureAwait(false);
-                return true;
-            }
-
-            var loadedItems = new List<CardLayoutItem>(persisted.Items.Count);
-            var loadedIds = new HashSet<string>(StringComparer.Ordinal);
-            foreach (LayoutItemDto item in persisted.Items.OrderBy(item => item.Order))
-            {
-                if (!TryParseCardSize(item.SizeId, out CardSize size) ||
-                    !loadedIds.Add(item.InstanceId))
-                {
-                    throw new InvalidDataException("The persisted layout contains an invalid card item.");
-                }
-
-                loadedItems.Add(new CardLayoutItem(
-                    item.InstanceId,
-                    size,
-                    item.PreferredColumn,
-                    item.PreferredRow));
-            }
 
             await RunOnUiAsync(() =>
             {
-                CardLayoutReplayResult replay =
-                    CardLayoutReplaySanitizer.Normalize(
-                        _cardLayout.ColumnCount,
-                        loadedItems);
-                _layoutRevision = persisted.Revision;
-                _cardLayout.ReplaceItems(replay.Items);
+                if (loaded is not null)
+                {
+                    _cardLayout.ReplaceItems(loaded.Items);
+                }
                 EnsureCardItemsBound();
+
                 if (Volatile.Read(ref _statusVersion) == statusVersion)
                 {
                     StatusText.Text = _resources.GetString(
-                        replay.RecoveredItemCount > 0
-                            ? "LayoutRecoveredStatus"
-                            : "LayoutLoadedStatus");
+                        loaded is null
+                            ? "LayoutReadyToSaveStatus"
+                            : loaded.RecoveredItemCount > 0
+                                ? "LayoutRecoveredStatus"
+                                : "LayoutLoadedStatus");
                 }
 
-                if (replay.RecoveredItemCount > 0)
+                if (loaded?.RecoveredItemCount > 0)
                 {
                     Debug.WriteLine(
-                        $"Recovered {replay.RecoveredItemCount} layout item(s) " +
+                        $"Recovered {loaded.RecoveredItemCount} layout item(s) " +
                         "from excessive persisted row gaps.");
                 }
             }).ConfigureAwait(false);
@@ -1190,53 +1159,19 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private async Task<bool> SaveLayoutAsync(CancellationToken cancellationToken)
     {
-        if (_layoutClient is null)
+        if (_layoutPersistence is null)
         {
             MarkLayoutUnavailable();
             return false;
         }
 
-        LayoutItemDto[] items = _cardLayout.GetItemsInPlacementOrder()
-            .Select((item, index) =>
-            {
-                CardSpan span = ResponsiveGridLayout.GetSpan(item.Size);
-                if (!_cardLayout.TryGetPlacement(item.InstanceId, out CardPlacement placement))
-                {
-                    throw new InvalidOperationException(
-                        $"The card '{item.InstanceId}' has no current placement.");
-                }
-
-                return new LayoutItemDto
-                {
-                    InstanceId = item.InstanceId,
-                    Order = index,
-                    ColumnSpan = span.Columns,
-                    RowSpan = span.Rows,
-                    SizeId = ToLayoutSizeId(item.Size),
-                    PreferredColumn = placement.Column,
-                    PreferredRow = placement.Row,
-                };
-            })
-            .ToArray();
+        LayoutSaveRequest request = _layoutPersistence.CreateSaveRequest();
 
         try
         {
-            LayoutDto saved = await _layoutClient
-                .SaveLayoutAsync(
-                    new LayoutSaveRequest
-                    {
-                        ClientOperationId = Guid.NewGuid(),
-                        LayoutId = PersistedLayoutId,
-                        DisplayId = PersistedDisplayId,
-                        ExpectedRevision = _layoutRevision,
-                        Items = items,
-                    },
-                    cancellationToken)
+            await _layoutPersistence
+                .SaveAsync(request, cancellationToken)
                 .ConfigureAwait(false);
-            await RunOnUiAsync(() =>
-            {
-                _layoutRevision = saved.Revision;
-            }).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1387,30 +1322,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         string.IsNullOrWhiteSpace(title)
             ? noteId
             : title.Trim();
-
-    private static string ToLayoutSizeId(CardSize size) => size switch
-    {
-        CardSize.S => "s",
-        CardSize.M => "m",
-        CardSize.L => "l",
-        CardSize.W => "w",
-        CardSize.XL => "xl",
-        _ => throw new ArgumentOutOfRangeException(nameof(size), size, null),
-    };
-
-    private static bool TryParseCardSize(string? sizeId, out CardSize size)
-    {
-        size = sizeId switch
-        {
-            "s" => CardSize.S,
-            "m" => CardSize.M,
-            "l" => CardSize.L,
-            "w" => CardSize.W,
-            "xl" => CardSize.XL,
-            _ => default,
-        };
-        return sizeId is "s" or "m" or "l" or "w" or "xl";
-    }
 
     private Task RunOnUiAsync(Action action)
     {
