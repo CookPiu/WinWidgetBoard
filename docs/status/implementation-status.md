@@ -2,7 +2,7 @@
 
 最后更新：2026-08-17
 当前策略：轻量核心版
-当前代码基线：`d2cd71f refactor(workspace-panel): extract note list coordination`
+当前代码基线：`ced92d5 refactor(workspace-panel): extract motion coordination`
 
 ## 1. 当前结论
 
@@ -15,7 +15,7 @@
 | 能力 | 当前状态 | 仍需处理 |
 | --- | --- | --- |
 | 任务栏入口 | 已实现公开 Win32 几何、点击、穿透和面板交接 | 发布前补完整显示矩阵和性能 |
-| 面板 | 已实现 WinUI 壳层、锚定动效、关闭和模态保护 | 拆分集中式 code-behind |
+| 面板 | 已实现 WinUI 壳层、锚定动效、关闭和模态保护；动效协调已提取 | 继续拆分集中式 code-behind |
 | 基础布局 | 已实现 2/4/6 列、拖动、持久化、恢复和撤销 | 只修缺陷，不扩展复杂编辑 |
 | 便签 | 已实现 CRUD、搜索、Markdown、自动保存和安全删除 | 只维护核心旅程 |
 | 天气 | 已实现 Open-Meteo、订阅、手动位置和重启恢复设置 | 自动定位和跨重启 payload 缓存延期 |
@@ -45,7 +45,7 @@
 
 ## 5. 当前技术债务
 
-1. `MainWindow.xaml.cs` 仍同时协调便签删除/编辑、动效、拖动和设置；卡片订阅、布局持久化和便签列表已提取。
+1. `MainWindow.xaml.cs` 仍同时协调便签删除/编辑、拖动和设置；卡片订阅、布局持久化、便签列表和动效已提取。
 2. `CoreBrokerCommandRouter.cs` 集中多个领域命令。
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
 4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；Release x64 天气设置真实 UIA 回归已通过，重启设置通过 `weather.settings.get` 验证。
@@ -68,15 +68,16 @@
 - 本轮布局工作包的 UnitTests 为 295/295，WorkspacePanel Release x64 构建通过，真实布局保存、Broker/面板重启恢复和再次编辑流程通过。
 - 提取 `NoteListCoordinator`，集中便签搜索/全量列表、查询一致性、结果打开、删除后刷新和首条便签恢复；删除确认与 UI 状态仍由 `MainWindow` 管理。
 - 本轮便签列表工作包的 UnitTests 为 298/298，WorkspacePanel Release x64 构建通过，真实当前/列表便签删除流程通过。
+- 提取 `PanelMotionCoordinator`，集中面板动效、便签卡片回弹、统一 UI 定时器和关闭后收尾；原生窗口移动与 XAML 渲染仍由 `MainWindow` 管理。
+- 本轮动效工作包的 UnitTests 为 298/298，WorkspacePanel Release x64 构建通过，真实布局历史面板开关与调整流程通过。
 
 ## 7. 下一步
 
 按单一目的拆分：
 
-1. 继续从 `MainWindow.xaml.cs` 拆分动效协调职责；
-2. 拆分 CoreBroker 命令 handler；
-3. 在一个参考 Windows 11 x64 环境测量入口到面板和后台占用；
-4. 仅修复核心五项的可复现问题。
+1. 拆分 CoreBroker 命令 handler；
+2. 在一个参考 Windows 11 x64 环境测量入口到面板和后台占用；
+3. 仅修复核心五项的可复现问题。
 
 ## 8. 延期
 
