@@ -2,7 +2,7 @@
 
 最后更新：2026-08-17
 当前策略：轻量核心版
-当前代码基线：`ced92d5 refactor(workspace-panel): extract motion coordination`
+当前代码基线：`6dcb398 refactor(corebroker): extract note command handler`
 
 ## 1. 当前结论
 
@@ -46,7 +46,7 @@
 ## 5. 当前技术债务
 
 1. `MainWindow.xaml.cs` 仍同时协调便签删除/编辑、拖动和设置；卡片订阅、布局持久化、便签列表和动效已提取。
-2. `CoreBrokerCommandRouter.cs` 集中多个领域命令。
+2. `CoreBrokerCommandRouter.cs` 仍集中布局、卡片订阅、天气和面板可见性命令；便签命令已提取。
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
 4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；Release x64 天气设置真实 UIA 回归已通过，重启设置通过 `weather.settings.get` 验证。
 5. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
@@ -70,12 +70,14 @@
 - 本轮便签列表工作包的 UnitTests 为 298/298，WorkspacePanel Release x64 构建通过，真实当前/列表便签删除流程通过。
 - 提取 `PanelMotionCoordinator`，集中面板动效、便签卡片回弹、统一 UI 定时器和关闭后收尾；原生窗口移动与 XAML 渲染仍由 `MainWindow` 管理。
 - 本轮动效工作包的 UnitTests 为 298/298，WorkspacePanel Release x64 构建通过，真实布局历史面板开关与调整流程通过。
+- 提取 `NoteCommandHandler`，集中便签保存、读取、搜索、删除、revision 错误和幂等缓存；路由器保留方法分派及其他领域命令。
+- 本轮 CoreBroker 便签 handler 工作包的 UnitTests 为 298/298，CoreBroker Release x64 构建通过，真实当前/列表便签删除 IPC/UIA 流程通过。
 
 ## 7. 下一步
 
 按单一目的拆分：
 
-1. 拆分 CoreBroker 命令 handler；
+1. 继续拆分剩余 CoreBroker 命令 handler；
 2. 在一个参考 Windows 11 x64 环境测量入口到面板和后台占用；
 3. 仅修复核心五项的可复现问题。
 
