@@ -68,6 +68,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly CardGridLayout _cardGridLayout;
     private readonly CardLayoutViewModel _cardLayout;
     private readonly LayoutPersistenceCoordinator? _layoutPersistence;
+    private readonly NoteListCoordinator _noteList;
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
     private readonly Dictionary<UIElement, CardRuntimeInstance>
@@ -113,6 +114,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         NoteSearch = new NoteSearchViewModel(
             noteClient,
             dispatch: DispatchToUi);
+        _noteList = new NoteListCoordinator(NoteEditor, NoteSearch);
         InitializeComponent();
         _cardLayout = new CardLayoutViewModel(
             4,
@@ -774,21 +776,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
         StatusText.Text = _resources.GetString("NoteListLoadingStatus");
-        bool completed = await NoteSearch.LoadAllAsync(CancellationToken.None);
-        if (!completed || NoteSearch.Query.Length != 0)
+        NoteListOperationResult result = await _noteList.LoadAllAsync(
+            CancellationToken.None);
+        if (!result.IsCurrentQuery)
         {
             return;
         }
 
-        NoteSearchResultsBorder.Visibility = NoteSearch.HasResults
+        NoteSearchResultsBorder.Visibility = result.HasResults
             ? Visibility.Visible
             : Visibility.Collapsed;
-        StatusText.Text = NoteSearch.Status switch
+        StatusText.Text = result.Status switch
         {
             NoteSearchStatus.Ready => string.Format(
                 CultureInfo.CurrentCulture,
                 _resources.GetString("NoteListResultsStatus"),
-                NoteSearch.Results.Count),
+                result.ResultCount),
             NoteSearchStatus.Empty => _resources.GetString("NoteListEmptyStatus"),
             NoteSearchStatus.Error => _resources.GetString("NoteListFailedStatus"),
             _ => StatusText.Text,
@@ -805,7 +808,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         string query = textBox.Text.Trim();
         if (query.Length == 0)
         {
-            await NoteSearch.SearchAsync(query, CancellationToken.None);
+            await _noteList.SearchAsync(query, CancellationToken.None);
             NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
             StatusText.Text = _resources.GetString("NoteSearchClearedStatus");
             return;
@@ -813,24 +816,23 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
         StatusText.Text = _resources.GetString("NoteSearchSearchingStatus");
-        bool completed = await NoteSearch.SearchAsync(query, CancellationToken.None);
-        if (!completed || !string.Equals(
-                NoteSearch.Query,
-                query,
-                StringComparison.Ordinal))
+        NoteListOperationResult result = await _noteList.SearchAsync(
+            query,
+            CancellationToken.None);
+        if (!result.IsCurrentQuery)
         {
             return;
         }
 
-        NoteSearchResultsBorder.Visibility = NoteSearch.HasResults
+        NoteSearchResultsBorder.Visibility = result.HasResults
             ? Visibility.Visible
             : Visibility.Collapsed;
-        StatusText.Text = NoteSearch.Status switch
+        StatusText.Text = result.Status switch
         {
             NoteSearchStatus.Ready => string.Format(
                 CultureInfo.CurrentCulture,
                 _resources.GetString("NoteSearchResultsStatus"),
-                NoteSearch.Results.Count),
+                result.ResultCount),
             NoteSearchStatus.Empty => _resources.GetString("NoteSearchNoResultsStatus"),
             NoteSearchStatus.Error => _resources.GetString("NoteSearchFailedStatus"),
             _ => StatusText.Text,
@@ -852,7 +854,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        bool loaded = await NoteEditor.LoadNoteAsync(
+        bool loaded = await _noteList.LoadNoteAsync(
             noteId,
             CancellationToken.None);
         StatusText.Text = _resources.GetString(
@@ -861,33 +863,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private async Task<bool> RefreshNoteResultsAfterDeleteAsync()
     {
-        string query = NoteSearch.Query;
-        bool completed = query.Length == 0
-            ? await NoteSearch.LoadAllAsync(CancellationToken.None)
-            : await NoteSearch.SearchAsync(query, CancellationToken.None);
-        if (!completed || !string.Equals(
-                NoteSearch.Query,
-                query,
-                StringComparison.Ordinal))
+        NoteListOperationResult result = await _noteList
+            .RefreshAfterDeleteAsync(CancellationToken.None);
+        if (!result.IsCurrentQuery)
         {
             return false;
         }
 
-        NoteSearchResultsBorder.Visibility = NoteSearch.HasResults
+        NoteSearchResultsBorder.Visibility = result.HasResults
             ? Visibility.Visible
             : Visibility.Collapsed;
-        return NoteSearch.Status is NoteSearchStatus.Ready or NoteSearchStatus.Empty;
+        return result.Status is NoteSearchStatus.Ready or NoteSearchStatus.Empty;
     }
 
     private async Task LoadFirstListedNoteAsync()
     {
-        NoteSearchResult? first = NoteSearch.Results.Count == 0
-            ? null
-            : NoteSearch.Results[0];
-        if (first is not null && NoteEditor.CanLoadNote)
-        {
-            await NoteEditor.LoadNoteAsync(first.NoteId, CancellationToken.None);
-        }
+        await _noteList.LoadFirstListedNoteAsync(CancellationToken.None);
     }
 
     private async Task<bool> ConfirmNoteDeletionAsync(string title)
