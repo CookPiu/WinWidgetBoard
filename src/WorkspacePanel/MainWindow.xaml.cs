@@ -174,8 +174,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         RootGrid.RenderTransformOrigin = transformOrigin;
         bool reducedMotion = !new UISettings().AnimationsEnabled;
         _motion = new PanelMotionCoordinator(
-            transformOrigin.X < 0.5 ? -14 : 14,
-            transformOrigin.Y < 0.5 ? -14 : 14,
+            transformOrigin.X < 0.5 ? -10 : 10,
+            transformOrigin.Y < 0.5 ? -10 : 10,
             reducedMotion,
             _uiDispatcherQueue,
             ApplyPanelMotion,
@@ -391,11 +391,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         {
             RequestCloseMotion();
         }
-    }
-
-    private void ShellCommandButton_Click(object sender, RoutedEventArgs e)
-    {
-        StatusText.Text = _resources.GetString("ShellPlaceholderStatus");
     }
 
     private async void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -702,28 +697,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         {
             button.IsEnabled = true;
         }
-    }
-
-    private void OpenNotesButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not DependencyObject source)
-        {
-            return;
-        }
-
-        DependencyObject? cardRoot = source;
-        while (cardRoot is not null && cardRoot is not Border)
-        {
-            cardRoot = VisualTreeHelper.GetParent(cardRoot);
-        }
-
-        if (NoteEditor.IsMarkdownPreviewVisible)
-        {
-            NoteEditor.ToggleMarkdownPreview();
-        }
-
-        FindDescendant<TextBox>(cardRoot, "NoteBodyBox")?.Focus(
-            FocusState.Programmatic);
     }
 
     private void CopyNoteButton_Click(object sender, RoutedEventArgs e)
@@ -1633,7 +1606,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _demoNotesCardTransform.TranslateX = offset.X;
         _demoNotesCardTransform.TranslateY = offset.Y;
 
-        double scale = dragging ? 1.02 : 1.0;
+        double scale = dragging ? 1.01 : 1.0;
         _demoNotesCardTransform.ScaleX = scale;
         _demoNotesCardTransform.ScaleY = scale;
     }
@@ -1750,36 +1723,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         return InputKeyboardSource
             .GetKeyStateForCurrentThread(VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-    }
-
-    private static T? FindDescendant<T>(
-        DependencyObject? root,
-        string name)
-        where T : FrameworkElement
-    {
-        if (root is null)
-        {
-            return null;
-        }
-
-        if (root is T element && element.Name == name)
-        {
-            return element;
-        }
-
-        int childCount = VisualTreeHelper.GetChildrenCount(root);
-        for (int index = 0; index < childCount; index++)
-        {
-            T? match = FindDescendant<T>(
-                VisualTreeHelper.GetChild(root, index),
-                name);
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return null;
     }
 
     private static ScreenRect ToScreenRect(Windows.Graphics.RectInt32 rectangle) =>

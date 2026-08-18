@@ -16,8 +16,8 @@ public readonly record struct PanelMotionValue(
 
 public sealed class PanelMotionController
 {
-    private const double SpringStiffness = 180;
-    private const double SpringDamping = 2 * 13.416407864998739;
+    private const double SpringStiffness = 240;
+    private const double SpringDamping = 2 * 15.491933384829668;
     private const double ReducedMotionTimeConstant = 0.16;
     private const double SettleValueEpsilon = 0.001;
     private const double SettleVelocityEpsilon = 0.01;
@@ -40,7 +40,7 @@ public sealed class PanelMotionController
         _reducedMotion = reducedMotion;
         _closedValue = reducedMotion
             ? new(0, 1, 0, 0)
-            : new(0, 0.985, closedOffsetX, closedOffsetY);
+            : new(0, 0.99, closedOffsetX, closedOffsetY);
         _target = _closedValue;
         _value = _closedValue;
         State = PanelMotionState.Closed;

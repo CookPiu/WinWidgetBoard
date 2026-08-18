@@ -52,6 +52,7 @@ public sealed class WorkspaceVisualFoundationContractTests
             "WwbSecondarySurfaceStyle",
             "WwbPanelTitleStyle",
             "WwbCardTitleStyle",
+            "WwbWeatherTemperatureStyle",
             "WwbToolbarButtonStyle",
             "WwbPrimaryToolbarButtonStyle",
             "WwbCardActionButtonStyle",
@@ -80,6 +81,9 @@ public sealed class WorkspaceVisualFoundationContractTests
         Assert.IsFalse(
             source.Contains('#', StringComparison.Ordinal),
             "The visual foundation must not bypass system themes with literal colors.");
+
+        AssertThemeThickness(document, "Default", "0");
+        AssertThemeThickness(document, "HighContrast", "1");
     }
 
     [TestMethod(DisplayName = "UT-UI-003 [LYT-003/CRD-004] Card surfaces share a shell and hide edit tools by state")]
@@ -186,6 +190,123 @@ public sealed class WorkspaceVisualFoundationContractTests
         Assert.AreEqual(
             "{StaticResource WwbStatusSurfaceStyle}",
             (string?)status.Parent?.Attribute("Style"));
+        Assert.AreEqual(
+            header,
+            status.Ancestors(Presentation + "Border")
+                .Single(element =>
+                    string.Equals(
+                        (string?)element.Attribute(Xaml + "Name"),
+                        "HeaderBar",
+                        StringComparison.Ordinal)));
+
+        XElement content = GetNamedElement(
+            document,
+            "ScrollViewer",
+            "ContentScrollViewer");
+        Assert.AreEqual(
+            "Top",
+            (string?)content.Attribute("VerticalContentAlignment"));
+        Assert.AreEqual(
+            "Stretch",
+            (string?)content.Attribute("HorizontalContentAlignment"));
+        XElement cardGrid = content.Elements().Single();
+        Assert.AreEqual(
+            "CardGridHost",
+            (string?)cardGrid.Attribute(Xaml + "Name"));
+        Assert.AreEqual(
+            "Top",
+            (string?)cardGrid.Attribute("VerticalAlignment"));
+    }
+
+    [TestMethod(DisplayName = "UT-UI-005 [PNL-006/NTE-001/WEA-001] Quiet canvas prioritizes live content over chrome")]
+    public void QuietCanvasPrioritizesLiveContentOverChrome()
+    {
+        XDocument document = LoadAsset("MainWindow.xaml");
+        XElement notes = GetDataTemplate(document, "NotesCardTemplate");
+        XElement notesSurface = notes.Elements().Single();
+
+        Assert.AreEqual("180", (string?)notesSurface.Attribute("MinHeight"));
+        Assert.IsFalse(notes
+            .Descendants(Presentation + "TextBlock")
+            .Any(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Uid"),
+                    "NotesCardBody",
+                    StringComparison.Ordinal)));
+
+        XElement noteBody = GetNamedElement(document, "TextBox", "NoteBodyBox");
+        Assert.IsGreaterThanOrEqualTo(
+            180,
+            double.Parse(
+                (string?)noteBody.Attribute("Height")
+                    ?? throw new InvalidDataException(
+                        "NoteBodyBox must reserve a useful editing height."),
+                CultureInfo.InvariantCulture));
+
+        foreach (string actionName in new[]
+                 {
+                     "RetryNoteSaveButton",
+                     "UndoNoteButton",
+                     "RedoNoteButton",
+                 })
+        {
+            XElement action = GetNamedElement(document, "Button", actionName);
+            StringAssert.Contains(
+                (string?)action.Attribute("Visibility") ?? string.Empty,
+                actionName switch
+                {
+                    "RetryNoteSaveButton" => "CanRetrySave",
+                    "UndoNoteButton" => "CanUndo",
+                    "RedoNoteButton" => "CanRedo",
+                    _ => throw new AssertFailedException(
+                        $"Unexpected note action: {actionName}"),
+                });
+        }
+
+        XElement weatherTemperature = document
+            .Descendants(Presentation + "TextBlock")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(
+                        XName.Get(
+                            "AutomationProperties.AutomationId",
+                            "using:Microsoft.UI.Xaml.Automation")),
+                    "WeatherTemperatureText",
+                    StringComparison.Ordinal));
+        Assert.AreEqual(
+            "{StaticResource WwbWeatherTemperatureStyle}",
+            (string?)weatherTemperature.Attribute("Style"));
+
+        Assert.IsFalse(document
+            .Descendants()
+            .Any(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Name"),
+                    "AddCardButton",
+                    StringComparison.Ordinal)));
+    }
+
+    private static void AssertThemeThickness(
+        XDocument document,
+        string themeKey,
+        string expected)
+    {
+        XElement theme = document
+            .Descendants(Presentation + "ResourceDictionary")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Key"),
+                    themeKey,
+                    StringComparison.Ordinal));
+        XElement thickness = theme
+            .Elements(Presentation + "Thickness")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Key"),
+                    "WwbSurfaceBorderThickness",
+                    StringComparison.Ordinal));
+
+        Assert.AreEqual(expected, thickness.Value);
     }
 
     private static void AssertMinimumHeight(

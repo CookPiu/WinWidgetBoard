@@ -162,7 +162,7 @@
             x:Key="NotesCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="360"
+                MinHeight="180"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 RenderTransformOrigin="0.5,0.5"
                 Tag="{x:Bind InstanceId}"
@@ -174,7 +174,7 @@
                 <Border.RenderTransform>
                     <CompositeTransform />
                 </Border.RenderTransform>
-                <Grid RowSpacing="12">
+                <Grid RowSpacing="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -183,37 +183,53 @@
                     <Grid
                         x:Name="DemoNotesCardSurface"
                         Grid.Row="0"
-                        MinHeight="112"
                         Background="Transparent">
-                        <StackPanel Spacing="12">
+                        <Grid
+                            ColumnSpacing="8"
+                            RowSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <TextBlock
                                 x:Uid="NotesCardTitle"
+                                Grid.ColumnSpan="2"
                                 Style="{StaticResource WwbCardTitleStyle}" />
                             <TextBlock
-                                x:Uid="NotesCardBody"
-                                Style="{StaticResource WwbCardBodyStyle}"
-                                TextWrapping="Wrap" />
+                                x:Name="NoteEditorStatusText"
+                                Grid.Column="1"
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource WwbCardCaptionStyle}"
+                                Text="{x:Bind NoteStatusText, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap" />
                             <ContentControl
                                 x:Name="NotesCardRuntimeStatus"
+                                Grid.Row="1"
+                                Grid.ColumnSpan="2"
                                 automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
                                 automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
                                 Content="{x:Bind RuntimePresentation, Mode=OneWay}"
                                 ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                                 IsTabStop="False"
-                                Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
-                        </StackPanel>
+                                Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
+                        </Grid>
                     </Grid>
                     <ScrollViewer
                         x:Name="NotesCardScrollViewer"
                         x:Uid="NotesCardScrollViewer"
                         Grid.Row="1"
-                        Margin="0,4,0,0"
+                        Margin="0"
                         HorizontalScrollBarVisibility="Disabled"
                         HorizontalScrollMode="Disabled"
                         VerticalScrollBarVisibility="Auto"
                         VerticalScrollMode="Enabled"
-                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}">
-                        <StackPanel Spacing="12">
+                        Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
+                        <StackPanel Spacing="8">
                             <StackPanel
                                 x:Name="NoteEditorInputPanel"
                                 Spacing="8"
@@ -228,7 +244,7 @@
                                 <TextBox
                                     x:Name="NoteBodyBox"
                                     x:Uid="NoteBodyBox"
-                                    Height="128"
+                                    Height="184"
                                     Style="{StaticResource WwbNoteBodyTextBoxStyle}"
                                     AcceptsReturn="True"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
@@ -255,11 +271,6 @@
                                     Padding="0"
                                     SelectionMode="None" />
                             </Border>
-                            <TextBlock
-                                x:Name="NoteEditorStatusText"
-                                Style="{StaticResource WwbCardCaptionStyle}"
-                                Text="{x:Bind NoteStatusText, Mode=OneWay}"
-                                TextWrapping="Wrap" />
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -292,10 +303,9 @@
                                     Click="EditMarkdownButton_Click" />
                             </Grid>
                             <Grid
-                                ColumnSpacing="8"
-                                RowSpacing="8">
+                                ColumnSpacing="6"
+                                RowSpacing="6">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
@@ -322,18 +332,10 @@
                                     IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
                                     Click="DeleteCurrentNoteButton_Click" />
                                 <Button
-                                    x:Name="OpenNotesButton"
-                                    x:Uid="OpenNotesButton"
-                                    Grid.Row="0"
-                                    Grid.Column="2"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                                    Click="OpenNotesButton_Click" />
-                                <Button
                                     x:Name="CopyNoteButton"
                                     x:Uid="CopyNoteButton"
                                     Grid.Row="0"
-                                    Grid.Column="3"
+                                    Grid.Column="2"
                                     Style="{StaticResource WwbNoteActionButtonStyle}"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                                     Click="CopyNoteButton_Click" />
@@ -344,6 +346,7 @@
                                     Grid.Column="0"
                                     Style="{StaticResource WwbNoteActionButtonStyle}"
                                     IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
+                                    Visibility="{Binding NoteEditor.CanRetrySave, Converter={StaticResource EditModeVisibilityConverter}}"
                                     Click="RetryNoteSaveButton_Click" />
                                 <Button
                                     x:Name="UndoNoteButton"
@@ -352,6 +355,7 @@
                                     Grid.Column="1"
                                     Style="{StaticResource WwbNoteActionButtonStyle}"
                                     IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
+                                    Visibility="{Binding NoteEditor.CanUndo, Converter={StaticResource EditModeVisibilityConverter}}"
                                     Click="UndoNoteButton_Click" />
                                 <Button
                                     x:Name="RedoNoteButton"
@@ -360,6 +364,7 @@
                                     Grid.Column="2"
                                     Style="{StaticResource WwbNoteActionButtonStyle}"
                                     IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
+                                    Visibility="{Binding NoteEditor.CanRedo, Converter={StaticResource EditModeVisibilityConverter}}"
                                     Click="RedoNoteButton_Click" />
                             </Grid>
                         </StackPanel>
@@ -419,23 +424,33 @@
                 <Border.RenderTransform>
                     <CompositeTransform />
                 </Border.RenderTransform>
-                <Grid RowSpacing="10">
+                <Grid RowSpacing="6">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <StackPanel
+                    <Grid
                         Grid.Row="0"
-                        Spacing="4">
+                        ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock
                             x:Uid="WeatherCardTitle"
+                            Grid.ColumnSpan="2"
                             Style="{StaticResource WwbCardTitleStyle}" />
                         <TextBlock
+                            Grid.Column="1"
+                            HorizontalAlignment="Right"
                             automation:AutomationProperties.AutomationId="WeatherLocationText"
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind WeatherLocationLabel, Mode=OneWay}" />
+                            Style="{StaticResource WwbCardCaptionStyle}"
+                            Text="{x:Bind WeatherLocationLabel, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <Grid Grid.Row="1">
                         <ContentControl
                             x:Name="WeatherCardRuntimeStatus"
                             automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
@@ -443,37 +458,61 @@
                             Content="{x:Bind RuntimePresentation, Mode=OneWay}"
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
-                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
-                    </StackPanel>
-                    <StackPanel
-                        Grid.Row="1"
-                        Spacing="6"
-                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}">
-                        <TextBlock
-                            automation:AutomationProperties.AutomationId="WeatherTemperatureText"
-                            automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
-                            Style="{StaticResource WwbCardTitleStyle}"
-                            Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
-                        <TextBlock
-                            automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind WeatherConditionText, Mode=OneWay}" />
-                        <TextBlock
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}" />
-                        <TextBlock
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind WeatherHumidityText, Mode=OneWay}" />
-                        <TextBlock
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind WeatherWindText, Mode=OneWay}" />
-                        <TextBlock
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind WeatherObservedAtText, Mode=OneWay}" />
-                    </StackPanel>
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
+                        <Grid
+                            ColumnSpacing="12"
+                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="2">
+                                <TextBlock
+                                    automation:AutomationProperties.AutomationId="WeatherTemperatureText"
+                                    automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
+                                    Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                    Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
+                                <TextBlock
+                                    automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
+                                    Style="{StaticResource WwbCardBodyStyle}"
+                                    Text="{x:Bind WeatherConditionText, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel
+                                Grid.Column="1"
+                                Spacing="2"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind WeatherHumidityText, Mode=OneWay}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind WeatherWindText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind WeatherObservedAtText, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
                     <HyperlinkButton
                         Grid.Row="2"
                         HorizontalAlignment="Left"
+                        MinHeight="20"
+                        Padding="0"
+                        FontSize="11"
                         Content="{x:Bind WeatherAttributionText, Mode=OneWay}"
                         NavigateUri="https://open-meteo.com/"
                         Visibility="{Binding HasWeatherData, Converter={StaticResource EditModeVisibilityConverter}}" />
@@ -553,7 +592,7 @@
                             Content="{x:Bind RuntimePresentation, Mode=OneWay}"
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
-                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
                     </StackPanel>
                     <TextBlock
                         x:Uid="TimerCardBody"
@@ -561,7 +600,7 @@
                         VerticalAlignment="Top"
                         Style="{StaticResource WwbCardBodyStyle}"
                         TextWrapping="Wrap"
-                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                        Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -638,7 +677,7 @@
                             Content="{x:Bind RuntimePresentation, Mode=OneWay}"
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
-                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
                     </StackPanel>
                     <TextBlock
                         x:Uid="TodoCardBody"
@@ -646,7 +685,7 @@
                         VerticalAlignment="Top"
                         Style="{StaticResource WwbCardBodyStyle}"
                         TextWrapping="Wrap"
-                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                        Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -723,7 +762,7 @@
                             Content="{x:Bind RuntimePresentation, Mode=OneWay}"
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
-                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
                     </StackPanel>
                     <TextBlock
                         x:Uid="CalendarCardBody"
@@ -731,7 +770,7 @@
                         VerticalAlignment="Top"
                         Style="{StaticResource WwbCardBodyStyle}"
                         TextWrapping="Wrap"
-                        Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                        Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -788,7 +827,7 @@
                 <Border.RenderTransform>
                     <CompositeTransform />
                 </Border.RenderTransform>
-                <Grid RowSpacing="12">
+                <Grid RowSpacing="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -805,12 +844,12 @@
                             Content="{x:Bind RuntimePresentation, Mode=OneWay}"
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
-                            Visibility="{Binding RuntimePresentation.IsStateVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
                         <TextBlock
                             x:Uid="UnknownCardBody"
                             Style="{StaticResource WwbCardBodyStyle}"
                             TextWrapping="Wrap"
-                            Visibility="{Binding RuntimePresentation.IsContentVisible, Converter={StaticResource EditModeVisibilityConverter}}" />
+                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
                     </StackPanel>
                     <Border
                         Grid.Row="2"
@@ -885,9 +924,14 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel
+                    <Grid
                         Grid.Row="0"
-                        Spacing="2">
+                        ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock
                             x:Name="GreetingText"
                             x:Uid="GreetingText"
@@ -896,16 +940,33 @@
                             automation:AutomationProperties.HeadingLevel="Level1" />
                         <TextBlock
                             x:Name="DateText"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
                             Style="{StaticResource WwbPanelMetaStyle}" />
                         <TextBlock
                             x:Name="ContextText"
-                            Style="{StaticResource WwbPanelContextStyle}" />
-                    </StackPanel>
+                            Grid.Column="2"
+                            Style="{StaticResource WwbPanelContextStyle}"
+                            Visibility="Collapsed" />
+                        <Border
+                            Grid.Column="2"
+                            MaxWidth="320"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource WwbStatusSurfaceStyle}">
+                            <TextBlock
+                                x:Name="StatusText"
+                                x:Uid="StatusText"
+                                MaxLines="2"
+                                Style="{StaticResource WwbCardCaptionStyle}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="Wrap" />
+                        </Border>
+                    </Grid>
 
                     <Grid
                         x:Name="HeaderCommandBar"
                         Grid.Row="1"
-                        ColumnSpacing="12">
+                        ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -920,7 +981,7 @@
                         <StackPanel
                             Grid.Column="1"
                             Orientation="Horizontal"
-                            Spacing="8"
+                            Spacing="4"
                             VerticalAlignment="Center">
                             <Button
                                 x:Name="ListNotesButton"
@@ -928,11 +989,6 @@
                                 Style="{StaticResource WwbToolbarButtonStyle}"
                                 IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
                                 Click="ListNotesButton_Click" />
-                            <Button
-                                x:Name="AddCardButton"
-                                x:Uid="AddCardButton"
-                                Style="{StaticResource WwbToolbarButtonStyle}"
-                                Click="ShellCommandButton_Click" />
                             <Button
                                 x:Name="EditLayoutButton"
                                 x:Uid="EditLayoutButton"
@@ -1019,28 +1075,22 @@
                 x:Name="ContentScrollViewer"
                 Grid.Row="1"
                 Padding="{StaticResource WwbContentPadding}"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Top"
                 VerticalScrollBarVisibility="Auto"
                 HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="16">
-                    <Border Style="{StaticResource WwbStatusSurfaceStyle}">
-                        <TextBlock
-                            x:Name="StatusText"
-                            x:Uid="StatusText"
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            TextWrapping="Wrap" />
-                    </Border>
-
-                    <Grid
-                        x:Name="CardGridHost"
-                        x:Uid="CardGridHost"
-                        SizeChanged="CardGridHost_SizeChanged">
-                        <controls:ItemsRepeater
-                            x:Name="CardItemsRepeater"
-                            ElementPrepared="CardItemsRepeater_ElementPrepared"
-                            ElementClearing="CardItemsRepeater_ElementClearing"
-                            ItemTemplate="{StaticResource CardTemplateSelector}" />
-                    </Grid>
-                </StackPanel>
+                <Grid
+                    x:Name="CardGridHost"
+                    x:Uid="CardGridHost"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top"
+                    SizeChanged="CardGridHost_SizeChanged">
+                    <controls:ItemsRepeater
+                        x:Name="CardItemsRepeater"
+                        ElementPrepared="CardItemsRepeater_ElementPrepared"
+                        ElementClearing="CardItemsRepeater_ElementClearing"
+                        ItemTemplate="{StaticResource CardTemplateSelector}" />
+                </Grid>
             </ScrollViewer>
         </Grid>
     </Grid>

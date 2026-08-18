@@ -109,6 +109,9 @@ public sealed class CardRuntimeStatusUiContractTests
             StringAssert.Contains(
                 statusHost.ToString(SaveOptions.DisableFormatting),
                 "AutomationProperties.Name");
+            Assert.AreEqual(
+                "{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}",
+                (string?)statusHost.Attribute("Visibility"));
         }
 
         foreach (string templateKey in new[] {

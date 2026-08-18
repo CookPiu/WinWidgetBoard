@@ -71,4 +71,31 @@ public sealed class PanelMotionControllerTests
         Assert.AreEqual(0, controller.Value.OffsetX, 0.001);
         Assert.AreEqual(0, controller.Value.OffsetY, 0.001);
     }
+
+    [TestMethod(DisplayName = "UT-PANEL-MOTION-004 [PNL-003] Opening remains restrained without overshoot")]
+    public void OpeningRemainsRestrainedWithoutOvershoot()
+    {
+        var controller = new PanelMotionController(-10, 10, reducedMotion: false);
+        PanelMotionValue previous = controller.Value;
+
+        Assert.AreEqual(0.99, previous.Scale, 0.001);
+        controller.RequestOpen();
+        for (int frame = 0; frame < 120 && controller.IsAnimating; frame++)
+        {
+            PanelMotionValue current = controller.Step(
+                TimeSpan.FromSeconds(1.0 / 60.0));
+
+            Assert.IsTrue(current.Opacity >= previous.Opacity);
+            Assert.IsTrue(current.Opacity <= 1);
+            Assert.IsTrue(current.Scale >= previous.Scale);
+            Assert.IsTrue(current.Scale <= 1);
+            Assert.IsTrue(current.OffsetX >= previous.OffsetX);
+            Assert.IsTrue(current.OffsetX <= 0);
+            Assert.IsTrue(current.OffsetY <= previous.OffsetY);
+            Assert.IsTrue(current.OffsetY >= 0);
+            previous = current;
+        }
+
+        Assert.AreEqual(PanelMotionState.Open, controller.State);
+    }
 }
