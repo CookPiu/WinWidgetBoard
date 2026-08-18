@@ -98,6 +98,8 @@ try {
     Set-TextValue -Element $bodyBox -Value $markdownBody
 
     $noteScroll = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'NotesCardScrollViewer' -Timeout ([TimeSpan]::FromSeconds(5))
+    $moreButton = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'NoteMoreButton' -Timeout ([TimeSpan]::FromSeconds(5)) -Enabled
+    Invoke-Element -Element $moreButton
     Set-VerticalScrollPercent -Element $noteScroll -Percent 100
     $markdownCheckBox = Wait-VisibleElementByAutomationId -Root $window -AutomationId 'MarkdownModeCheckBox' -Timeout ([TimeSpan]::FromSeconds(10)) -Enabled -ScrollContainer $noteScroll
     Ensure-CheckBoxOn -Element $markdownCheckBox

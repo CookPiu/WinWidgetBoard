@@ -109,6 +109,16 @@
     </Style>
 
     <Style
+        x:Key="WwbNoteOverflowSurfaceStyle"
+        TargetType="Border"
+        BasedOn="{StaticResource WwbSecondarySurfaceStyle}">
+        <Setter Property="Padding" Value="6" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style
         x:Key="WwbCardRuntimeStatusSurfaceStyle"
         TargetType="Border"
         BasedOn="{StaticResource WwbSecondarySurfaceStyle}">
@@ -331,6 +341,26 @@
     </Style>
 
     <Style
+        x:Key="WwbCardIconButtonStyle"
+        TargetType="Button"
+        BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="MinWidth" Value="28" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter
+            Property="BorderThickness"
+            Value="{StaticResource WwbSurfaceBorderThickness}" />
+        <Setter
+            Property="CornerRadius"
+            Value="{StaticResource WwbSmallCornerRadius}" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+    </Style>
+
+    <Style
         x:Key="WwbCardActionButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource DefaultButtonStyle}">
@@ -343,11 +373,12 @@
     </Style>
 
     <Style
-        x:Key="WwbNoteActionButtonStyle"
+        x:Key="WwbNoteUtilityButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource WwbCardActionButtonStyle}">
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="FontSize" Value="11" />
     </Style>
 
     <Style
@@ -395,11 +426,17 @@
         x:Key="WwbNoteTitleTextBoxStyle"
         TargetType="TextBox"
         BasedOn="{StaticResource DefaultTextBoxStyle}">
-        <Setter Property="MinHeight" Value="34" />
-        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="0,2" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{StaticResource WwbSurfaceBorderThickness}" />
         <Setter
             Property="CornerRadius"
-            Value="{StaticResource WwbControlCornerRadius}" />
+            Value="{StaticResource WwbSmallCornerRadius}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
@@ -408,10 +445,16 @@
         x:Key="WwbNoteBodyTextBoxStyle"
         TargetType="TextBox"
         BasedOn="{StaticResource DefaultTextBoxStyle}">
-        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{StaticResource WwbSurfaceBorderThickness}" />
         <Setter
             Property="CornerRadius"
-            Value="{StaticResource WwbControlCornerRadius}" />
+            Value="{StaticResource WwbSmallCornerRadius}" />
         <Setter Property="FontSize" Value="13" />
     </Style>
 

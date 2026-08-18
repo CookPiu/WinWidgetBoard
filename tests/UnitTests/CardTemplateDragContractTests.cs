@@ -245,8 +245,8 @@ public sealed class CardTemplateDragContractTests
         Assert.IsTrue(bindIndex > replaceIndex);
     }
 
-    [TestMethod(DisplayName = "UT-NOTE-037 [NTE-001/NFR-A11Y-001] Note actions remain reachable inside the fixed card height")]
-    public void NoteActionsRemainReachableInsideFixedCardHeight()
+    [TestMethod(DisplayName = "UT-NOTE-037 [NTE-001/NFR-A11Y-001] Note actions use progressive disclosure inside the fixed card height")]
+    public void NoteActionsUseProgressiveDisclosureInsideFixedCardHeight()
     {
         string xamlPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -279,19 +279,49 @@ public sealed class CardTemplateDragContractTests
             "Disabled",
             (string?)scrollViewer.Attribute("HorizontalScrollMode"));
 
-        string[] reachableActions = [
-            "MarkdownModeCheckBox",
-            "PreviewNoteButton",
-            "NewNoteButton",
-            "DeleteCurrentNoteButton",
-            "CopyNoteButton",
-            "RetryNoteSaveButton",
-            "UndoNoteButton",
-            "RedoNoteButton",
-        ];
-        foreach (string actionName in reachableActions)
+        XElement dragSurface = notesTemplate
+            .Descendants(presentation + "Grid")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Name"),
+                    "DemoNotesCardSurface",
+                    StringComparison.Ordinal));
+        foreach (string actionName in new[]
+                 {
+                     "NewNoteButton",
+                     "PreviewNoteButton",
+                     "EditMarkdownButton",
+                     "NoteMoreButton",
+                 })
         {
-            Assert.IsNotNull(scrollViewer
+            XElement action = notesTemplate
+                .Descendants()
+                .Single(element =>
+                    string.Equals(
+                        (string?)element.Attribute(xaml + "Name"),
+                        actionName,
+                        StringComparison.Ordinal));
+            Assert.IsTrue(action.Ancestors().Contains(dragSurface));
+        }
+
+        XElement overflowPanel = notesTemplate
+            .Descendants(presentation + "Border")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(xaml + "Name"),
+                    "NoteOverflowPanel",
+                    StringComparison.Ordinal));
+        Assert.AreEqual(
+            "Collapsed",
+            (string?)overflowPanel.Attribute("Visibility"));
+        foreach (string actionName in new[]
+                 {
+                     "MarkdownModeCheckBox",
+                     "DeleteCurrentNoteButton",
+                     "CopyNoteButton",
+                 })
+        {
+            Assert.IsNotNull(overflowPanel
                 .Descendants()
                 .SingleOrDefault(element =>
                     string.Equals(
@@ -300,13 +330,31 @@ public sealed class CardTemplateDragContractTests
                         StringComparison.Ordinal)));
         }
 
-        XElement dragSurface = notesTemplate
+        XElement footer = notesTemplate
             .Descendants(presentation + "Grid")
             .Single(element =>
                 string.Equals(
                     (string?)element.Attribute(xaml + "Name"),
-                    "DemoNotesCardSurface",
+                    "NoteEditorFooter",
                     StringComparison.Ordinal));
+        foreach (string actionName in new[]
+                 {
+                     "RetryNoteSaveButton",
+                     "UndoNoteButton",
+                     "RedoNoteButton",
+                 })
+        {
+            Assert.IsNotNull(footer
+                .Descendants()
+                .SingleOrDefault(element =>
+                    string.Equals(
+                        (string?)element.Attribute(xaml + "Name"),
+                        actionName,
+                        StringComparison.Ordinal)));
+        }
+
+        Assert.IsTrue(overflowPanel.Ancestors().Contains(scrollViewer));
+        Assert.IsTrue(footer.Ancestors().Contains(scrollViewer));
         Assert.IsFalse(dragSurface.Ancestors().Contains(scrollViewer));
     }
 

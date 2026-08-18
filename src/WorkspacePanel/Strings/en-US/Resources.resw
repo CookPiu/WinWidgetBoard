@@ -227,10 +227,13 @@
     <value>Focus note editor</value>
   </data>
   <data name="NewNoteButton.Content" xml:space="preserve">
-    <value>New</value>
+    <value>&#xE710;</value>
   </data>
   <data name="NewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Create a new note</value>
+  </data>
+  <data name="NewNoteButtonToolTip.Text" xml:space="preserve">
+    <value>New note</value>
   </data>
   <data name="NoteCreatingStatus" xml:space="preserve">
     <value>Creating a new local note…</value>
@@ -335,16 +338,37 @@
     <value>Save this note as Markdown</value>
   </data>
   <data name="PreviewNoteButton.Content" xml:space="preserve">
-    <value>Preview</value>
+    <value>&#xE890;</value>
   </data>
   <data name="PreviewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Preview Markdown note</value>
   </data>
+  <data name="PreviewNoteButtonToolTip.Text" xml:space="preserve">
+    <value>Preview Markdown</value>
+  </data>
   <data name="EditMarkdownButton.Content" xml:space="preserve">
-    <value>Edit</value>
+    <value>&#xE70F;</value>
   </data>
   <data name="EditMarkdownButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Edit Markdown source</value>
+  </data>
+  <data name="EditMarkdownButtonToolTip.Text" xml:space="preserve">
+    <value>Back to editing</value>
+  </data>
+  <data name="NoteMoreButton.Content" xml:space="preserve">
+    <value>&#xE712;</value>
+  </data>
+  <data name="NoteMoreButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>More note actions</value>
+  </data>
+  <data name="NoteMoreButtonToolTip.Text" xml:space="preserve">
+    <value>More note actions</value>
+  </data>
+  <data name="NoteMoreOpenAutomationName" xml:space="preserve">
+    <value>More note actions</value>
+  </data>
+  <data name="NoteMoreCloseAutomationName" xml:space="preserve">
+    <value>Collapse note actions</value>
   </data>
   <data name="NoteMarkdownPreviewPanel.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Rendered Markdown note</value>

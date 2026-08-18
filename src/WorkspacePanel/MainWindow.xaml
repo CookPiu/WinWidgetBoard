@@ -185,11 +185,12 @@
                         Grid.Row="0"
                         Background="Transparent">
                         <Grid
-                            ColumnSpacing="8"
+                            ColumnSpacing="6"
                             RowSpacing="4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -199,18 +200,63 @@
                                 x:Uid="NotesCardTitle"
                                 Grid.ColumnSpan="2"
                                 Style="{StaticResource WwbCardTitleStyle}" />
-                            <TextBlock
-                                x:Name="NoteEditorStatusText"
-                                Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource WwbCardCaptionStyle}"
-                                Text="{x:Bind NoteStatusText, Mode=OneWay}"
-                                TextTrimming="CharacterEllipsis"
-                                TextWrapping="NoWrap" />
+                            <StackPanel
+                                Grid.Column="2"
+                                Orientation="Horizontal"
+                                Spacing="2">
+                                <Button
+                                    x:Name="NewNoteButton"
+                                    x:Uid="NewNoteButton"
+                                    Style="{StaticResource WwbCardIconButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                                    Tag="{Binding ElementName=NoteOverflowPanel}"
+                                    Click="NewNoteButton_Click">
+                                    <ToolTipService.ToolTip>
+                                        <TextBlock x:Uid="NewNoteButtonToolTip" />
+                                    </ToolTipService.ToolTip>
+                                </Button>
+                                <Grid
+                                    x:Name="NotePreviewCommandHost"
+                                    x:Load="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}">
+                                    <Button
+                                        x:Name="PreviewNoteButton"
+                                        x:Uid="PreviewNoteButton"
+                                        Style="{StaticResource WwbCardIconButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}"
+                                        Tag="{Binding ElementName=NoteOverflowPanel}"
+                                        Click="PreviewNoteButton_Click">
+                                        <ToolTipService.ToolTip>
+                                            <TextBlock x:Uid="PreviewNoteButtonToolTip" />
+                                        </ToolTipService.ToolTip>
+                                    </Button>
+                                    <Button
+                                        x:Name="EditMarkdownButton"
+                                        x:Uid="EditMarkdownButton"
+                                        Style="{StaticResource WwbCardIconButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                        Tag="{Binding ElementName=NoteOverflowPanel}"
+                                        Visibility="Collapsed"
+                                        Click="EditMarkdownButton_Click">
+                                        <ToolTipService.ToolTip>
+                                            <TextBlock x:Uid="EditMarkdownButtonToolTip" />
+                                        </ToolTipService.ToolTip>
+                                    </Button>
+                                </Grid>
+                                <Button
+                                    x:Name="NoteMoreButton"
+                                    x:Uid="NoteMoreButton"
+                                    Style="{StaticResource WwbCardIconButtonStyle}"
+                                    Tag="{Binding ElementName=NoteOverflowPanel}"
+                                    Click="NoteMoreButton_Click">
+                                    <ToolTipService.ToolTip>
+                                        <TextBlock x:Uid="NoteMoreButtonToolTip" />
+                                    </ToolTipService.ToolTip>
+                                </Button>
+                            </StackPanel>
                             <ContentControl
                                 x:Name="NotesCardRuntimeStatus"
                                 Grid.Row="1"
-                                Grid.ColumnSpan="2"
+                                Grid.ColumnSpan="3"
                                 automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
                                 automation:AutomationProperties.HelpText="{x:Bind RuntimePresentation.Summary, Mode=OneWay}"
                                 Content="{x:Bind RuntimePresentation, Mode=OneWay}"
@@ -232,8 +278,7 @@
                         <StackPanel Spacing="8">
                             <StackPanel
                                 x:Name="NoteEditorInputPanel"
-                                Spacing="8"
-                                Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}">
+                                Spacing="6">
                                 <TextBox
                                     x:Name="NoteTitleBox"
                                     x:Uid="NoteTitleBox"
@@ -244,11 +289,13 @@
                                 <TextBox
                                     x:Name="NoteBodyBox"
                                     x:Uid="NoteBodyBox"
-                                    Height="112"
+                                    Height="148"
                                     Style="{StaticResource WwbNoteBodyTextBoxStyle}"
                                     AcceptsReturn="True"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                    ScrollViewer.HorizontalScrollMode="Disabled"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                                    ScrollViewer.VerticalScrollMode="Enabled"
                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                                     Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
                                     TextChanged="NoteBodyBox_TextChanged"
@@ -259,11 +306,11 @@
                                 x:Name="NoteMarkdownPreviewPanel"
                                 x:Uid="NoteMarkdownPreviewPanel"
                                 Style="{StaticResource WwbSecondarySurfaceStyle}"
-                                Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}">
+                                Visibility="Collapsed">
                                 <ListView
                                     x:Name="NoteMarkdownPreviewText"
                                     x:Uid="NoteMarkdownPreviewText"
-                                    MaxHeight="112"
+                                    MaxHeight="148"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     IsItemClickEnabled="False"
@@ -273,101 +320,86 @@
                                     Padding="0"
                                     SelectionMode="None" />
                             </Border>
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <CheckBox
-                                    x:Name="MarkdownModeCheckBox"
-                                    x:Uid="MarkdownModeCheckBox"
-                                    Grid.Column="0"
-                                    Style="{StaticResource WwbModeCheckBoxStyle}"
-                                    IsChecked="{x:Bind NoteEditor.IsMarkdown, Mode=OneWay}"
-                                    IsEnabled="{x:Bind NoteEditor.CanChangeMarkdownMode, Mode=OneWay}"
-                                    Click="MarkdownModeCheckBox_Click" />
-                                <Button
-                                    x:Name="PreviewNoteButton"
-                                    x:Uid="PreviewNoteButton"
-                                    Grid.Column="1"
-                                    Style="{StaticResource WwbCardActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanPreviewMarkdown, Mode=OneWay}"
-                                    Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource InverseVisibilityConverter}}"
-                                    Click="PreviewNoteButton_Click" />
-                                <Button
-                                    x:Name="EditMarkdownButton"
-                                    x:Uid="EditMarkdownButton"
-                                    Grid.Column="2"
-                                    Style="{StaticResource WwbCardActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                                    Visibility="{Binding NoteEditor.IsMarkdownPreviewVisible, Converter={StaticResource EditModeVisibilityConverter}}"
-                                    Click="EditMarkdownButton_Click" />
-                            </Grid>
+                            <Border
+                                x:Name="NoteOverflowPanel"
+                                Tag="{Binding ElementName=NoteMoreButton}"
+                                Style="{StaticResource WwbNoteOverflowSurfaceStyle}"
+                                Visibility="Collapsed">
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox
+                                        x:Name="MarkdownModeCheckBox"
+                                        x:Uid="MarkdownModeCheckBox"
+                                        Grid.Column="0"
+                                        Style="{StaticResource WwbModeCheckBoxStyle}"
+                                        IsChecked="{x:Bind NoteEditor.IsMarkdown, Mode=OneWay}"
+                                        IsEnabled="{x:Bind NoteEditor.CanChangeMarkdownMode, Mode=OneWay}"
+                                        Tag="{Binding ElementName=NoteOverflowPanel}"
+                                        Click="MarkdownModeCheckBox_Click" />
+                                    <Button
+                                        x:Name="CopyNoteButton"
+                                        x:Uid="CopyNoteButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource WwbNoteUtilityButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                        Tag="{Binding ElementName=NoteOverflowPanel}"
+                                        Click="CopyNoteButton_Click" />
+                                    <Button
+                                        x:Name="DeleteCurrentNoteButton"
+                                        x:Uid="DeleteCurrentNoteButton"
+                                        Grid.Column="2"
+                                        Style="{StaticResource WwbNoteUtilityButtonStyle}"
+                                        Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                        IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
+                                        Tag="{Binding ElementName=NoteOverflowPanel}"
+                                        Click="DeleteCurrentNoteButton_Click" />
+                                </Grid>
+                            </Border>
                             <Grid
-                                ColumnSpacing="6"
-                                RowSpacing="6">
+                                x:Name="NoteEditorFooter"
+                                ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Button
-                                    x:Name="NewNoteButton"
-                                    x:Uid="NewNoteButton"
-                                    Grid.Row="0"
+                                <TextBlock
+                                    x:Name="NoteEditorStatusText"
                                     Grid.Column="0"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
-                                    Click="NewNoteButton_Click" />
-                                <Button
-                                    x:Name="DeleteCurrentNoteButton"
-                                    x:Uid="DeleteCurrentNoteButton"
-                                    Grid.Row="0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource WwbPanelContextStyle}"
+                                    Text="{x:Bind NoteStatusText, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                                <StackPanel
                                     Grid.Column="1"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                    IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
-                                    Click="DeleteCurrentNoteButton_Click" />
-                                <Button
-                                    x:Name="CopyNoteButton"
-                                    x:Uid="CopyNoteButton"
-                                    Grid.Row="0"
-                                    Grid.Column="2"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-                                    Click="CopyNoteButton_Click" />
-                                <Button
-                                    x:Name="RetryNoteSaveButton"
-                                    x:Uid="RetryNoteSaveButton"
-                                    Grid.Row="1"
-                                    Grid.Column="0"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
-                                    Visibility="{Binding NoteEditor.CanRetrySave, Converter={StaticResource EditModeVisibilityConverter}}"
-                                    Click="RetryNoteSaveButton_Click" />
-                                <Button
-                                    x:Name="UndoNoteButton"
-                                    x:Uid="UndoNoteButton"
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
-                                    Visibility="{Binding NoteEditor.CanUndo, Converter={StaticResource EditModeVisibilityConverter}}"
-                                    Click="UndoNoteButton_Click" />
-                                <Button
-                                    x:Name="RedoNoteButton"
-                                    x:Uid="RedoNoteButton"
-                                    Grid.Row="1"
-                                    Grid.Column="2"
-                                    Style="{StaticResource WwbNoteActionButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
-                                    Visibility="{Binding NoteEditor.CanRedo, Converter={StaticResource EditModeVisibilityConverter}}"
-                                    Click="RedoNoteButton_Click" />
+                                    Orientation="Horizontal"
+                                    Spacing="2">
+                                    <Button
+                                        x:Name="RetryNoteSaveButton"
+                                        x:Uid="RetryNoteSaveButton"
+                                        Style="{StaticResource WwbNoteUtilityButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
+                                        x:Load="{x:Bind NoteEditor.CanRetrySave, Mode=OneWay}"
+                                        Click="RetryNoteSaveButton_Click" />
+                                    <Button
+                                        x:Name="UndoNoteButton"
+                                        x:Uid="UndoNoteButton"
+                                        Style="{StaticResource WwbNoteUtilityButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
+                                        x:Load="{x:Bind NoteEditor.CanUndo, Mode=OneWay}"
+                                        Click="UndoNoteButton_Click" />
+                                    <Button
+                                        x:Name="RedoNoteButton"
+                                        x:Uid="RedoNoteButton"
+                                        Style="{StaticResource WwbNoteUtilityButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
+                                        x:Load="{x:Bind NoteEditor.CanRedo, Mode=OneWay}"
+                                        Click="RedoNoteButton_Click" />
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
                     </ScrollViewer>

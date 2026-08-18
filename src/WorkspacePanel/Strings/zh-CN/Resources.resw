@@ -227,9 +227,12 @@
     <value>聚焦便签编辑器</value>
   </data>
   <data name="NewNoteButton.Content" xml:space="preserve">
-    <value>新建</value>
+    <value>&#xE710;</value>
   </data>
   <data name="NewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>新建便签</value>
+  </data>
+  <data name="NewNoteButtonToolTip.Text" xml:space="preserve">
     <value>新建便签</value>
   </data>
   <data name="NoteCreatingStatus" xml:space="preserve">
@@ -335,16 +338,37 @@
     <value>将此便签按 Markdown 保存</value>
   </data>
   <data name="PreviewNoteButton.Content" xml:space="preserve">
-    <value>预览</value>
+    <value>&#xE890;</value>
   </data>
   <data name="PreviewNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>预览 Markdown 便签</value>
   </data>
+  <data name="PreviewNoteButtonToolTip.Text" xml:space="preserve">
+    <value>预览 Markdown</value>
+  </data>
   <data name="EditMarkdownButton.Content" xml:space="preserve">
-    <value>编辑</value>
+    <value>&#xE70F;</value>
   </data>
   <data name="EditMarkdownButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>编辑 Markdown 源文</value>
+  </data>
+  <data name="EditMarkdownButtonToolTip.Text" xml:space="preserve">
+    <value>返回编辑</value>
+  </data>
+  <data name="NoteMoreButton.Content" xml:space="preserve">
+    <value>&#xE712;</value>
+  </data>
+  <data name="NoteMoreButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>更多便签操作</value>
+  </data>
+  <data name="NoteMoreButtonToolTip.Text" xml:space="preserve">
+    <value>更多便签操作</value>
+  </data>
+  <data name="NoteMoreOpenAutomationName" xml:space="preserve">
+    <value>更多便签操作</value>
+  </data>
+  <data name="NoteMoreCloseAutomationName" xml:space="preserve">
+    <value>收起便签操作</value>
   </data>
   <data name="NoteMarkdownPreviewPanel.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>渲染后的 Markdown 便签</value>

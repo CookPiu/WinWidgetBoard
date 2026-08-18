@@ -257,6 +257,13 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10)) `
         -ScrollContainer $noteScroll)
 
+    $moreButton = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'NoteMoreButton' `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -Enabled
+    Invoke-Element -Element $moreButton
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
     $deleteButton = Wait-VisibleElementByAutomationId `
         -Root $window `
         -AutomationId 'DeleteCurrentNoteButton' `

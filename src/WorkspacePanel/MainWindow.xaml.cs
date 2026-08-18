@@ -150,6 +150,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardLayout.PropertyChanged += CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged += CardSurface_PropertyChanged;
         _cardEdit.PropertyChanged += CardEdit_PropertyChanged;
+        NoteEditor.PropertyChanged += NoteEditor_PropertyChanged;
 
         _windowHandle = WindowNative.GetWindowHandle(this);
         WindowId windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
@@ -329,6 +330,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardLayout.PropertyChanged -= CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged -= CardSurface_PropertyChanged;
         _cardEdit.PropertyChanged -= CardEdit_PropertyChanged;
+        NoteEditor.PropertyChanged -= NoteEditor_PropertyChanged;
         CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
         CardItemsRepeater.ElementClearing -= CardItemsRepeater_ElementClearing;
         if (_cardSubscription is not null)
@@ -619,8 +621,129 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    private void NoteMoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button
+            {
+                Tag: FrameworkElement overflowPanel,
+            } button)
+        {
+            return;
+        }
+
+        bool isExpanded = overflowPanel.Visibility != Visibility.Visible;
+        overflowPanel.Visibility = isExpanded
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        UpdateNoteMoreButtonState(button, isExpanded);
+    }
+
+    private void CollapseNoteOverflow(object sender)
+    {
+        if (sender is not FrameworkElement
+            {
+                Tag: FrameworkElement overflowPanel,
+            })
+        {
+            return;
+        }
+
+        overflowPanel.Visibility = Visibility.Collapsed;
+        if (overflowPanel.Tag is Button moreButton)
+        {
+            UpdateNoteMoreButtonState(moreButton, isExpanded: false);
+        }
+    }
+
+    private void UpdateNoteMoreButtonState(Button button, bool isExpanded)
+    {
+        string resourceKey = isExpanded
+            ? "NoteMoreCloseAutomationName"
+            : "NoteMoreOpenAutomationName";
+        string automationName = _resources.GetString(resourceKey);
+        AutomationProperties.SetName(button, automationName);
+        ToolTipService.SetToolTip(button, automationName);
+    }
+
+    private void NoteEditor_PropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName ==
+            nameof(NoteEditorViewModel.IsMarkdownPreviewVisible))
+        {
+            ApplyNotePreviewState();
+        }
+    }
+
+    private void ApplyNotePreviewState()
+    {
+        bool isPreviewVisible = NoteEditor.IsMarkdownPreviewVisible;
+        SetVisibility(
+            FindDescendantByName<StackPanel>(
+                RootGrid,
+                "NoteEditorInputPanel"),
+            !isPreviewVisible);
+        SetVisibility(
+            FindDescendantByName<Border>(
+                RootGrid,
+                "NoteMarkdownPreviewPanel"),
+            isPreviewVisible);
+        SetVisibility(
+            FindDescendantByName<Button>(
+                RootGrid,
+                "PreviewNoteButton"),
+            !isPreviewVisible);
+        SetVisibility(
+            FindDescendantByName<Button>(
+                RootGrid,
+                "EditMarkdownButton"),
+            isPreviewVisible);
+    }
+
+    private static void SetVisibility(
+        FrameworkElement? element,
+        bool isVisible)
+    {
+        if (element is not null)
+        {
+            element.Visibility = isVisible
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    private static T? FindDescendantByName<T>(
+        DependencyObject root,
+        string name)
+        where T : FrameworkElement
+    {
+        int childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (int index = 0; index < childCount; index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, index);
+            if (child is T element &&
+                string.Equals(
+                    element.Name,
+                    name,
+                    StringComparison.Ordinal))
+            {
+                return element;
+            }
+
+            T? descendant = FindDescendantByName<T>(child, name);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
     private async void NewNoteButton_Click(object sender, RoutedEventArgs e)
     {
+        CollapseNoteOverflow(sender);
         if (!NoteEditor.CanLoadNote)
         {
             StatusText.Text = _resources.GetString("NoteCreateBlockedStatus");
@@ -638,6 +761,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         object sender,
         RoutedEventArgs e)
     {
+        CollapseNoteOverflow(sender);
         if (!NoteEditor.CanDelete)
         {
             StatusText.Text = _resources.GetString("NoteDeleteBlockedStatus");
@@ -723,6 +847,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void CopyNoteButton_Click(object sender, RoutedEventArgs e)
     {
+        CollapseNoteOverflow(sender);
         string content = NoteClipboardFormatter.Format(
             NoteEditor.Title,
             NoteEditor.Body);
@@ -928,6 +1053,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
+        CollapseNoteOverflow(sender);
         bool enabled = checkBox.IsChecked == true;
         bool changed = NoteEditor.SetMarkdownMode(enabled);
         checkBox.IsChecked = NoteEditor.IsMarkdown;
@@ -941,6 +1067,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void PreviewNoteButton_Click(object sender, RoutedEventArgs e)
     {
+        CollapseNoteOverflow(sender);
         if (!NoteEditor.CanPreviewMarkdown)
         {
             StatusText.Text = _resources.GetString("NoteMarkdownModeBlockedStatus");
@@ -953,6 +1080,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void EditMarkdownButton_Click(object sender, RoutedEventArgs e)
     {
+        CollapseNoteOverflow(sender);
         if (!NoteEditor.CanEdit)
         {
             return;

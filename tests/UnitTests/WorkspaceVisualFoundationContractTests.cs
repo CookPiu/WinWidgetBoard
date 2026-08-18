@@ -54,7 +54,10 @@ public sealed class WorkspaceVisualFoundationContractTests
             "WwbWeatherTemperatureStyle",
             "WwbToolbarButtonStyle",
             "WwbPrimaryToolbarButtonStyle",
+            "WwbCardIconButtonStyle",
             "WwbCardActionButtonStyle",
+            "WwbNoteUtilityButtonStyle",
+            "WwbNoteOverflowSurfaceStyle",
             "WwbSearchResultButtonStyle",
             "WwbSearchBoxStyle",
         ];
@@ -82,9 +85,24 @@ public sealed class WorkspaceVisualFoundationContractTests
             "32");
         AssertStyleSetterValue(
             document,
+            "WwbCardIconButtonStyle",
+            "MinHeight",
+            "28");
+        AssertStyleSetterValue(
+            document,
+            "WwbCardIconButtonStyle",
+            "BorderThickness",
+            "{StaticResource WwbSurfaceBorderThickness}");
+        AssertStyleSetterValue(
+            document,
             "WwbCardActionButtonStyle",
             "MinHeight",
             "32");
+        AssertStyleSetterValue(
+            document,
+            "WwbNoteUtilityButtonStyle",
+            "MinHeight",
+            "28");
         AssertStyleSetterValue(
             document,
             "WwbSearchResultButtonStyle",
@@ -295,12 +313,56 @@ public sealed class WorkspaceVisualFoundationContractTests
 
         XElement noteBody = GetNamedElement(document, "TextBox", "NoteBodyBox");
         Assert.AreEqual(
-            "112",
+            "148",
             (string?)noteBody.Attribute("Height"));
+        Assert.AreEqual(
+            "Hidden",
+            (string?)noteBody.Attribute(
+                "ScrollViewer.HorizontalScrollBarVisibility"));
         Assert.AreEqual(
             "Disabled",
             (string?)noteBody.Attribute(
-                "ScrollViewer.HorizontalScrollBarVisibility"));
+                "ScrollViewer.HorizontalScrollMode"));
+
+        XElement noteOverflow = GetNamedElement(
+            document,
+            "Border",
+            "NoteOverflowPanel");
+        Assert.AreEqual(
+            "Collapsed",
+            (string?)noteOverflow.Attribute("Visibility"));
+        XElement markdownPreview = GetNamedElement(
+            document,
+            "Border",
+            "NoteMarkdownPreviewPanel");
+        Assert.AreEqual(
+            "Collapsed",
+            (string?)markdownPreview.Attribute("Visibility"));
+        XElement editMarkdown = GetNamedElement(
+            document,
+            "Button",
+            "EditMarkdownButton");
+        Assert.AreEqual(
+            "Collapsed",
+            (string?)editMarkdown.Attribute("Visibility"));
+        foreach (string actionName in new[]
+                 {
+                     "MarkdownModeCheckBox",
+                     "CopyNoteButton",
+                     "DeleteCurrentNoteButton",
+                 })
+        {
+            XElement action = document
+                .Descendants()
+                .Single(candidate =>
+                    string.Equals(
+                        (string?)candidate.Attribute(Xaml + "Name"),
+                        actionName,
+                        StringComparison.Ordinal));
+            Assert.IsTrue(
+                action.Ancestors().Contains(noteOverflow),
+                $"{actionName} must stay behind progressive disclosure.");
+        }
 
         foreach (string actionName in new[]
                  {
@@ -311,7 +373,7 @@ public sealed class WorkspaceVisualFoundationContractTests
         {
             XElement action = GetNamedElement(document, "Button", actionName);
             StringAssert.Contains(
-                (string?)action.Attribute("Visibility") ?? string.Empty,
+                (string?)action.Attribute(Xaml + "Load") ?? string.Empty,
                 actionName switch
                 {
                     "RetryNoteSaveButton" => "CanRetrySave",
@@ -362,6 +424,18 @@ public sealed class WorkspaceVisualFoundationContractTests
             Assert.AreEqual(
                 "\uE711",
                 GetResourceValue(resources, "ClosePanelButton.Content"));
+            Assert.AreEqual(
+                "\uE710",
+                GetResourceValue(resources, "NewNoteButton.Content"));
+            Assert.AreEqual(
+                "\uE890",
+                GetResourceValue(resources, "PreviewNoteButton.Content"));
+            Assert.AreEqual(
+                "\uE70F",
+                GetResourceValue(resources, "EditMarkdownButton.Content"));
+            Assert.AreEqual(
+                "\uE712",
+                GetResourceValue(resources, "NoteMoreButton.Content"));
         }
 
         StringAssert.Contains(
@@ -372,6 +446,12 @@ public sealed class WorkspaceVisualFoundationContractTests
                 "_resources.GetString(\"EditLayoutButton.Content\")",
                 StringComparison.Ordinal),
             "MRT resource paths must use '/' for a XAML resource property.");
+        StringAssert.Contains(codeBehind, "NoteMoreButton_Click");
+        StringAssert.Contains(codeBehind, "CollapseNoteOverflow(sender)");
+        StringAssert.Contains(
+            codeBehind,
+            "NoteEditor.PropertyChanged += NoteEditor_PropertyChanged");
+        StringAssert.Contains(codeBehind, "ApplyNotePreviewState()");
     }
 
     private static void AssertThemeThickness(
