@@ -83,7 +83,7 @@
     <value>搜索便签</value>
   </data>
   <data name="ListNotesButton.Content" xml:space="preserve">
-    <value>全部</value>
+    <value>&#xE8FD;</value>
   </data>
   <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>显示所有已保存便签</value>
@@ -134,13 +134,13 @@
     <value>添加卡片</value>
   </data>
   <data name="EditLayoutButton.Content" xml:space="preserve">
-    <value>编辑</value>
+    <value>&#xE70F;</value>
   </data>
   <data name="EditLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>编辑布局</value>
   </data>
   <data name="SettingsButton.Content" xml:space="preserve">
-    <value>设置</value>
+    <value>&#xE713;</value>
   </data>
   <data name="SettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>设置</value>
@@ -203,7 +203,7 @@
     <value>设置已在其他位置改变，请关闭后重新打开。</value>
   </data>
   <data name="ClosePanelButton.Content" xml:space="preserve">
-    <value>关闭</value>
+    <value>&#xE711;</value>
   </data>
   <data name="ClosePanelButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>关闭面板</value>
@@ -341,7 +341,7 @@
     <value>预览 Markdown 便签</value>
   </data>
   <data name="EditMarkdownButton.Content" xml:space="preserve">
-    <value>编辑 Markdown</value>
+    <value>编辑</value>
   </data>
   <data name="EditMarkdownButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>编辑 Markdown 源文</value>
@@ -545,22 +545,40 @@
     <value>拖动已取消，卡片恢复到开始位置。</value>
   </data>
   <data name="FinishEditLayoutButtonContent" xml:space="preserve">
-    <value>完成</value>
+    <value>&#xE73E;</value>
   </data>
   <data name="FinishEditLayoutButtonAutomationName" xml:space="preserve">
     <value>完成布局编辑</value>
   </data>
   <data name="UndoLayoutButton.Content" xml:space="preserve">
-    <value>撤销</value>
+    <value>&#xE7A7;</value>
   </data>
   <data name="UndoLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>撤销布局操作</value>
   </data>
   <data name="RedoLayoutButton.Content" xml:space="preserve">
-    <value>重做</value>
+    <value>&#xE7A6;</value>
   </data>
   <data name="RedoLayoutButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>重做布局操作</value>
+  </data>
+  <data name="EditLayoutButtonAutomationName" xml:space="preserve">
+    <value>编辑布局</value>
+  </data>
+  <data name="ListNotesButtonToolTip" xml:space="preserve">
+    <value>全部便签</value>
+  </data>
+  <data name="UndoLayoutButtonToolTip" xml:space="preserve">
+    <value>撤销布局操作</value>
+  </data>
+  <data name="RedoLayoutButtonToolTip" xml:space="preserve">
+    <value>重做布局操作</value>
+  </data>
+  <data name="SettingsButtonToolTip" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="ClosePanelButtonToolTip" xml:space="preserve">
+    <value>关闭面板</value>
   </data>
   <data name="LayoutEditStartedStatus" xml:space="preserve">
     <value>已进入布局编辑模式；现在可以调整尺寸、删除、拖动并撤销布局操作。</value>

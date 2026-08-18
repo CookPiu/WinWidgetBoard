@@ -6,10 +6,10 @@ namespace WinWidgetBoard.WorkspacePanel.Layout;
 
 public sealed class CardGridLayout : VirtualizingLayout
 {
-    private const double DefaultColumnGap = 12;
-    private const double DefaultRowGap = 12;
-    private const double DefaultRowHeight = 180;
-    private const double FallbackCellWidth = 180;
+    private const double DefaultColumnGap = 8;
+    private const double DefaultRowGap = 8;
+    private const double DefaultRowHeight = 160;
+    private const double FallbackCellWidth = 160;
     private int _columnCount = 4;
 
     public int ColumnCount

@@ -162,7 +162,7 @@
             x:Key="NotesCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="180"
+                MinHeight="160"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 RenderTransformOrigin="0.5,0.5"
                 Tag="{x:Bind InstanceId}"
@@ -244,10 +244,12 @@
                                 <TextBox
                                     x:Name="NoteBodyBox"
                                     x:Uid="NoteBodyBox"
-                                    Height="184"
+                                    Height="112"
                                     Style="{StaticResource WwbNoteBodyTextBoxStyle}"
                                     AcceptsReturn="True"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                    ScrollViewer.VerticalScrollBarVisibility="Auto"
                                     Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
                                     TextChanged="NoteBodyBox_TextChanged"
                                     TextWrapping="Wrap"
@@ -261,7 +263,7 @@
                                 <ListView
                                     x:Name="NoteMarkdownPreviewText"
                                     x:Uid="NoteMarkdownPreviewText"
-                                    MaxHeight="180"
+                                    MaxHeight="112"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     IsItemClickEnabled="False"
@@ -411,7 +413,7 @@
             x:Key="WeatherCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="180"
+                MinHeight="160"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
@@ -559,7 +561,7 @@
             x:Key="TimerCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="180"
+                MinHeight="160"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
@@ -644,7 +646,7 @@
             x:Key="TodoCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="180"
+                MinHeight="160"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
@@ -729,7 +731,7 @@
             x:Key="CalendarCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="180"
+                MinHeight="160"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
@@ -814,7 +816,7 @@
             x:Key="UnknownCardTemplate"
             x:DataType="layout:CardSurfaceItem">
             <Border
-                MinHeight="180"
+                MinHeight="160"
                 Style="{StaticResource WwbCardSurfaceStyle}"
                 Padding="{StaticResource WwbCompactCardPadding}"
                 RenderTransformOrigin="0.5,0.5"
@@ -917,71 +919,75 @@
                 x:Name="HeaderBar"
                 Grid.Row="0"
                 Style="{StaticResource WwbHeaderSurfaceStyle}">
-                <Grid RowSpacing="12">
+                <Grid RowSpacing="6">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <Grid
-                        Grid.Row="0"
-                        ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            x:Name="GreetingText"
-                            x:Uid="GreetingText"
-                            Style="{StaticResource WwbPanelTitleStyle}"
-                            TextWrapping="Wrap"
-                            automation:AutomationProperties.HeadingLevel="Level1" />
-                        <TextBlock
-                            x:Name="DateText"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Style="{StaticResource WwbPanelMetaStyle}" />
-                        <TextBlock
-                            x:Name="ContextText"
-                            Grid.Column="2"
-                            Style="{StaticResource WwbPanelContextStyle}"
-                            Visibility="Collapsed" />
-                        <Border
-                            Grid.Column="2"
-                            MaxWidth="320"
-                            HorizontalAlignment="Right"
-                            Style="{StaticResource WwbStatusSurfaceStyle}">
-                            <TextBlock
-                                x:Name="StatusText"
-                                x:Uid="StatusText"
-                                MaxLines="2"
-                                Style="{StaticResource WwbCardCaptionStyle}"
-                                TextTrimming="CharacterEllipsis"
-                                TextWrapping="Wrap" />
-                        </Border>
-                    </Grid>
-
-                    <Grid
                         x:Name="HeaderCommandBar"
-                        Grid.Row="1"
+                        Grid.Row="0"
                         ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            Grid.Column="0"
+                            MaxWidth="220"
+                            Spacing="0"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left">
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <TextBlock
+                                    x:Name="GreetingText"
+                                    x:Uid="GreetingText"
+                                    Style="{StaticResource WwbPanelTitleStyle}"
+                                    TextWrapping="NoWrap"
+                                    automation:AutomationProperties.HeadingLevel="Level1" />
+                                <TextBlock
+                                    x:Name="DateText"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource WwbPanelMetaStyle}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <TextBlock
+                                x:Name="ContextText"
+                                Style="{StaticResource WwbPanelContextStyle}"
+                                Visibility="Collapsed" />
+                            <Border
+                                MaxWidth="220"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource WwbStatusSurfaceStyle}">
+                                <TextBlock
+                                    x:Name="StatusText"
+                                    x:Uid="StatusText"
+                                    MaxLines="1"
+                                    Style="{StaticResource WwbPanelContextStyle}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                            </Border>
+                        </StackPanel>
+
                         <TextBox
                             x:Name="SearchBox"
                             x:Uid="SearchBox"
-                            MinWidth="180"
+                            Grid.Column="1"
+                            MinWidth="120"
+                            VerticalAlignment="Center"
                             Style="{StaticResource WwbSearchBoxStyle}"
                             IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
                             TextChanged="SearchBox_TextChanged" />
+
                         <StackPanel
-                            Grid.Column="1"
+                            Grid.Column="2"
                             Orientation="Horizontal"
-                            Spacing="4"
+                            Spacing="2"
                             VerticalAlignment="Center">
                             <Button
                                 x:Name="ListNotesButton"
@@ -992,7 +998,7 @@
                             <Button
                                 x:Name="EditLayoutButton"
                                 x:Uid="EditLayoutButton"
-                                Style="{StaticResource WwbPrimaryToolbarButtonStyle}"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
                                 Click="EditLayoutButton_Click" />
                             <Button
                                 x:Name="UndoLayoutButton"
@@ -1021,7 +1027,7 @@
 
                     <Border
                         x:Name="NoteSearchResultsBorder"
-                        Grid.Row="2"
+                        Grid.Row="1"
                         Style="{StaticResource WwbSecondarySurfaceStyle}"
                         Visibility="Collapsed">
                         <ListView
@@ -1030,11 +1036,11 @@
                             ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
                             IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
                             IsItemClickEnabled="False"
-                            MaxHeight="224"
+                            MaxHeight="180"
                             SelectionMode="None">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="notes:NoteSearchResult">
-                                    <Grid ColumnSpacing="8">
+                                    <Grid ColumnSpacing="6">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
@@ -1046,8 +1052,8 @@
                                             Click="NoteSearchResultButton_Click"
                                             automation:AutomationProperties.Name="{x:Bind Title}">
                                             <StackPanel
-                                                Padding="4"
-                                                Spacing="2">
+                                                Padding="2"
+                                                Spacing="1">
                                                 <TextBlock
                                                     Text="{x:Bind Title}"
                                                     TextTrimming="CharacterEllipsis"

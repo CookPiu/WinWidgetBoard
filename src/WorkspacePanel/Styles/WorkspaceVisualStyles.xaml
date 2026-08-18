@@ -20,16 +20,16 @@
     <x:Double x:Key="WwbSpace6">24</x:Double>
     <x:Double x:Key="WwbSpace8">32</x:Double>
 
-    <Thickness x:Key="WwbHeaderPadding">16,12,16,12</Thickness>
-    <Thickness x:Key="WwbContentPadding">16,8,16,16</Thickness>
-    <Thickness x:Key="WwbCardPadding">16</Thickness>
-    <Thickness x:Key="WwbCompactCardPadding">14</Thickness>
-    <Thickness x:Key="WwbSurfacePadding">10</Thickness>
-    <Thickness x:Key="WwbToolbarPadding">6</Thickness>
+    <Thickness x:Key="WwbHeaderPadding">12,8</Thickness>
+    <Thickness x:Key="WwbContentPadding">12,6,12,12</Thickness>
+    <Thickness x:Key="WwbCardPadding">14</Thickness>
+    <Thickness x:Key="WwbCompactCardPadding">12</Thickness>
+    <Thickness x:Key="WwbSurfacePadding">8</Thickness>
+    <Thickness x:Key="WwbToolbarPadding">4</Thickness>
     <Thickness x:Key="WwbCompactToolbarPadding">4</Thickness>
 
-    <CornerRadius x:Key="WwbCardCornerRadius">12</CornerRadius>
-    <CornerRadius x:Key="WwbControlCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="WwbCardCornerRadius">10</CornerRadius>
+    <CornerRadius x:Key="WwbControlCornerRadius">7</CornerRadius>
     <CornerRadius x:Key="WwbSmallCornerRadius">6</CornerRadius>
 
     <!-- System theme resources keep light, dark and high-contrast behavior native. -->
@@ -102,7 +102,7 @@
         x:Key="WwbStatusSurfaceStyle"
         TargetType="Border"
         BasedOn="{StaticResource WwbSecondarySurfaceStyle}">
-        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Padding" Value="0" />
         <Setter
             Property="Background"
             Value="{ThemeResource SubtleFillColorTransparentBrush}" />
@@ -112,7 +112,7 @@
         x:Key="WwbCardRuntimeStatusSurfaceStyle"
         TargetType="Border"
         BasedOn="{StaticResource WwbSecondarySurfaceStyle}">
-        <Setter Property="Padding" Value="8" />
+        <Setter Property="Padding" Value="6" />
         <Setter
             Property="Background"
             Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
@@ -121,8 +121,8 @@
     <Style
         x:Key="WwbCardRuntimeStatusTitleStyle"
         TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="17" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter
             Property="Foreground"
@@ -132,8 +132,8 @@
     <Style
         x:Key="WwbCardRuntimeStatusSummaryStyle"
         TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="17" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -142,8 +142,8 @@
     <Style
         x:Key="WwbCardRuntimeStatusFreshnessStyle"
         TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="LineHeight" Value="16" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -152,7 +152,7 @@
     <Style
         x:Key="WwbCardRuntimeStatusCriticalIconStyle"
         TargetType="TextBlock">
-        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="MinWidth" Value="20" />
         <Setter Property="TextAlignment" Value="Center" />
@@ -188,8 +188,8 @@
     <Style
         x:Key="WwbDragHandleStyle"
         TargetType="Border">
-        <Setter Property="MinWidth" Value="36" />
-        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
         <Setter Property="Padding" Value="4" />
         <Setter
             Property="CornerRadius"
@@ -203,9 +203,9 @@
         x:Key="WwbPanelTitleStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource TitleTextBlockStyle}">
-        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontSize" Value="16" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="LineHeight" Value="28" />
+        <Setter Property="LineHeight" Value="22" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -215,8 +215,8 @@
         x:Key="WwbPanelMetaStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource CaptionTextBlockStyle}">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="LineHeight" Value="16" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -226,8 +226,8 @@
         x:Key="WwbPanelContextStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource CaptionTextBlockStyle}">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="LineHeight" Value="14" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorTertiaryBrush}" />
@@ -237,9 +237,9 @@
         x:Key="WwbCardTitleStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource SubtitleTextBlockStyle}">
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="LineHeight" Value="18" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -249,8 +249,8 @@
         x:Key="WwbCardBodyStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource BodyTextBlockStyle}">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="17" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -260,9 +260,9 @@
         x:Key="WwbWeatherTemperatureStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource TitleTextBlockStyle}">
-        <Setter Property="FontSize" Value="32" />
+        <Setter Property="FontSize" Value="28" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="LineHeight" Value="38" />
+        <Setter Property="LineHeight" Value="32" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -272,8 +272,8 @@
         x:Key="WwbCardCaptionStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource CaptionTextBlockStyle}">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="LineHeight" Value="16" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -283,9 +283,9 @@
         x:Key="WwbSearchResultTitleStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource BodyTextBlockStyle}">
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="LineHeight" Value="18" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorPrimaryBrush}" />
@@ -295,8 +295,8 @@
         x:Key="WwbSearchResultPreviewStyle"
         TargetType="TextBlock"
         BasedOn="{StaticResource CaptionTextBlockStyle}">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="LineHeight" Value="16" />
         <Setter
             Property="Foreground"
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -306,38 +306,40 @@
         x:Key="WwbToolbarButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource DefaultButtonStyle}">
-        <Setter Property="MinWidth" Value="40" />
-        <Setter Property="MinHeight" Value="40" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbControlCornerRadius}" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
     </Style>
 
     <Style
         x:Key="WwbPrimaryToolbarButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource AccentButtonStyle}">
-        <Setter Property="MinWidth" Value="40" />
-        <Setter Property="MinHeight" Value="40" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbControlCornerRadius}" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
     </Style>
 
     <Style
         x:Key="WwbCardActionButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource DefaultButtonStyle}">
-        <Setter Property="MinHeight" Value="36" />
-        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="8,4" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbSmallCornerRadius}" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style
@@ -352,7 +354,7 @@
         x:Key="WwbEditActionButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource WwbCardActionButtonStyle}">
-        <Setter Property="MinWidth" Value="40" />
+        <Setter Property="MinWidth" Value="32" />
     </Style>
 
     <Style
@@ -368,8 +370,8 @@
         x:Key="WwbSearchResultButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource DefaultButtonStyle}">
-        <Setter Property="MinHeight" Value="44" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="10,6" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbSmallCornerRadius}" />
@@ -380,12 +382,12 @@
         x:Key="WwbSearchBoxStyle"
         TargetType="TextBox"
         BasedOn="{StaticResource DefaultTextBoxStyle}">
-        <Setter Property="MinHeight" Value="40" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,4" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbControlCornerRadius}" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
@@ -393,12 +395,12 @@
         x:Key="WwbNoteTitleTextBoxStyle"
         TargetType="TextBox"
         BasedOn="{StaticResource DefaultTextBoxStyle}">
-        <Setter Property="MinHeight" Value="40" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="10,5" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbControlCornerRadius}" />
-        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
@@ -406,18 +408,18 @@
         x:Key="WwbNoteBodyTextBoxStyle"
         TargetType="TextBox"
         BasedOn="{StaticResource DefaultTextBoxStyle}">
-        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Padding" Value="10,8" />
         <Setter
             Property="CornerRadius"
             Value="{StaticResource WwbControlCornerRadius}" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
     </Style>
 
     <Style
         x:Key="WwbModeCheckBoxStyle"
         TargetType="CheckBox"
         BasedOn="{StaticResource DefaultCheckBoxStyle}">
-        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="MinHeight" Value="32" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 </ResourceDictionary>

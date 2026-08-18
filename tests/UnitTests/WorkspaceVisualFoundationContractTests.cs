@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Xml.Linq;
 
 namespace WinWidgetBoard.UnitTests;
@@ -71,11 +70,46 @@ public sealed class WorkspaceVisualFoundationContractTests
             CollectionAssert.Contains(actualStyleKeys, key);
         }
 
-        AssertMinimumHeight(document, "WwbToolbarButtonStyle", 40);
-        AssertMinimumHeight(document, "WwbPrimaryToolbarButtonStyle", 40);
-        AssertMinimumHeight(document, "WwbCardActionButtonStyle", 36);
-        AssertMinimumHeight(document, "WwbSearchResultButtonStyle", 44);
-        AssertMinimumHeight(document, "WwbSearchBoxStyle", 40);
+        AssertStyleSetterValue(
+            document,
+            "WwbToolbarButtonStyle",
+            "MinHeight",
+            "32");
+        AssertStyleSetterValue(
+            document,
+            "WwbPrimaryToolbarButtonStyle",
+            "MinHeight",
+            "32");
+        AssertStyleSetterValue(
+            document,
+            "WwbCardActionButtonStyle",
+            "MinHeight",
+            "32");
+        AssertStyleSetterValue(
+            document,
+            "WwbSearchResultButtonStyle",
+            "MinHeight",
+            "36");
+        AssertStyleSetterValue(
+            document,
+            "WwbSearchBoxStyle",
+            "MinHeight",
+            "32");
+        AssertStyleSetterValue(
+            document,
+            "WwbPanelTitleStyle",
+            "FontSize",
+            "16");
+        AssertStyleSetterValue(
+            document,
+            "WwbCardTitleStyle",
+            "FontSize",
+            "13");
+        AssertStyleSetterValue(
+            document,
+            "WwbWeatherTemperatureStyle",
+            "FontSize",
+            "28");
 
         StringAssert.Contains(source, "{ThemeResource ");
         Assert.IsFalse(
@@ -170,18 +204,41 @@ public sealed class WorkspaceVisualFoundationContractTests
             document,
             "Grid",
             "HeaderCommandBar");
-        Assert.AreEqual("1", (string?)commandBar.Attribute("Grid.Row"));
+        Assert.AreEqual("0", (string?)commandBar.Attribute("Grid.Row"));
 
         XElement searchBox = GetNamedElement(document, "TextBox", "SearchBox");
         Assert.AreEqual(
             "{StaticResource WwbSearchBoxStyle}",
             (string?)searchBox.Attribute("Style"));
+        Assert.AreEqual("1", (string?)searchBox.Attribute("Grid.Column"));
+        Assert.IsTrue(searchBox.Ancestors().Contains(commandBar));
+
+        foreach (string name in new[]
+                 {
+                     "GreetingText",
+                     "ListNotesButton",
+                     "EditLayoutButton",
+                     "SettingsButton",
+                     "ClosePanelButton",
+                 })
+        {
+            XElement element = document
+                .Descendants()
+                .Single(candidate =>
+                    string.Equals(
+                        (string?)candidate.Attribute(Xaml + "Name"),
+                        name,
+                        StringComparison.Ordinal));
+            Assert.IsTrue(
+                element.Ancestors().Contains(commandBar),
+                $"{name} must share the compact header row.");
+        }
 
         XElement searchResults = GetNamedElement(
             document,
             "Border",
             "NoteSearchResultsBorder");
-        Assert.AreEqual("2", (string?)searchResults.Attribute("Grid.Row"));
+        Assert.AreEqual("1", (string?)searchResults.Attribute("Grid.Row"));
         Assert.AreEqual(
             "{StaticResource WwbSecondarySurfaceStyle}",
             (string?)searchResults.Attribute("Style"));
@@ -222,10 +279,12 @@ public sealed class WorkspaceVisualFoundationContractTests
     public void QuietCanvasPrioritizesLiveContentOverChrome()
     {
         XDocument document = LoadAsset("MainWindow.xaml");
+        string codeBehind = File.ReadAllText(
+            GetAssetPath("MainWindow.xaml.cs"));
         XElement notes = GetDataTemplate(document, "NotesCardTemplate");
         XElement notesSurface = notes.Elements().Single();
 
-        Assert.AreEqual("180", (string?)notesSurface.Attribute("MinHeight"));
+        Assert.AreEqual("160", (string?)notesSurface.Attribute("MinHeight"));
         Assert.IsFalse(notes
             .Descendants(Presentation + "TextBlock")
             .Any(element =>
@@ -235,13 +294,13 @@ public sealed class WorkspaceVisualFoundationContractTests
                     StringComparison.Ordinal)));
 
         XElement noteBody = GetNamedElement(document, "TextBox", "NoteBodyBox");
-        Assert.IsGreaterThanOrEqualTo(
-            180,
-            double.Parse(
-                (string?)noteBody.Attribute("Height")
-                    ?? throw new InvalidDataException(
-                        "NoteBodyBox must reserve a useful editing height."),
-                CultureInfo.InvariantCulture));
+        Assert.AreEqual(
+            "112",
+            (string?)noteBody.Attribute("Height"));
+        Assert.AreEqual(
+            "Disabled",
+            (string?)noteBody.Attribute(
+                "ScrollViewer.HorizontalScrollBarVisibility"));
 
         foreach (string actionName in new[]
                  {
@@ -284,6 +343,35 @@ public sealed class WorkspaceVisualFoundationContractTests
                     (string?)element.Attribute(Xaml + "Name"),
                     "AddCardButton",
                     StringComparison.Ordinal)));
+
+        foreach (string locale in new[] { "zh-CN", "en-US" })
+        {
+            XDocument resources = LoadAsset(
+                "Strings",
+                locale,
+                "Resources.resw");
+            Assert.AreEqual(
+                "\uE8FD",
+                GetResourceValue(resources, "ListNotesButton.Content"));
+            Assert.AreEqual(
+                "\uE70F",
+                GetResourceValue(resources, "EditLayoutButton.Content"));
+            Assert.AreEqual(
+                "\uE713",
+                GetResourceValue(resources, "SettingsButton.Content"));
+            Assert.AreEqual(
+                "\uE711",
+                GetResourceValue(resources, "ClosePanelButton.Content"));
+        }
+
+        StringAssert.Contains(
+            codeBehind,
+            "_resources.GetString(\"EditLayoutButton/Content\")");
+        Assert.IsFalse(
+            codeBehind.Contains(
+                "_resources.GetString(\"EditLayoutButton.Content\")",
+                StringComparison.Ordinal),
+            "MRT resource paths must use '/' for a XAML resource property.");
     }
 
     private static void AssertThemeThickness(
@@ -309,10 +397,11 @@ public sealed class WorkspaceVisualFoundationContractTests
         Assert.AreEqual(expected, thickness.Value);
     }
 
-    private static void AssertMinimumHeight(
+    private static void AssertStyleSetterValue(
         XDocument document,
         string styleKey,
-        double expectedMinimum)
+        string property,
+        string expected)
     {
         XElement style = document
             .Descendants(Presentation + "Style")
@@ -326,16 +415,24 @@ public sealed class WorkspaceVisualFoundationContractTests
             .Single(element =>
                 string.Equals(
                     (string?)element.Attribute("Property"),
-                    "MinHeight",
+                    property,
                     StringComparison.Ordinal));
-        double actual = double.Parse(
-            (string?)setter.Attribute("Value")
-                ?? throw new InvalidDataException(
-                    $"{styleKey} has no MinHeight value."),
-            CultureInfo.InvariantCulture);
-
-        Assert.IsGreaterThanOrEqualTo(expectedMinimum, actual);
+        Assert.AreEqual(expected, (string?)setter.Attribute("Value"));
     }
+
+    private static string GetResourceValue(
+        XDocument document,
+        string key) =>
+        document
+            .Descendants("data")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute("name"),
+                    key,
+                    StringComparison.Ordinal))
+            .Element("value")?.Value
+            ?? throw new InvalidDataException(
+                $"Resource {key} has no value.");
 
     private static XElement GetDataTemplate(
         XDocument document,

@@ -191,6 +191,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         ContextText.Text =
             $"{_placement.WindowRect.Width} × {_placement.WindowRect.Height} px · " +
             $"DPI {_placement.Dpi}";
+        ConfigureHeaderToolTips();
+        UpdateEditLayoutButton();
 
         SynchronizeCardSnapshotRuntimes();
     }
@@ -495,13 +497,33 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         string content = _cardEdit.IsEditing
             ? _resources.GetString("FinishEditLayoutButtonContent")
-            : _resources.GetString("EditLayoutButton.Content");
+            : _resources.GetString("EditLayoutButton/Content");
         string automationName = _cardEdit.IsEditing
             ? _resources.GetString("FinishEditLayoutButtonAutomationName")
-            : _resources.GetString("EditLayoutButton.Content");
+            : _resources.GetString("EditLayoutButtonAutomationName");
         EditLayoutButton.Content = content;
         AutomationProperties.SetName(EditLayoutButton, automationName);
+        ToolTipService.SetToolTip(EditLayoutButton, automationName);
         UpdateLayoutHistoryButtons();
+    }
+
+    private void ConfigureHeaderToolTips()
+    {
+        ToolTipService.SetToolTip(
+            ListNotesButton,
+            _resources.GetString("ListNotesButtonToolTip"));
+        ToolTipService.SetToolTip(
+            UndoLayoutButton,
+            _resources.GetString("UndoLayoutButtonToolTip"));
+        ToolTipService.SetToolTip(
+            RedoLayoutButton,
+            _resources.GetString("RedoLayoutButtonToolTip"));
+        ToolTipService.SetToolTip(
+            SettingsButton,
+            _resources.GetString("SettingsButtonToolTip"));
+        ToolTipService.SetToolTip(
+            ClosePanelButton,
+            _resources.GetString("ClosePanelButtonToolTip"));
     }
 
     private void CardEdit_PropertyChanged(
