@@ -6,6 +6,7 @@ param(
     [switch]$WithBroker,
     [switch]$PersistenceRecovery,
     [switch]$RetainTestData,
+    [switch]$ResizeDragCombination,
     [ValidateSet(0, 2, 4, 6)]
     [int]$ExpectedColumnCount = 0,
     [string[]]$PanelContextArguments = @()
@@ -441,6 +442,46 @@ function Get-DragHandleForTitle {
         Select-Object -First 1
 }
 
+function Get-ResizeButtonForTitle {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [System.Windows.Automation.AutomationElement]$Title,
+        [ValidateSet('Increase', 'Decrease')]
+        [string]$Direction
+    )
+
+    $names = if ($Direction -eq 'Increase') {
+        @('放大卡片', 'Make card larger')
+    }
+    else {
+        @('缩小卡片', 'Make card smaller')
+    }
+    $titleCenter = Get-ElementCenter -Element $Title
+    $buttons = @(
+        Get-Descendants -Root $Root |
+            Where-Object {
+                $_.Current.Name -in $names -and
+                    $_.Current.IsEnabled -and
+                    -not $_.Current.IsOffscreen
+            }
+    )
+    if ($buttons.Count -eq 0) {
+        throw "No visible $Direction resize button was found."
+    }
+
+    return $buttons |
+        Sort-Object `
+            @{ Expression = {
+                Get-CommonAncestorScore -First $Title -Second $_
+            } }, `
+            @{ Expression = {
+                $center = Get-ElementCenter -Element $_
+                [Math]::Abs($center.X - $titleCenter.X) +
+                    [Math]::Abs($center.Y - $titleCenter.Y)
+            } } |
+        Select-Object -First 1
+}
+
 function Invoke-MouseDrag {
     param(
         [pscustomobject]$Start,
@@ -682,10 +723,115 @@ function Test-CardDragAndUndo {
         -Description "$($SourceNames[0]) after undoing $Mode drag"
 }
 
+function Assert-UniqueCardHandles {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root
+    )
+
+    $all = @(Get-Descendants -Root $Root)
+    foreach ($automationId in @(
+        'NotesCardDragHandle',
+        'WeatherCardDragHandle',
+        'TimerCardDragHandle',
+        'TodoCardDragHandle',
+        'CalendarCardDragHandle'
+    )) {
+        $count = @(
+            $all |
+                Where-Object {
+                    $_.Current.AutomationId -eq $automationId
+                }
+        ).Count
+        if ($count -ne 1) {
+            throw "Expected one $automationId after combined editing, found $count."
+        }
+    }
+}
+
+function Test-CardResizeDragCombination {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [int]$ProcessId
+    )
+
+    $timerNames = @('计时器', 'Timer')
+    $notesNames = @('便签', 'Notes')
+    $calendarNames = @('本地日历', 'Local calendar')
+    $timerTitle = Get-ElementByNames -Root $Root -Names $timerNames
+    $notesTitle = Get-ElementByNames -Root $Root -Names $notesNames
+    $timerStart = Get-ElementCenter -Element $timerTitle
+    $firstDragStart = Get-ElementCenter -Element (
+        Get-DragHandleForTitle -Root $Root -Title $timerTitle)
+    $firstDragEnd = Get-ElementCenter -Element $notesTitle
+    Assert-PanelOwnsPoint `
+        -Point $firstDragStart `
+        -ProcessId $ProcessId `
+        -Description 'Timer resize-drag source'
+    Assert-PanelOwnsPoint `
+        -Point $firstDragEnd `
+        -ProcessId $ProcessId `
+        -Description 'Notes resize-drag target'
+
+    Invoke-MouseDrag -Start $firstDragStart -End $firstDragEnd
+    Start-Sleep -Milliseconds 750
+    $timerTitle = Get-ElementByNames -Root $Root -Names $timerNames
+    $timerAfterFirstDrag = Get-ElementCenter -Element $timerTitle
+    Assert-Far `
+        -Actual $timerAfterFirstDrag `
+        -Expected $timerStart `
+        -MinimumDistance 80 `
+        -Description 'Timer after first combined drag'
+
+    $increaseButton = Get-ResizeButtonForTitle `
+        -Root $Root `
+        -Title $timerTitle `
+        -Direction Increase
+    Invoke-Element -Element $increaseButton
+    Start-Sleep -Milliseconds 750
+    Assert-UniqueCardHandles -Root $Root
+    $timerTitle = Get-ElementByNames -Root $Root -Names $timerNames
+    $timerAfterResize = Get-ElementCenter -Element $timerTitle
+    Assert-Near `
+        -Actual $timerAfterResize `
+        -Expected $timerAfterFirstDrag `
+        -Tolerance 48 `
+        -Description 'Timer position after combined resize'
+
+    $calendarTitle = Get-ElementByNames -Root $Root -Names $calendarNames
+    $secondDragStart = Get-ElementCenter -Element (
+        Get-DragHandleForTitle -Root $Root -Title $timerTitle)
+    $secondDragEnd = Get-ElementCenter -Element $calendarTitle
+    Assert-PanelOwnsPoint `
+        -Point $secondDragStart `
+        -ProcessId $ProcessId `
+        -Description 'Resized timer drag source'
+    Assert-PanelOwnsPoint `
+        -Point $secondDragEnd `
+        -ProcessId $ProcessId `
+        -Description 'Calendar resize-drag target'
+
+    Invoke-MouseDrag -Start $secondDragStart -End $secondDragEnd
+    Start-Sleep -Milliseconds 750
+    Assert-UniqueCardHandles -Root $Root
+    $timerTitle = Get-ElementByNames -Root $Root -Names $timerNames
+    Assert-Far `
+        -Actual (Get-ElementCenter -Element $timerTitle) `
+        -Expected $timerAfterResize `
+        -MinimumDistance 80 `
+        -Description 'Resized timer after second combined drag'
+
+    Write-Output (
+        'REAL-RESIZE-DRAG-PASS ' +
+        'timer-drag+resize+drag identities-and-position-stable')
+}
+
 
 try {
     if ($PersistenceRecovery -and -not $WithBroker) {
         throw 'PersistenceRecovery requires WithBroker.'
+    }
+    if ($ResizeDragCombination -and $WithBroker) {
+        throw 'ResizeDragCombination uses the deterministic broker-free default layout.'
     }
     if ($WithBroker) {
         $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
@@ -979,6 +1125,17 @@ try {
         -AutomationId 'ContentScrollViewer'
     if ($null -eq $contentScroll) {
         throw 'The card surface scroll viewer was not exposed to UI Automation.'
+    }
+
+    if ($ResizeDragCombination) {
+        Set-VerticalScrollPercent `
+            -Element $contentScroll `
+            -Percent 0 `
+            -DelayMilliseconds 500
+        Test-CardResizeDragCombination `
+            -Root $window `
+            -ProcessId $panelProcess.Id
+        return
     }
 
     Set-VerticalScrollPercent -Element $contentScroll -Percent 25 -DelayMilliseconds 500

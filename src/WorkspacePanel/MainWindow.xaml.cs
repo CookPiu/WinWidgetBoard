@@ -1434,10 +1434,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 return;
             }
 
-            // ItemsRepeater keeps a realized DataTemplate by index when an
-            // observable source is reordered. Recycle through a null source so
-            // timer/calendar/etc. templates are selected for their new items.
-            // Placement-only changes never enter this path.
+            // Membership changes can recycle a realized DataTemplate into a
+            // different card identity. Rebind so the selector chooses the
+            // correct template. Placement and order-only changes stay in place.
             ClearDemoNotesCardVisual();
             _realizedCardRuntimes.Clear();
             _cardSurface.ClearViewportVisibility();
@@ -1683,14 +1682,17 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _isSavingLayout ||
             _demoNotesCardPointerId is not null ||
             sender is not FrameworkElement surface ||
-            surface.Tag is not string instanceId ||
+            ResolveCurrentCardSurfaceItem(surface) is not CardSurfaceItem item ||
             !e.GetCurrentPoint(surface).Properties.IsLeftButtonPressed ||
             IsInteractiveCardContent(e.OriginalSource as DependencyObject, surface) ||
-            !_cardLayout.TryGetPlacement(instanceId, out CardPlacement placement))
+            !_cardLayout.TryGetPlacement(
+                item.InstanceId,
+                out CardPlacement placement))
         {
             return;
         }
 
+        string instanceId = item.InstanceId;
         InterruptDemoNotesCardReturn();
         ResetCardDropPreview();
         _demoNotesCardTransform = FindNotesCardTransform(surface);

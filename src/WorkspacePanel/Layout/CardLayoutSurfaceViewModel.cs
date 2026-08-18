@@ -158,7 +158,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
         HashSet<string> desiredIds = placements
             .Select(placement => placement.InstanceId)
             .ToHashSet(StringComparer.Ordinal);
-        bool structureChanged = false;
+        bool membershipChanged = false;
 
         for (int index = _items.Count - 1; index >= 0; index--)
         {
@@ -170,7 +170,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
 
             _items.RemoveAt(index);
             item.Dispose();
-            structureChanged = true;
+            membershipChanged = true;
         }
 
         for (int desiredIndex = 0;
@@ -189,23 +189,17 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
                     _statusFormatter,
                     _visibilityScheduler,
                     _runtimeResourceResolver);
-                _items.Insert(desiredIndex, item);
-                structureChanged = true;
+                _items.Insert(Math.Min(desiredIndex, _items.Count), item);
+                membershipChanged = true;
             }
             else
             {
                 item = _items[currentIndex];
-                if (currentIndex != desiredIndex)
-                {
-                    _items.Move(currentIndex, desiredIndex);
-                    structureChanged = true;
-                }
-
                 item.UpdatePlacement(placement);
             }
         }
 
-        if (structureChanged)
+        if (membershipChanged)
         {
             PropertyChanged?.Invoke(
                 this,

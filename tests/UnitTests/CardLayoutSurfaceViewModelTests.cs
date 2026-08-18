@@ -203,8 +203,8 @@ public sealed class CardLayoutSurfaceViewModelTests
             surface.Items.Single(item => item.InstanceId == "demo.calendar").Placement);
     }
 
-    [TestMethod(DisplayName = "UT-GRID-032 [LYT-004] Persisted reorder moves stable surface identities")]
-    public async Task PersistedReorderMovesStableSurfaceIdentities()
+    [TestMethod(DisplayName = "UT-GRID-032 [LYT-004] Placement reorder keeps stable surface indices")]
+    public async Task PlacementReorderKeepsStableSurfaceIndices()
     {
         await using var noteEditor = new NoteEditorViewModel(null);
         var layout = new CardLayoutViewModel(
@@ -241,9 +241,9 @@ public sealed class CardLayoutSurfaceViewModelTests
         string[] expectedIds =
         [
             "demo.notes",
-            "demo.calendar",
-            "demo.todo",
             "demo.timer",
+            "demo.todo",
+            "demo.calendar",
         ];
         CollectionAssert.AreEqual(
             expectedIds,
@@ -252,10 +252,73 @@ public sealed class CardLayoutSurfaceViewModelTests
         {
             Assert.AreSame(originalItems[item.InstanceId], item);
             Assert.AreSame(originalRuntimes[item.InstanceId], item.Runtime);
+            Assert.AreEqual(
+                layout.Placements.Single(
+                    placement => placement.InstanceId == item.InstanceId),
+                item.Placement);
         }
-        CollectionAssert.Contains(
+        CollectionAssert.DoesNotContain(
             changed,
             nameof(CardLayoutSurfaceViewModel.Items));
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-048 [LYT-003/004] Drag then resize keeps surface identity and index stable")]
+    public async Task DragThenResizeKeepsSurfaceIdentityAndIndexStable()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("demo.notes", CardSize.L),
+                new CardLayoutItem("demo.timer", CardSize.M),
+                new CardLayoutItem("demo.todo", CardSize.M),
+                new CardLayoutItem("demo.calendar", CardSize.M),
+            ]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        using var surface = new CardLayoutSurfaceViewModel(
+            editMode,
+            noteEditor,
+            status => status.ToString());
+        CardSurfaceItem[] originalItems = surface.Items.ToArray();
+        var changed = new List<string>();
+        surface.PropertyChanged += (_, args) => changed.Add(args.PropertyName!);
+        CardSize[] orderedSizes =
+        [
+            CardSize.S,
+            CardSize.M,
+            CardSize.L,
+            CardSize.W,
+            CardSize.XL,
+        ];
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryCommitDrop(
+            "demo.timer",
+            new GridCell(0, 0),
+            out _));
+        Assert.IsTrue(editMode.TryStepCardSize(
+            "demo.timer",
+            1,
+            orderedSizes));
+
+        CollectionAssert.AreEqual(originalItems, surface.Items.ToArray());
+        Assert.AreEqual(
+            surface.Items.Count,
+            surface.Items.Select(item => item.InstanceId).Distinct().Count());
+        CollectionAssert.DoesNotContain(
+            changed,
+            nameof(CardLayoutSurfaceViewModel.Items));
+        foreach (CardSurfaceItem item in surface.Items)
+        {
+            Assert.IsTrue(layout.TryGetPlacement(
+                item.InstanceId,
+                out CardPlacement placement));
+            Assert.AreEqual(placement, item.Placement);
+        }
+        Assert.AreEqual(
+            CardSize.L,
+            surface.Items.Single(
+                item => item.InstanceId == "demo.timer").Placement.Size);
     }
 
     [TestMethod(DisplayName = "UT-CARD-012 [CRD-001] Built-in surfaces resolve stable runtime types")]

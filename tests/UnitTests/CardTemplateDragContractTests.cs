@@ -209,6 +209,31 @@ public sealed class CardTemplateDragContractTests
             "_cardSurface.GetItemAt(index)");
     }
 
+    [TestMethod(DisplayName = "UT-GRID-049 [LYT-003/004] Drag commands resolve the current repeater item")]
+    public void DragCommandsResolveTheCurrentRepeaterItem()
+    {
+        string code = LoadMainWindowCodeBehind();
+        int handlerStart = code.IndexOf(
+            "private void DemoNotesCardSurface_PointerPressed",
+            StringComparison.Ordinal);
+        int handlerEnd = code.IndexOf(
+            "private void DemoNotesCardSurface_PointerMoved",
+            handlerStart,
+            StringComparison.Ordinal);
+
+        Assert.IsTrue(handlerStart >= 0);
+        Assert.IsTrue(handlerEnd > handlerStart);
+        string handler = code[handlerStart..handlerEnd];
+        StringAssert.Contains(
+            handler,
+            "ResolveCurrentCardSurfaceItem(surface)");
+        StringAssert.Contains(handler, "item.InstanceId");
+        Assert.IsFalse(
+            handler.Contains(
+                "surface.Tag",
+                StringComparison.Ordinal));
+    }
+
     [TestMethod(DisplayName = "UT-GRID-029 [LYT-004] Unified entry selects the validated x64 panel artifact")]
     public void UnifiedEntrySelectsValidatedX64PanelArtifact()
     {
