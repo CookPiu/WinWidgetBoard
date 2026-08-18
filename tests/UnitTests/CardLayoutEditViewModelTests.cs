@@ -26,6 +26,51 @@ public sealed class CardLayoutEditViewModelTests
         Assert.AreEqual(CardSize.L, layout.Items[0].Size);
     }
 
+    [TestMethod(DisplayName = "UT-GRID-046 [LYT-003] Sequential size steps use each target card current size")]
+    public void SequentialSizeStepsUseEachTargetCardCurrentSize()
+    {
+        CardSize[] orderedSizes =
+        [
+            CardSize.S,
+            CardSize.M,
+            CardSize.L,
+            CardSize.W,
+            CardSize.XL,
+        ];
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("first", CardSize.L),
+                new CardLayoutItem("second", CardSize.S),
+            ]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryStepCardSize(
+            "first",
+            1,
+            orderedSizes));
+        Assert.IsTrue(editMode.TryStepCardSize(
+            "second",
+            1,
+            orderedSizes));
+
+        Assert.AreEqual(
+            CardSize.W,
+            layout.Items.Single(item => item.InstanceId == "first").Size);
+        Assert.AreEqual(
+            CardSize.M,
+            layout.Items.Single(item => item.InstanceId == "second").Size);
+
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.AreEqual(
+            CardSize.S,
+            layout.Items.Single(item => item.InstanceId == "second").Size);
+        Assert.AreEqual(
+            CardSize.W,
+            layout.Items.Single(item => item.InstanceId == "first").Size);
+    }
+
     [TestMethod(DisplayName = "UT-GRID-015 [LYT-003] Cancel edit restores the entry snapshot")]
     public void CancelEditRestoresEntrySnapshot()
     {

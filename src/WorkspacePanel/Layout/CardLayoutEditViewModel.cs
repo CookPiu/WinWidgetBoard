@@ -115,6 +115,53 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public bool TryStepCardSize(
+        string instanceId,
+        int direction,
+        IReadOnlyList<CardSize> orderedSizes)
+    {
+        if (!_isEditing)
+        {
+            return false;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+        ArgumentNullException.ThrowIfNull(orderedSizes);
+        if (direction is not (-1 or 1))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(direction),
+                direction,
+                "Card size direction must be -1 or 1.");
+        }
+
+        CardLayoutItem? current = _layout.Items.FirstOrDefault(
+            item => string.Equals(
+                item.InstanceId,
+                instanceId,
+                StringComparison.Ordinal));
+        if (current is null)
+        {
+            return false;
+        }
+
+        int currentIndex = -1;
+        for (int index = 0; index < orderedSizes.Count; index++)
+        {
+            if (orderedSizes[index] == current.Size)
+            {
+                currentIndex = index;
+                break;
+            }
+        }
+
+        int nextIndex = currentIndex + direction;
+        return currentIndex >= 0 &&
+            nextIndex >= 0 &&
+            nextIndex < orderedSizes.Count &&
+            TryResizeCard(instanceId, orderedSizes[nextIndex]);
+    }
+
     public bool TryRemoveCard(string instanceId)
     {
         if (!_isEditing)

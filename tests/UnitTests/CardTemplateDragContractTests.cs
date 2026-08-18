@@ -174,6 +174,41 @@ public sealed class CardTemplateDragContractTests
             (string?)cardGridHost.Attribute(xaml + "Uid"));
     }
 
+    [TestMethod(DisplayName = "UT-GRID-047 [LYT-003] Resize commands resolve the current repeater item")]
+    public void ResizeCommandsResolveTheCurrentRepeaterItem()
+    {
+        string code = LoadMainWindowCodeBehind();
+        int handlerStart = code.IndexOf(
+            "private void ResizeCard",
+            StringComparison.Ordinal);
+        int handlerEnd = code.IndexOf(
+            "private void RemoveCardButton_Click",
+            handlerStart,
+            StringComparison.Ordinal);
+
+        Assert.IsTrue(handlerStart >= 0);
+        Assert.IsTrue(handlerEnd > handlerStart);
+        string handler = code[handlerStart..handlerEnd];
+        StringAssert.Contains(
+            handler,
+            "ResolveCurrentCardSurfaceItem(sender)");
+        StringAssert.Contains(
+            handler,
+            "_cardEdit.TryStepCardSize(");
+        StringAssert.Contains(handler, "item.InstanceId");
+        Assert.IsFalse(
+            handler.Contains(
+                "element.Tag",
+                StringComparison.Ordinal));
+
+        StringAssert.Contains(
+            code,
+            "CardItemsRepeater.GetElementIndex(element)");
+        StringAssert.Contains(
+            code,
+            "_cardSurface.GetItemAt(index)");
+    }
+
     [TestMethod(DisplayName = "UT-GRID-029 [LYT-004] Unified entry selects the validated x64 panel artifact")]
     public void UnifiedEntrySelectsValidatedX64PanelArtifact()
     {

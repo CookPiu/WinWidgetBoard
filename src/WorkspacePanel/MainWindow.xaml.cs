@@ -622,24 +622,41 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void ResizeCard(object sender, int direction)
     {
         if (_isSavingLayout ||
-            sender is not FrameworkElement element ||
-            element.Tag is not string instanceId ||
-            !_cardLayout.TryGetPlacement(instanceId, out CardPlacement placement))
-        {
-            return;
-        }
-
-        int currentIndex = Array.IndexOf(EditableCardSizes, placement.Size);
-        int nextIndex = currentIndex + direction;
-        if (currentIndex < 0 ||
-            nextIndex < 0 ||
-            nextIndex >= EditableCardSizes.Length ||
-            !_cardEdit.TryResizeCard(instanceId, EditableCardSizes[nextIndex]))
+            ResolveCurrentCardSurfaceItem(sender) is not CardSurfaceItem item ||
+            !_cardEdit.TryStepCardSize(
+                item.InstanceId,
+                direction,
+                EditableCardSizes))
         {
             return;
         }
 
         StatusText.Text = _resources.GetString("CardResizedStatus");
+    }
+
+    private CardSurfaceItem? ResolveCurrentCardSurfaceItem(object sender)
+    {
+        if (sender is not DependencyObject current)
+        {
+            return null;
+        }
+
+        while (current is not null &&
+            !ReferenceEquals(current, CardItemsRepeater))
+        {
+            if (current is UIElement element)
+            {
+                int index = CardItemsRepeater.GetElementIndex(element);
+                if (index >= 0)
+                {
+                    return _cardSurface.GetItemAt(index);
+                }
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private void RemoveCardButton_Click(object sender, RoutedEventArgs e)
