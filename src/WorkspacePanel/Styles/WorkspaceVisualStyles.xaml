@@ -5,9 +5,26 @@
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
             <Thickness x:Key="WwbSurfaceBorderThickness">0</Thickness>
+            <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
+            <LinearGradientBrush
+                x:Key="WwbPanelAccentWashBrush"
+                StartPoint="0,0"
+                EndPoint="0,1"
+                Opacity="0.06">
+                <GradientStop
+                    Color="{ThemeResource SystemAccentColor}"
+                    Offset="0" />
+                <GradientStop
+                    Color="Transparent"
+                    Offset="0.38" />
+            </LinearGradientBrush>
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <Thickness x:Key="WwbSurfaceBorderThickness">1</Thickness>
+            <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
+            <SolidColorBrush
+                x:Key="WwbPanelAccentWashBrush"
+                Color="Transparent" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -28,17 +45,30 @@
     <Thickness x:Key="WwbToolbarPadding">4</Thickness>
     <Thickness x:Key="WwbCompactToolbarPadding">4</Thickness>
 
-    <CornerRadius x:Key="WwbCardCornerRadius">10</CornerRadius>
+    <CornerRadius x:Key="WwbPanelCornerRadius">16</CornerRadius>
+    <CornerRadius x:Key="WwbCardCornerRadius">12</CornerRadius>
     <CornerRadius x:Key="WwbControlCornerRadius">7</CornerRadius>
     <CornerRadius x:Key="WwbSmallCornerRadius">6</CornerRadius>
 
-    <!-- System theme resources keep light, dark and high-contrast behavior native. -->
+    <!--
+        The top-level Desktop Acrylic carries ambient color. Cards remain more
+        solid so translucent layers do not stack and reduce legibility.
+    -->
     <Style
         x:Key="WwbPanelRootStyle"
         TargetType="Grid">
         <Setter
             Property="Background"
-            Value="{ThemeResource ApplicationPageBackgroundThemeBrush}" />
+            Value="Transparent" />
+        <Setter
+            Property="BorderBrush"
+            Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{ThemeResource WwbSurfaceBorderThickness}" />
+        <Setter
+            Property="CornerRadius"
+            Value="{StaticResource WwbPanelCornerRadius}" />
     </Style>
 
     <Style
@@ -49,7 +79,7 @@
             Value="{StaticResource WwbHeaderPadding}" />
         <Setter
             Property="Background"
-            Value="{ThemeResource ApplicationPageBackgroundThemeBrush}" />
+            Value="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
         <Setter
             Property="BorderBrush"
             Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
@@ -69,7 +99,7 @@
             Value="{StaticResource WwbCardCornerRadius}" />
         <Setter
             Property="Background"
-            Value="{ThemeResource LayerFillColorDefaultBrush}" />
+            Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter
             Property="BorderBrush"
             Value="{ThemeResource CardStrokeColorDefaultBrush}" />
@@ -89,7 +119,7 @@
             Value="{StaticResource WwbControlCornerRadius}" />
         <Setter
             Property="Background"
-            Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+            Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
         <Setter
             Property="BorderBrush"
             Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
@@ -115,17 +145,23 @@
         <Setter Property="Padding" Value="6" />
         <Setter
             Property="Background"
-            Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+            Value="{ThemeResource AcrylicInAppFillColorDefaultBrush}" />
+        <Setter
+            Property="BorderBrush"
+            Value="{ThemeResource SurfaceStrokeColorFlyoutBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{ThemeResource WwbFlyoutBorderThickness}" />
     </Style>
 
     <Style
         x:Key="WwbCardRuntimeStatusSurfaceStyle"
         TargetType="Border"
         BasedOn="{StaticResource WwbSecondarySurfaceStyle}">
-        <Setter Property="Padding" Value="6" />
+        <Setter Property="Padding" Value="0" />
         <Setter
             Property="Background"
-            Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+            Value="{ThemeResource SubtleFillColorTransparentBrush}" />
     </Style>
 
     <Style
@@ -192,7 +228,7 @@
             Value="{StaticResource WwbControlCornerRadius}" />
         <Setter
             Property="Background"
-            Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+            Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
     </Style>
 
     <Style
@@ -324,6 +360,12 @@
             Property="CornerRadius"
             Value="{StaticResource WwbControlCornerRadius}" />
         <Setter Property="FontSize" Value="14" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{ThemeResource WwbSurfaceBorderThickness}" />
     </Style>
 
     <Style
@@ -420,6 +462,12 @@
             Value="{StaticResource WwbControlCornerRadius}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource ControlFillColorDefaultBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{ThemeResource WwbSurfaceBorderThickness}" />
     </Style>
 
     <Style

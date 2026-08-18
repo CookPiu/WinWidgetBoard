@@ -454,6 +454,82 @@ public sealed class WorkspaceVisualFoundationContractTests
         StringAssert.Contains(codeBehind, "ApplyNotePreviewState()");
     }
 
+    [TestMethod(DisplayName = "UT-UI-006 [PNL-003/006/NFR-A11Y-003] Material and motion remain themed, restrained, and compositor-backed")]
+    public void MaterialAndMotionRemainThemedAndRestrained()
+    {
+        XDocument styles = LoadAsset(
+            "Styles",
+            "WorkspaceVisualStyles.xaml");
+        string styleSource = File.ReadAllText(GetAssetPath(
+            "Styles",
+            "WorkspaceVisualStyles.xaml"));
+        string mainWindow = File.ReadAllText(
+            GetAssetPath("MainWindow.xaml.cs"));
+        string surfaceMotion = File.ReadAllText(GetSourcePath(
+            "src",
+            "WorkspacePanel",
+            "Motion",
+            "SurfaceMotionCoordinator.cs"));
+
+        AssertStyleSetterValue(
+            styles,
+            "WwbPanelRootStyle",
+            "Background",
+            "Transparent");
+        AssertStyleSetterValue(
+            styles,
+            "WwbCardSurfaceStyle",
+            "Background",
+            "{ThemeResource CardBackgroundFillColorDefaultBrush}");
+        AssertStyleSetterValue(
+            styles,
+            "WwbToolbarButtonStyle",
+            "Background",
+            "{ThemeResource SubtleFillColorTransparentBrush}");
+        AssertStyleSetterValue(
+            styles,
+            "WwbToolbarButtonStyle",
+            "BorderThickness",
+            "{ThemeResource WwbSurfaceBorderThickness}");
+
+        StringAssert.Contains(
+            styleSource,
+            "WwbPanelAccentWashBrush");
+        StringAssert.Contains(
+            styleSource,
+            "{ThemeResource SystemAccentColor}");
+        StringAssert.Contains(
+            mainWindow,
+            "new DesktopAcrylicBackdrop()");
+        StringAssert.Contains(
+            mainWindow,
+            "NativeWindowStyles.PreferRoundedCorners");
+        StringAssert.Contains(
+            mainWindow,
+            "new ThemeShadow()");
+        StringAssert.Contains(
+            mainWindow,
+            "SurfaceMotionAnchor.TopRight");
+
+        StringAssert.Contains(
+            surfaceMotion,
+            "TimeSpan.FromMilliseconds(180)");
+        StringAssert.Contains(
+            surfaceMotion,
+            "TimeSpan.FromMilliseconds(125)");
+        StringAssert.Contains(
+            surfaceMotion,
+            "TimeSpan.FromMilliseconds(150)");
+        StringAssert.Contains(surfaceMotion, "new(0.985f, 0.985f, 1)");
+        StringAssert.Contains(
+            surfaceMotion,
+            "CompositionBatchTypes.Animation");
+        Assert.IsFalse(
+            surfaceMotion.Contains(
+                "Storyboard",
+                StringComparison.Ordinal));
+    }
+
     private static void AssertThemeThickness(
         XDocument document,
         string themeKey,
@@ -550,5 +626,24 @@ public sealed class WorkspaceVisualFoundationContractTests
     {
         return Path.Combine(
             [AppContext.BaseDirectory, "TestAssets", .. segments]);
+    }
+
+    private static string GetSourcePath(params string[] segments)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string candidate = Path.Combine(
+                [directory.FullName, .. segments]);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException(
+            $"Source asset was not found: {Path.Combine(segments)}");
     }
 }

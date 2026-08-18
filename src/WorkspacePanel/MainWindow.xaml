@@ -933,6 +933,9 @@
             CalendarTemplate="{StaticResource CalendarCardTemplate}"
             DefaultTemplate="{StaticResource UnknownCardTemplate}" />
         </Grid.Resources>
+        <Border
+            Background="{ThemeResource WwbPanelAccentWashBrush}"
+            IsHitTestVisible="False" />
         <Grid
             x:Name="RootGrid"
             Style="{StaticResource WwbPanelRootStyle}"

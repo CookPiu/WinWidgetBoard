@@ -11,6 +11,7 @@ using Microsoft.Windows.ApplicationModel.Resources;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
@@ -42,6 +43,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpFrameChanged = 0x0020;
+    private const int DwmwaWindowCornerPreference = 33;
+    private const int DwmwcpRound = 2;
     private static readonly CardSize[] EditableCardSizes = [
         CardSize.S,
         CardSize.M,
@@ -68,6 +71,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly NoteListCoordinator _noteList;
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
+    private readonly SurfaceMotionCoordinator _surfaceMotion;
+    private readonly bool _reducedMotion;
+    private readonly bool _highContrast;
     private readonly Dictionary<UIElement, CardRuntimeInstance>
         _realizedCardRuntimes = [];
     private readonly bool _keepOpenForAcceptance;
@@ -78,6 +84,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _allowNativeClose;
     private uint? _demoNotesCardPointerId;
     private CompositeTransform? _demoNotesCardTransform;
+    private FrameworkElement? _draggedCardSurface;
     private string? _draggedCardId;
     private CardPlacement? _dragStartPlacement;
     private bool _isSavingLayout;
@@ -111,6 +118,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             dispatch: DispatchToUi);
         _noteList = new NoteListCoordinator(NoteEditor, NoteSearch);
         InitializeComponent();
+        _reducedMotion = !new UISettings().AnimationsEnabled;
+        _highContrast = new AccessibilitySettings().HighContrast;
+        _surfaceMotion = new SurfaceMotionCoordinator(
+            _reducedMotion,
+            _highContrast);
+        TryConfigureSystemBackdrop();
         _cardLayout = new CardLayoutViewModel(
             4,
             [
@@ -173,11 +186,10 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             context,
             _placement);
         RootGrid.RenderTransformOrigin = transformOrigin;
-        bool reducedMotion = !new UISettings().AnimationsEnabled;
         _motion = new PanelMotionCoordinator(
             transformOrigin.X < 0.5 ? -10 : 10,
             transformOrigin.Y < 0.5 ? -10 : 10,
-            reducedMotion,
+            _reducedMotion,
             _uiDispatcherQueue,
             ApplyPanelMotion,
             ApplyDemoNotesCardReturn,
@@ -237,7 +249,25 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         NativeWindowStyles.MakeToolWindow(_windowHandle);
+        NativeWindowStyles.PreferRoundedCorners(_windowHandle);
         _nativeOpacitySupported = NativeWindowStyles.EnableLayeredOpacity(_windowHandle);
+    }
+
+    private void TryConfigureSystemBackdrop()
+    {
+        try
+        {
+            SystemBackdrop = new DesktopAcrylicBackdrop();
+        }
+        catch (Exception exception)
+            when (exception is COMException or NotSupportedException)
+        {
+            Debug.WriteLine(
+                $"WorkspacePanel Desktop Acrylic unavailable: {exception.Message}");
+            RootGrid.Background =
+                Application.Current.Resources[
+                    "ApplicationPageBackgroundThemeBrush"] as Brush;
+        }
     }
 
     private PanelLaunchContext ResolveLaunchContext(WindowId windowId)
@@ -307,6 +337,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _motion.Stop();
         _cardSubscription?.OnWindowClosed();
         _motion.Dispose();
+        _surfaceMotion.Dispose();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
         _appWindow.Closing -= AppWindow_Closing;
@@ -324,6 +355,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         _motion.Dispose();
+        _surfaceMotion.Dispose();
         _cardSubscription?.OnWindowClosed();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
@@ -631,10 +663,21 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        bool isExpanded = overflowPanel.Visibility != Visibility.Visible;
-        overflowPanel.Visibility = isExpanded
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        bool isExpanded = !_surfaceMotion.IsVisible(overflowPanel);
+        if (isExpanded)
+        {
+            _surfaceMotion.Show(
+                overflowPanel,
+                SurfaceMotionAnchor.TopRight,
+                floating: true);
+        }
+        else
+        {
+            _surfaceMotion.Hide(
+                overflowPanel,
+                SurfaceMotionAnchor.TopRight);
+        }
+
         UpdateNoteMoreButtonState(button, isExpanded);
     }
 
@@ -648,7 +691,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        overflowPanel.Visibility = Visibility.Collapsed;
+        _surfaceMotion.Hide(
+            overflowPanel,
+            SurfaceMotionAnchor.TopRight);
         if (overflowPanel.Tag is Button moreButton)
         {
             UpdateNoteMoreButtonState(moreButton, isExpanded: false);
@@ -679,16 +724,41 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void ApplyNotePreviewState()
     {
         bool isPreviewVisible = NoteEditor.IsMarkdownPreviewVisible;
-        SetVisibility(
-            FindDescendantByName<StackPanel>(
-                RootGrid,
-                "NoteEditorInputPanel"),
-            !isPreviewVisible);
-        SetVisibility(
-            FindDescendantByName<Border>(
-                RootGrid,
-                "NoteMarkdownPreviewPanel"),
-            isPreviewVisible);
+        StackPanel? inputPanel = FindDescendantByName<StackPanel>(
+            RootGrid,
+            "NoteEditorInputPanel");
+        Border? previewPanel = FindDescendantByName<Border>(
+            RootGrid,
+            "NoteMarkdownPreviewPanel");
+        if (isPreviewVisible)
+        {
+            if (inputPanel is not null)
+            {
+                _surfaceMotion.HideImmediately(inputPanel);
+            }
+
+            if (previewPanel is not null)
+            {
+                _surfaceMotion.Show(
+                    previewPanel,
+                    SurfaceMotionAnchor.Center);
+            }
+        }
+        else
+        {
+            if (previewPanel is not null)
+            {
+                _surfaceMotion.HideImmediately(previewPanel);
+            }
+
+            if (inputPanel is not null)
+            {
+                _surfaceMotion.Show(
+                    inputPanel,
+                    SurfaceMotionAnchor.Center);
+            }
+        }
+
         SetVisibility(
             FindDescendantByName<Button>(
                 RootGrid,
@@ -711,6 +781,30 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
+    }
+
+    private void SetSearchResultsVisible(
+        bool isVisible,
+        bool immediate = false)
+    {
+        if (isVisible)
+        {
+            _surfaceMotion.Show(
+                NoteSearchResultsBorder,
+                SurfaceMotionAnchor.Top,
+                floating: true);
+            return;
+        }
+
+        if (immediate)
+        {
+            _surfaceMotion.HideImmediately(NoteSearchResultsBorder);
+            return;
+        }
+
+        _surfaceMotion.Hide(
+            NoteSearchResultsBorder,
+            SurfaceMotionAnchor.Top);
     }
 
     private static T? FindDescendantByName<T>(
@@ -750,7 +844,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+        SetSearchResultsVisible(false);
         StatusText.Text = _resources.GetString("NoteCreatingStatus");
         bool created = await NoteEditor.CreateNoteAsync(CancellationToken.None);
         StatusText.Text = _resources.GetString(
@@ -891,7 +985,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _suppressNoteSearchTextChanged = false;
         }
 
-        NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+        SetSearchResultsVisible(false, immediate: true);
         StatusText.Text = _resources.GetString("NoteListLoadingStatus");
         NoteListOperationResult result = await _noteList.LoadAllAsync(
             CancellationToken.None);
@@ -900,9 +994,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        NoteSearchResultsBorder.Visibility = result.HasResults
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        SetSearchResultsVisible(result.HasResults);
         StatusText.Text = result.Status switch
         {
             NoteSearchStatus.Ready => string.Format(
@@ -926,12 +1018,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         if (query.Length == 0)
         {
             await _noteList.SearchAsync(query, CancellationToken.None);
-            NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+            SetSearchResultsVisible(false);
             StatusText.Text = _resources.GetString("NoteSearchClearedStatus");
             return;
         }
 
-        NoteSearchResultsBorder.Visibility = Visibility.Collapsed;
+        SetSearchResultsVisible(false, immediate: true);
         StatusText.Text = _resources.GetString("NoteSearchSearchingStatus");
         NoteListOperationResult result = await _noteList.SearchAsync(
             query,
@@ -941,9 +1033,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        NoteSearchResultsBorder.Visibility = result.HasResults
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        SetSearchResultsVisible(result.HasResults);
         StatusText.Text = result.Status switch
         {
             NoteSearchStatus.Ready => string.Format(
@@ -987,9 +1077,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return false;
         }
 
-        NoteSearchResultsBorder.Visibility = result.HasResults
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        SetSearchResultsVisible(result.HasResults);
         return result.Status is NoteSearchStatus.Ready or NoteSearchStatus.Empty;
     }
 
@@ -1362,9 +1450,21 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
+        PrepareCardSurfaceDepth(args.Element);
         _realizedCardRuntimes[args.Element] = item.Runtime;
         _cardSurface.SetViewportVisibility(item.Runtime, true);
         RequestCardSubscriptionRefresh();
+    }
+
+    private void PrepareCardSurfaceDepth(UIElement element)
+    {
+        if (_highContrast || element.Shadow is not null)
+        {
+            return;
+        }
+
+        element.Shadow = new ThemeShadow();
+        element.Translation = new Vector3(0, 0, 4);
     }
 
     private void CardItemsRepeater_ElementClearing(
@@ -1577,6 +1677,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         InterruptDemoNotesCardReturn();
         ResetCardDropPreview();
         _demoNotesCardTransform = FindNotesCardTransform(surface);
+        _draggedCardSurface = surface;
         _draggedCardId = instanceId;
         _dragStartPlacement = placement;
         _demoNotesCardPointerId = e.Pointer.PointerId;
@@ -1584,6 +1685,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         if (!surface.CapturePointer(e.Pointer))
         {
             _demoNotesCardPointerId = null;
+            _draggedCardSurface = null;
             _draggedCardId = null;
             _dragStartPlacement = null;
             update = _demoNotesCardDrag.Cancel();
@@ -1759,6 +1861,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         double scale = dragging ? 1.01 : 1.0;
         _demoNotesCardTransform.ScaleX = scale;
         _demoNotesCardTransform.ScaleY = scale;
+        if (!_highContrast && _draggedCardSurface is not null)
+        {
+            _draggedCardSurface.Translation =
+                new Vector3(0, 0, dragging ? 16 : 4);
+        }
     }
 
     private bool TryGetDropCell(
@@ -1805,12 +1912,19 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         CompositeTransform? transform = _demoNotesCardTransform;
         _demoNotesCardTransform = null;
+        FrameworkElement? draggedSurface = _draggedCardSurface;
+        _draggedCardSurface = null;
         if (transform is not null)
         {
             transform.TranslateX = 0;
             transform.TranslateY = 0;
             transform.ScaleX = 1;
             transform.ScaleY = 1;
+        }
+
+        if (!_highContrast && draggedSurface is not null)
+        {
+            draggedSurface.Translation = new Vector3(0, 0, 4);
         }
 
         if (!_demoNotesCardDrag.IsActive)
@@ -1931,6 +2045,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         [DllImport("user32.dll", EntryPoint = "GetDpiForWindow")]
         private static extern uint GetDpiForWindowNative(IntPtr window);
 
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(
+            IntPtr window,
+            int attribute,
+            ref int value,
+            int valueSize);
+
         public static void MakeToolWindow(IntPtr window)
         {
             long style = GetWindowLongPtr(window, GwlExStyle).ToInt64();
@@ -1944,6 +2065,16 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 0,
                 0,
                 SwpNoSize | SwpNoMove | SwpNoActivate | SwpNoZOrder | SwpFrameChanged);
+        }
+
+        public static void PreferRoundedCorners(IntPtr window)
+        {
+            int preference = DwmwcpRound;
+            _ = DwmSetWindowAttribute(
+                window,
+                DwmwaWindowCornerPreference,
+                ref preference,
+                sizeof(int));
         }
 
         public static bool EnableLayeredOpacity(IntPtr window)

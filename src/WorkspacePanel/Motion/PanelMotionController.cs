@@ -16,8 +16,7 @@ public readonly record struct PanelMotionValue(
 
 public sealed class PanelMotionController
 {
-    private const double SpringStiffness = 240;
-    private const double SpringDamping = 2 * 15.491933384829668;
+    private const double SpringAngularFrequency = 15.491933384829668;
     private const double ReducedMotionTimeConstant = 0.16;
     private const double SettleValueEpsilon = 0.001;
     private const double SettleVelocityEpsilon = 0.01;
@@ -92,25 +91,29 @@ public sealed class PanelMotionController
         }
         else
         {
-            (double opacity, _opacityVelocity) = Advance(
+            (double opacity, _opacityVelocity) = CriticallyDampedSpring.Advance(
                 _value.Opacity,
                 _opacityVelocity,
                 _target.Opacity,
+                SpringAngularFrequency,
                 seconds);
-            (double scale, _scaleVelocity) = Advance(
+            (double scale, _scaleVelocity) = CriticallyDampedSpring.Advance(
                 _value.Scale,
                 _scaleVelocity,
                 _target.Scale,
+                SpringAngularFrequency,
                 seconds);
-            (double offsetX, _offsetXVelocity) = Advance(
+            (double offsetX, _offsetXVelocity) = CriticallyDampedSpring.Advance(
                 _value.OffsetX,
                 _offsetXVelocity,
                 _target.OffsetX,
+                SpringAngularFrequency,
                 seconds);
-            (double offsetY, _offsetYVelocity) = Advance(
+            (double offsetY, _offsetYVelocity) = CriticallyDampedSpring.Advance(
                 _value.OffsetY,
                 _offsetYVelocity,
                 _target.OffsetY,
+                SpringAngularFrequency,
                 seconds);
             _value = new(opacity, scale, offsetX, offsetY);
         }
@@ -150,17 +153,4 @@ public sealed class PanelMotionController
             from.Scale + (to.Scale - from.Scale) * progress,
             from.OffsetX + (to.OffsetX - from.OffsetX) * progress,
             from.OffsetY + (to.OffsetY - from.OffsetY) * progress);
-
-    private static (double Value, double Velocity) Advance(
-        double value,
-        double velocity,
-        double target,
-        double seconds)
-    {
-        double acceleration =
-            (target - value) * SpringStiffness - velocity * SpringDamping;
-        double nextVelocity = velocity + acceleration * seconds;
-        double nextValue = value + nextVelocity * seconds;
-        return (nextValue, nextVelocity);
-    }
 }

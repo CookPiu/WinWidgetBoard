@@ -10,8 +10,7 @@ public enum CardReturnMotionState
 
 public sealed class CardReturnMotionController
 {
-    private const double SpringStiffness = 260;
-    private const double SpringDamping = 2 * 16.1245154965971;
+    private const double SpringAngularFrequency = 16.1245154965971;
     private const double SettleValueEpsilon = 0.05;
     private const double SettleVelocityEpsilon = 0.1;
 
@@ -72,15 +71,17 @@ public sealed class CardReturnMotionController
         }
 
         double seconds = Math.Clamp(elapsed.TotalSeconds, 0.001, 0.05);
-        (double x, _velocityX) = Advance(
+        (double x, _velocityX) = CriticallyDampedSpring.Advance(
             _value.X,
             _velocityX,
             _target.X,
+            SpringAngularFrequency,
             seconds);
-        (double y, _velocityY) = Advance(
+        (double y, _velocityY) = CriticallyDampedSpring.Advance(
             _value.Y,
             _velocityY,
             _target.Y,
+            SpringAngularFrequency,
             seconds);
         _value = new DragOffset(x, y);
 
@@ -104,18 +105,5 @@ public sealed class CardReturnMotionController
         _velocityX = 0;
         _velocityY = 0;
         State = CardReturnMotionState.Idle;
-    }
-
-    private static (double Value, double Velocity) Advance(
-        double value,
-        double velocity,
-        double target,
-        double seconds)
-    {
-        double acceleration =
-            (target - value) * SpringStiffness - velocity * SpringDamping;
-        double nextVelocity = velocity + acceleration * seconds;
-        double nextValue = value + nextVelocity * seconds;
-        return (nextValue, nextVelocity);
     }
 }
