@@ -51,7 +51,7 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 
 `scripts/Test-CardLayoutHistoryInteraction.ps1` 用 UI Automation 验证编辑模式下的实际缩放、撤销和重做按钮状态；当前参考桌面的按钮流程输出 `REAL-HISTORY-PASS mode-visibility+resize+buttons keyboard-skipped`，键盘快捷键仍需单独拥有前台焦点的流程覆盖。
 
-`scripts/Test-WeatherSettingsInteraction.ps1` 用隔离临时数据和两轮进程启动验证天气位置保存与重启回读：保存后核对状态文本和卡片位置输出 `REAL-WEATHER-SETTINGS-PASS`，重启后经 `weather.settings.get` 回读三个输入框输出 `REAL-WEATHER-SETTINGS-RESTART-PASS`，最后确认面板正常退出。元素查找限定在面板进程自己的顶层窗口内，不遍历桌面根；关闭设置对话框后会先等状态文本更新，否则面板会丢弃紧随其后的关闭点击。
+`scripts/Test-WeatherSettingsInteraction.ps1` 用隔离临时数据和两轮进程启动验证天气位置保存与重启回读：保存后核对状态文本和卡片位置输出 `REAL-WEATHER-SETTINGS-PASS`，重启后经 `weather.settings.get` 回读三个输入框输出 `REAL-WEATHER-SETTINGS-RESTART-PASS`，最后确认面板正常退出。元素查找限定在面板进程自己的顶层窗口内，不遍历桌面根；取消设置对话框后立即点击关闭，是「模态作用域仍被持有时关闭请求必须补发而不是丢弃」的回归。
 
 `scripts/Test-NoteMarkdownPreviewInteraction.ps1` 使用临时 `LOCALAPPDATA`、真实 CoreBroker 和当前 Release x64 面板，验证 Markdown 模式切换、原始正文输入、预览可见性和返回源文按钮；它需要可置前的交互式 Windows 桌面，成功输出 `REAL-NOTE-MARKDOWN-PASS mode+preview`。
 
