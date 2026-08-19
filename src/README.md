@@ -1,18 +1,37 @@
 # 源码目录
 
-M1.1 当前已为 LauncherHost 增加无注入入口 POC；M1.2 已为 WorkspacePanel 增加面板壳层和确定性启动几何；M1.3.1 已接入第一张假卡片的拖动输入 POC；M1.3.2 已接入面板锚定开关动效 POC；M1.3.3 已接入第一张假卡片的取消回归动效；M2.0.1 已接入 Contracts 协议 Envelope、JSON Schema 和长度帧校验；M2.0.2 已接入 CoreBroker 当前用户 Named Pipe、共享客户端、握手、客户端超时/心跳/基础重连和单实例 POC：
+本文件只说明目录结构和每个项目的职责边界。进程模型、IPC、存储和复杂度预算以
+[当前技术架构](../docs/03-technical-architecture.md) 为准；当前进度、债务和下一步以
+[实施状态](../docs/status/implementation-status.md) 为准。历史实现过程保留在 Git 提交中，本文不再逐项累计。
 
 ```text
 src/
-├─ LauncherHost/       # C++/Win32 几何解析与透明入口 POC
-├─ WorkspacePanel/     # C#/.NET 10/WinUI 3 面板壳层、启动上下文与几何计算
-├─ CoreBroker.Client/  # C#/.NET 10 跨 UI 进程复用的 Named Pipe 客户端
-├─ CoreBroker/         # C#/.NET 10 当前用户 Named Pipe、session 握手与 SQLite 存储基础
-└─ Contracts/          # 版本化 JSON/长度帧契约程序集
+├─ LauncherHost/       # C++/Win32 任务栏入口：几何、输入、面板启动与最小原生 Broker 客户端
+├─ WorkspacePanel/     # C#/.NET 10/WinUI 3 面板：布局、便签、天气与设置 UI
+├─ CoreBroker.Client/  # C# 面向 UI 的高层 Named Pipe 客户端
+├─ CoreBroker/         # C# Worker：SQLite、天气 Provider、集中调度与 IPC 服务端
+└─ Contracts/          # 版本化 Envelope、DTO、限制与协议版本
 ```
 
-`PluginHost`、`Cards.BuiltIn` 和 `Packaging` 尚未创建。M1.1 入口 POC 本身不负责面板交接；M1.2.1 已增加独立的同用户进程启动、关闭和状态轮询 POC；M1.3.1 只对一张占位卡片提供阈值、捕获、抓取偏移和点击/拖动互斥；M1.3.2 将位移应用到原生面板窗口、将缩放应用到 RootGrid，并将透明度同步到原生窗口表面（不支持时回退到 XAML 透明度），统一处理关闭和可中断反向；M1.3.3 为取消拖动提供从当前视觉位置回到起点的可中断控制器；M2.0.1 提供版本化 Envelope、稳定 JSON 编解码、Schema 和长度帧；M2.0.2 提供当前用户 Named Pipe、共享客户端、session.hello/session.ping、客户端超时/心跳/基础重连和 CoreBroker 单实例，WorkspacePanel 与 LauncherHost 已接入后台/原生保活客户端；M2.1.1 提供 Windows 11 系统 `winsqlite3.dll` 的 schema/migration/backup 基础，M2.1.2 增加参数化 statement、事务、通用仓储边界和恢复故障注入，M2.1.3 增加 NTE-001 便签仓储与 revision 冲突保护，M2.1.4 增加 UI 无关的 debounce 自动保存服务层，M2.1.5 增加 notes.save/get/search/delete CoreBroker IPC，M2.1.6 增加 `CoreBrokerNotesClient`、可测试 `NoteEditorViewModel` 和 WorkspacePanel 单便签编辑区，M2.4.1 增加便签显式复制动作，M2.4.2 增加保存失败后的显式重试和内存草稿保留，M2.4.3 增加便签搜索结果展示，M2.4.4 增加从搜索结果安全打开便签，M2.4.5 增加便签编辑撤销/重做，M2.4.6 增加 Markdown/纯文本模式和基础 Markdown 预览，但尚未完成便签完整能力或其他领域业务。后续实现必须按 `docs/05-implementation-plan.md` 和对应工作包推进。
+## 项目职责
 
-M2.2.1 已增加独立的 `WorkspacePanel/Layout/ResponsiveGridLayout` 纯布局核心，M2.2.2 已增加 `CardLayoutViewModel` 作为响应式卡片状态层，M2.2.3 已接入 `CardLayoutSurfaceViewModel`、`CardGridLayout` 和 ItemsRepeater，M2.2.4 已加入 `CardLayoutEditViewModel` 编辑模式门禁，M2.2.5 已加入 `CardDragPlacementProjector`，M2.2.6～M2.2.7 已接入指针拖动、placement 提交和边界修复，M2.2.8～M2.2.9 已接入 CoreBroker/SQLite 持久化与逻辑单元重放，M2.2.10 已统一四种卡片根表面的拖动入口并接入占用单元格的实时让位预览，M2.2.11 已加入 `CardLayoutReplaySanitizer`、布局完成后首次绑定和 placement 提交后的网格失效，M2.2.12 已加入编辑会话布局撤销/重做；让位弹簧补间、虚拟化回收和完整可访问性验收仍待完成。
+| 项目 | 工程文件 | 主要内容 |
+| --- | --- | --- |
+| `LauncherHost` | `WinWidgetBoard.LauncherHost.vcxproj` | 入口窗口、命中与穿透、面板进程交接、`CoreBrokerClient.cpp` 保活 |
+| `WorkspacePanel` | `WinWidgetBoard.WorkspacePanel.csproj` | `Shell/`、`Layout/`、`Notes/`、`Runtime/`、`Motion/`、`Interaction/`、`Ipc/`、`Settings/`、`Styles/`、`Strings/` |
+| `CoreBroker.Client` | `WinWidgetBoard.CoreBroker.Client.csproj` | 会话、便签、布局、卡片和天气设置的类型化客户端 |
+| `CoreBroker` | `WinWidgetBoard.CoreBroker.csproj` | `Ipc/`、`Commands/`、`Persistence/`、`Providers/`、`Hosting/` |
+| `Contracts` | `WinWidgetBoard.Contracts.csproj` | 协议 `1.0` 的帧、Envelope、方法 payload 和卡片快照合同 |
 
-M2.3.0 已建立 WorkspacePanel 视觉 Token 和共享卡片外壳；M2.3.1 已建立稳定卡片类型目录、实例生命周期、不可变快照、订阅和实例级错误边界；M2.3.2 已用集中式事件调度器把面板开关与 ItemsRepeater 实现/回收接入 Hidden/Visible，并为隐藏取消、恢复新鲜快照、迟到结果拒绝和有界释放提供测试边界；M2.3.3 已在 Runtime 层建立不可变设置快照、声明式写入策略、预览取消恢复和两阶段提交门禁，不包含 UI、IPC 或数据库接入；M2.3.4 已增加纯 `CardRuntimeStatusPresentation`、五模板共享状态区、双语资源、静态加载骨架和安全动作门禁，并通过当前 Unavailable 状态 UIA 与既有四卡拖拽回归；M2.3.5 已在 CoreBroker 内增加 Scheduled Provider 的纯 C# 合同、集中刷新调度、指数退避、手动限流、状态暂停和有界释放核心；M2.3.6 已增加唯一生产 pump host、fatal fault 监督、共享 `CardStateSnapshot` 合同、Provider 结果适配和有界事件缓冲。真实 Provider/HTTP/`cards.subscribe` 长连接/缓存、设置界面与持久化以及完整无障碍/显示/性能矩阵仍待后续工作包。
+## 不可改变的边界
+
+- `LauncherHost` 不引用 WinUI、SQLite、HTTP 或托管 UI 运行时，不注入或读取 Explorer 私有视觉树；
+- `WorkspacePanel` 不直接打开 SQLite，不手工拼装低层 Envelope，只经 `Ipc/` 的会话与类型化客户端访问 Broker；
+- `CoreBroker` 不引用 WinUI，校验全部 IPC 输入，队列、重试、超时和释放均有上界；
+- `MainWindow.xaml.cs`、`Commands/CoreBrokerCommandRouter.cs` 和 `Providers/ProviderRefreshScheduler.cs` 属于已知债务，
+  只允许先提取协调器或领域 handler，再增加行为；
+- 新增可测试的 WorkspacePanel 类型必须保持 WinUI 无关，并手动加入单元测试项目的 `Compile Include` 列表；
+- 用户可见文案必须同时写入 `Strings/en-US` 和 `Strings/zh-CN`；
+- 可见 UI 变更遵循 [UI、视觉与动效规范](../docs/02-ux-design-spec.md)，复用 `Styles/WorkspaceVisualStyles.xaml` 的 token。
+
+`PluginHost`、独立卡片 SDK、云同步进程和硬件服务不属于当前架构，也不在当前范围内新建。
