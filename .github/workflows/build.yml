@@ -1,8 +1,10 @@
 name: Build
 
+# Manual trigger only until the runner is settled: this job needs Visual Studio 2026 with
+# MSBuild 18.8, which no GitHub-hosted image provides, so `windows-2025-vs2026` assumes a
+# self-hosted runner that does not exist yet. Restore the push and pull_request triggers
+# once a runner actually answers.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
