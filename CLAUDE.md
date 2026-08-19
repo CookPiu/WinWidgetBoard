@@ -197,7 +197,9 @@ The same csproj also copies `App.xaml`, `MainWindow.xaml`, `WorkspaceVisualStyle
 
 The project deliberately shrank to a "lightweight core" of five capabilities (ADR 0022): taskbar entry, panel, basic responsive layout, local notes, weather + manual location. Timers, todos, clipboard, calendar, system monitoring, plugins, accounts, cloud sync, and telemetry are **deferred** — existing placeholder cards and base contracts stay as-is and must not be extended without explicit re-approval. Default rejections: new card types, new provider/plugin platforms, abstractions for a hypothetical second implementation, performance rewrites without measurements.
 
-Three files are known debt and must not absorb unrelated responsibilities — extract a coordinator or domain handler first, then add behavior: `src/WorkspacePanel/MainWindow.xaml.cs` (~2150 lines), `src/CoreBroker/Providers/ProviderRefreshScheduler.cs` (~1690), `src/CoreBroker/Commands/CoreBrokerCommandRouter.cs` (~730). XAML code-behind holds only view events, focus, and coordination; state belongs in a ViewModel or service.
+Two files are known debt and must not absorb unrelated responsibilities — extract a coordinator first, then add behavior: `src/WorkspacePanel/MainWindow.xaml.cs` (~2150 lines) and `src/CoreBroker/Providers/ProviderRefreshScheduler.cs` (~1690). XAML code-behind holds only view events, focus, and coordination; state belongs in a ViewModel or service.
+
+`src/CoreBroker/Commands/CoreBrokerCommandRouter.cs` is now dispatch only: `session.ping`, a `Contract.Methods` lookup per domain, and connection release. Each domain owns a handler in the same directory (`NoteCommandHandler`, `LayoutCommandHandler`, `WeatherSettingsCommandHandler`, `CardSubscriptionCommandHandler`, `PanelVisibilityCommandHandler`), all constructed with the router's single `_gate` so cross-domain serialization is unchanged. A new command goes in the matching handler, never back into the router.
 
 ## Verification: pick the risk tier, don't run everything
 

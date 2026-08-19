@@ -28,8 +28,9 @@ src/
 - `LauncherHost` 不引用 WinUI、SQLite、HTTP 或托管 UI 运行时，不注入或读取 Explorer 私有视觉树；
 - `WorkspacePanel` 不直接打开 SQLite，不手工拼装低层 Envelope，只经 `Ipc/` 的会话与类型化客户端访问 Broker；
 - `CoreBroker` 不引用 WinUI，校验全部 IPC 输入，队列、重试、超时和释放均有上界；
-- `MainWindow.xaml.cs`、`Commands/CoreBrokerCommandRouter.cs` 和 `Providers/ProviderRefreshScheduler.cs` 属于已知债务，
-  只允许先提取协调器或领域 handler，再增加行为；
+- `MainWindow.xaml.cs` 和 `Providers/ProviderRefreshScheduler.cs` 属于已知债务，
+  只允许先提取协调器，再增加行为；
+- `Commands/CoreBrokerCommandRouter.cs` 只做方法分发，新增命令进入对应领域 handler；
 - 新增可测试的 WorkspacePanel 类型必须保持 WinUI 无关，并手动加入单元测试项目的 `Compile Include` 列表；
 - 用户可见文案必须同时写入 `Strings/en-US` 和 `Strings/zh-CN`；
 - 可见 UI 变更遵循 [UI、视觉与动效规范](../docs/02-ux-design-spec.md)，复用 `Styles/WorkspaceVisualStyles.xaml` 的 token。

@@ -176,8 +176,8 @@ WeatherSettingsDialog
 - 不新增进程或项目，除非现有边界无法安全承载已批准核心需求。
 - 不为只有一个实现的能力建立插件式工厂、扩展市场或通用权限框架。
 - 新功能若需要跨越超过现有五层，应先判断是否超出轻量范围。
-- 不继续扩大 `MainWindow.xaml.cs`、`CoreBrokerCommandRouter.cs` 和 `ProviderRefreshScheduler.cs` 的职责。
-- 新增 UI 行为优先从 `MainWindow` 提取协调器；新增命令优先拆分领域 handler。
+- 不继续扩大 `MainWindow.xaml.cs` 和 `ProviderRefreshScheduler.cs` 的职责。
+- 新增 UI 行为优先从 `MainWindow` 提取协调器；新增命令进入对应领域 handler，路由器只做分发。
 - UIA 公共操作应进入一个共享辅助模块，不在每个脚本复制。
 
 ## 11. 构建输出
@@ -193,7 +193,6 @@ WeatherSettingsDialog
 | 区域 | 问题 | 处理方向 |
 | --- | --- | --- |
 | `MainWindow.xaml.cs` | 同时协调布局、便签、订阅、动效和拖动 | 按行为提取协调器 |
-| `CoreBrokerCommandRouter.cs` | 多领域命令集中 | 拆分领域 handler |
 | `ProviderRefreshScheduler.cs` | 单文件状态机过大 | 保持行为不变后分解内部职责 |
 | `scripts/Test-*.ps1` | UIA 基础函数重复 | 提取共享模块 |
 | 文档 | 历史和当前状态重复 | Git 保存历史，状态页只写当前事实 |

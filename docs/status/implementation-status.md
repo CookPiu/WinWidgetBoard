@@ -1,6 +1,6 @@
 # 实施状态
 
-最后更新：2026-08-18
+最后更新：2026-08-19
 当前策略：轻量核心版
 当前代码基线：本文件所在提交
 
@@ -36,28 +36,20 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 当前提交的完成证据：
 
 - Release UnitTests：306/306；
-- WorkspacePanel Release x64 构建：0 警告、0 错误；
-- 参考桌面 4 列网格 UIA 检查通过；
-- 拖动柄、卡片表面、交互控件隔离和 `Esc` 取消的真实鼠标流程通过；
-- 同一编辑轮次内便签 `L→M`、计时器 `M→L` 的连续缩放保持目标和尺寸独立，既有缩放撤销/重做桌面流程通过；
-- 计时器“拖到便签位置→放大→再拖到日历位置”的真实组合流程通过；两次拖动之间位置保持，五种卡片模板均恰好一份；
-- 便签创建、列表、搜索、重新打开和草稿保护的真实桌面流程通过；
-- Markdown 模式、预览、多行正文往返，以及当前便签/列表删除的真实桌面流程通过；
-- 撤销、重做、保存失败重试和已提交状态重载的真实桌面流程通过；
-- 200% DPI 下 UIA 实测搜索框与四个头部按钮均为 64 物理像素，即 32 DIP，并处于同一头部行；
-- `PrintWindow` 实际截图确认便签默认态只显示标题、正文、新建和更多操作，低频及异常命令不再常驻；
-- `PrintWindow` 最终截图确认 Desktop Acrylic、系统强调色微光、圆角、实色卡片、轻量阴影和无描边头部控件正确组合；
-- 便签“更多”浮层在展开后 50ms 内反向收起并正确恢复自动化状态；
-- 验收使用隔离临时数据，结束后已清理。
+- CoreBroker Release x64 构建：0 警告、0 错误；
+- `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test` 退出码 0；
+- 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
+- 真实桌面天气设置流程达到 `REAL-WEATHER-SETTINGS-PASS`：`weather.settings.save` 经真实面板写入 SQLite 并触发 provider 运行时重载；该脚本随后的重启复核段因桌面根元素遍历抛 `RPC_E_SERVERFAULT` 未完成，同一故障在改动前的基线构建上复现；
+- 验收使用隔离临时数据和独立实例身份，结束后已清理。
 
-这属于 L2 针对性证据，不替代发布候选的完整显示器、偏好和无障碍矩阵。
+这属于 L2 针对性证据，不替代发布候选的完整显示器、偏好和无障碍矩阵。更早轮次的完成证据以 Git 提交和测试名称为准。
 
 ## 5. 当前技术债务
 
 1. `MainWindow.xaml.cs` 仍同时协调便签删除/编辑、拖动和设置；卡片订阅、布局持久化、便签列表和动效已提取。
-2. `CoreBrokerCommandRouter.cs` 仍集中布局、卡片订阅、天气和面板可见性命令；便签命令已提取。
+2. `CoreBrokerCommandRouter.cs` 只保留 `session.ping`、方法分发和连接释放；便签、布局、天气设置、卡片订阅和面板可见性各自成为领域 handler，共用同一把锁与同一份操作缓存上限。
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
-4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；Release x64 天气设置真实 UIA 回归已通过，重启设置通过 `weather.settings.get` 验证。
+4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`。当前参考机上 `Test-WeatherSettingsInteraction.ps1` 会在按名称遍历桌面根元素时抛出 `RPC_E_SERVERFAULT`；该故障在改动前的基线构建上同样复现，属于脚本对桌面根遍历的健壮性问题，不是天气链路缺陷。
 5. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
 6. 干净网络 restore、CI、完整显示/无障碍/性能和发布矩阵尚未完成。
 7. 计时器、待办和日历仍以延期占位卡保留；是否从默认工作区移除需要单独产品决定。
@@ -66,35 +58,18 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 本轮已完成：
 
-- 将原型第 2 版“静谧画布”的视觉语言提升到正式 WinUI；
-- 标题、日期、搜索框和全局按钮合并到一个紧凑头部，不再由搜索或按钮独占一栏；
-- 头部控件统一为 32 DIP，卡片基础行高由 180 收敛到 160 DIP，网格间距由 12 收敛到 8 DIP；
-- 全局按钮改用单色 Fluent 图标，保留本地化工具提示和独立无障碍名称；
-- 缩小卡片内边距、标题、正文和天气温度层级，便签移除嵌套输入框描边并把正文空间提升到 148 DIP；
-- 便签把 Markdown、复制和删除收进按需展开区；预览与返回编辑按模式切换，重试、撤销和重做仅在状态需要时进入视觉树；
-- 修复 DataTemplate 普通可见性绑定造成的空预览占位，同时保持 TextBox 实例常驻，避免多行草稿在预览往返时被重建截断；
-- 删除失效的“添加”入口和便签重复说明，把低频状态压缩到上下文位置；
-- 普通主题使用无描边分层，高对比度主题恢复系统 1 像素边界；
-- 修复内容网格在滚动视口中垂直居中产生大块空白的问题；
-- Ready 运行态改为可更新的编译绑定，只在异常、加载或过期时显示状态层；
-- 修正动态读取 XAML 属性资源时的 MRT 路径分隔符，避免真实窗口初始化失败；
-- 面板开关缩短位移并减小缩放，拖动浮起比例由 `1.02` 收敛到 `1.01`。
-- 面板改用系统 Desktop Acrylic，叠加高对比度自动禁用的系统强调色微光；窗口和卡片圆角分别收敛到 16 与 12 DIP；
-- 卡片改用系统语义实色表面与 ThemeShadow，拖动时只提高 Z 深度，不增加额外边框或占用内容空间；
-- 普通头部按钮和搜索框移除常驻描边，状态卡去掉重复的灰色嵌套底板，仍保留高对比度 1 DIP 边界；
-- 面板与卡片回弹改为帧率无关的临界阻尼解析推进；30 FPS 与 120 FPS 等时长呈现已有单测约束；
-- 便签“更多”、搜索结果和 Markdown 预览使用 125～180ms 合成层透明度/轻缩放过渡，减少动态效果时退化为 150ms 淡化；
-- 通用 `RepositionThemeTransition` 会破坏现有卡片拖动的 1:1 指针投影，未纳入正式链路；真实鼠标回归继续约束拖动柄、卡面、交互控件隔离和 `Esc` 取消。
-- 修复缩放与拖动组合后的模板身份和位置错配：placement/order 变化只原地更新稳定的 `CardSurfaceItem`，不再移动数据源索引或强制重绑 `ItemsRepeater`；拖动与缩放统一通过当前已实现元素解析卡片，尺寸步进仍按目标卡片的当前尺寸计算。
-- 将“静谧画布”整理为 UI 规范 v0.2，统一现行 token、密度、组件结构、动效、稳定身份和 L2 视觉验收门禁；新增复用 UI 变更模板，并要求后续评审记录 `Before / After / Why`。
+- 将 `CoreBrokerCommandRouter` 拆为领域 handler：`LayoutCommandHandler`、`WeatherSettingsCommandHandler`、`CardSubscriptionCommandHandler` 和 `PanelVisibilityCommandHandler`，与既有 `NoteCommandHandler` 对齐；
+- 路由器只保留 `session.ping`、按 Contract `Methods` 分发和连接释放，可用性标志与面板可见性状态改为向对应 handler 转发；
+- 全部 handler 继续共用路由器的同一把锁，域间序列化行为不变；操作缓存上限统一由 `CoreBrokerCommandSupport.MaxCachedOperations` 提供；
+- 公开构造签名、`Handle` 重载、`RemoveConnection` 和四个可用性标志保持不变，IPC 方法、限制和错误码未改动。
 
 ## 7. 下一步
 
 按单一目的拆分：
 
 1. 由真实使用反馈决定是否从默认工作区移除延期占位卡；
-2. 继续拆分剩余 CoreBroker 命令 handler；
-3. 在一个参考 Windows 11 x64 环境测量入口到面板和后台占用；
+2. 在一个参考 Windows 11 x64 环境测量入口到面板和后台占用；
+3. 修复 `Test-WeatherSettingsInteraction.ps1` 对桌面根元素遍历的健壮性；
 4. 仅修复核心五项的可复现问题。
 
 ## 8. 延期
