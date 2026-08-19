@@ -148,6 +148,19 @@ git status --short
 - Release 输出路径；
 - `git diff --check` 和最终工作树清单。
 
+日常临时验证不必手工重复以上步骤：`scripts/Start-DevSandbox.ps1` 按本文锁定值包装第 5、6 节，
+准备便携 SDK 环境、校验运行中的 SDK 与 `global.json` 一致、并探测两种托管输出布局。
+
+```powershell
+.\scripts\Start-DevSandbox.ps1                 # 环境核对
+.\scripts\Start-DevSandbox.ps1 -Task Build     # 托管项目用 dotnet，LauncherHost 用 MSBuild
+.\scripts\Start-DevSandbox.ps1 -Task Test -Filter "FullyQualifiedName~ResponsiveGridLayoutTests"
+.\scripts\Start-DevSandbox.ps1 -Task Run       # 隔离沙箱数据启动 Broker 与面板，结束后清理
+```
+
+`-Task Run` 使用独立实例身份和系统临时目录下的数据目录，只停止自己启动的进程，不使用生产数据；
+包含任务栏入口的完整真实流程仍用 `scripts/Run-WinWidgetBoard.ps1`。
+
 ## 7. 当前验证边界
 
 截至 2026-08-06 的本地验收结果：
