@@ -37,7 +37,7 @@ Other locked values (`Directory.Packages.props`, project files): Windows App SDK
 
 ## Build
 
-**The single-command `.sln` build does not work locally.** LauncherHost is C++/MSBuild and needs Visual Studio's MSBuild `18.8`; the portable .NET SDK is not registered with the VS SDK resolver. Build per project instead. CI (`.github/workflows/build.yml`) uses a machine with both installed and does build the whole solution.
+**The single-command `.sln` build does not work locally.** LauncherHost is C++/MSBuild and needs Visual Studio's MSBuild `18.8`; the portable .NET SDK is not registered with the VS SDK resolver, so VS MSBuild fails every managed project with `MSB4236: Microsoft.NET.Sdk not found` (LauncherHost itself still builds). Setting `MSBuildSDKsPath` to the portable SDK's `Sdks` folder only moves the failure to `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`, which the dotnet CLI's own resolver supplies — don't spend time on it. Build per project instead. CI (`.github/workflows/build.yml`) uses a machine with both installed and does build the whole solution.
 
 ```powershell
 dotnet restore .\WinWidgetBoard.sln
