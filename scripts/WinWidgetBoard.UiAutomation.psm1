@@ -179,6 +179,59 @@ public static class WinWidgetBoardUiAutomationInput
 '@
 }
 
+# A UI Automation query can fail transiently when any provider in the searched scope is
+# torn down, restarted or busy: the client sees RPC_E_SERVERFAULT, a disconnected proxy or
+# UIA_E_ELEMENTNOTAVAILABLE. Those are retryable; anything else is a real failure.
+$script:TransientUiaHResults = @(
+    0x80010105, # RPC_E_SERVERFAULT
+    0x80010108, # RPC_E_DISCONNECTED
+    0x800706BA, # RPC_S_SERVER_UNAVAILABLE
+    0x800706BE, # RPC_S_CALL_FAILED
+    0x80040201  # UIA_E_ELEMENTNOTAVAILABLE
+)
+
+function Test-TransientUiaFault {
+    param(
+        [Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    $exception = $ErrorRecord.Exception
+    while ($null -ne $exception) {
+        if ($exception -is [System.Windows.Automation.ElementNotAvailableException]) {
+            return $true
+        }
+
+        $hresult = [uint32]($exception.HResult -band 0xFFFFFFFF)
+        if ($script:TransientUiaHResults -contains $hresult) {
+            return $true
+        }
+
+        $exception = $exception.InnerException
+    }
+
+    return $false
+}
+
+function Invoke-UiaQuery {
+    param(
+        [scriptblock]$Query,
+        [int]$MaxAttempts = 5
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            return & $Query
+        }
+        catch {
+            if ($attempt -ge $MaxAttempts -or -not (Test-TransientUiaFault -ErrorRecord $_)) {
+                throw
+            }
+
+            Start-Sleep -Milliseconds (50 * $attempt)
+        }
+    }
+}
+
 function Get-PanelWindow {
     param(
         [int]$ProcessId,
@@ -208,9 +261,11 @@ function Get-Descendants {
         [System.Windows.Automation.AutomationElement]$Root
     )
 
-    return $Root.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        [System.Windows.Automation.Condition]::TrueCondition)
+    return Invoke-UiaQuery -Query {
+        $Root.FindAll(
+            [System.Windows.Automation.TreeScope]::Descendants,
+            [System.Windows.Automation.Condition]::TrueCondition)
+    }
 }
 
 function Get-ElementByAutomationId {
@@ -222,9 +277,11 @@ function Get-ElementByAutomationId {
     $condition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
         $AutomationId)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
+    return Invoke-UiaQuery -Query {
+        $Root.FindFirst(
+            [System.Windows.Automation.TreeScope]::Descendants,
+            $condition)
+    }
 }
 
 function Get-ElementByName {
@@ -236,9 +293,11 @@ function Get-ElementByName {
     $condition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty,
         $Name)
-    return $Root.FindFirst(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $condition)
+    return Invoke-UiaQuery -Query {
+        $Root.FindFirst(
+            [System.Windows.Automation.TreeScope]::Descendants,
+            $condition)
+    }
 }
 
 function Get-ElementByNames {
@@ -249,7 +308,19 @@ function Get-ElementByNames {
     )
 
     foreach ($element in Get-Descendants -Root $Root) {
-        if ($Names -contains $element.Current.Name) {
+        # An element can disappear between the enumeration and the property read.
+        try {
+            $name = $element.Current.Name
+        }
+        catch {
+            if (Test-TransientUiaFault -ErrorRecord $_) {
+                continue
+            }
+
+            throw
+        }
+
+        if ($Names -contains $name) {
             return $element
         }
     }
@@ -259,6 +330,77 @@ function Get-ElementByNames {
     }
 
     throw "UI Automation element not found. Expected one of: $($Names -join ', ')."
+}
+
+# WinUI hosts a ContentDialog in a popup that can surface as its own top-level UIA window
+# rather than a descendant of the panel HWND. Searching from the desktop root would walk
+# every other application's tree - one faulting provider anywhere on the desktop then takes
+# the whole run down. Enumerate only the top-level windows this process owns instead:
+# Children scope on the desktop root never descends into another application.
+function Get-ProcessWindows {
+    param(
+        [int]$ProcessId
+    )
+
+    $condition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+        $ProcessId)
+    return Invoke-UiaQuery -Query {
+        [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+            [System.Windows.Automation.TreeScope]::Children,
+            $condition)
+    }
+}
+
+function Wait-ProcessWindowContaining {
+    param(
+        [int]$ProcessId,
+        [string]$AutomationId,
+        [TimeSpan]$Timeout
+    )
+
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        foreach ($window in Get-ProcessWindows -ProcessId $ProcessId) {
+            $element = Get-ElementByAutomationId -Root $window -AutomationId $AutomationId
+            if ($null -ne $element) {
+                return $window
+            }
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw ("No window of process $ProcessId exposed '$AutomationId' within " +
+        "$($Timeout.TotalSeconds) seconds.")
+}
+
+function Wait-ProcessElementGone {
+    param(
+        [int]$ProcessId,
+        [string]$AutomationId,
+        [TimeSpan]$Timeout
+    )
+
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        $found = $false
+        foreach ($window in Get-ProcessWindows -ProcessId $ProcessId) {
+            if ($null -ne (Get-ElementByAutomationId -Root $window -AutomationId $AutomationId)) {
+                $found = $true
+                break
+            }
+        }
+
+        if (-not $found) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw ("'$AutomationId' was still present in process $ProcessId after " +
+        "$($Timeout.TotalSeconds) seconds.")
 }
 
 function Wait-VisibleElementByAutomationId {
@@ -604,6 +746,9 @@ function Start-TestPanel {
 
 Export-ModuleMember -Function @(
     'Get-PanelWindow',
+    'Get-ProcessWindows',
+    'Wait-ProcessWindowContaining',
+    'Wait-ProcessElementGone',
     'Get-Descendants',
     'Get-ElementByAutomationId',
     'Get-ElementByName',

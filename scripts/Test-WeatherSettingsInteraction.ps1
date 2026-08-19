@@ -172,8 +172,13 @@ try {
     Invoke-Element -Element $settingsButton
 
     # ContentDialog is hosted in a WinUI Popup and may appear as a separate
-    # top-level UIA window rather than as a descendant of the panel HWND.
-    $automationRoot = [System.Windows.Automation.AutomationElement]::RootElement
+    # top-level UIA window rather than as a descendant of the panel HWND. Resolve the
+    # owning window inside this process instead of searching the desktop root, whose
+    # descendant walk covers every other running application.
+    $automationRoot = Wait-ProcessWindowContaining `
+        -ProcessId $panelProcess.Id `
+        -AutomationId 'WeatherSettingsLabelBox' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
 
     $labelBox = Wait-ElementByAutomationId `
         -Root $automationRoot `
@@ -251,7 +256,10 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $settingsButton
 
-    $automationRoot = [System.Windows.Automation.AutomationElement]::RootElement
+    $automationRoot = Wait-ProcessWindowContaining `
+        -ProcessId $panelProcess.Id `
+        -AutomationId 'WeatherSettingsLabelBox' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
     $reloadedLabel = Wait-ElementValue `
         -Root $automationRoot `
         -AutomationId 'WeatherSettingsLabelBox' `
@@ -271,6 +279,18 @@ try {
         -Root $automationRoot `
         -Names @('Cancel', '取消')
     Invoke-Element -Element $dialogCloseButton
+    Wait-ProcessElementGone `
+        -ProcessId $panelProcess.Id `
+        -AutomationId 'WeatherSettingsLabelBox' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    # The panel drops a close request while its modal scope is still held, and that scope
+    # outlives the dialog element: it is released only after the dialog handler writes its
+    # closing status. Wait for that status, otherwise the close click below is swallowed.
+    [void](Wait-ElementName `
+        -Root $window `
+        -AutomationId 'StatusText' `
+        -Pattern 'Current weather location loaded|已加载当前天气位置' `
+        -Timeout ([TimeSpan]::FromSeconds(10)))
     Write-Output (
         "REAL-WEATHER-SETTINGS-RESTART-PASS settings.get " +
         "label=`"$(Get-ElementText -Element $reloadedLabel)`" " +
