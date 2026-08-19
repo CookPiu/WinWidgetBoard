@@ -40,6 +40,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test`、`WinWidgetBoard.WorkspacePanel.exe --smoke-test` 与 `--broker-smoke-test`（配真实 Broker）退出码均为 0；
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
 - 真实桌面 `Test-WeatherSettingsInteraction.ps1` 在移除脚本侧等待、直接把「取消对话框后立即点关闭」作为回归的前提下连续 3 次完整通过：`REAL-WEATHER-SETTINGS-PASS`（保存经真实面板写入 SQLite 并触发 provider 运行时重载）、`REAL-WEATHER-SETTINGS-RESTART-PASS`（重启后 `weather.settings.get` 读回 Tokyo / 35.6762 / 139.6503）和 `WINDOW-EXIT-PASS exitCode=0`；
+- CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、309/309 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
 - 验收使用隔离临时数据和独立实例身份，结束后已清理。
 
 这属于 L2 针对性证据，不替代发布候选的完整显示器、偏好和无障碍矩阵。更早轮次的完成证据以 Git 提交和测试名称为准。
@@ -65,8 +66,8 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
 4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；查找一律限定在目标进程自己的顶层窗口内，并对可重试的 UIA COM 故障退避重试。
 5. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
-6. 远程仓库已配置（`CookPiu/WinWidgetBoard`，私有），`main` 已推送。`.github/workflows/build.yml` 仍未执行过，当前只保留手动触发。其 runner 标签 `windows-2025-vs2026` 是 GitHub 托管镜像的正式标签（Visual Studio Enterprise 2026 `18.8.12023.21`），该镜像同时提供 Windows SDK `10.0.26100.0`、.NET SDK `10.0.302`、MSBuild `18.8` 和 `VC.14.44.17.14.x86.x64` 侧装工具集；尚未核实的只有 `VCToolsVersion` 的具体补丁号是否为项目锁定的 `14.44.35207`。
-7. 整解决方案构建只能在同时具备 VS MSBuild 与已注册 .NET SDK 的机器上进行；本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。因此 CI 要验证的那条命令至今没有在任何机器上成功过。
+6. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置，`main` 已推送。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟；该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。workflow 目前仍只手动触发。
+7. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
 8. 完整显示、无障碍、性能和发布矩阵尚未执行。
 9. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
 
@@ -80,13 +81,14 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 公开构造签名、`Handle` 重载、`RemoveConnection` 和四个可用性标志保持不变，IPC 方法、限制和错误码未改动；
 - 新增 `scripts/Measure-StartupFootprint.ps1`，把入口到面板延迟和空闲占用变成可重复测量；窗口按类名查找和左键点击进入共享 UIA 模块；
 - 天气设置真实流程改为只在面板进程自己的顶层窗口内查找元素，不再遍历桌面根；共享模块对可重试的 UIA COM 故障退避重试，该流程首次完整跑通；
+- 修复 `UT-CARD-096` 与孤儿请求降级之间的竞争：被取消但 provider 忽略取消的执行是在完成回调里由 Active 异步降级为 Predecessor，而 `InFlightCount` 是两者之和，降级前后都读作 1，无法作为等待条件；测试改为有界重试 pump 直到真正启动一次刷新。该测试在 14 核本机几乎必过，在双核 CI 上必挂；
 - 修复面板在模态作用域仍被持有时静默丢弃关闭请求的缺陷：`RequestCloseMotion` 改为记下延迟请求，最后一层模态作用域释放时补发一次；判定逻辑放在无 WinUI 依赖的 `PanelActivationClosePolicy` 并有单测覆盖，失焦关闭与 `Esc` 路径不受影响。
 
 ## 7. 下一步
 
 核心五项已全部具备真实桌面证据，功能面收口。当前优先级由「继续改代码」转为「消除单点风险并靠真实使用暴露问题」：
 
-1. **让 CI 真正跑起来**：远程已配置并推送完成，`windows-2025-vs2026` 托管镜像与本项目锁定值几乎完全吻合，只剩 `VCToolsVersion` 补丁号一处未核实；用一次手动触发的 workflow 运行确认，再决定是否恢复 push/pull_request 触发。见 §5.6、§5.7。
+1. **决定是否恢复 CI 的 `push` / `pull_request` 触发**。托管镜像已验证可行，代价是每次推送消耗约 9 分钟 Actions 额度（两个 job 各约 2 分钟，Windows 按 2 倍计入）。顺带把 `actions/checkout` 与 `microsoft/setup-msbuild` 升到不再依赖 Node.js 20 的版本。见 §5.6。
 2. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
 3. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
 4. 性能暂不优化。首帧约 670 ms 属自包含 WinUI 正常范围，既无目标值也无实际抱怨；若要动，先做耗时构成分解，不能只凭总量。
