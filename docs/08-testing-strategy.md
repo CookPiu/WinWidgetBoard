@@ -180,13 +180,10 @@ dotnet build .\src\<受影响项目>\<项目>.csproj -c Release
 
 若修改 UI/IPC/数据库，再增加对应 smoke 或一条真实流程。
 
-## 11. 当前已知基线
+## 11. 验证证据的记录位置
 
-提交 `6824cb9` 的最近完成证据为：
+测试通过数、构建告警数和真实桌面流程结果属于随提交变化的当前事实，只记录在
+[实施状态](status/implementation-status.md) 的“最近完成证据”一节，本文不再复制一份可能过期的数字。
 
-- Debug/Release UnitTests：292/292；
-- CoreBroker、WorkspacePanel 和 UnitTests Debug/Release x64：0 警告、0 错误；
-- 天气位置保存与重启读取 UIA 通过；
-- Open-Meteo 真实天气链路回归通过。
-
-这是历史基线，不代表后续每次改动都已自动重复验证。
+更早的完成证据以 Git 提交和测试名称为准。任何一次记录都只证明当时那一轮的验证范围，
+不代表后续改动已自动重复验证；引用它前先确认基线提交。
