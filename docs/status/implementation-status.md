@@ -65,7 +65,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
 4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；查找一律限定在目标进程自己的顶层窗口内，并对可重试的 UIA COM 故障退避重试。
 5. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
-6. 仓库没有配置任何远程，57 个提交只存在于单台开发机；`.github/workflows/build.yml` 因此从未执行过，其 runner 标签 `windows-2025-vs2026` 也不是 GitHub 托管镜像的标准标签，属于未验证假设。
+6. 远程仓库已配置（`CookPiu/WinWidgetBoard`，私有），`main` 已推送。`.github/workflows/build.yml` 仍未执行过，当前只保留手动触发。其 runner 标签 `windows-2025-vs2026` 是 GitHub 托管镜像的正式标签（Visual Studio Enterprise 2026 `18.8.12023.21`），该镜像同时提供 Windows SDK `10.0.26100.0`、.NET SDK `10.0.302`、MSBuild `18.8` 和 `VC.14.44.17.14.x86.x64` 侧装工具集；尚未核实的只有 `VCToolsVersion` 的具体补丁号是否为项目锁定的 `14.44.35207`。
 7. 整解决方案构建只能在同时具备 VS MSBuild 与已注册 .NET SDK 的机器上进行；本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。因此 CI 要验证的那条命令至今没有在任何机器上成功过。
 8. 完整显示、无障碍、性能和发布矩阵尚未执行。
 9. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
@@ -86,7 +86,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 核心五项已全部具备真实桌面证据，功能面收口。当前优先级由「继续改代码」转为「消除单点风险并靠真实使用暴露问题」：
 
-1. **配置远程仓库并推送**，消除代码只存在于单台机器的风险；同时确定 CI 的 runner 前提是自托管（保持 VS 2026 与 MSBuild `18.8` 锁定）还是 GitHub 托管镜像（需重新审视工具链锁定值）。见 §5.6、§5.7。
+1. **让 CI 真正跑起来**：远程已配置并推送完成，`windows-2025-vs2026` 托管镜像与本项目锁定值几乎完全吻合，只剩 `VCToolsVersion` 补丁号一处未核实；用一次手动触发的 workflow 运行确认，再决定是否恢复 push/pull_request 触发。见 §5.6、§5.7。
 2. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
 3. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
 4. 性能暂不优化。首帧约 670 ms 属自包含 WinUI 正常范围，既无目标值也无实际抱怨；若要动，先做耗时构成分解，不能只凭总量。
