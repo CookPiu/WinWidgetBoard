@@ -8,6 +8,7 @@ if (-not ('WinWidgetBoardUiAutomationInput' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public static class WinWidgetBoardUiAutomationInput
 {
@@ -25,6 +26,155 @@ public static class WinWidgetBoardUiAutomationInput
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr window);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WindowRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int Dx;
+        public int Dy;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInfo;
+    }
+
+    // x64 INPUT is DWORD type + 4 bytes of padding + the 32-byte MOUSEINPUT union member,
+    // i.e. 40 bytes. Extra trailing fields would make Marshal.SizeOf disagree with the
+    // cbSize SendInput expects, and SendInput would silently fail.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Input
+    {
+        public uint Type;
+        public MouseInput Mouse;
+    }
+
+    private const uint InputMouse = 0;
+    private const uint MouseMove = 0x0001;
+    private const uint MouseLeftDown = 0x0002;
+    private const uint MouseLeftUp = 0x0004;
+    private const uint MouseVirtualDesk = 0x4000;
+    private const uint MouseAbsolute = 0x8000;
+    private const int SmXVirtualScreen = 76;
+    private const int SmYVirtualScreen = 77;
+    private const int SmCxVirtualScreen = 78;
+    private const int SmCyVirtualScreen = 79;
+
+    private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetClassNameW(IntPtr window, StringBuilder name, int capacity);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+    // FindWindowW resolves a class name through the calling process's atom table, so it
+    // cannot see a class another process registered without CS_GLOBALCLASS - which is how
+    // the LauncherHost entry window is registered. Enumerate instead.
+    public static IntPtr FindVisibleWindowByClass(string className, uint processId)
+    {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((window, parameter) =>
+        {
+            if (!IsWindowVisible(window))
+            {
+                return true;
+            }
+
+            if (processId != 0)
+            {
+                uint owner;
+                GetWindowThreadProcessId(window, out owner);
+                if (owner != processId)
+                {
+                    return true;
+                }
+            }
+
+            var buffer = new StringBuilder(256);
+            if (GetClassNameW(window, buffer, buffer.Capacity) == 0 ||
+                !string.Equals(buffer.ToString(), className, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            found = window;
+            return false;
+        }, IntPtr.Zero);
+        return found;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetWindowRect(IntPtr window, out WindowRect rect);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint inputCount, Input[] inputs, int inputSize);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int index);
+
+    private static Input CreateMouseInput(uint flags, int normalizedX, int normalizedY)
+    {
+        var input = new Input();
+        input.Type = InputMouse;
+        input.Mouse.Dx = normalizedX;
+        input.Mouse.Dy = normalizedY;
+        input.Mouse.Flags = flags;
+        return input;
+    }
+
+    public static bool SendLeftClick(int x, int y)
+    {
+        int left = GetSystemMetrics(SmXVirtualScreen);
+        int top = GetSystemMetrics(SmYVirtualScreen);
+        int width = GetSystemMetrics(SmCxVirtualScreen);
+        int height = GetSystemMetrics(SmCyVirtualScreen);
+        if (width <= 1 || height <= 1)
+        {
+            return false;
+        }
+
+        int normalizedX = (int)Math.Round((x - left) * 65535.0 / (width - 1));
+        int normalizedY = (int)Math.Round((y - top) * 65535.0 / (height - 1));
+        uint absolute = MouseMove | MouseAbsolute | MouseVirtualDesk;
+        var move = new Input[] { CreateMouseInput(absolute, normalizedX, normalizedY) };
+        if (SendInput(1, move, Marshal.SizeOf<Input>()) != 1)
+        {
+            return false;
+        }
+
+        var down = new Input[]
+        {
+            CreateMouseInput(absolute | MouseLeftDown, normalizedX, normalizedY),
+        };
+        if (SendInput(1, down, Marshal.SizeOf<Input>()) != 1)
+        {
+            return false;
+        }
+
+        var up = new Input[]
+        {
+            CreateMouseInput(absolute | MouseLeftUp, normalizedX, normalizedY),
+        };
+        return SendInput(1, up, Marshal.SizeOf<Input>()) == 1;
+    }
 }
 '@
 }
@@ -307,6 +457,50 @@ function Focus-PanelWindow {
     }
 }
 
+function Get-WindowRectByClass {
+    param(
+        [string]$ClassName,
+        [int]$ProcessId = 0,
+        [TimeSpan]$Timeout = ([TimeSpan]::FromSeconds(10))
+    )
+
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        $handle = [WinWidgetBoardUiAutomationInput]::FindVisibleWindowByClass(
+            $ClassName,
+            [uint32]$ProcessId)
+        if ($handle -ne [IntPtr]::Zero) {
+            $rect = New-Object 'WinWidgetBoardUiAutomationInput+WindowRect'
+            if ([WinWidgetBoardUiAutomationInput]::GetWindowRect($handle, [ref]$rect)) {
+                return [pscustomobject]@{
+                    Handle = $handle
+                    Left = $rect.Left
+                    Top = $rect.Top
+                    Right = $rect.Right
+                    Bottom = $rect.Bottom
+                    CenterX = [int](($rect.Left + $rect.Right) / 2)
+                    CenterY = [int](($rect.Top + $rect.Bottom) / 2)
+                }
+            }
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw "Window class '$ClassName' did not become visible within $($Timeout.TotalSeconds) seconds."
+}
+
+function Invoke-LeftClickAtPoint {
+    param(
+        [int]$X,
+        [int]$Y
+    )
+
+    if (-not [WinWidgetBoardUiAutomationInput]::SendLeftClick($X, $Y)) {
+        throw "SendInput failed while clicking ($X, $Y)."
+    }
+}
+
 function Stop-WinWidgetBoardProcess {
     param(
         [Diagnostics.Process]$Process,
@@ -423,6 +617,8 @@ Export-ModuleMember -Function @(
     'Invoke-Element',
     'Set-VerticalScrollPercent',
     'Focus-PanelWindow',
+    'Get-WindowRectByClass',
+    'Invoke-LeftClickAtPoint',
     'Stop-WinWidgetBoardProcess',
     'Stop-TestProcess',
     'Stop-OwnedProcess',
