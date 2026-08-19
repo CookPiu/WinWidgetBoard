@@ -80,6 +80,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _cardItemsBound;
     private bool _nativeOpacitySupported;
     private int _modalScopeDepth;
+    private bool _deferredCloseRequest;
     private bool _hasBeenActivated;
     private bool _allowNativeClose;
     private uint? _demoNotesCardPointerId;
@@ -1606,11 +1607,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void RequestCloseMotion()
     {
-        if (_modalScopeDepth != 0)
+        if (PanelActivationClosePolicy.ShouldDeferCloseRequest(_modalScopeDepth))
         {
+            _deferredCloseRequest = true;
             return;
         }
 
+        _deferredCloseRequest = false;
         _cardSurface.SetPanelVisibility(false);
         RequestCardSubscriptionRefresh();
         _motion.RequestClose();
@@ -2031,8 +2034,15 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 return;
             }
 
-            _owner._modalScopeDepth = Math.Max(0, _owner._modalScopeDepth - 1);
+            MainWindow owner = _owner;
             _owner = null;
+            owner._modalScopeDepth = Math.Max(0, owner._modalScopeDepth - 1);
+            if (PanelActivationClosePolicy.ShouldReplayDeferredClose(
+                    owner._modalScopeDepth,
+                    owner._deferredCloseRequest))
+            {
+                owner.RequestCloseMotion();
+            }
         }
     }
 

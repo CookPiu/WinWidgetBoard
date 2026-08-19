@@ -15,4 +15,23 @@ internal static class PanelActivationClosePolicy
             hasBeenActivated &&
             modalScopeDepth == 0;
     }
+
+    // An explicit close request can land while a dialog is still tearing down: the dialog has
+    // already left the visual tree but ShowAsync has not returned, so the modal scope is still
+    // held. Defer the request instead of dropping it, and replay it once the scope is released.
+    internal static bool ShouldDeferCloseRequest(int modalScopeDepth)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(modalScopeDepth);
+
+        return modalScopeDepth > 0;
+    }
+
+    internal static bool ShouldReplayDeferredClose(
+        int modalScopeDepth,
+        bool hasDeferredCloseRequest)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(modalScopeDepth);
+
+        return hasDeferredCloseRequest && modalScopeDepth == 0;
+    }
 }

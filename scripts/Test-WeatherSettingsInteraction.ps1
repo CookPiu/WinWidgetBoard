@@ -279,18 +279,13 @@ try {
         -Root $automationRoot `
         -Names @('Cancel', '取消')
     Invoke-Element -Element $dialogCloseButton
+    # Closing the panel immediately after the dialog leaves the tree is the regression for
+    # the deferred close request: the modal scope is still held at this point, so the click
+    # below must be replayed once that scope is released rather than dropped.
     Wait-ProcessElementGone `
         -ProcessId $panelProcess.Id `
         -AutomationId 'WeatherSettingsLabelBox' `
         -Timeout ([TimeSpan]::FromSeconds(10))
-    # The panel drops a close request while its modal scope is still held, and that scope
-    # outlives the dialog element: it is released only after the dialog handler writes its
-    # closing status. Wait for that status, otherwise the close click below is swallowed.
-    [void](Wait-ElementName `
-        -Root $window `
-        -AutomationId 'StatusText' `
-        -Pattern 'Current weather location loaded|已加载当前天气位置' `
-        -Timeout ([TimeSpan]::FromSeconds(10)))
     Write-Output (
         "REAL-WEATHER-SETTINGS-RESTART-PASS settings.get " +
         "label=`"$(Get-ElementText -Element $reloadedLabel)`" " +
