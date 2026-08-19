@@ -14,7 +14,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 | 能力 | 当前状态 | 仍需处理 |
 | --- | --- | --- |
-| 任务栏入口 | 已实现公开 Win32 几何、点击、穿透和面板交接 | 发布前补完整显示矩阵和性能 |
+| 任务栏入口 | 已实现公开 Win32 几何、点击、穿透和面板交接；单台参考机的入口到面板延迟与空闲占用已测量 | 发布前补完整显示矩阵和多设备性能 |
 | 面板 | 已实现 WinUI 壳层、Desktop Acrylic、系统强调色层级、圆角阴影、锚定动效、关闭和模态保护；完成单行头部与紧凑尺度收口 | 继续拆分集中式 code-behind，并在真实使用后校准细节 |
 | 基础布局 | 已实现 2/4/6 列、拖动、持久化、恢复和撤销 | 只修缺陷，不扩展复杂编辑 |
 | 便签 | 已实现 CRUD、搜索、Markdown、自动保存和安全删除；编辑区使用内容优先与渐进操作 | 只维护核心旅程 |
@@ -44,6 +44,20 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 这属于 L2 针对性证据，不替代发布候选的完整显示器、偏好和无障碍矩阵。更早轮次的完成证据以 Git 提交和测试名称为准。
 
+### 4.1 参考机启动与后台占用
+
+测量条件：Intel Core Ultra 5 225H（14 逻辑核）、31.4 GB 内存、Windows 11 25H2 build 26200.9168（注册表 `ProductName` 仍显示 `Windows 10 Pro`）、Release x64、未附加调试器、基线提交 `eb07d3e`、工具 `scripts/Measure-StartupFootprint.ps1`、每阶段 5 次迭代、空闲采样 60.9 秒、隔离临时数据目录。
+
+| 指标 | 最小 | 中位 | 最大 |
+| --- | --- | --- | --- |
+| 面板进程启动 → 首个窗口 | 661.2 ms | 669.3 ms | 673.6 ms |
+| 面板进程启动 → 布局就绪状态 | 872.2 ms | 880.0 ms | 928.1 ms |
+| 任务栏入口点击 → 面板窗口 | 678.9 ms | 695.6 ms | 720.0 ms |
+
+无面板打开时的空闲占用：CoreBroker 在 60.9 秒内消耗 109 ms CPU（全核 0.013%），工作集 43.1～46.4 MB，中位 43.9 MB；LauncherHost 消耗 0 ms CPU，工作集恒为 12.1 MB。
+
+这是单台参考机的一次测量，不覆盖多显示器、DPI 缩放、低配设备和长稳；发布候选的性能矩阵仍未执行。
+
 ## 5. 当前技术债务
 
 1. `MainWindow.xaml.cs` 仍同时协调便签删除/编辑、拖动和设置；卡片订阅、布局持久化、便签列表和动效已提取。
@@ -61,14 +75,15 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 将 `CoreBrokerCommandRouter` 拆为领域 handler：`LayoutCommandHandler`、`WeatherSettingsCommandHandler`、`CardSubscriptionCommandHandler` 和 `PanelVisibilityCommandHandler`，与既有 `NoteCommandHandler` 对齐；
 - 路由器只保留 `session.ping`、按 Contract `Methods` 分发和连接释放，可用性标志与面板可见性状态改为向对应 handler 转发；
 - 全部 handler 继续共用路由器的同一把锁，域间序列化行为不变；操作缓存上限统一由 `CoreBrokerCommandSupport.MaxCachedOperations` 提供；
-- 公开构造签名、`Handle` 重载、`RemoveConnection` 和四个可用性标志保持不变，IPC 方法、限制和错误码未改动。
+- 公开构造签名、`Handle` 重载、`RemoveConnection` 和四个可用性标志保持不变，IPC 方法、限制和错误码未改动；
+- 新增 `scripts/Measure-StartupFootprint.ps1`，把入口到面板延迟和空闲占用变成可重复测量；窗口按类名查找和左键点击进入共享 UIA 模块。
 
 ## 7. 下一步
 
 按单一目的拆分：
 
-1. 在一个参考 Windows 11 x64 环境测量入口到面板和后台占用；
-2. 修复 `Test-WeatherSettingsInteraction.ps1` 对桌面根元素遍历的健壮性；
+1. 修复 `Test-WeatherSettingsInteraction.ps1` 对桌面根元素遍历的健壮性；
+2. 判断面板首帧约 670 ms、布局就绪约 880 ms 是否需要优化，若需要则先定位耗时构成再改；
 3. 仅修复核心五项的可复现问题。
 
 ## 8. 延期
