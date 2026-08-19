@@ -917,6 +917,26 @@ public sealed class ProviderRefreshSchedulerTests
             visibility);
     }
 
+    // A cancelled execution whose provider ignores cancellation is demoted from Active to
+    // Predecessor in the completion callback, so the demotion lands on a continuation. Until
+    // it does, the group still has an Active and the pump legitimately defers to Pending and
+    // starts nothing. InFlightCount counts Active plus Predecessor, so it reads 1 on both
+    // sides of the demotion and cannot be waited on. Pump until one refresh actually starts.
+    private static async Task WaitForPumpStartAsync(ProviderRefreshScheduler scheduler)
+    {
+        for (int attempt = 0; attempt < 64; attempt++)
+        {
+            if (await scheduler.PumpDueAsync() == 1)
+            {
+                return;
+            }
+
+            await Task.Yield();
+        }
+
+        Assert.Fail("The pump did not start a refresh within the bounded wait.");
+    }
+
     private static async Task WaitForConditionAsync(
         Func<bool> condition)
     {
@@ -1024,7 +1044,7 @@ public sealed class ProviderRefreshSchedulerTests
 
         source.SetNextPending();
         clock.Advance(TimeSpan.FromSeconds(1));
-        Assert.AreEqual(1, await scheduler.PumpDueAsync());
+        await WaitForPumpStartAsync(scheduler);
         await source.Started.Task.WaitAsync(TimeSpan.FromSeconds(1));
         Assert.AreEqual(2, source.CallCount);
 
