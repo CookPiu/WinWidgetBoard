@@ -5,6 +5,8 @@ namespace WinWidgetBoard.CoreBroker.Commands;
 
 internal static class CoreBrokerCommandSupport
 {
+    public const int MaxCachedOperations = 512;
+
     public static bool TryDeserializePayload<T>(
         JsonElement payload,
         out T? value)

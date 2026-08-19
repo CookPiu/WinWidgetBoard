@@ -5,8 +5,6 @@ namespace WinWidgetBoard.CoreBroker.Commands;
 
 internal sealed class NoteCommandHandler
 {
-    private const int MaxCachedOperations = 512;
-
     private readonly object _gate;
     private readonly NoteRepository _noteRepository;
     private readonly Dictionary<Guid, CachedNoteOperation> _cachedOperations = new();
@@ -406,7 +404,7 @@ internal sealed class NoteCommandHandler
         object fingerprint,
         object response)
     {
-        while (_cachedOperations.Count >= MaxCachedOperations &&
+        while (_cachedOperations.Count >= CoreBrokerCommandSupport.MaxCachedOperations &&
             _operationOrder.Count > 0)
         {
             _cachedOperations.Remove(_operationOrder.Dequeue());
