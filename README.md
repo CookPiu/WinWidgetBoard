@@ -56,12 +56,14 @@ WinWidgetBoard 是一个面向 Windows 11 的本地优先快捷工作台。它�
 建议只按任务需要阅读：
 
 1. [轻量产品需求](docs/01-product-requirements.md)
-2. [当前技术架构](docs/03-technical-architecture.md)
-3. [当前实施计划](docs/05-implementation-plan.md)
-4. [当前接口契约](docs/07-api-contracts.md)
-5. [风险分级测试策略](docs/08-testing-strategy.md)
-6. [安全与隐私边界](docs/09-security-privacy.md)
-7. [ADR 索引](docs/adr/README.md)
+2. [UI、视觉与动效规范](docs/02-ux-design-spec.md)
+3. [UI 变更模板](docs/templates/ui-change-template.md)
+4. [当前技术架构](docs/03-technical-architecture.md)
+5. [当前实施计划](docs/05-implementation-plan.md)
+6. [当前接口契约](docs/07-api-contracts.md)
+7. [风险分级测试策略](docs/08-testing-strategy.md)
+8. [安全与隐私边界](docs/09-security-privacy.md)
+9. [ADR 索引](docs/adr/README.md)
 
 工具链和构建命令见 [开发工具链](docs/development/toolchain.md)。
 
