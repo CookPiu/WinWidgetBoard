@@ -51,6 +51,8 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 
 `scripts/Test-CardLayoutHistoryInteraction.ps1` 用 UI Automation 验证编辑模式下的实际缩放、撤销和重做按钮状态；当前参考桌面的按钮流程输出 `REAL-HISTORY-PASS mode-visibility+resize+buttons keyboard-skipped`，键盘快捷键仍需单独拥有前台焦点的流程覆盖。
 
+`scripts/Test-WeatherSettingsInteraction.ps1` 用隔离临时数据和两轮进程启动验证天气位置保存与重启回读：保存后核对状态文本和卡片位置输出 `REAL-WEATHER-SETTINGS-PASS`，重启后经 `weather.settings.get` 回读三个输入框输出 `REAL-WEATHER-SETTINGS-RESTART-PASS`，最后确认面板正常退出。元素查找限定在面板进程自己的顶层窗口内，不遍历桌面根；关闭设置对话框后会先等状态文本更新，否则面板会丢弃紧随其后的关闭点击。
+
 `scripts/Test-NoteMarkdownPreviewInteraction.ps1` 使用临时 `LOCALAPPDATA`、真实 CoreBroker 和当前 Release x64 面板，验证 Markdown 模式切换、原始正文输入、预览可见性和返回源文按钮；它需要可置前的交互式 Windows 桌面，成功输出 `REAL-NOTE-MARKDOWN-PASS mode+preview`。
 
 `scripts/Measure-StartupFootprint.ps1` 采集性能结论所需的原始数据：面板进程启动到窗口、到布局就绪的耗时，任务栏入口点击到面板窗口的耗时，以及无面板时 CoreBroker 与 LauncherHost 的 CPU 时间和工作集。它同时打印设备、OS build、配置、调试器状态、迭代次数和每次原始值，使用隔离临时数据目录与临时 `LOCALAPPDATA`，只停止自己启动的进程，成功输出 `MEASURE-STARTUP-FOOTPRINT-PASS`。当前测量值记录在[实施状态](../docs/status/implementation-status.md)，本文不复制。
