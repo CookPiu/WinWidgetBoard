@@ -131,6 +131,8 @@ It copies the Release x64 build to `%LOCALAPPDATA%\WinWidgetBoard\app` (Launcher
 
 Every child process is created suspended, assigned to a `KILL_ON_JOB_CLOSE` job object, then resumed. That is what stops a force-killed launcher from orphaning the resident panel, so don't spawn a child outside `ChildProcessJob`.
 
+Note the consequence for development: once installed with the sign-in shortcut, WinWidgetBoard is running all the time, and every script that refuses to start alongside an existing WinWidgetBoard process — `Run-WinWidgetBoard.ps1`, `Start-DevSandbox.ps1 -Task Run`, and all of `scripts/Test-*.ps1` — will refuse. Close the installed entry from its context menu (退出) before a real-desktop run.
+
 ## Architecture
 
 Three processes and two shared libraries. The process split is load-bearing, not organizational — see `docs/03-technical-architecture.md` and ADR 0002.

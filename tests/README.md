@@ -59,6 +59,8 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 
 `scripts/Test-LauncherEntryPlacement.ps1` 是任务栏入口的真实桌面回归：断言入口窗口落在由显示器与工作区推导的任务栏条带内、宽高在 96～280 与不小于 32 DIP 的范围内，入口形状之外的条带点位不归启动器（穿透成立），并验证点击开启面板，成功输出 `REAL-LAUNCHER-ENTRY-PASS`。它不启动 CoreBroker，因此不触碰生产数据；点击前会等待入口占据自身中心点，因为 topmost 层级与其他第三方任务栏扩展共享。
 
+安装后的入口（`scripts/Install-WinWidgetBoard.ps1`）会随登录常驻，本目录下的真实桌面脚本会因检测到已有进程而拒绝运行；跑测试前先从入口右键菜单退出。
+
 LauncherHost 现在会自启动 CoreBroker（[ADR-0026](../docs/adr/0026-launcher-owned-process-tree.md)）。任何直接启动 LauncherHost 且不希望触碰生产数据库的脚本**必须**传 `--no-broker`；设置了 `WINWIDGETBOARD_COREBROKER_SESSION_TOKEN` 的脚本会自动被跳过，因为那表示会话已由外部提供。
 
 面板现在是常驻的：关闭隐藏窗口并保留进程（[ADR-0025](../docs/adr/0025-resident-workspace-panel.md)）。因此 `Test-WeatherSettingsInteraction.ps1`、`Test-WeatherProviderInteraction.ps1` 和 `Test-CardRuntimeStatusInteraction.ps1` 在关闭后断言的是 `WINDOW-HIDDEN-PASS`（窗口不可见且进程存活），不再是进程退出；`--panel-lifecycle-smoke-test` 同样改为断言隐藏、存活并能以同一进程重新显示。
