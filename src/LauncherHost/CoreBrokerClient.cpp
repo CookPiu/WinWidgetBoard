@@ -24,6 +24,11 @@ constexpr ULONGLONG kConnectionStartupTimeoutMilliseconds = 1000;
 constexpr DWORD kConnectionRetryDelayMilliseconds = 25;
 constexpr ULONGLONG kConnectionRetryMilliseconds = 1000;
 constexpr ULONGLONG kHeartbeatIntervalMilliseconds = 5000;
+// The broker refreshes weather hourly while the panel is closed, so once a minute is already
+// far more often than the projection can change. Before the first reading exists - broker
+// just started, network still coming up - poll faster so the entry fills in promptly.
+constexpr ULONGLONG kWeatherPollIntervalMilliseconds = 60000;
+constexpr ULONGLONG kWeatherInitialPollIntervalMilliseconds = 3000;
 constexpr uint32_t kMaxMessageBytes = 1024 * 1024;
 
 bool IsWhitespace(const char value)
@@ -159,10 +164,94 @@ void CoreBrokerClient::RunLoop()
             }
         }
 
+        if (IsConnected() && now >= _nextWeatherTick)
+        {
+            const bool hasReading = RefreshWeatherSummary();
+            _nextWeatherTick = now + (hasReading
+                ? kWeatherPollIntervalMilliseconds
+                : kWeatherInitialPollIntervalMilliseconds);
+        }
+
         WaitForWake(100);
     }
 
     ClosePipe();
+}
+
+bool CoreBrokerClient::RefreshWeatherSummary()
+{
+    std::string response;
+    if (!SendRequest(
+            "weather.summary.get",
+            "{\"instanceId\":\"demo.weather\"}",
+            response))
+    {
+        ClosePipe();
+        return false;
+    }
+
+    std::string label;
+    std::string temperature;
+    std::wstring summary;
+    if (FindJsonString(response, "label", label) &&
+        FindJsonString(response, "temperatureText", temperature) &&
+        !temperature.empty())
+    {
+        // Decode each UTF-8 field on its own and join in the wide domain. Writing the degree
+        // sign as a narrow literal would depend on how the compiler reads this source file's
+        // encoding; the universal character name keeps the source pure ASCII.
+        const std::wstring wideTemperature = WideFromUtf8(temperature);
+        if (!wideTemperature.empty())
+        {
+            summary = wideTemperature + L"\u00B0 " + WideFromUtf8(label);
+        }
+    }
+
+    const bool hasReading = !summary.empty();
+    std::lock_guard lock(_weatherMutex);
+    _weatherSummary = std::move(summary);
+    return hasReading;
+}
+
+std::wstring CoreBrokerClient::WideFromUtf8(const std::string_view value)
+{
+    if (value.empty())
+    {
+        return {};
+    }
+
+    const int required = MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        value.data(),
+        static_cast<int>(value.size()),
+        nullptr,
+        0);
+    if (required <= 0)
+    {
+        return {};
+    }
+
+    std::wstring wide;
+    wide.resize(static_cast<size_t>(required));
+    if (MultiByteToWideChar(
+            CP_UTF8,
+            0,
+            value.data(),
+            static_cast<int>(value.size()),
+            wide.data(),
+            required) != required)
+    {
+        return {};
+    }
+
+    return wide;
+}
+
+std::wstring CoreBrokerClient::GetWeatherSummary() const
+{
+    std::lock_guard lock(_weatherMutex);
+    return _weatherSummary;
 }
 
 void CoreBrokerClient::WaitForWake(const ULONGLONG milliseconds)

@@ -32,6 +32,10 @@ public:
 
     bool RunSmokeTest(std::wstring& error);
 
+    // Last weather line the broker reported, or an empty string when there is no reading.
+    // Safe to call from the UI thread; the value is refreshed on the worker thread.
+    [[nodiscard]] std::wstring GetWeatherSummary() const;
+
 private:
     bool ConnectAndHandshake(const std::wstring& sessionToken);
     bool SendRequest(
@@ -52,6 +56,7 @@ private:
         const wchar_t* name,
         std::wstring& value);
     static std::string Utf8FromWide(std::wstring_view value);
+    static std::wstring WideFromUtf8(std::string_view value);
     static std::string EscapeJson(std::string_view value);
     static std::string CreateGuidText();
     static std::string CreateUtcTimestamp();
@@ -72,12 +77,16 @@ private:
         std::string_view json,
         std::string_view field);
     void RunLoop();
+    bool RefreshWeatherSummary();
     void WaitForWake(ULONGLONG milliseconds);
     void ClosePipe();
 
     HANDLE _pipe{INVALID_HANDLE_VALUE};
     ULONGLONG _nextConnectionAttemptTick{};
     ULONGLONG _nextHeartbeatTick{};
+    ULONGLONG _nextWeatherTick{};
+    mutable std::mutex _weatherMutex;
+    std::wstring _weatherSummary;
     std::atomic<bool> _stopRequested{};
     std::atomic<bool> _connected{};
     std::condition_variable _wakeCondition;

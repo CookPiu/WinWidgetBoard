@@ -367,8 +367,17 @@ HFONT LauncherWindow::CreateContentFont() const
 
 std::wstring LauncherWindow::ComposeContentText() const
 {
-    // Weather needs a broker request and a refresh-policy decision, so it is not offered
-    // yet; anything other than the date/time mode renders the date/time.
+    if (_preferences.content == LauncherContentMode::Weather)
+    {
+        // Until the first successful refresh reaches the broker there is nothing to show;
+        // fall back to the clock rather than inventing a reading or blanking the entry.
+        std::wstring weather = _coreBroker.GetWeatherSummary();
+        if (!weather.empty())
+        {
+            return weather;
+        }
+    }
+
     wchar_t time[64]{};
     wchar_t date[64]{};
     const int timeLength = GetTimeFormatEx(
@@ -570,13 +579,11 @@ void LauncherWindow::ShowContextMenu(const POINT screenPoint)
             MenuContentDateTime,
             L"日期与时间",
             _preferences.content == LauncherContentMode::DateTime);
-        // Weather needs a broker request plus a decision about refreshing while the panel
-        // is closed, so it stays disabled rather than shipping half of it.
-        AppendMenuW(
+        AppendRadioItem(
             contentMenu,
-            MF_STRING | MF_GRAYED,
             MenuContentWeather,
-            L"天气（待接入 Broker 刷新策略）");
+            L"天气",
+            _preferences.content == LauncherContentMode::Weather);
         AppendMenuW(
             menu,
             MF_STRING | MF_POPUP,
@@ -685,9 +692,12 @@ void LauncherWindow::HandleMenuCommand(const UINT command)
         Log(L"diagnostics requested");
         break;
     case MenuContentDateTime:
+    case MenuContentWeather:
     {
         LauncherEntryPreferences updated = _preferences;
-        updated.content = LauncherContentMode::DateTime;
+        updated.content = command == MenuContentWeather
+            ? LauncherContentMode::Weather
+            : LauncherContentMode::DateTime;
         ApplyPreferences(updated);
         break;
     }
