@@ -2,6 +2,7 @@
 #include <shellapi.h>
 
 #include "CoreBrokerClient.h"
+#include "EntryVisual.h"
 #include "LauncherWindow.h"
 #include "TaskbarGeometry.h"
 #include "WorkspacePanelProcess.h"
@@ -27,6 +28,7 @@ enum class ExitCode : int
     LauncherWindowCreationFailed = 17,
     PanelLaunchSmokeTestFailed = 18,
     CoreBrokerSmokeTestFailed = 19,
+    EntryVisualSmokeTestFailed = 20,
 };
 
 std::wstring FormatWin32Error(const DWORD error)
@@ -139,6 +141,7 @@ struct CommandLineOptions
     bool panelLaunchSmokeTest{};
     bool panelLifecycleSmokeTest{};
     bool coreBrokerSmokeTest{};
+    bool entryVisualSmokeTest{};
 };
 
 bool ReadCommandLineOptions(CommandLineOptions& options, DWORD& error)
@@ -172,6 +175,10 @@ bool ReadCommandLineOptions(CommandLineOptions& options, DWORD& error)
         else if (std::wstring_view(arguments[index]) == L"--corebroker-smoke-test")
         {
             options.coreBrokerSmokeTest = true;
+        }
+        else if (std::wstring_view(arguments[index]) == L"--entry-visual-smoke-test")
+        {
+            options.entryVisualSmokeTest = true;
         }
     }
 
@@ -213,6 +220,23 @@ int WINAPI wWinMain(
         }
 
         if (commandLineOptions.geometrySmokeTest && !commandLineOptions.smokeTest)
+        {
+            return static_cast<int>(ExitCode::Success);
+        }
+    }
+
+    if (commandLineOptions.smokeTest || commandLineOptions.entryVisualSmokeTest)
+    {
+        std::wstring visualFailure;
+        if (!winwidgetboard::launcher::RunEntryVisualSmokeTest(visualFailure))
+        {
+            return FailDiagnostic(
+                ExitCode::EntryVisualSmokeTestFailed,
+                L"entry visual smoke test failed",
+                visualFailure);
+        }
+
+        if (commandLineOptions.entryVisualSmokeTest && !commandLineOptions.smokeTest)
         {
             return static_cast<int>(ExitCode::Success);
         }

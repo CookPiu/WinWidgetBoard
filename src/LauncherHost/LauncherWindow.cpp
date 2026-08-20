@@ -16,14 +16,13 @@ constexpr UINT_PTR kVisibilityTimerId = 1;
 constexpr UINT kVisibilityPollMilliseconds = 500;
 constexpr UINT_PTR kContentTimerId = 2;
 constexpr UINT kContentPollMilliseconds = 15000;
-constexpr int kContentFontLogical = 14;
-constexpr int kContentPaddingLogical = 12;
+// Runs only while a state change is in flight, and is killed the moment it settles, so a
+// resting entry costs no timer wake-ups at all.
+constexpr UINT_PTR kAnimationTimerId = 3;
+constexpr UINT kAnimationIntervalMilliseconds = 16;
 // Only re-place the window when the measured width moves out of this band, so a changing
 // clock cannot make the entry twitch every time a glyph gets narrower.
 constexpr int kContentWidthHysteresisLogical = 8;
-// The layered colour key must be a colour the content never produces. Pure black is not:
-// antialiased dark text lands on it and the glyph cores get punched out as transparent.
-constexpr COLORREF kTransparentKey = RGB(255, 0, 255);
 
 enum ContextMenuCommand : UINT
 {
@@ -73,12 +72,6 @@ void AppendRadioItem(
     const bool checked)
 {
     AppendMenuW(menu, MF_STRING | (checked ? MF_CHECKED : MF_UNCHECKED), command, text);
-}
-
-bool IsRectPointInside(const RECT& rectangle, const POINT point)
-{
-    return point.x >= rectangle.left && point.x < rectangle.right &&
-        point.y >= rectangle.top && point.y < rectangle.bottom;
 }
 
 bool IsWindowCoveringMonitor(const HWND window, const RECT& monitorRect)
@@ -160,8 +153,13 @@ bool LauncherWindow::Create(
     }
     _classRegistered = true;
     _preferences = LoadLauncherPreferences();
+    _theme = QueryEntryTheme();
+    _reducedMotion = IsReducedMotionPreferred();
+    LARGE_INTEGER frequency{};
+    QueryPerformanceFrequency(&frequency);
+    _performanceFrequency = frequency.QuadPart;
     _content = ComposeContentText();
-    _contentWidthLogical = MeasureContentWidthLogical(_content);
+    _contentWidthLogical = MeasureEntryContentWidthLogical(_content, _dpi, false);
 
     if (!InitializePlacement(error))
     {
@@ -190,25 +188,20 @@ bool LauncherWindow::Create(
         return false;
     }
 
-    if (SetLayeredWindowAttributes(_window, kTransparentKey, 0, LWA_COLORKEY) == FALSE)
-    {
-        error = L"SetLayeredWindowAttributes failed";
-        Destroy();
-        return false;
-    }
-
     _dpi = GetDpiForWindow(_window);
     if (_dpi == 0)
     {
         _dpi = 96;
     }
-    _contentWidthLogical = MeasureContentWidthLogical(_content);
+    _contentWidthLogical = MeasureEntryContentWidthLogical(_content, _dpi, false);
     if (!InitializePlacement(error))
     {
         Destroy();
         return false;
     }
 
+    SyncVisualTarget();
+    _animator.SnapToTarget();
     ApplyPlacement();
     SetTimer(_window, kVisibilityTimerId, kVisibilityPollMilliseconds, nullptr);
     SetTimer(_window, kContentTimerId, kContentPollMilliseconds, nullptr);
@@ -225,6 +218,7 @@ void LauncherWindow::Destroy()
     {
         KillTimer(_window, kVisibilityTimerId);
         KillTimer(_window, kContentTimerId);
+        KillTimer(_window, kAnimationTimerId);
         DestroyWindow(_window);
         _window = nullptr;
     }
@@ -309,25 +303,8 @@ void LauncherWindow::ApplyPlacement()
         _placement.hitRect.bottom - _placement.windowRect.top,
     };
 
-    const int hitWidth = _localHitRect.right - _localHitRect.left;
-    const int hitHeight = _localHitRect.bottom - _localHitRect.top;
-    const int cornerRadius = std::max(8, std::min(hitWidth, hitHeight) / 2);
-    HRGN region = CreateRoundRectRgn(
-        _localHitRect.left,
-        _localHitRect.top,
-        _localHitRect.right + 1,
-        _localHitRect.bottom + 1,
-        cornerRadius,
-        cornerRadius);
-    if (region != nullptr)
-    {
-        // SetWindowRgn takes ownership of the region on success.
-        if (SetWindowRgn(_window, region, TRUE) == 0)
-        {
-            DeleteObject(region);
-        }
-    }
-
+    // No window region any more: the capsule is shaped by per-pixel alpha, and a region
+    // would clip exactly the antialiased edge that alpha buys us.
     if (SetWindowPos(
         _window,
         HWND_TOPMOST,
@@ -340,31 +317,13 @@ void LauncherWindow::ApplyPlacement()
         Log(L"SetWindowPos(HWND_TOPMOST) failed: " +
             std::to_wstring(GetLastError()));
     }
-    InvalidateRect(_window, nullptr, FALSE);
+
+    Render();
 }
 
 bool LauncherWindow::IsEmbedded() const noexcept
 {
     return _placement.mode == LauncherPlacementMode::ExactWidgetReplacement;
-}
-
-HFONT LauncherWindow::CreateContentFont() const
-{
-    return CreateFontW(
-        -ScaleLogical(kContentFontLogical, _dpi),
-        0,
-        0,
-        0,
-        FW_SEMIBOLD,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        ANTIALIASED_QUALITY,
-        DEFAULT_PITCH | FF_SWISS,
-        L"Segoe UI");
 }
 
 std::wstring LauncherWindow::ComposeContentText() const
@@ -405,41 +364,13 @@ std::wstring LauncherWindow::ComposeContentText() const
     return std::wstring{time} + L"   " + std::wstring{date};
 }
 
-int LauncherWindow::MeasureContentWidthLogical(const std::wstring& text) const
-{
-    const HDC screen = GetDC(nullptr);
-    if (screen == nullptr)
-    {
-        return 0;
-    }
-
-    HFONT font = CreateContentFont();
-    HGDIOBJ previousFont = SelectObject(screen, font);
-    SIZE extent{};
-    const bool measured = GetTextExtentPoint32W(
-        screen,
-        text.c_str(),
-        static_cast<int>(text.size()),
-        &extent) != FALSE;
-    SelectObject(screen, previousFont);
-    DeleteObject(font);
-    ReleaseDC(nullptr, screen);
-
-    if (!measured)
-    {
-        return 0;
-    }
-
-    return ToLogical(extent.cx, _dpi) + kContentPaddingLogical * 2;
-}
-
 bool LauncherWindow::RefreshContent()
 {
     std::wstring text = ComposeContentText();
     const bool textChanged = text != _content;
     _content = std::move(text);
 
-    const int measured = MeasureContentWidthLogical(_content);
+    const int measured = MeasureEntryContentWidthLogical(_content, _dpi, false);
     const bool widthChanged =
         std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical;
     if (widthChanged)
@@ -447,9 +378,11 @@ bool LauncherWindow::RefreshContent()
         _contentWidthLogical = measured;
     }
 
-    if (textChanged && _window != nullptr)
+    if (textChanged && !widthChanged)
     {
-        InvalidateRect(_window, nullptr, FALSE);
+        // A new string on its own is a repaint; only a width change past the hysteresis
+        // band is allowed to move the window.
+        Render();
     }
 
     return widthChanged;
@@ -467,94 +400,98 @@ void LauncherWindow::ApplyPreferences(const LauncherEntryPreferences& preference
     Reposition();
 }
 
-void LauncherWindow::Paint(const HDC deviceContext)
+void LauncherWindow::Render()
 {
-    RECT clientRect{};
-    GetClientRect(_window, &clientRect);
-
-    HBRUSH transparentBrush = CreateSolidBrush(kTransparentKey);
-    FillRect(deviceContext, &clientRect, transparentBrush);
-    DeleteObject(transparentBrush);
-
-    const COLORREF backgroundColor = GetSysColor(
-        _pressed || _panelOpen ? COLOR_HIGHLIGHT : COLOR_BTNFACE);
-    const COLORREF foregroundColor = GetSysColor(
-        _pressed || _panelOpen ? COLOR_HIGHLIGHTTEXT : COLOR_BTNTEXT);
-    const COLORREF borderColor = GetSysColor(COLOR_WINDOWTEXT);
-
-    HBRUSH buttonBrush = CreateSolidBrush(backgroundColor);
-    HPEN buttonPen = CreatePen(PS_SOLID, 1, borderColor);
-    HGDIOBJ previousBrush = SelectObject(deviceContext, buttonBrush);
-    HGDIOBJ previousPen = SelectObject(deviceContext, buttonPen);
-
-    const int radius = std::max(
-        8,
-        std::min(
-            static_cast<int>(_localHitRect.right - _localHitRect.left),
-            static_cast<int>(_localHitRect.bottom - _localHitRect.top)) / 2);
-    RoundRect(
-        deviceContext,
-        _localHitRect.left,
-        _localHitRect.top,
-        _localHitRect.right,
-        _localHitRect.bottom,
-        radius,
-        radius);
-
-    SelectObject(deviceContext, previousPen);
-    SelectObject(deviceContext, previousBrush);
-    DeleteObject(buttonPen);
-    DeleteObject(buttonBrush);
-
-    SetBkMode(deviceContext, TRANSPARENT);
-    SetTextColor(deviceContext, foregroundColor);
-
-    if (!IsEmbedded())
+    if (_window == nullptr)
     {
-        HFONT glyphFont = CreateFontW(
-            -std::max(
-                14,
-                static_cast<int>(_localHitRect.bottom - _localHitRect.top) / 2),
-            0,
-            0,
-            0,
-            FW_SEMIBOLD,
-            FALSE,
-            FALSE,
-            FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
-            DEFAULT_PITCH | FF_SWISS,
-            L"Segoe UI");
-        HGDIOBJ previousGlyphFont = SelectObject(deviceContext, glyphFont);
-        RECT glyphRect = _localHitRect;
-        DrawTextW(
-            deviceContext,
-            L"W",
-            1,
-            &glyphRect,
-            DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-        SelectObject(deviceContext, previousGlyphFont);
-        DeleteObject(glyphFont);
         return;
     }
 
-    HFONT font = CreateContentFont();
-    HGDIOBJ previousFont = SelectObject(deviceContext, font);
-    const int padding = ScaleLogical(kContentPaddingLogical, _dpi);
-    RECT textRect = _localHitRect;
-    textRect.left += padding;
-    textRect.right -= padding;
-    DrawTextW(
-        deviceContext,
-        _content.c_str(),
-        static_cast<int>(_content.size()),
-        &textRect,
-        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
-    SelectObject(deviceContext, previousFont);
-    DeleteObject(font);
+    EntryRenderRequest request{};
+    request.windowSize = SIZE{
+        _placement.windowRect.right - _placement.windowRect.left,
+        _placement.windowRect.bottom - _placement.windowRect.top,
+    };
+    request.capsule = _localHitRect;
+    request.dpi = _dpi;
+    // The floating badge stays a circular mark; only the embedded strip carries content.
+    request.compact = !IsEmbedded();
+    request.text = request.compact ? std::wstring(L"W") : _content;
+
+    std::wstring error;
+    if (!RenderEntry(_window, request, _theme, _animator.Value(), error))
+    {
+        Log(L"entry render failed: " + error);
+    }
+}
+
+void LauncherWindow::RefreshTheme()
+{
+    _theme = QueryEntryTheme();
+    _reducedMotion = IsReducedMotionPreferred();
+    if (_reducedMotion)
+    {
+        _animator.SnapToTarget();
+        StopAnimation();
+    }
+
+    Render();
+}
+
+void LauncherWindow::SyncVisualTarget()
+{
+    const EntryVisualState target{
+        _hovered ? 1.0 : 0.0,
+        _pressed && _pressInside ? 1.0 : 0.0,
+        _panelOpen ? 1.0 : 0.0,
+    };
+    _animator.SetTarget(target);
+
+    if (_window == nullptr || _animator.IsSettled())
+    {
+        return;
+    }
+
+    if (!_animating)
+    {
+        _animating = true;
+        LARGE_INTEGER now{};
+        QueryPerformanceCounter(&now);
+        _animationTick = now.QuadPart;
+        SetTimer(
+            _window,
+            kAnimationTimerId,
+            kAnimationIntervalMilliseconds,
+            nullptr);
+    }
+}
+
+void LauncherWindow::AdvanceAnimation()
+{
+    LARGE_INTEGER now{};
+    QueryPerformanceCounter(&now);
+    const double seconds = _performanceFrequency > 0
+        ? static_cast<double>(now.QuadPart - _animationTick) /
+            static_cast<double>(_performanceFrequency)
+        : static_cast<double>(kAnimationIntervalMilliseconds) / 1000.0;
+    _animationTick = now.QuadPart;
+
+    const bool moving = _animator.Advance(seconds, _reducedMotion);
+    Render();
+    if (!moving)
+    {
+        StopAnimation();
+    }
+}
+
+void LauncherWindow::StopAnimation()
+{
+    if (_window != nullptr && _animating)
+    {
+        KillTimer(_window, kAnimationTimerId);
+    }
+
+    _animating = false;
 }
 
 void LauncherWindow::ShowContextMenu(const POINT screenPoint)
@@ -767,7 +704,9 @@ void LauncherWindow::TogglePanelRequested()
     }
 
     _panelOpen = opening;
-    InvalidateRect(_window, nullptr, FALSE);
+    // Start the indicator moving on the click rather than on the next visibility poll, so
+    // it grows alongside the panel's own opening motion instead of half a second later.
+    SyncVisualTarget();
     Log(_panelOpen
         ? L"panel process started or activated"
         : L"panel close requested");
@@ -780,7 +719,7 @@ void LauncherWindow::PollPanelProcess()
     if (_panelOpen != panelVisible)
     {
         _panelOpen = panelVisible;
-        InvalidateRect(_window, nullptr, FALSE);
+        SyncVisualTarget();
     }
 }
 
@@ -876,14 +815,27 @@ bool LauncherWindow::IsFullscreenForeground() const
 
 bool LauncherWindow::IsPointInHitRect(const POINT clientPoint) const noexcept
 {
-    return IsRectPointInside(_localHitRect, clientPoint);
+    // The capsule itself, not its bounding box: without a window region the rounded
+    // corners are transparent, and transparent pixels must not swallow clicks.
+    return IsPointInCapsule(_localHitRect, clientPoint);
 }
 
 void LauncherWindow::SetPressed(const bool pressed, const bool pointerInside)
 {
     _pressed = pressed;
     _pressInside = pointerInside;
-    InvalidateRect(_window, nullptr, FALSE);
+    SyncVisualTarget();
+}
+
+void LauncherWindow::SetHovered(const bool hovered)
+{
+    if (_hovered == hovered)
+    {
+        return;
+    }
+
+    _hovered = hovered;
+    SyncVisualTarget();
 }
 
 void LauncherWindow::ScheduleReposition()
@@ -933,9 +885,10 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
 
     case WM_PAINT:
     {
+        // The content is pushed with UpdateLayeredWindow, so there is nothing to paint
+        // here; the region still has to be validated or Windows keeps asking.
         PAINTSTRUCT paintStruct{};
-        const HDC deviceContext = BeginPaint(window, &paintStruct);
-        self->Paint(deviceContext);
+        BeginPaint(window, &paintStruct);
         EndPaint(window, &paintStruct);
         return 0;
     }
@@ -949,11 +902,30 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         return 0;
 
     case WM_MOUSEMOVE:
+    {
+        const POINT clientPoint{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+        const bool inside = self->IsPointInHitRect(clientPoint);
+        self->SetHovered(inside);
+        if (inside)
+        {
+            // WM_NCHITTEST makes everything outside the capsule transparent, so the only
+            // way to learn the pointer left is to subscribe to WM_MOUSELEAVE.
+            TRACKMOUSEEVENT track{};
+            track.cbSize = sizeof(track);
+            track.dwFlags = TME_LEAVE;
+            track.hwndTrack = window;
+            TrackMouseEvent(&track);
+        }
+
         if (GetCapture() == window && self->_pressed)
         {
-            const POINT clientPoint{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
-            self->SetPressed(true, self->IsPointInHitRect(clientPoint));
+            self->SetPressed(true, inside);
         }
+        return 0;
+    }
+
+    case WM_MOUSELEAVE:
+        self->SetHovered(false);
         return 0;
 
     case WM_LBUTTONUP:
@@ -1001,9 +973,19 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
     }
 
     case WM_DISPLAYCHANGE:
-    case WM_SETTINGCHANGE:
     case WM_DPICHANGED:
         self->ScheduleReposition();
+        return 0;
+
+    case WM_SETTINGCHANGE:
+        // Theme, high contrast and reduce-motion all arrive here.
+        self->RefreshTheme();
+        self->ScheduleReposition();
+        return 0;
+
+    case WM_THEMECHANGED:
+    case WM_SYSCOLORCHANGE:
+        self->RefreshTheme();
         return 0;
 
     case WM_POWERBROADCAST:
@@ -1023,12 +1005,14 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         }
         else if (wParam == kContentTimerId)
         {
-            // Only a width change past the hysteresis band is worth re-placing the window;
-            // a new string on its own just repaints.
             if (self->RefreshContent())
             {
                 self->Reposition();
             }
+        }
+        else if (wParam == kAnimationTimerId)
+        {
+            self->AdvanceAnimation();
         }
         return 0;
 
@@ -1038,6 +1022,8 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
 
     case WM_DESTROY:
         KillTimer(window, kVisibilityTimerId);
+        KillTimer(window, kContentTimerId);
+        KillTimer(window, kAnimationTimerId);
         PostQuitMessage(0);
         return 0;
 

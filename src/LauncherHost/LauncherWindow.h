@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreBrokerClient.h"
+#include "EntryVisual.h"
 #include "LauncherPreferences.h"
 #include "TaskbarGeometry.h"
 #include "WorkspacePanelProcess.h"
@@ -42,12 +43,10 @@ private:
     bool InitializePlacement(std::wstring& error);
     void Reposition();
     void ApplyPlacement();
-    void Paint(HDC deviceContext);
+    void Render();
     void ApplyPreferences(const LauncherEntryPreferences& preferences);
     bool RefreshContent();
     [[nodiscard]] std::wstring ComposeContentText() const;
-    [[nodiscard]] int MeasureContentWidthLogical(const std::wstring& text) const;
-    [[nodiscard]] HFONT CreateContentFont() const;
     [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
     void HandleMenuCommand(UINT command);
@@ -60,7 +59,12 @@ private:
     [[nodiscard]] bool IsFullscreenForeground() const;
     [[nodiscard]] bool IsPointInHitRect(POINT clientPoint) const noexcept;
     void SetPressed(bool pressed, bool pointerInside);
+    void SetHovered(bool hovered);
     void ScheduleReposition();
+    void RefreshTheme();
+    void SyncVisualTarget();
+    void AdvanceAnimation();
+    void StopAnimation();
 
     HINSTANCE _instance{};
     HWND _window{};
@@ -71,11 +75,18 @@ private:
     bool _repositionPosted{};
     bool _pressed{};
     bool _pressInside{};
+    bool _hovered{};
     bool _panelOpen{};
     bool _hiddenForFullscreen{};
+    bool _animating{};
+    bool _reducedMotion{};
+    LONGLONG _animationTick{};
+    LONGLONG _performanceFrequency{};
     RECT _localHitRect{};
     std::wstring _content;
     int _contentWidthLogical{};
+    EntryTheme _theme{};
+    EntryVisualAnimator _animator;
     LauncherEntryPreferences _preferences{};
     LauncherPlacement _placement{};
     CoreBrokerClient _coreBroker;
