@@ -84,7 +84,7 @@
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
-      <AdditionalDependencies>User32.lib;Shell32.lib;Gdi32.lib;Ole32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>User32.lib;Shell32.lib;Gdi32.lib;Ole32.lib;Advapi32.lib;Bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -110,7 +110,7 @@
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
-      <AdditionalDependencies>User32.lib;Shell32.lib;Gdi32.lib;Ole32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>User32.lib;Shell32.lib;Gdi32.lib;Ole32.lib;Advapi32.lib;Bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -121,7 +121,10 @@
     <ClCompile Include="WorkspacePanelProcess.cpp" />
     <ClCompile Include="TaskbarGeometry.cpp" />
     <ClCompile Include="LauncherPreferences.cpp" />
+    <ClCompile Include="ChildProcessJob.cpp" />
+    <ClCompile Include="CoreBrokerProcess.cpp" />
     <ClCompile Include="EntryVisual.cpp" />
+    <ClCompile Include="ProcessSupport.cpp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -130,7 +133,10 @@
     <ClInclude Include="WorkspacePanelProcess.h" />
     <ClInclude Include="TaskbarGeometry.h" />
     <ClInclude Include="LauncherPreferences.h" />
+    <ClInclude Include="ChildProcessJob.h" />
+    <ClInclude Include="CoreBrokerProcess.h" />
     <ClInclude Include="EntryVisual.h" />
+    <ClInclude Include="ProcessSupport.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

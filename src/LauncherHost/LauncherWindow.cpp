@@ -118,9 +118,11 @@ bool LauncherWindow::Create(
     const HINSTANCE instance,
     const HMONITOR initialMonitor,
     const UINT taskbarCreatedMessage,
+    const ChildProcessJob* const childProcessJob,
     std::wstring& error)
 {
     error.clear();
+    _panelProcess.SetChildProcessJob(childProcessJob);
     _instance = instance;
     _monitor = initialMonitor != nullptr
         ? initialMonitor

@@ -1,7 +1,6 @@
 #include "WorkspacePanelProcess.h"
 
-#include <array>
-#include <vector>
+#include "ProcessSupport.h"
 
 namespace winwidgetboard::launcher
 {
@@ -10,6 +9,8 @@ namespace
 constexpr wchar_t kPanelExecutableName[] = L"WinWidgetBoard.WorkspacePanel.exe";
 constexpr wchar_t kPanelPathEnvironmentVariable[] =
     L"WINWIDGETBOARD_WORKSPACE_PANEL";
+// The installed layout keeps each .NET application in its own directory.
+constexpr wchar_t kPanelComponentDirectory[] = L"WorkspacePanel";
 constexpr DWORD kPanelSmokeTimeoutMilliseconds = 15000;
 
 struct PanelWindowSearchContext
@@ -18,66 +19,6 @@ struct PanelWindowSearchContext
     HWND window;
 };
 
-bool IsUsableExecutablePath(const std::wstring& path)
-{
-    const DWORD attributes = GetFileAttributesW(path.c_str());
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-        (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
-}
-
-bool GetEnvironmentValue(const wchar_t* name, std::wstring& value)
-{
-    const DWORD requiredLength = GetEnvironmentVariableW(name, nullptr, 0);
-    if (requiredLength == 0)
-    {
-        value.clear();
-        return false;
-    }
-
-    std::vector<wchar_t> buffer(requiredLength);
-    const DWORD copiedLength = GetEnvironmentVariableW(
-        name,
-        buffer.data(),
-        static_cast<DWORD>(buffer.size()));
-    if (copiedLength == 0 || copiedLength >= buffer.size())
-    {
-        value.clear();
-        return false;
-    }
-
-    value.assign(buffer.data(), copiedLength);
-    return true;
-}
-
-bool GetModuleDirectory(std::wstring& directory, std::wstring& error)
-{
-    std::array<wchar_t, 32768> buffer{};
-    const DWORD length = GetModuleFileNameW(
-        nullptr,
-        buffer.data(),
-        static_cast<DWORD>(buffer.size()));
-    if (length == 0 || length >= buffer.size())
-    {
-        error = L"GetModuleFileNameW failed";
-        return false;
-    }
-
-    const std::wstring modulePath(buffer.data(), length);
-    const std::wstring::size_type separator = modulePath.find_last_of(L"\\/");
-    if (separator == std::wstring::npos)
-    {
-        error = L"LauncherHost module directory is unavailable";
-        return false;
-    }
-
-    directory = modulePath.substr(0, separator);
-    return true;
-}
-
-std::wstring QuoteExecutablePath(const std::wstring& path)
-{
-    return L"\"" + path + L"\"";
-}
 }
 
 WorkspacePanelProcess::~WorkspacePanelProcess()
@@ -360,7 +301,12 @@ bool WorkspacePanelProcess::Launch(
     }
 
     std::wstring executablePath;
-    if (!ResolveExecutablePath(executablePath, error))
+    if (!ResolveChildExecutablePath(
+            kPanelPathEnvironmentVariable,
+            kPanelComponentDirectory,
+            kPanelExecutableName,
+            executablePath,
+            error))
     {
         return false;
     }
@@ -390,7 +336,7 @@ bool WorkspacePanelProcess::Launch(
             nullptr,
             nullptr,
             FALSE,
-            CREATE_UNICODE_ENVIRONMENT,
+            CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
             nullptr,
             nullptr,
             &startupInfo,
@@ -401,43 +347,23 @@ bool WorkspacePanelProcess::Launch(
         return false;
     }
 
+    // Bind before the panel runs a single instruction. A resident panel outlives its own
+    // close, so without this a force-killed launcher leaves it behind for good.
+    if (_childProcessJob != nullptr)
+    {
+        std::wstring jobError;
+        if (!_childProcessJob->Assign(processInfo.hProcess, jobError))
+        {
+            OutputDebugStringW(
+                (L"WinWidgetBoard.LauncherHost: WorkspacePanel was not bound to the "
+                    L"launcher job: " + jobError + L"\n").c_str());
+        }
+    }
+
+    ResumeThread(processInfo.hThread);
     CloseHandle(processInfo.hThread);
     _process = processInfo.hProcess;
     _processId = processInfo.dwProcessId;
-    return true;
-}
-
-bool WorkspacePanelProcess::ResolveExecutablePath(
-    std::wstring& path,
-    std::wstring& error) const
-{
-    std::wstring overridePath;
-    if (GetEnvironmentValue(kPanelPathEnvironmentVariable, overridePath))
-    {
-        if (!IsUsableExecutablePath(overridePath))
-        {
-            error = L"WINWIDGETBOARD_WORKSPACE_PANEL does not point to a file";
-            return false;
-        }
-
-        path = overridePath;
-        return true;
-    }
-
-    std::wstring moduleDirectory;
-    if (!GetModuleDirectory(moduleDirectory, error))
-    {
-        return false;
-    }
-
-    path = moduleDirectory + L"\\" + kPanelExecutableName;
-    if (!IsUsableExecutablePath(path))
-    {
-        error = L"WorkspacePanel executable was not found beside LauncherHost; set " +
-            std::wstring(kPanelPathEnvironmentVariable) + L" for a development build";
-        return false;
-    }
-
     return true;
 }
 

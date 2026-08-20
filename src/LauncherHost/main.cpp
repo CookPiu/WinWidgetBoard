@@ -1,7 +1,9 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include "ChildProcessJob.h"
 #include "CoreBrokerClient.h"
+#include "CoreBrokerProcess.h"
 #include "EntryVisual.h"
 #include "LauncherWindow.h"
 #include "TaskbarGeometry.h"
@@ -142,6 +144,7 @@ struct CommandLineOptions
     bool panelLifecycleSmokeTest{};
     bool coreBrokerSmokeTest{};
     bool entryVisualSmokeTest{};
+    bool noBroker{};
 };
 
 bool ReadCommandLineOptions(CommandLineOptions& options, DWORD& error)
@@ -179,6 +182,10 @@ bool ReadCommandLineOptions(CommandLineOptions& options, DWORD& error)
         else if (std::wstring_view(arguments[index]) == L"--entry-visual-smoke-test")
         {
             options.entryVisualSmokeTest = true;
+        }
+        else if (std::wstring_view(arguments[index]) == L"--no-broker")
+        {
+            options.noBroker = true;
         }
     }
 
@@ -278,7 +285,16 @@ int WINAPI wWinMain(
                 placement.reason);
         }
 
+        winwidgetboard::launcher::ChildProcessJob smokeJob;
+        std::wstring smokeJobError;
+        if (!smokeJob.Create(smokeJobError))
+        {
+            OutputDebugStringW(
+                (L"WinWidgetBoard.LauncherHost: " + smokeJobError + L"\n").c_str());
+        }
+
         winwidgetboard::launcher::WorkspacePanelProcess panelProcess;
+        panelProcess.SetChildProcessJob(&smokeJob);
         std::wstring panelError;
         const bool panelSmokePassed = commandLineOptions.panelLifecycleSmokeTest
             ? panelProcess.RunLifecycleSmokeTest(
@@ -386,12 +402,37 @@ int WINAPI wWinMain(
             error);
     }
 
+    // Every child the launcher starts lives inside this job, so closing the launcher -
+    // including a force kill, which runs none of our cleanup - takes them down with it.
+    winwidgetboard::launcher::ChildProcessJob childProcessJob;
+    std::wstring childProcessJobError;
+    if (!childProcessJob.Create(childProcessJobError))
+    {
+        OutputDebugStringW(
+            (L"WinWidgetBoard.LauncherHost: " + childProcessJobError + L"\n").c_str());
+    }
+
+    // Bring the broker up ourselves so a plain shortcut to this executable is the whole
+    // product. Sessions provisioned from outside - the development scripts - are left
+    // alone, and --no-broker opts out entirely so a test can drive the entry without ever
+    // touching the production database.
+    winwidgetboard::launcher::CoreBrokerProcess coreBrokerProcess;
+    std::wstring coreBrokerDiagnostic =
+        L"CoreBroker auto-start was disabled by --no-broker";
+    if (!commandLineOptions.noBroker)
+    {
+        coreBrokerProcess.EnsureStarted(childProcessJob, coreBrokerDiagnostic);
+    }
+    OutputDebugStringW(
+        (L"WinWidgetBoard.LauncherHost: " + coreBrokerDiagnostic + L"\n").c_str());
+
     winwidgetboard::launcher::LauncherWindow launcherWindow;
     std::wstring launcherError;
     if (!launcherWindow.Create(
             instance,
             MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY),
             taskbarCreatedMessage,
+            &childProcessJob,
             launcherError))
     {
         DestroyWindow(messageWindow);

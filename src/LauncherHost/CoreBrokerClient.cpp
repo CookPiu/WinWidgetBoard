@@ -1,5 +1,7 @@
 #include "CoreBrokerClient.h"
 
+#include "ProcessSupport.h"
+
 #include <objbase.h>
 
 #include <array>
@@ -16,8 +18,6 @@ namespace winwidgetboard::launcher
 namespace
 {
 constexpr wchar_t kPipePath[] = L"\\\\.\\pipe\\WinWidgetBoard.CoreBroker.v1";
-constexpr wchar_t kSessionTokenEnvironmentVariable[] =
-    L"WINWIDGETBOARD_COREBROKER_SESSION_TOKEN";
 constexpr DWORD kConnectTimeoutMilliseconds = 50;
 constexpr DWORD kTransferTimeoutMilliseconds = 100;
 constexpr ULONGLONG kConnectionStartupTimeoutMilliseconds = 1000;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChildProcessJob.h"
 #include "CoreBrokerClient.h"
 #include "EntryVisual.h"
 #include "LauncherPreferences.h"
@@ -25,6 +26,7 @@ public:
         HINSTANCE instance,
         HMONITOR initialMonitor,
         UINT taskbarCreatedMessage,
+        const ChildProcessJob* childProcessJob,
         std::wstring& error);
     void Destroy();
 

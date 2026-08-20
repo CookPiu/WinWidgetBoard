@@ -9,8 +9,9 @@
     alignment, keeps its width inside the supported range, toggles the panel on click, and
     lets pointer input through outside its own rounded shape.
 
-    No CoreBroker is started, so the panel this test opens has nothing to persist to and the
-    production database is never touched. Only processes this script started are stopped.
+    LauncherHost runs with --no-broker, so it does not auto-start CoreBroker: the panel this
+    test opens has nothing to persist to and the production database is never touched. Only
+    processes this script started are stopped.
 
 .EXAMPLE
     .\scripts\Test-LauncherEntryPlacement.ps1
@@ -68,7 +69,8 @@ try {
     }
 
     $env:WINWIDGETBOARD_WORKSPACE_PANEL = $panelPath
-    $launcherProcess = Start-Process -FilePath $launcherPath -PassThru -NoNewWindow
+    $launcherProcess = Start-Process -FilePath $launcherPath `
+        -ArgumentList '--no-broker' -PassThru -NoNewWindow
     $entry = Get-WindowRectByClass `
         -ClassName $launcherClassName `
         -ProcessId $launcherProcess.Id `

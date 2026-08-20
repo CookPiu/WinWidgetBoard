@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ChildProcessJob.h"
 #include "TaskbarGeometry.h"
 
 #include <windows.h>
@@ -16,6 +17,13 @@ public:
     WorkspacePanelProcess& operator=(const WorkspacePanelProcess&) = delete;
 
     ~WorkspacePanelProcess();
+
+    // Optional: when set, every panel process is bound to the launcher's lifetime before
+    // its first instruction runs. The pointer must outlive this object.
+    void SetChildProcessJob(const ChildProcessJob* job) noexcept
+    {
+        _childProcessJob = job;
+    }
 
     bool Toggle(
         bool open,
@@ -56,7 +64,6 @@ private:
         UINT dpi,
         bool smokeTest,
         std::wstring& error);
-    bool ResolveExecutablePath(std::wstring& path, std::wstring& error) const;
     bool ActivatePanelWindow(std::wstring& error) const;
     bool RequestClose(std::wstring& error) const;
     [[nodiscard]] HWND FindPanelWindow() const;
@@ -65,6 +72,7 @@ private:
     static BOOL CALLBACK FindPanelWindowCallback(HWND window, LPARAM parameter);
     static std::wstring RectArgument(const wchar_t* name, const RECT& rectangle);
 
+    const ChildProcessJob* _childProcessJob{};
     HANDLE _process{};
     DWORD _processId{};
 };
