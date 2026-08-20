@@ -84,7 +84,7 @@ Tests carry traceability IDs in their MSTest `DisplayName`, e.g. `UT-GRID-001 [L
 
 Each executable self-tests without a desktop session — CI runs the first two:
 
-- `WinWidgetBoard.LauncherHost.exe`: `--smoke-test`, `--geometry-smoke-test`, `--panel-launch-smoke-test`, `--panel-lifecycle-smoke-test` (asserts the panel *hides and stays resident*, then re-shows as the same process), `--corebroker-smoke-test`
+- `WinWidgetBoard.LauncherHost.exe`: `--smoke-test` (runs the geometry **and** entry-visual contracts too), `--geometry-smoke-test`, `--entry-visual-smoke-test` (offscreen composition at 96/144/192 dpi), `--panel-launch-smoke-test`, `--panel-lifecycle-smoke-test` (asserts the panel *hides and stays resident*, then re-shows as the same process), `--corebroker-smoke-test`
 - `WinWidgetBoard.WorkspacePanel.exe`: `--smoke-test` (constructs and closes a real WinUI `MainWindow`), `--broker-smoke-test`
 - `WinWidgetBoard.CoreBroker.exe`: `--pipe-handshake-smoke-test`
 
@@ -118,6 +118,18 @@ Write-path acceptance runs **must** isolate process identity and data: `--accept
 ```
 
 It generates a session token, starts CoreBroker hidden, points `WINWIDGETBOARD_WORKSPACE_PANEL` at the panel, then runs LauncherHost in the foreground. Unlike the sandbox, this one uses **production** data.
+
+For everyday use rather than a dev run, install it instead — the installed entry needs no wrapper:
+
+```powershell
+.\scripts\Install-WinWidgetBoard.ps1
+```
+
+It copies the Release x64 build to `%LOCALAPPDATA%\WinWidgetBoard\app` (LauncherHost at the root, the two .NET apps in `WorkspacePanel\` and `CoreBroker\` subdirectories, which is the second path LauncherHost probes), creates Start-menu and sign-in shortcuts pointing straight at the exe, and starts it. Current user only; `-Uninstall` reverses everything, `-NoAutoStart` skips the sign-in shortcut.
+
+**LauncherHost now starts CoreBroker itself** (ADR 0026) whenever `WINWIDGETBOARD_COREBROKER_SESSION_TOKEN` is *not* already set — it generates the token with `BCryptGenRandom` and puts it only in its own environment block, never on a command line. Scripts that provision the session themselves are therefore untouched. Any script that starts LauncherHost directly and must not touch the production database has to pass `--no-broker`; `Test-LauncherEntryPlacement.ps1` does.
+
+Every child process is created suspended, assigned to a `KILL_ON_JOB_CLOSE` job object, then resumed. That is what stops a force-killed launcher from orphaning the resident panel, so don't spawn a child outside `ChildProcessJob`.
 
 ## Architecture
 

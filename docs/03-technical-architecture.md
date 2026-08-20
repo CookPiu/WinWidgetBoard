@@ -21,15 +21,16 @@
 flowchart LR
     U["用户"] --> L["LauncherHost"]
     L --> P["WorkspacePanel"]
+    L -. 启动 .-> B["CoreBroker"]
     P <--> C["CoreBroker.Client"]
-    C <--> B["CoreBroker"]
+    C <--> B
     B <--> D[("SQLite")]
     B <--> W["Open-Meteo"]
 ```
 
 | 组件 | 技术 | 当前职责 |
 | --- | --- | --- |
-| `LauncherHost` | C++/Win32 | 入口窗口、公开几何、输入、面板启动 |
+| `LauncherHost` | C++/Win32 | 入口窗口、公开几何、输入、进程树生命周期 |
 | `WorkspacePanel` | C#/.NET 10/WinUI 3 | 面板、布局、便签、天气和设置 UI |
 | `CoreBroker.Client` | C# | 面向 UI 的高层 Named Pipe 客户端 |
 | `CoreBroker` | C# Worker | SQLite、IPC、天气 Provider 和调度 |
@@ -43,9 +44,11 @@ flowchart LR
 
 - 不引用 WinUI、SQLite、HTTP 或托管 UI 运行时；
 - 不包含卡片业务；
-- 不注入、Hook 或读取 Explorer 私有 XAML；只读取用户级任务栏对齐设置；
+- 不注入、Hook 或读取 Explorer 私有 XAML；只读取用户级任务栏对齐设置与系统主题设置；
 - 入口偏好（对齐、左对齐回退、显示内容）存放在 `HKCU\Software\WinWidgetBoard\Launcher`，
   因为入口必须先于 Broker 连接完成定位；用户数据仍只由 CoreBroker 持有；
+- **创建**面板与 CoreBroker 进程并持有其生命周期，但不承担二者的任何职责（ADR-0026）；
+- 入口自绘：分层窗口 + 预乘 BGRA 位图，颜色只来自系统语义色与系统主题设置，不引入第二套调色板；
 - 几何不明确时安全隐藏或降级。
 
 ### WorkspacePanel
@@ -64,12 +67,14 @@ flowchart LR
 
 ## 4. 启动与显示
 
-1. LauncherHost 根据显示器和工作区矩形计算入口位置。
-2. 用户释放点击后，LauncherHost 启动或激活 WorkspacePanel。
-3. WorkspacePanel 先显示本地 UI，再连接 CoreBroker。
-4. Broker 不可用时显示不可用状态，不阻止面板创建。
-5. 面板通过入口、`Esc` 或安全失焦规则关闭；关闭隐藏窗口并保留进程，重新打开只需显示。
-6. 启动器退出时结束常驻面板。
+1. LauncherHost 创建 Job Object（`KILL_ON_JOB_CLOSE`），此后每个子进程都在挂起状态下先入 Job 再恢复。
+2. 若外部未提供会话令牌，LauncherHost 生成令牌写入自身环境块并启动 CoreBroker；`--no-broker` 可关闭。
+3. LauncherHost 根据显示器和工作区矩形计算入口位置。
+4. 用户释放点击后，LauncherHost 启动或激活 WorkspacePanel。
+5. WorkspacePanel 先显示本地 UI，再连接 CoreBroker。
+6. Broker 不可用时显示不可用状态，不阻止面板创建。
+7. 面板通过入口、`Esc` 或安全失焦规则关闭；关闭隐藏窗口并保留进程，重新打开只需显示。
+8. 启动器退出时结束常驻面板；被强制结束时由 Job Object 兜底，不留孤儿进程。
 
 当前只要求在一个明确的 Windows 11 x64 参考环境中保持可靠。完整多显示器和 DPI 矩阵留到发布候选。
 

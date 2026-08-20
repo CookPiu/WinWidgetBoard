@@ -6,7 +6,7 @@
 
 ```text
 src/
-├─ LauncherHost/       # C++/Win32 任务栏入口：几何、输入、面板启动与最小原生 Broker 客户端
+├─ LauncherHost/       # C++/Win32 任务栏入口：几何、自绘、输入、子进程生命周期与最小原生 Broker 客户端
 ├─ WorkspacePanel/     # C#/.NET 10/WinUI 3 面板：布局、便签、天气与设置 UI
 ├─ CoreBroker.Client/  # C# 面向 UI 的高层 Named Pipe 客户端
 ├─ CoreBroker/         # C# Worker：SQLite、天气 Provider、集中调度与 IPC 服务端
@@ -17,7 +17,7 @@ src/
 
 | 项目 | 工程文件 | 主要内容 |
 | --- | --- | --- |
-| `LauncherHost` | `WinWidgetBoard.LauncherHost.vcxproj` | 入口窗口、命中与穿透、面板进程交接、`CoreBrokerClient.cpp` 保活 |
+| `LauncherHost` | `WinWidgetBoard.LauncherHost.vcxproj` | 入口窗口、`EntryVisual.cpp` 自绘与动效、命中与穿透、`ChildProcessJob.cpp` 持有的面板与 Broker 进程、`CoreBrokerClient.cpp` 保活 |
 | `WorkspacePanel` | `WinWidgetBoard.WorkspacePanel.csproj` | `Shell/`、`Layout/`、`Notes/`、`Runtime/`、`Motion/`、`Interaction/`、`Ipc/`、`Settings/`、`Styles/`、`Strings/` |
 | `CoreBroker.Client` | `WinWidgetBoard.CoreBroker.Client.csproj` | 会话、便签、布局、卡片和天气设置的类型化客户端 |
 | `CoreBroker` | `WinWidgetBoard.CoreBroker.csproj` | `Ipc/`、`Commands/`、`Persistence/`、`Providers/`、`Hosting/` |

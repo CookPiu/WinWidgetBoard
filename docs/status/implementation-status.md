@@ -110,34 +110,37 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 本轮已完成：
 
-- 任务栏入口由工作区内的 52 DIP 方形按钮改为嵌入任务栏条带的自适应信息条（[ADR-0023](../adr/0023-embedded-taskbar-entry-strip.md)）：
-  条带由 `monitorRect` 减 `workArea` 推导，不依赖只覆盖主任务栏的 `ABM_GETTASKBARPOS`；
-- 支持靠左/居中/靠右三种嵌入对齐与悬浮回退，系统图标左对齐时按用户配置避开开始按钮；
-  宽度随内容在 96～280 DIP 间自适应并带 8 DIP 滞回；偏好持久化在 `HKCU`；
-- 入口内容支持日期时间与天气两种模式，由右键菜单切换；
-- 放开「面板关闭即停止刷新」的限制（[ADR-0024](../adr/0024-background-provider-keepalive.md)）：
-  `ProviderRefreshVisibilityRegistry` 增加按实例的 keep-warm，天气在无面板时仍视为 display-connected
-  但非 panel-visible，因而落到 `HiddenInterval` 的每小时低频通路；此前 `GetCadenceLocked` 在无面板连接时
-  直接返回 `null`，`HiddenInterval` 这条路从未被走到；
-- 新增只读 IPC `weather.summary.get`，返回进程内最后一次成功读数的短投影；天气 payload 仍不落盘；
-- 补上握手能力列表中一直缺失的天气方法。
-- 将 `CoreBrokerCommandRouter` 拆为领域 handler：`LayoutCommandHandler`、`WeatherSettingsCommandHandler`、`CardSubscriptionCommandHandler` 和 `PanelVisibilityCommandHandler`，与既有 `NoteCommandHandler` 对齐；
-- 路由器只保留 `session.ping`、按 Contract `Methods` 分发和连接释放，可用性标志与面板可见性状态改为向对应 handler 转发；
-- 全部 handler 继续共用路由器的同一把锁，域间序列化行为不变；操作缓存上限统一由 `CoreBrokerCommandSupport.MaxCachedOperations` 提供；
-- 公开构造签名、`Handle` 重载、`RemoveConnection` 和四个可用性标志保持不变，IPC 方法、限制和错误码未改动；
-- 新增 `scripts/Measure-StartupFootprint.ps1`，把入口到面板延迟和空闲占用变成可重复测量；窗口按类名查找和左键点击进入共享 UIA 模块；
-- 天气设置真实流程改为只在面板进程自己的顶层窗口内查找元素，不再遍历桌面根；共享模块对可重试的 UIA COM 故障退避重试，该流程首次完整跑通；
-- 修复 `UT-CARD-096` 与孤儿请求降级之间的竞争：被取消但 provider 忽略取消的执行是在完成回调里由 Active 异步降级为 Predecessor，而 `InFlightCount` 是两者之和，降级前后都读作 1，无法作为等待条件；测试改为有界重试 pump 直到真正启动一次刷新。该测试在 14 核本机几乎必过，在双核 CI 上必挂；
-- 修复面板在模态作用域仍被持有时静默丢弃关闭请求的缺陷：`RequestCloseMotion` 改为记下延迟请求，最后一层模态作用域释放时补发一次；判定逻辑放在无 WinUI 依赖的 `PanelActivationClosePolicy` 并有单测覆盖，失焦关闭与 `Esc` 路径不受影响。
+- 修复常驻遗留的孤儿进程缺口（[ADR-0026](../adr/0026-launcher-owned-process-tree.md)）：LauncherHost 建立
+  `KILL_ON_JOB_CLOSE` 的 Job Object，面板与 Broker 都在 `CREATE_SUSPENDED` 下先入 Job 再恢复；
+  对启动器执行 `Process.Kill()` 后三个进程全部消失（实测）；
+- LauncherHost 自启动 CoreBroker：`BCryptGenRandom` 生成令牌并写入自身环境块，令牌不再经由命令行；
+  外部已提供会话（开发脚本）时不接管，`--no-broker` 可显式关闭，真实桌面测试据此保持数据隔离；
+- 子进程路径解析新增「同目录下的同名子目录」一档，安装布局因此可让三个 .NET 应用各自保留依赖集；
+- 新增 `scripts/Install-WinWidgetBoard.ps1`：安装到 `%LOCALAPPDATA%\WinWidgetBoard\app`，建立开始菜单与
+  登录启动快捷方式，`-Uninstall` 完整回退；仅当前用户，无提权、无服务、无注册表类注册；
+- 入口渲染由「色键透明 + `RoundRect` + `GetSysColor(COLOR_BTNFACE)`」改为预乘 BGRA 位图 +
+  `UpdateLayeredWindow`：胶囊边缘、指示器与文字都带真实逐像素 alpha，不再有一位透明度的锯齿边；
+  同时移除 `SetWindowRgn`，命中判定改为胶囊本体的有符号距离场；
+- 入口获得悬停、按下（缩放 `0.97`）与「面板已打开」三种状态，各由一条与面板开合同角频率
+  （`15.4919`）的临界阻尼弹簧驱动；打开态的判据是指示器由圆点长成竖条，不只靠颜色；
+  动画定时器只在迁移期间存在，静息入口无定时器唤醒；`SPI_GETCLIENTAREAANIMATION` 关闭时退化为淡入淡出；
+- 颜色映射改为：强调色取 `COLOR_HIGHLIGHT`，中性底色由 `SystemUsesLightTheme` 在纯白/纯黑间选择，
+  高对比度整体退回 `GetSysColor` 并恢复 1 DIP 系统边界；
+- 新增 `--entry-visual-smoke-test` 并折叠进 `--smoke-test`，因此 CI 无需改动即覆盖：预乘不变量、
+  圆角透明与抗锯齿、悬停步长、指示器随打开态增高、高对比度不透明，以及 96/144/192 dpi 三档；
+- 共享 UIA 模块增加 `Move-PointerToPoint` 与 `Save-ScreenRegionCapture`，并把 `SendInput` 的
+  绝对坐标归一化提取为共用实现。
 
 ## 7. 下一步
 
 核心五项已全部具备真实桌面证据，远程与 CI 已建立。当前优先级由「继续改代码」转为「靠真实使用暴露问题」：
 
 1. 补 ADR-0001 的显示矩阵：多显示器、100%～200% DPI、任务栏自动隐藏与左对齐、Explorer 重启、全屏。本轮只验证了参考机的底部居中任务栏。
+   同时补跑 `scripts/Test-LauncherEntryPlacement.ps1` 的点击一段：本轮该机拒绝一切合成输入（`SetCursorPos` 返回 `FALSE` 且不设错误码，
+   `SendInput` 报成功但指针不动），入口的窗口过程改为由 `PostMessage` 直接驱动验证，几何与穿透两段仍按原脚本通过。
 2. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
 3. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
-4. 常驻已落地（见 §4.2）。剩余相关项：启动器被强制结束时面板会成为孤儿（可用 Job Object 绑定生命周期根治）；重新显示沿用启动时解析的几何，跨显示器或 DPI 变化后的重显尚未验证；`PublishReadyToRun` 的发布配置仍未修好。
+4. 常驻已落地（见 §4.2），孤儿进程已由 Job Object 根治（见 §6）。剩余相关项：重新显示沿用启动时解析的几何，跨显示器或 DPI 变化后的重显尚未验证；`PublishReadyToRun` 的发布配置仍未修好。
 5. `ProviderRefreshScheduler.cs` 仅在其开始产生缺陷时再分解。
 
 ## 8. 延期

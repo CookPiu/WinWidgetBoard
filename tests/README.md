@@ -36,7 +36,7 @@ tests/
 
 `UT-BUILD-001 [BLD-001]` 验证 Contracts 程序集可加载；`UT-PANEL-GEO-001/002` 验证面板几何在触发工作区内、DPI 缩放和无效上下文 fail closed，`UT-PANEL-CONTEXT-001` 验证完整启动上下文解析。测试要求详见 `docs/08-testing-strategy.md`；后续任何任务栏定位、点击穿透、拖拽编排或动效变更都必须增加真实 UI 验证，不能只依赖单元测试。
 
-LauncherHost 还提供 `--geometry-smoke-test`，验证正常、DPI、自动隐藏、异常几何和不可用矩形；`--smoke-test` 会同时验证几何契约与宿主消息窗口启动/退出；`--panel-launch-smoke-test` 验证真实 WorkspacePanel 进程创建和 CLI 上下文传递；`--panel-lifecycle-smoke-test` 验证正常窗口创建、`WM_CLOSE` 和进程退出。WorkspacePanel 的 `--smoke-test` 会构造真实 WinUI `MainWindow` 后退出，`--broker-smoke-test` 会在真实 CoreBroker 进程下完成握手和 `panel.report-visibility` 后退出。它们不能替代真实桌面测试，任务栏位置、透明点击穿透、前台激活、自动隐藏、Explorer 重启、多显示器、面板键盘/失焦交互和拖拽仍需人工验证。
+LauncherHost 还提供 `--geometry-smoke-test`，验证正常、DPI、自动隐藏、异常几何和不可用矩形；`--entry-visual-smoke-test` 在 96/144/192 dpi 三档离屏合成入口位图，断言预乘不变量、圆角透明与边缘抗锯齿、悬停强于静息、指示器随打开态增高、高对比度完全不透明，以及悬浮徽标是内边距内的圆形；`--smoke-test` 会同时验证几何契约、入口视觉契约与宿主消息窗口启动/退出；`--panel-launch-smoke-test` 验证真实 WorkspacePanel 进程创建和 CLI 上下文传递；`--panel-lifecycle-smoke-test` 验证正常窗口创建、`WM_CLOSE` 和进程退出。WorkspacePanel 的 `--smoke-test` 会构造真实 WinUI `MainWindow` 后退出，`--broker-smoke-test` 会在真实 CoreBroker 进程下完成握手和 `panel.report-visibility` 后退出。它们不能替代真实桌面测试，任务栏位置、透明点击穿透、前台激活、自动隐藏、Explorer 重启、多显示器、面板键盘/失焦交互和拖拽仍需人工验证。
 `UT-CARD-DRAG-001/002/003` 覆盖拖动阈值、抓取位移、点击/拖动互斥和取消恢复；这些单元测试不能替代真实鼠标捕获、刷新率和 fall-through 验收。
 `UT-PANEL-MOTION-001/002/003` 覆盖面板打开、关闭反向、当前展示值连续性和减少动态效果；它们不能替代真实窗口首帧、失焦、反向和性能验收。
 `UT-CARD-MOTION-001/002/003` 覆盖卡片取消回归、回归中断和减少动态效果；它们不能替代真实鼠标捕获、刷新率和 fall-through 验收。
@@ -58,5 +58,7 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 `scripts/Measure-StartupFootprint.ps1` 采集性能结论所需的原始数据：面板进程启动到窗口、到布局就绪的耗时，任务栏入口点击到面板窗口的耗时，以及无面板时 CoreBroker 与 LauncherHost 的 CPU 时间和工作集。它同时打印设备、OS build、配置、调试器状态、迭代次数和每次原始值，使用隔离临时数据目录与临时 `LOCALAPPDATA`，只停止自己启动的进程，成功输出 `MEASURE-STARTUP-FOOTPRINT-PASS`。当前测量值记录在[实施状态](../docs/status/implementation-status.md)，本文不复制。
 
 `scripts/Test-LauncherEntryPlacement.ps1` 是任务栏入口的真实桌面回归：断言入口窗口落在由显示器与工作区推导的任务栏条带内、宽高在 96～280 与不小于 32 DIP 的范围内，入口形状之外的条带点位不归启动器（穿透成立），并验证点击开启面板，成功输出 `REAL-LAUNCHER-ENTRY-PASS`。它不启动 CoreBroker，因此不触碰生产数据；点击前会等待入口占据自身中心点，因为 topmost 层级与其他第三方任务栏扩展共享。
+
+LauncherHost 现在会自启动 CoreBroker（[ADR-0026](../docs/adr/0026-launcher-owned-process-tree.md)）。任何直接启动 LauncherHost 且不希望触碰生产数据库的脚本**必须**传 `--no-broker`；设置了 `WINWIDGETBOARD_COREBROKER_SESSION_TOKEN` 的脚本会自动被跳过，因为那表示会话已由外部提供。
 
 面板现在是常驻的：关闭隐藏窗口并保留进程（[ADR-0025](../docs/adr/0025-resident-workspace-panel.md)）。因此 `Test-WeatherSettingsInteraction.ps1`、`Test-WeatherProviderInteraction.ps1` 和 `Test-CardRuntimeStatusInteraction.ps1` 在关闭后断言的是 `WINDOW-HIDDEN-PASS`（窗口不可见且进程存活），不再是进程退出；`--panel-lifecycle-smoke-test` 同样改为断言隐藏、存活并能以同一进程重新显示。
