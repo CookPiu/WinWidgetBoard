@@ -14,6 +14,16 @@ constexpr wchar_t kWindowClassName[] = L"WinWidgetBoard.LauncherHost.EntryWindow
 constexpr UINT kRepositionMessage = WM_APP + 1;
 constexpr UINT_PTR kVisibilityTimerId = 1;
 constexpr UINT kVisibilityPollMilliseconds = 500;
+constexpr UINT_PTR kContentTimerId = 2;
+constexpr UINT kContentPollMilliseconds = 15000;
+constexpr int kContentFontLogical = 14;
+constexpr int kContentPaddingLogical = 12;
+// Only re-place the window when the measured width moves out of this band, so a changing
+// clock cannot make the entry twitch every time a glyph gets narrower.
+constexpr int kContentWidthHysteresisLogical = 8;
+// The layered colour key must be a colour the content never produces. Pure black is not:
+// antialiased dark text lands on it and the glyph cores get punched out as transparent.
+constexpr COLORREF kTransparentKey = RGB(255, 0, 255);
 
 enum ContextMenuCommand : UINT
 {
@@ -23,7 +33,30 @@ enum ContextMenuCommand : UINT
     MenuSettings = 1004,
     MenuDiagnostics = 1005,
     MenuExit = 1006,
+    MenuContentDateTime = 1010,
+    MenuContentWeather = 1011,
+    MenuPlacementEmbeddedLeft = 1020,
+    MenuPlacementEmbeddedCenter = 1021,
+    MenuPlacementEmbeddedRight = 1022,
+    MenuPlacementFloating = 1023,
+    MenuFallbackFloating = 1030,
+    MenuFallbackCenter = 1031,
+    MenuFallbackRight = 1032,
 };
+
+int ScaleLogical(const int logicalPixels, const UINT dpi)
+{
+    const UINT effectiveDpi = dpi == 0 ? 96 : dpi;
+    const int scaled = MulDiv(logicalPixels, static_cast<int>(effectiveDpi), 96);
+    return scaled <= 0 ? 1 : scaled;
+}
+
+int ToLogical(const int physicalPixels, const UINT dpi)
+{
+    const UINT effectiveDpi = dpi == 0 ? 96 : dpi;
+    const int logical = MulDiv(physicalPixels, 96, static_cast<int>(effectiveDpi));
+    return logical <= 0 ? 1 : logical;
+}
 
 std::wstring RectToString(const RECT& rectangle)
 {
@@ -31,6 +64,15 @@ std::wstring RectToString(const RECT& rectangle)
         std::to_wstring(rectangle.top) + L" - " +
         std::to_wstring(rectangle.right) + L"," +
         std::to_wstring(rectangle.bottom) + L"]";
+}
+
+void AppendRadioItem(
+    const HMENU menu,
+    const UINT command,
+    const wchar_t* text,
+    const bool checked)
+{
+    AppendMenuW(menu, MF_STRING | (checked ? MF_CHECKED : MF_UNCHECKED), command, text);
 }
 
 bool IsRectPointInside(const RECT& rectangle, const POINT point)
@@ -117,6 +159,9 @@ bool LauncherWindow::Create(
         }
     }
     _classRegistered = true;
+    _preferences = LoadLauncherPreferences();
+    _content = ComposeContentText();
+    _contentWidthLogical = MeasureContentWidthLogical(_content);
 
     if (!InitializePlacement(error))
     {
@@ -145,7 +190,7 @@ bool LauncherWindow::Create(
         return false;
     }
 
-    if (SetLayeredWindowAttributes(_window, RGB(0, 0, 0), 0, LWA_COLORKEY) == FALSE)
+    if (SetLayeredWindowAttributes(_window, kTransparentKey, 0, LWA_COLORKEY) == FALSE)
     {
         error = L"SetLayeredWindowAttributes failed";
         Destroy();
@@ -157,6 +202,7 @@ bool LauncherWindow::Create(
     {
         _dpi = 96;
     }
+    _contentWidthLogical = MeasureContentWidthLogical(_content);
     if (!InitializePlacement(error))
     {
         Destroy();
@@ -165,6 +211,7 @@ bool LauncherWindow::Create(
 
     ApplyPlacement();
     SetTimer(_window, kVisibilityTimerId, kVisibilityPollMilliseconds, nullptr);
+    SetTimer(_window, kContentTimerId, kContentPollMilliseconds, nullptr);
     _coreBroker.Poll();
     return true;
 }
@@ -175,6 +222,7 @@ void LauncherWindow::Destroy()
     if (_window != nullptr)
     {
         KillTimer(_window, kVisibilityTimerId);
+        KillTimer(_window, kContentTimerId);
         DestroyWindow(_window);
         _window = nullptr;
     }
@@ -194,15 +242,11 @@ bool LauncherWindow::InitializePlacement(std::wstring& error)
         return false;
     }
 
-    // Wiring for the embedded strip lands with the rendering change; keep the historical
-    // floating slot until then so this commit changes no visible behaviour.
     _placement = ResolveLauncherPlacement(
         snapshot,
         _dpi,
-        LauncherEntryPreferences{
-            .placement = LauncherEntryPlacementPreference::Floating,
-        },
-        0);
+        _preferences,
+        _contentWidthLogical);
     if (_placement.mode == LauncherPlacementMode::Unavailable)
     {
         error = L"launcher placement unavailable: " + _placement.reason;
@@ -264,7 +308,8 @@ void LauncherWindow::ApplyPlacement()
     };
 
     const int hitWidth = _localHitRect.right - _localHitRect.left;
-    const int cornerRadius = std::max(8, hitWidth / 4);
+    const int hitHeight = _localHitRect.bottom - _localHitRect.top;
+    const int cornerRadius = std::max(8, std::min(hitWidth, hitHeight) / 2);
     HRGN region = CreateRoundRectRgn(
         _localHitRect.left,
         _localHitRect.top,
@@ -296,12 +341,127 @@ void LauncherWindow::ApplyPlacement()
     InvalidateRect(_window, nullptr, FALSE);
 }
 
+bool LauncherWindow::IsEmbedded() const noexcept
+{
+    return _placement.mode == LauncherPlacementMode::ExactWidgetReplacement;
+}
+
+HFONT LauncherWindow::CreateContentFont() const
+{
+    return CreateFontW(
+        -ScaleLogical(kContentFontLogical, _dpi),
+        0,
+        0,
+        0,
+        FW_SEMIBOLD,
+        FALSE,
+        FALSE,
+        FALSE,
+        DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        ANTIALIASED_QUALITY,
+        DEFAULT_PITCH | FF_SWISS,
+        L"Segoe UI");
+}
+
+std::wstring LauncherWindow::ComposeContentText() const
+{
+    // Weather needs a broker request and a refresh-policy decision, so it is not offered
+    // yet; anything other than the date/time mode renders the date/time.
+    wchar_t time[64]{};
+    wchar_t date[64]{};
+    const int timeLength = GetTimeFormatEx(
+        LOCALE_NAME_USER_DEFAULT,
+        TIME_NOSECONDS,
+        nullptr,
+        nullptr,
+        time,
+        static_cast<int>(std::size(time)));
+    const int dateLength = GetDateFormatEx(
+        LOCALE_NAME_USER_DEFAULT,
+        DATE_SHORTDATE,
+        nullptr,
+        nullptr,
+        date,
+        static_cast<int>(std::size(date)),
+        nullptr);
+    if (timeLength <= 0 || dateLength <= 0)
+    {
+        return L"WinWidgetBoard";
+    }
+
+    return std::wstring{time} + L"   " + std::wstring{date};
+}
+
+int LauncherWindow::MeasureContentWidthLogical(const std::wstring& text) const
+{
+    const HDC screen = GetDC(nullptr);
+    if (screen == nullptr)
+    {
+        return 0;
+    }
+
+    HFONT font = CreateContentFont();
+    HGDIOBJ previousFont = SelectObject(screen, font);
+    SIZE extent{};
+    const bool measured = GetTextExtentPoint32W(
+        screen,
+        text.c_str(),
+        static_cast<int>(text.size()),
+        &extent) != FALSE;
+    SelectObject(screen, previousFont);
+    DeleteObject(font);
+    ReleaseDC(nullptr, screen);
+
+    if (!measured)
+    {
+        return 0;
+    }
+
+    return ToLogical(extent.cx, _dpi) + kContentPaddingLogical * 2;
+}
+
+bool LauncherWindow::RefreshContent()
+{
+    std::wstring text = ComposeContentText();
+    const bool textChanged = text != _content;
+    _content = std::move(text);
+
+    const int measured = MeasureContentWidthLogical(_content);
+    const bool widthChanged =
+        std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical;
+    if (widthChanged)
+    {
+        _contentWidthLogical = measured;
+    }
+
+    if (textChanged && _window != nullptr)
+    {
+        InvalidateRect(_window, nullptr, FALSE);
+    }
+
+    return widthChanged;
+}
+
+void LauncherWindow::ApplyPreferences(const LauncherEntryPreferences& preferences)
+{
+    _preferences = preferences;
+    if (!SaveLauncherPreferences(_preferences))
+    {
+        Log(L"failed to persist launcher preferences");
+    }
+
+    RefreshContent();
+    Reposition();
+}
+
 void LauncherWindow::Paint(const HDC deviceContext)
 {
     RECT clientRect{};
     GetClientRect(_window, &clientRect);
 
-    HBRUSH transparentBrush = CreateSolidBrush(RGB(0, 0, 0));
+    HBRUSH transparentBrush = CreateSolidBrush(kTransparentKey);
     FillRect(deviceContext, &clientRect, transparentBrush);
     DeleteObject(transparentBrush);
 
@@ -318,7 +478,9 @@ void LauncherWindow::Paint(const HDC deviceContext)
 
     const int radius = std::max(
         8,
-        static_cast<int>(_localHitRect.right - _localHitRect.left) / 4);
+        std::min(
+            static_cast<int>(_localHitRect.right - _localHitRect.left),
+            static_cast<int>(_localHitRect.bottom - _localHitRect.top)) / 2);
     RoundRect(
         deviceContext,
         _localHitRect.left,
@@ -335,31 +497,51 @@ void LauncherWindow::Paint(const HDC deviceContext)
 
     SetBkMode(deviceContext, TRANSPARENT);
     SetTextColor(deviceContext, foregroundColor);
-    HFONT font = CreateFontW(
-        -std::max(
-            14,
-            static_cast<int>(_localHitRect.bottom - _localHitRect.top) / 2),
-        0,
-        0,
-        0,
-        FW_SEMIBOLD,
-        FALSE,
-        FALSE,
-        FALSE,
-        DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_SWISS,
-        L"Segoe UI");
+
+    if (!IsEmbedded())
+    {
+        HFONT glyphFont = CreateFontW(
+            -std::max(
+                14,
+                static_cast<int>(_localHitRect.bottom - _localHitRect.top) / 2),
+            0,
+            0,
+            0,
+            FW_SEMIBOLD,
+            FALSE,
+            FALSE,
+            FALSE,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY,
+            DEFAULT_PITCH | FF_SWISS,
+            L"Segoe UI");
+        HGDIOBJ previousGlyphFont = SelectObject(deviceContext, glyphFont);
+        RECT glyphRect = _localHitRect;
+        DrawTextW(
+            deviceContext,
+            L"W",
+            1,
+            &glyphRect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        SelectObject(deviceContext, previousGlyphFont);
+        DeleteObject(glyphFont);
+        return;
+    }
+
+    HFONT font = CreateContentFont();
     HGDIOBJ previousFont = SelectObject(deviceContext, font);
+    const int padding = ScaleLogical(kContentPaddingLogical, _dpi);
     RECT textRect = _localHitRect;
+    textRect.left += padding;
+    textRect.right -= padding;
     DrawTextW(
         deviceContext,
-        L"W",
-        1,
+        _content.c_str(),
+        static_cast<int>(_content.size()),
         &textRect,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
     SelectObject(deviceContext, previousFont);
     DeleteObject(font);
 }
@@ -378,6 +560,90 @@ void LauncherWindow::ShowContextMenu(const POINT screenPoint)
     AppendMenuW(menu, MF_STRING, MenuPauseRefresh, L"暂停后台刷新");
     AppendMenuW(menu, MF_STRING, MenuSettings, L"打开设置");
     AppendMenuW(menu, MF_STRING, MenuDiagnostics, L"诊断");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+
+    HMENU contentMenu = CreatePopupMenu();
+    if (contentMenu != nullptr)
+    {
+        AppendRadioItem(
+            contentMenu,
+            MenuContentDateTime,
+            L"日期与时间",
+            _preferences.content == LauncherContentMode::DateTime);
+        // Weather needs a broker request plus a decision about refreshing while the panel
+        // is closed, so it stays disabled rather than shipping half of it.
+        AppendMenuW(
+            contentMenu,
+            MF_STRING | MF_GRAYED,
+            MenuContentWeather,
+            L"天气（待接入 Broker 刷新策略）");
+        AppendMenuW(
+            menu,
+            MF_STRING | MF_POPUP,
+            reinterpret_cast<UINT_PTR>(contentMenu),
+            L"显示内容");
+    }
+
+    HMENU placementMenu = CreatePopupMenu();
+    if (placementMenu != nullptr)
+    {
+        AppendRadioItem(
+            placementMenu,
+            MenuPlacementEmbeddedLeft,
+            L"嵌入任务栏 · 靠左",
+            _preferences.placement ==
+                LauncherEntryPlacementPreference::EmbeddedLeft);
+        AppendRadioItem(
+            placementMenu,
+            MenuPlacementEmbeddedCenter,
+            L"嵌入任务栏 · 居中",
+            _preferences.placement ==
+                LauncherEntryPlacementPreference::EmbeddedCenter);
+        AppendRadioItem(
+            placementMenu,
+            MenuPlacementEmbeddedRight,
+            L"嵌入任务栏 · 靠右",
+            _preferences.placement ==
+                LauncherEntryPlacementPreference::EmbeddedRight);
+        AppendRadioItem(
+            placementMenu,
+            MenuPlacementFloating,
+            L"悬浮在任务栏上方",
+            _preferences.placement == LauncherEntryPlacementPreference::Floating);
+        AppendMenuW(
+            menu,
+            MF_STRING | MF_POPUP,
+            reinterpret_cast<UINT_PTR>(placementMenu),
+            L"入口位置");
+    }
+
+    HMENU fallbackMenu = CreatePopupMenu();
+    if (fallbackMenu != nullptr)
+    {
+        AppendRadioItem(
+            fallbackMenu,
+            MenuFallbackFloating,
+            L"改为悬浮",
+            _preferences.leftAlignFallback == LauncherLeftAlignFallback::Floating);
+        AppendRadioItem(
+            fallbackMenu,
+            MenuFallbackCenter,
+            L"改为居中",
+            _preferences.leftAlignFallback ==
+                LauncherLeftAlignFallback::EmbeddedCenter);
+        AppendRadioItem(
+            fallbackMenu,
+            MenuFallbackRight,
+            L"改为靠右",
+            _preferences.leftAlignFallback ==
+                LauncherLeftAlignFallback::EmbeddedRight);
+        AppendMenuW(
+            menu,
+            MF_STRING | MF_POPUP,
+            reinterpret_cast<UINT_PTR>(fallbackMenu),
+            L"任务栏左对齐时");
+    }
+
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, MenuExit, L"退出");
 
@@ -418,6 +684,42 @@ void LauncherWindow::HandleMenuCommand(const UINT command)
     case MenuDiagnostics:
         Log(L"diagnostics requested");
         break;
+    case MenuContentDateTime:
+    {
+        LauncherEntryPreferences updated = _preferences;
+        updated.content = LauncherContentMode::DateTime;
+        ApplyPreferences(updated);
+        break;
+    }
+    case MenuPlacementEmbeddedLeft:
+    case MenuPlacementEmbeddedCenter:
+    case MenuPlacementEmbeddedRight:
+    case MenuPlacementFloating:
+    {
+        LauncherEntryPreferences updated = _preferences;
+        updated.placement = command == MenuPlacementEmbeddedLeft
+            ? LauncherEntryPlacementPreference::EmbeddedLeft
+            : command == MenuPlacementEmbeddedCenter
+                ? LauncherEntryPlacementPreference::EmbeddedCenter
+                : command == MenuPlacementEmbeddedRight
+                    ? LauncherEntryPlacementPreference::EmbeddedRight
+                    : LauncherEntryPlacementPreference::Floating;
+        ApplyPreferences(updated);
+        break;
+    }
+    case MenuFallbackFloating:
+    case MenuFallbackCenter:
+    case MenuFallbackRight:
+    {
+        LauncherEntryPreferences updated = _preferences;
+        updated.leftAlignFallback = command == MenuFallbackCenter
+            ? LauncherLeftAlignFallback::EmbeddedCenter
+            : command == MenuFallbackRight
+                ? LauncherLeftAlignFallback::EmbeddedRight
+                : LauncherLeftAlignFallback::Floating;
+        ApplyPreferences(updated);
+        break;
+    }
     case MenuExit:
         DestroyWindow(_window);
         break;
@@ -704,6 +1006,15 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
             self->PollPanelProcess();
             self->UpdateFullscreenVisibility();
             self->EnsureTopmost();
+        }
+        else if (wParam == kContentTimerId)
+        {
+            // Only a width change past the hysteresis band is worth re-placing the window;
+            // a new string on its own just repaints.
+            if (self->RefreshContent())
+            {
+                self->Reposition();
+            }
         }
         return 0;
 

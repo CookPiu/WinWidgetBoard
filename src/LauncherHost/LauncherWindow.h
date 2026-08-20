@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreBrokerClient.h"
+#include "LauncherPreferences.h"
 #include "TaskbarGeometry.h"
 #include "WorkspacePanelProcess.h"
 
@@ -42,6 +43,12 @@ private:
     void Reposition();
     void ApplyPlacement();
     void Paint(HDC deviceContext);
+    void ApplyPreferences(const LauncherEntryPreferences& preferences);
+    bool RefreshContent();
+    [[nodiscard]] std::wstring ComposeContentText() const;
+    [[nodiscard]] int MeasureContentWidthLogical(const std::wstring& text) const;
+    [[nodiscard]] HFONT CreateContentFont() const;
+    [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
     void HandleMenuCommand(UINT command);
     void TogglePanelRequested();
@@ -67,6 +74,9 @@ private:
     bool _panelOpen{};
     bool _hiddenForFullscreen{};
     RECT _localHitRect{};
+    std::wstring _content;
+    int _contentWidthLogical{};
+    LauncherEntryPreferences _preferences{};
     LauncherPlacement _placement{};
     CoreBrokerClient _coreBroker;
     WorkspacePanelProcess _panelProcess;

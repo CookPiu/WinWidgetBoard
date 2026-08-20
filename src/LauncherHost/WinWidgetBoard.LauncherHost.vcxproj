@@ -120,6 +120,7 @@
     <ClCompile Include="LauncherWindow.cpp" />
     <ClCompile Include="WorkspacePanelProcess.cpp" />
     <ClCompile Include="TaskbarGeometry.cpp" />
+    <ClCompile Include="LauncherPreferences.cpp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -127,6 +128,7 @@
     <ClInclude Include="LauncherWindow.h" />
     <ClInclude Include="WorkspacePanelProcess.h" />
     <ClInclude Include="TaskbarGeometry.h" />
+    <ClInclude Include="LauncherPreferences.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
