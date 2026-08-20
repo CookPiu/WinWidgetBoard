@@ -239,7 +239,12 @@ int WINAPI wWinMain(
         const winwidgetboard::launcher::LauncherPlacement placement =
             winwidgetboard::launcher::ResolveLauncherPlacement(
             snapshot,
-            GetDpiForSystem());
+            GetDpiForSystem(),
+            winwidgetboard::launcher::LauncherEntryPreferences{
+                .placement = winwidgetboard::launcher::
+                    LauncherEntryPlacementPreference::Floating,
+            },
+            0);
         if (placement.mode ==
             winwidgetboard::launcher::LauncherPlacementMode::Unavailable)
         {

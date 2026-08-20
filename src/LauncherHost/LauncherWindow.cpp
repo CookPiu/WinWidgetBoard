@@ -194,7 +194,15 @@ bool LauncherWindow::InitializePlacement(std::wstring& error)
         return false;
     }
 
-    _placement = ResolveLauncherPlacement(snapshot, _dpi);
+    // Wiring for the embedded strip lands with the rendering change; keep the historical
+    // floating slot until then so this commit changes no visible behaviour.
+    _placement = ResolveLauncherPlacement(
+        snapshot,
+        _dpi,
+        LauncherEntryPreferences{
+            .placement = LauncherEntryPlacementPreference::Floating,
+        },
+        0);
     if (_placement.mode == LauncherPlacementMode::Unavailable)
     {
         error = L"launcher placement unavailable: " + _placement.reason;

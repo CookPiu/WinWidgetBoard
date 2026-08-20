@@ -17,6 +17,12 @@ constexpr int kButtonLogicalSize = 36;
 constexpr int kEdgeGapLogical = 8;
 constexpr int kMinimumTaskbarThicknessPx = 8;
 constexpr int kMaximumTaskbarThicknessPx = 240;
+constexpr int kEntryMinWidthLogical = 96;
+constexpr int kEntryMaxWidthLogical = 280;
+constexpr int kEntryWidthQuantumLogical = 4;
+constexpr int kEntryMinHeightLogical = 32;
+constexpr int kEntryMaxHeightLogical = 40;
+constexpr int kStripMarginLogical = 4;
 
 int ScaleLogicalPixels(const int logicalPixels, const UINT dpi)
 {
@@ -136,6 +142,52 @@ RECT MakeEdgePlacement(
     return rectangle;
 }
 
+// Reads the documented user setting that moves the Windows 11 icon cluster to the left. The
+// value is absent until the user changes it, and absent means centred. This only reads a
+// per-user preference; it does not touch Explorer's windows or visual tree.
+bool QuerySystemIconsLeftAligned()
+{
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+    DWORD type = REG_DWORD;
+    const LSTATUS status = RegGetValueW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        L"TaskbarAl",
+        RRF_RT_REG_DWORD,
+        &type,
+        &value,
+        &size);
+    if (status != ERROR_SUCCESS)
+    {
+        return false;
+    }
+
+    return value == 0;
+}
+
+// Embedded entries deliberately leave the work area, so the work-area containment check no
+// longer applies to them. The strip containment check below replaces that safety net.
+bool IsEmbeddedMode(const LauncherPlacementMode mode)
+{
+    return mode == LauncherPlacementMode::ExactWidgetReplacement;
+}
+
+// A horizontal information strip only fits a top or bottom taskbar. A vertical taskbar is
+// roughly as wide as the old square button, so embedding there would clip the content.
+bool SupportsEmbeddedEntry(const TaskbarEdge edge)
+{
+    return edge == TaskbarEdge::Bottom || edge == TaskbarEdge::Top;
+}
+
+LauncherPlacementMode ResolveAlignmentMode(
+    const LauncherEntryPlacementPreference placement)
+{
+    return placement == LauncherEntryPlacementPreference::Floating
+        ? LauncherPlacementMode::SafeTaskbarSlot
+        : LauncherPlacementMode::ExactWidgetReplacement;
+}
+
 bool CheckPlacement(
     const MonitorSnapshot& snapshot,
     const LauncherPlacement& placement,
@@ -147,7 +199,22 @@ bool CheckPlacement(
         return false;
     }
 
-    if (!IsRectWithin(snapshot.workArea, placement.windowRect))
+    if (IsEmbeddedMode(placement.mode))
+    {
+        if (!IsRectWithin(snapshot.monitorRect, placement.windowRect))
+        {
+            failure = L"embedded window rectangle escapes the monitor";
+            return false;
+        }
+
+        if (!snapshot.hasTaskbarStrip ||
+            !IsRectWithin(snapshot.taskbarStrip, placement.windowRect))
+        {
+            failure = L"embedded window rectangle escapes the taskbar strip";
+            return false;
+        }
+    }
+    else if (!IsRectWithin(snapshot.workArea, placement.windowRect))
     {
         failure = L"window rectangle escapes the work area";
         return false;
@@ -181,6 +248,78 @@ bool IsRectWithin(const RECT& outer, const RECT& inner)
         inner.top >= outer.top &&
         inner.right <= outer.right &&
         inner.bottom <= outer.bottom;
+}
+
+bool DeriveTaskbarStrip(
+    const RECT& monitorRect,
+    const RECT& workArea,
+    const TaskbarEdge edge,
+    RECT& strip)
+{
+    strip = RECT{};
+    if (!IsValidRect(monitorRect) || !IsRectWithin(monitorRect, workArea))
+    {
+        return false;
+    }
+
+    RECT candidate{};
+    switch (edge)
+    {
+    case TaskbarEdge::Bottom:
+        candidate = RECT{
+            monitorRect.left, workArea.bottom, monitorRect.right, monitorRect.bottom};
+        break;
+    case TaskbarEdge::Top:
+        candidate = RECT{
+            monitorRect.left, monitorRect.top, monitorRect.right, workArea.top};
+        break;
+    case TaskbarEdge::Left:
+        candidate = RECT{
+            monitorRect.left, monitorRect.top, workArea.left, monitorRect.bottom};
+        break;
+    case TaskbarEdge::Right:
+        candidate = RECT{
+            workArea.right, monitorRect.top, monitorRect.right, monitorRect.bottom};
+        break;
+    case TaskbarEdge::Unknown:
+    default:
+        return false;
+    }
+
+    if (!IsValidRect(candidate))
+    {
+        return false;
+    }
+
+    const bool horizontal =
+        edge == TaskbarEdge::Bottom || edge == TaskbarEdge::Top;
+    const int thickness = horizontal
+        ? RectHeight(candidate)
+        : RectWidth(candidate);
+    if (thickness < kMinimumTaskbarThicknessPx ||
+        thickness > kMaximumTaskbarThicknessPx)
+    {
+        return false;
+    }
+
+    strip = candidate;
+    return true;
+}
+
+int ResolveEntryWidthLogical(const int measuredContentWidthLogical)
+{
+    int width = measuredContentWidthLogical <= 0
+        ? kEntryMinWidthLogical
+        : measuredContentWidthLogical;
+    width = std::clamp(width, kEntryMinWidthLogical, kEntryMaxWidthLogical);
+
+    const int remainder = width % kEntryWidthQuantumLogical;
+    if (remainder != 0)
+    {
+        width += kEntryWidthQuantumLogical - remainder;
+    }
+
+    return std::min(width, kEntryMaxWidthLogical);
 }
 
 TaskbarEdge InferTaskbarEdge(const RECT& monitorRect, const RECT& workArea)
@@ -291,12 +430,78 @@ bool QueryMonitorSnapshot(
         }
     }
 
+    snapshot.hasTaskbarStrip = DeriveTaskbarStrip(
+        snapshot.monitorRect,
+        snapshot.workArea,
+        snapshot.inferredTaskbarEdge,
+        snapshot.taskbarStrip);
+    snapshot.systemIconsLeftAligned = QuerySystemIconsLeftAligned();
+
+    return true;
+}
+
+// Places the entry along the taskbar strip. Returns false when the strip cannot host it.
+static bool TryMakeEmbeddedPlacement(
+    const MonitorSnapshot& snapshot,
+    const LauncherEntryPlacementPreference alignment,
+    const int measuredContentWidthLogical,
+    LauncherPlacement& placement)
+{
+    if (!snapshot.hasTaskbarStrip ||
+        !SupportsEmbeddedEntry(snapshot.inferredTaskbarEdge))
+    {
+        return false;
+    }
+
+    const RECT strip = snapshot.taskbarStrip;
+    const int margin = ScaleLogicalPixels(kStripMarginLogical, placement.dpi);
+    const int gap = ScaleLogicalPixels(kEdgeGapLogical, placement.dpi);
+    const int minHeight = ScaleLogicalPixels(kEntryMinHeightLogical, placement.dpi);
+    const int maxHeight = ScaleLogicalPixels(kEntryMaxHeightLogical, placement.dpi);
+
+    const int available = RectHeight(strip) - margin * 2;
+    if (available < minHeight)
+    {
+        return false;
+    }
+
+    const int height = std::min(available, maxHeight);
+    const int width = ScaleLogicalPixels(
+        ResolveEntryWidthLogical(measuredContentWidthLogical),
+        placement.dpi);
+    if (RectWidth(strip) < width + gap * 2)
+    {
+        return false;
+    }
+
+    int left = strip.left + gap;
+    switch (alignment)
+    {
+    case LauncherEntryPlacementPreference::EmbeddedCenter:
+        left = strip.left + (RectWidth(strip) - width) / 2;
+        break;
+    case LauncherEntryPlacementPreference::EmbeddedRight:
+        left = strip.right - gap - width;
+        break;
+    case LauncherEntryPlacementPreference::EmbeddedLeft:
+    case LauncherEntryPlacementPreference::Floating:
+    default:
+        break;
+    }
+
+    const int top = strip.top + (RectHeight(strip) - height) / 2;
+    placement.mode = LauncherPlacementMode::ExactWidgetReplacement;
+    placement.windowRect = RECT{left, top, left + width, top + height};
+    // The whole strip is the button; there is no inert padding to pass through.
+    placement.hitRect = placement.windowRect;
     return true;
 }
 
 LauncherPlacement ResolveLauncherPlacement(
     const MonitorSnapshot& snapshot,
-    const UINT dpi)
+    const UINT dpi,
+    const LauncherEntryPreferences& preferences,
+    const int measuredContentWidthLogical)
 {
     LauncherPlacement placement{};
     placement.dpi = dpi == 0 ? kDefaultDpi : dpi;
@@ -307,6 +512,50 @@ LauncherPlacement ResolveLauncherPlacement(
     {
         placement.reason = L"invalid monitor or work-area geometry";
         return placement;
+    }
+
+    if (ResolveAlignmentMode(preferences.placement) ==
+        LauncherPlacementMode::ExactWidgetReplacement &&
+        !snapshot.taskbarAutoHide)
+    {
+        LauncherEntryPlacementPreference alignment = preferences.placement;
+        if (alignment == LauncherEntryPlacementPreference::EmbeddedLeft &&
+            snapshot.systemIconsLeftAligned)
+        {
+            switch (preferences.leftAlignFallback)
+            {
+            case LauncherLeftAlignFallback::EmbeddedCenter:
+                alignment = LauncherEntryPlacementPreference::EmbeddedCenter;
+                break;
+            case LauncherLeftAlignFallback::EmbeddedRight:
+                alignment = LauncherEntryPlacementPreference::EmbeddedRight;
+                break;
+            case LauncherLeftAlignFallback::Floating:
+            default:
+                alignment = LauncherEntryPlacementPreference::Floating;
+                break;
+            }
+        }
+
+        if (alignment != LauncherEntryPlacementPreference::Floating &&
+            TryMakeEmbeddedPlacement(
+                snapshot,
+                alignment,
+                measuredContentWidthLogical,
+                placement))
+        {
+            std::wstring failure;
+            if (CheckPlacement(snapshot, placement, failure))
+            {
+                placement.reason =
+                    L"entry embedded in the taskbar strip derived from the work area";
+                return placement;
+            }
+
+            placement = LauncherPlacement{};
+            placement.dpi = dpi == 0 ? kDefaultDpi : dpi;
+            placement.edge = snapshot.inferredTaskbarEdge;
+        }
     }
 
     const int windowSize = ScaleLogicalPixels(kWindowLogicalSize, placement.dpi);
@@ -392,9 +641,208 @@ const wchar_t* ToString(const LauncherPlacementMode mode)
     }
 }
 
+const wchar_t* ToString(const LauncherEntryPlacementPreference placement)
+{
+    switch (placement)
+    {
+    case LauncherEntryPlacementPreference::EmbeddedLeft:
+        return L"embedded-left";
+    case LauncherEntryPlacementPreference::EmbeddedCenter:
+        return L"embedded-center";
+    case LauncherEntryPlacementPreference::EmbeddedRight:
+        return L"embedded-right";
+    case LauncherEntryPlacementPreference::Floating:
+    default:
+        return L"floating";
+    }
+}
+
+const wchar_t* ToString(const LauncherContentMode content)
+{
+    switch (content)
+    {
+    case LauncherContentMode::Weather:
+        return L"weather";
+    case LauncherContentMode::DateTime:
+    default:
+        return L"date-time";
+    }
+}
+
+// Exercises the embedded-entry invariants with synthetic layouts. Like the rest of this
+// smoke test it never inspects the live desktop.
+static bool RunEmbeddedEntryContractSmokeTest(
+    const MonitorSnapshot& bottomTaskbar,
+    std::wstring& failure)
+{
+    constexpr LauncherEntryPreferences embeddedLeft{
+        .placement = LauncherEntryPlacementPreference::EmbeddedLeft,
+    };
+
+    const LauncherPlacement left =
+        ResolveLauncherPlacement(bottomTaskbar, 96, embeddedLeft, 160);
+    if (left.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        !CheckPlacement(bottomTaskbar, left, failure))
+    {
+        if (failure.empty())
+        {
+            failure = L"bottom taskbar did not embed the entry";
+        }
+        return false;
+    }
+
+    if (RectWidth(left.windowRect) != 160 ||
+        RectHeight(left.windowRect) != kEntryMaxHeightLogical ||
+        left.windowRect.left != bottomTaskbar.taskbarStrip.left + kEdgeGapLogical)
+    {
+        failure = L"embedded left entry has the wrong size or offset";
+        return false;
+    }
+
+    if (ResolveEntryWidthLogical(0) != kEntryMinWidthLogical ||
+        ResolveEntryWidthLogical(10) != kEntryMinWidthLogical ||
+        ResolveEntryWidthLogical(4000) != kEntryMaxWidthLogical ||
+        ResolveEntryWidthLogical(101) != 104 ||
+        ResolveEntryWidthLogical(160) != 160)
+    {
+        failure = L"entry width was not clamped and quantised to the 4 DIP rhythm";
+        return false;
+    }
+
+    constexpr LauncherEntryPreferences embeddedCenter{
+        .placement = LauncherEntryPlacementPreference::EmbeddedCenter,
+    };
+    constexpr LauncherEntryPreferences embeddedRight{
+        .placement = LauncherEntryPlacementPreference::EmbeddedRight,
+    };
+    const LauncherPlacement centered =
+        ResolveLauncherPlacement(bottomTaskbar, 96, embeddedCenter, 160);
+    const LauncherPlacement right =
+        ResolveLauncherPlacement(bottomTaskbar, 96, embeddedRight, 160);
+    if (centered.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        right.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        !(left.windowRect.left < centered.windowRect.left) ||
+        !(centered.windowRect.left < right.windowRect.left) ||
+        right.windowRect.right !=
+            bottomTaskbar.taskbarStrip.right - kEdgeGapLogical ||
+        !CheckPlacement(bottomTaskbar, centered, failure) ||
+        !CheckPlacement(bottomTaskbar, right, failure))
+    {
+        if (failure.empty())
+        {
+            failure = L"embedded alignments are not ordered left, center, right";
+        }
+        return false;
+    }
+
+    // A 192 DPI desktop also has a physically taller strip, so the snapshot has to scale
+    // with the DPI or the entry would be compared against a strip it could never fit.
+    const MonitorSnapshot highDpi{
+        .monitor = reinterpret_cast<HMONITOR>(4),
+        .monitorRect = RECT{0, 0, 3840, 2160},
+        .workArea = RECT{0, 0, 3840, 2064},
+        .taskbarStrip = RECT{0, 2064, 3840, 2160},
+        .hasTaskbarStrip = true,
+        .inferredTaskbarEdge = TaskbarEdge::Bottom,
+    };
+    const LauncherPlacement scaled =
+        ResolveLauncherPlacement(highDpi, 192, embeddedLeft, 160);
+    if (scaled.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        RectWidth(scaled.windowRect) != RectWidth(left.windowRect) * 2 ||
+        RectHeight(scaled.windowRect) != RectHeight(left.windowRect) * 2 ||
+        !CheckPlacement(highDpi, scaled, failure))
+    {
+        if (failure.empty())
+        {
+            failure = L"embedded entry did not scale with DPI";
+        }
+        return false;
+    }
+
+    // A left-aligned icon cluster puts Start at the far left, so EmbeddedLeft must move.
+    MonitorSnapshot leftAligned = bottomTaskbar;
+    leftAligned.systemIconsLeftAligned = true;
+    const LauncherPlacement floatingFallback =
+        ResolveLauncherPlacement(leftAligned, 96, embeddedLeft, 160);
+    if (floatingFallback.mode != LauncherPlacementMode::SafeTaskbarSlot)
+    {
+        failure = L"left-aligned taskbar did not fall back out of the embedded slot";
+        return false;
+    }
+
+    constexpr LauncherEntryPreferences rightFallback{
+        .placement = LauncherEntryPlacementPreference::EmbeddedLeft,
+        .leftAlignFallback = LauncherLeftAlignFallback::EmbeddedRight,
+    };
+    const LauncherPlacement movedRight =
+        ResolveLauncherPlacement(leftAligned, 96, rightFallback, 160);
+    if (movedRight.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        movedRight.windowRect.left != right.windowRect.left)
+    {
+        failure = L"left-align fallback did not honour the configured alignment";
+        return false;
+    }
+
+    // Auto-hide, vertical taskbars and strips too thin for a 32 DIP target must degrade.
+    MonitorSnapshot autoHidden = bottomTaskbar;
+    autoHidden.taskbarAutoHide = true;
+    MonitorSnapshot vertical{
+        .monitor = reinterpret_cast<HMONITOR>(2),
+        .monitorRect = RECT{0, 0, 1920, 1080},
+        .workArea = RECT{72, 0, 1920, 1080},
+        .taskbarStrip = RECT{0, 0, 72, 1080},
+        .hasTaskbarStrip = true,
+        .inferredTaskbarEdge = TaskbarEdge::Left,
+    };
+    MonitorSnapshot thinStrip{
+        .monitor = reinterpret_cast<HMONITOR>(3),
+        .monitorRect = RECT{0, 0, 1920, 1080},
+        .workArea = RECT{0, 0, 1920, 1060},
+        .taskbarStrip = RECT{0, 1060, 1920, 1080},
+        .hasTaskbarStrip = true,
+        .inferredTaskbarEdge = TaskbarEdge::Bottom,
+    };
+    for (const MonitorSnapshot& degraded : {autoHidden, vertical, thinStrip})
+    {
+        const LauncherPlacement placement =
+            ResolveLauncherPlacement(degraded, 96, embeddedLeft, 160);
+        if (placement.mode == LauncherPlacementMode::ExactWidgetReplacement)
+        {
+            failure = L"a taskbar that cannot host the entry still embedded it";
+            return false;
+        }
+    }
+
+    RECT derived{};
+    if (!DeriveTaskbarStrip(
+            bottomTaskbar.monitorRect,
+            bottomTaskbar.workArea,
+            TaskbarEdge::Bottom,
+            derived) ||
+        derived.top != bottomTaskbar.workArea.bottom ||
+        derived.bottom != bottomTaskbar.monitorRect.bottom ||
+        DeriveTaskbarStrip(
+            bottomTaskbar.monitorRect,
+            bottomTaskbar.monitorRect,
+            TaskbarEdge::Bottom,
+            derived))
+    {
+        failure = L"taskbar strip derivation is not deterministic";
+        return false;
+    }
+
+    failure.clear();
+    return true;
+}
+
 bool RunGeometryContractSmokeTest(std::wstring& failure)
 {
     failure.clear();
+
+    constexpr LauncherEntryPreferences floatingPreferences{
+        .placement = LauncherEntryPlacementPreference::Floating,
+    };
+    constexpr int kNoMeasuredContent = 0;
 
     MonitorSnapshot bottomTaskbar{
         .monitor = reinterpret_cast<HMONITOR>(1),
@@ -403,11 +851,19 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
         .taskbarRect = RECT{0, 1032, 1920, 1080},
         .hasTaskbarRect = true,
         .taskbarAutoHide = false,
+        .taskbarStrip = RECT{0, 1032, 1920, 1080},
+        .hasTaskbarStrip = true,
+        .systemIconsLeftAligned = false,
         .inferredTaskbarEdge = TaskbarEdge::Bottom,
     };
 
-    const LauncherPlacement normalPlacement =
-        ResolveLauncherPlacement(bottomTaskbar, 96);
+    if (!RunEmbeddedEntryContractSmokeTest(bottomTaskbar, failure))
+    {
+        return false;
+    }
+
+    const LauncherPlacement normalPlacement = ResolveLauncherPlacement(
+        bottomTaskbar, 96, floatingPreferences, kNoMeasuredContent);
     if (normalPlacement.mode != LauncherPlacementMode::SafeTaskbarSlot ||
         !CheckPlacement(bottomTaskbar, normalPlacement, failure))
     {
@@ -418,8 +874,8 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
         return false;
     }
 
-    const LauncherPlacement highDpiPlacement =
-        ResolveLauncherPlacement(bottomTaskbar, 192);
+    const LauncherPlacement highDpiPlacement = ResolveLauncherPlacement(
+        bottomTaskbar, 192, floatingPreferences, kNoMeasuredContent);
     if (highDpiPlacement.dpi != 192 ||
         RectWidth(highDpiPlacement.hitRect) < RectWidth(normalPlacement.hitRect) * 2 ||
         RectHeight(highDpiPlacement.hitRect) < RectHeight(normalPlacement.hitRect) * 2 ||
@@ -434,8 +890,8 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
 
     MonitorSnapshot autoHidden = bottomTaskbar;
     autoHidden.taskbarAutoHide = true;
-    const LauncherPlacement fallbackPlacement =
-        ResolveLauncherPlacement(autoHidden, 96);
+    const LauncherPlacement fallbackPlacement = ResolveLauncherPlacement(
+        autoHidden, 96, floatingPreferences, kNoMeasuredContent);
     if (fallbackPlacement.mode != LauncherPlacementMode::EdgeTabFallback ||
         !CheckPlacement(autoHidden, fallbackPlacement, failure))
     {
@@ -449,8 +905,8 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
     MonitorSnapshot ambiguous = bottomTaskbar;
     ambiguous.workArea = RECT{0, 32, 1920, 1032};
     ambiguous.inferredTaskbarEdge = TaskbarEdge::Unknown;
-    const LauncherPlacement ambiguousPlacement =
-        ResolveLauncherPlacement(ambiguous, 120);
+    const LauncherPlacement ambiguousPlacement = ResolveLauncherPlacement(
+        ambiguous, 120, floatingPreferences, kNoMeasuredContent);
     if (ambiguousPlacement.mode != LauncherPlacementMode::EdgeTabFallback ||
         !CheckPlacement(ambiguous, ambiguousPlacement, failure))
     {
@@ -463,8 +919,8 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
 
     MonitorSnapshot invalid = bottomTaskbar;
     invalid.monitorRect = RECT{0, 0, 0, 0};
-    const LauncherPlacement invalidPlacement =
-        ResolveLauncherPlacement(invalid, 96);
+    const LauncherPlacement invalidPlacement = ResolveLauncherPlacement(
+        invalid, 96, floatingPreferences, kNoMeasuredContent);
     if (invalidPlacement.mode != LauncherPlacementMode::Unavailable)
     {
         failure = L"invalid geometry was not rejected";
