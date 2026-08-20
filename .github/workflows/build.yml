@@ -1,8 +1,14 @@
 name: Build
 
+# Markdown-only changes are L0 in docs/08-testing-strategy.md and require no build, so they
+# do not spend runner minutes. A push that touches both docs and code still builds.
 on:
   push:
+    paths-ignore:
+      - '**.md'
   pull_request:
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 permissions:
