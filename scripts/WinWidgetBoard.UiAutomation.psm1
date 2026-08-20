@@ -80,6 +80,35 @@ public static class WinWidgetBoardUiAutomationInput
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowPoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(WindowPoint point);
+
+    // Which process owns the window under a screen point. A layered or region-clipped window
+    // that lets input through reports the window underneath instead, which is what callers
+    // asserting pass-through need to see.
+    public static uint ProcessIdAtPoint(int x, int y)
+    {
+        var point = new WindowPoint();
+        point.X = x;
+        point.Y = y;
+        IntPtr window = WindowFromPoint(point);
+        if (window == IntPtr.Zero)
+        {
+            return 0;
+        }
+
+        uint owner;
+        GetWindowThreadProcessId(window, out owner);
+        return owner;
+    }
+
     // FindWindowW resolves a class name through the calling process's atom table, so it
     // cannot see a class another process registered without CS_GLOBALCLASS - which is how
     // the LauncherHost entry window is registered. Enumerate instead.
@@ -632,6 +661,15 @@ function Get-WindowRectByClass {
     throw "Window class '$ClassName' did not become visible within $($Timeout.TotalSeconds) seconds."
 }
 
+function Get-WindowOwnerProcessAtPoint {
+    param(
+        [int]$X,
+        [int]$Y
+    )
+
+    return [int][WinWidgetBoardUiAutomationInput]::ProcessIdAtPoint($X, $Y)
+}
+
 function Invoke-LeftClickAtPoint {
     param(
         [int]$X,
@@ -763,6 +801,7 @@ Export-ModuleMember -Function @(
     'Set-VerticalScrollPercent',
     'Focus-PanelWindow',
     'Get-WindowRectByClass',
+    'Get-WindowOwnerProcessAtPoint',
     'Invoke-LeftClickAtPoint',
     'Stop-WinWidgetBoardProcess',
     'Stop-TestProcess',
