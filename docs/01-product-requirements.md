@@ -85,6 +85,7 @@ LauncherHost、WorkspacePanel 和 CoreBroker 各自保持单实例。重复启�
 #### PNL-004 关闭规则
 
 入口切换、`Esc` 和面板外点击可以关闭；文本输入、拖动或模态对话框期间不得误关。
+关闭表示隐藏窗口并保留进程，下一次打开不再付冷启动代价（[ADR-0025](adr/0025-resident-workspace-panel.md)）。
 
 #### PNL-005 可恢复状态
 

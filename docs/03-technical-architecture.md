@@ -68,7 +68,8 @@ flowchart LR
 2. 用户释放点击后，LauncherHost 启动或激活 WorkspacePanel。
 3. WorkspacePanel 先显示本地 UI，再连接 CoreBroker。
 4. Broker 不可用时显示不可用状态，不阻止面板创建。
-5. 面板通过入口、`Esc` 或安全失焦规则关闭。
+5. 面板通过入口、`Esc` 或安全失焦规则关闭；关闭隐藏窗口并保留进程，重新打开只需显示。
+6. 启动器退出时结束常驻面板。
 
 当前只要求在一个明确的 Windows 11 x64 参考环境中保持可靠。完整多显示器和 DPI 矩阵留到发布候选。
 

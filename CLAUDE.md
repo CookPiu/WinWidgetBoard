@@ -84,7 +84,7 @@ Tests carry traceability IDs in their MSTest `DisplayName`, e.g. `UT-GRID-001 [L
 
 Each executable self-tests without a desktop session — CI runs the first two:
 
-- `WinWidgetBoard.LauncherHost.exe`: `--smoke-test`, `--geometry-smoke-test`, `--panel-launch-smoke-test`, `--panel-lifecycle-smoke-test`, `--corebroker-smoke-test`
+- `WinWidgetBoard.LauncherHost.exe`: `--smoke-test`, `--geometry-smoke-test`, `--panel-launch-smoke-test`, `--panel-lifecycle-smoke-test` (asserts the panel *hides and stays resident*, then re-shows as the same process), `--corebroker-smoke-test`
 - `WinWidgetBoard.WorkspacePanel.exe`: `--smoke-test` (constructs and closes a real WinUI `MainWindow`), `--broker-smoke-test`
 - `WinWidgetBoard.CoreBroker.exe`: `--pipe-handshake-smoke-test`
 

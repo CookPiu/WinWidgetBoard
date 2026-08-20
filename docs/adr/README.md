@@ -33,3 +33,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0022](0022-lightweight-core-strategy.md) | Accepted | 收缩为核心五项并采用风险分级工程门禁 |
 | [0023](0023-embedded-taskbar-entry-strip.md) | Accepted | 入口改为嵌入任务栏条带的自适应信息条 |
 | [0024](0024-background-provider-keepalive.md) | Accepted | 允许有界的低频后台刷新，入口可在面板关闭时显示天气 |
+| [0025](0025-resident-workspace-panel.md) | Accepted | 面板关闭改为隐藏，进程常驻以消除冷启动 |
