@@ -37,6 +37,12 @@ public:
         std::wstring& error);
 
     void Poll();
+    void Shutdown();
+
+    // True when the resident panel currently has a visible window. The panel can hide
+    // itself on focus loss without telling the launcher, so this is the only trustworthy
+    // source for the toggle state.
+    [[nodiscard]] bool IsPanelVisible() const;
 
     [[nodiscard]] bool IsRunning() const noexcept
     {

@@ -82,6 +82,33 @@ std::wstring QuoteExecutablePath(const std::wstring& path)
 
 WorkspacePanelProcess::~WorkspacePanelProcess()
 {
+    Shutdown();
+}
+
+// A resident panel never exits on its own, so the launcher must take it down with itself
+// rather than leaving an orphan behind.
+void WorkspacePanelProcess::Shutdown()
+{
+    Poll();
+    if (!IsRunning())
+    {
+        Reap();
+        return;
+    }
+
+    // There is no separate quit protocol: WM_CLOSE now hides the panel rather than ending
+    // it. Post it anyway so the panel runs its close path and settles, then terminate. The
+    // panel holds no unflushed storage of its own - CoreBroker owns the database - so the
+    // worst case is one debounced note autosave that had not been sent yet.
+    std::wstring error;
+    RequestClose(error);
+    WaitForSingleObject(_process, 500);
+    if (IsRunning())
+    {
+        TerminateProcess(_process, 0);
+        WaitForSingleObject(_process, 2000);
+    }
+
     Reap();
 }
 
@@ -251,41 +278,60 @@ bool WorkspacePanelProcess::RunLifecycleSmokeTest(
         return false;
     }
 
-    const DWORD waitResult = WaitForSingleObject(
-        _process,
-        kPanelSmokeTimeoutMilliseconds);
-    if (waitResult == WAIT_TIMEOUT)
+    // The panel is resident: closing hides the window and keeps the process warm, so this
+    // asserts hidden-but-alive rather than an exit. See ADR-0025.
+    bool hidden = false;
+    for (int attempt = 0; attempt < 150; ++attempt)
+    {
+        if (WaitForSingleObject(_process, 100) == WAIT_OBJECT_0)
+        {
+            Reap();
+            error = L"WorkspacePanel lifecycle smoke exited instead of staying resident";
+            return false;
+        }
+
+        if (!IsPanelVisible())
+        {
+            hidden = true;
+            break;
+        }
+    }
+
+    if (!hidden)
     {
         CleanupSmokeProcess();
-        error = L"WorkspacePanel lifecycle smoke did not close within 15 seconds";
+        error = L"WorkspacePanel lifecycle smoke did not hide within 15 seconds";
         return false;
     }
 
-    if (waitResult == WAIT_FAILED)
+    // Re-showing must bring the same process back rather than launching a new one.
+    const DWORD residentProcessId = _processId;
+    if (!ActivatePanelWindow(error) && !IsPanelVisible())
     {
-        const DWORD lastError = GetLastError();
         CleanupSmokeProcess();
-        error = L"WaitForSingleObject failed: " + std::to_wstring(lastError);
         return false;
     }
 
-    DWORD exitCode = STILL_ACTIVE;
-    if (GetExitCodeProcess(_process, &exitCode) == FALSE)
+    bool shown = false;
+    for (int attempt = 0; attempt < 100; ++attempt)
     {
-        const DWORD lastError = GetLastError();
-        Reap();
-        error = L"GetExitCodeProcess failed: " + std::to_wstring(lastError);
-        return false;
+        if (IsPanelVisible())
+        {
+            shown = true;
+            break;
+        }
+
+        Sleep(50);
     }
 
-    Reap();
-    if (exitCode != 0)
+    if (!shown || _processId != residentProcessId)
     {
-        error = L"WorkspacePanel lifecycle smoke exited with code " +
-            std::to_wstring(exitCode);
+        CleanupSmokeProcess();
+        error = L"WorkspacePanel lifecycle smoke did not re-show the resident process";
         return false;
     }
 
+    CleanupSmokeProcess();
     return true;
 }
 
@@ -395,6 +441,12 @@ bool WorkspacePanelProcess::ResolveExecutablePath(
     return true;
 }
 
+bool WorkspacePanelProcess::IsPanelVisible() const
+{
+    const HWND window = FindPanelWindow();
+    return window != nullptr && IsWindowVisible(window) != FALSE;
+}
+
 bool WorkspacePanelProcess::ActivatePanelWindow(std::wstring& error) const
 {
     const HWND window = FindPanelWindow();
@@ -407,6 +459,12 @@ bool WorkspacePanelProcess::ActivatePanelWindow(std::wstring& error) const
     if (IsIconic(window))
     {
         ShowWindow(window, SW_RESTORE);
+    }
+    else if (IsWindowVisible(window) == FALSE)
+    {
+        // The panel hides itself instead of exiting, so re-opening is a show, not a launch.
+        // The panel notices the activation below and runs its opening motion. See ADR-0025.
+        ShowWindow(window, SW_SHOW);
     }
 
     if (SetForegroundWindow(window) == FALSE)

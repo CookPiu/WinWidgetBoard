@@ -218,6 +218,8 @@ bool LauncherWindow::Create(
 
 void LauncherWindow::Destroy()
 {
+    // The panel is resident, so it outlives its own close; take it down with the launcher.
+    _panelProcess.Shutdown();
     _coreBroker.Close();
     if (_window != nullptr)
     {
@@ -748,7 +750,10 @@ void LauncherWindow::TogglePanelRequested()
         return;
     }
 
-    const bool opening = !_panelOpen;
+    // Ask the panel what it is actually doing rather than trusting our own bookkeeping:
+    // a resident panel hides itself on focus loss without telling us, and the old reset
+    // path relied on the process exiting.
+    const bool opening = !_panelProcess.IsPanelVisible();
     std::wstring processError;
     if (!_panelProcess.Toggle(
             opening,
@@ -770,13 +775,12 @@ void LauncherWindow::TogglePanelRequested()
 
 void LauncherWindow::PollPanelProcess()
 {
-    const bool wasRunning = _panelProcess.IsRunning();
     _panelProcess.Poll();
-    if (_panelOpen && wasRunning && !_panelProcess.IsRunning())
+    const bool panelVisible = _panelProcess.IsPanelVisible();
+    if (_panelOpen != panelVisible)
     {
-        _panelOpen = false;
+        _panelOpen = panelVisible;
         InvalidateRect(_window, nullptr, FALSE);
-        Log(L"WorkspacePanel process exited; launcher state reset");
     }
 }
 

@@ -81,6 +81,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _nativeOpacitySupported;
     private int _modalScopeDepth;
     private bool _deferredCloseRequest;
+    private bool _isHiddenForResidency;
     private bool _hasBeenActivated;
     private bool _allowNativeClose;
     private uint? _demoNotesCardPointerId;
@@ -203,6 +204,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             offset => _demoNotesCardDrag.SetOffset(offset),
             CloseAfterMotion);
         _appWindow.Closing += AppWindow_Closing;
+        // SetForegroundWindow from the launcher does not reliably raise Activated, so the
+        // re-show hook hangs off the window's own visibility change instead.
+        _appWindow.Changed += AppWindow_Changed;
 
         ApplyPlacement();
         ApplyPanelMotion(_motion.PanelValue);
@@ -335,10 +339,26 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         _hasBeenActivated = true;
+        if (_isHiddenForResidency)
+        {
+            ShowAfterResidency();
+            return;
+        }
+
         if (_motion.IsClosing)
         {
             RequestOpenMotion();
         }
+    }
+
+    private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (!args.DidVisibilityChange || !sender.IsVisible)
+        {
+            return;
+        }
+
+        ShowAfterResidency();
     }
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
@@ -350,6 +370,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
         _appWindow.Closing -= AppWindow_Closing;
+        _appWindow.Changed -= AppWindow_Changed;
         Activated -= MainWindow_Activated;
         Closed -= MainWindow_Closed;
         CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
@@ -1629,10 +1650,50 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _motion.RequestClose();
     }
 
+    // Closing the panel hides it and keeps the process warm: process, runtime and XAML
+    // startup account for most of the cold-start cost, and re-showing skips all of it.
+    // See ADR-0025.
     private void CloseAfterMotion()
     {
-        _allowNativeClose = true;
-        Close();
+        HideForResidency();
+    }
+
+    private void HideForResidency()
+    {
+        if (_isHiddenForResidency)
+        {
+            return;
+        }
+
+        _isHiddenForResidency = true;
+        StartupTrace.Mark("residency-hide");
+        _appWindow.Hide();
+
+        // A hidden panel does not need its pages resident. This hands them back to the OS
+        // and they fault in again on the next show.
+        try
+        {
+            NativeWorkingSet.EmptyWorkingSet(NativeWorkingSet.GetCurrentProcess());
+        }
+        catch (EntryPointNotFoundException)
+        {
+        }
+        catch (DllNotFoundException)
+        {
+        }
+    }
+
+    private void ShowAfterResidency()
+    {
+        if (!_isHiddenForResidency)
+        {
+            return;
+        }
+
+        _isHiddenForResidency = false;
+        StartupTrace.Mark("residency-show");
+        ApplyPlacement();
+        RequestOpenMotion();
     }
 
     private static Windows.Foundation.Point CalculateTransformOrigin(
@@ -2054,6 +2115,16 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 owner.RequestCloseMotion();
             }
         }
+    }
+
+    private static class NativeWorkingSet
+    {
+        [DllImport("kernel32.dll")]
+        internal static extern IntPtr GetCurrentProcess();
+
+        [DllImport("psapi.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool EmptyWorkingSet(IntPtr process);
     }
 
     private static class NativeWindowStyles
