@@ -67,7 +67,10 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             Capability,
             minimumInterval: TimeSpan.FromMinutes(15),
             visibleInterval: TimeSpan.FromMinutes(15),
-            hiddenInterval: null,
+            // The taskbar entry can show weather while the panel is closed, so refreshing
+            // does not stop when the panel hides - it drops to an hourly cadence instead of
+            // pausing outright. See ADR-0024.
+            hiddenInterval: TimeSpan.FromHours(1),
             powerSaverInterval: null,
             requestTimeout: TimeSpan.FromSeconds(10),
             requiresNetwork: true,

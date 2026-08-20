@@ -5,7 +5,10 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// <summary>
 /// Projects connection-scoped cards.subscribe visibility onto scheduled
 /// provider registrations. A provider runs only while at least one connected
-/// panel has the matching instance in its visible viewport.
+/// panel has the matching instance in its visible viewport, unless the instance
+/// is registered as kept warm: the taskbar entry renders weather with no panel
+/// attached, so that instance stays display-connected but never panel-visible,
+/// which resolves to the descriptor's hidden cadence. See ADR-0024.
 /// </summary>
 public sealed class ProviderRefreshVisibilityRegistry : IDisposable
 {
@@ -14,6 +17,7 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
     private readonly Dictionary<string, Guid> _providerSubscriptions =
         new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, CardsSubscribeRequest> _connections = [];
+    private readonly HashSet<string> _keptWarmInstances = new(StringComparer.Ordinal);
     private bool _disposed;
 
     public ProviderRefreshVisibilityRegistry(
@@ -24,7 +28,8 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
 
     public void Register(
         string instanceId,
-        Guid subscriptionId)
+        Guid subscriptionId,
+        bool keepWarmWithoutPanel = false)
     {
         if (!CardsContract.IsValidIdentifier(
                 instanceId,
@@ -45,6 +50,11 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (keepWarmWithoutPanel)
+            {
+                _keptWarmInstances.Add(instanceId);
+            }
+
             if (!_providerSubscriptions.TryAdd(instanceId, subscriptionId))
             {
                 throw new ArgumentException(
@@ -58,7 +68,7 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
             new ProviderRefreshVisibility(
                 PanelVisible: false,
                 InViewport: false,
-                DisplayConnected: false));
+                DisplayConnected: keepWarmWithoutPanel));
     }
 
     public bool Apply(
@@ -163,6 +173,7 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
             subscriptionIds = _providerSubscriptions.Values.ToArray();
             _providerSubscriptions.Clear();
             _connections.Clear();
+            _keptWarmInstances.Clear();
         }
 
         foreach (Guid subscriptionId in subscriptionIds)
@@ -180,9 +191,11 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
         CardsSubscribeRequest[] connections)
     {
         KeyValuePair<string, Guid>[] providers;
+        HashSet<string> keptWarm;
         lock (_gate)
         {
             providers = _providerSubscriptions.ToArray();
+            keptWarm = new HashSet<string>(_keptWarmInstances, StringComparer.Ordinal);
         }
 
         foreach ((string instanceId, Guid subscriptionId) in providers)
@@ -193,7 +206,9 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
                     StringComparer.Ordinal));
             bool panelVisible = subscribed && connections.Any(connection =>
                 IsVisible(connection, instanceId));
-            bool displayConnected = subscribed && connections.Length > 0;
+            bool displayConnected =
+                keptWarm.Contains(instanceId) ||
+                (subscribed && connections.Length > 0);
             _scheduler.SetVisibility(
                 subscriptionId,
                 new ProviderRefreshVisibility(

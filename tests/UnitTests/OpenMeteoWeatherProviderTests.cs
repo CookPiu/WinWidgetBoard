@@ -12,6 +12,21 @@ public sealed class OpenMeteoWeatherProviderTests
         new(2026, 8, 15, 10, 0, 0, TimeSpan.Zero);
 
     [TestMethod(DisplayName =
+        "UT-WEA-005 [WEA-001/LCH-002] Weather keeps an hourly cadence while the panel is hidden")]
+    public void HiddenCadenceKeepsAnHourlyBackgroundRefresh()
+    {
+        using var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        using var httpClient = new HttpClient(handler);
+        var provider = new OpenMeteoWeatherProvider(httpClient);
+
+        // The taskbar entry renders weather with the panel closed, so hiding must slow the
+        // refresh down rather than stop it. See ADR-0024.
+        Assert.AreEqual(TimeSpan.FromHours(1), provider.Descriptor.HiddenInterval);
+        Assert.AreEqual(TimeSpan.FromMinutes(15), provider.Descriptor.VisibleInterval);
+        Assert.IsTrue(provider.Descriptor.HiddenInterval > provider.Descriptor.VisibleInterval);
+    }
+
+    [TestMethod(DisplayName =
         "UT-WEA-001 [WEA-001/CRD-002] Open-Meteo request maps current weather payload")]
     public async Task SuccessBuildsMinimalRequestAndPayload()
     {

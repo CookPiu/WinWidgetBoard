@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Ipc;
@@ -23,6 +24,10 @@ public sealed class WeatherProviderRuntime : IDisposable
     private long _sequence;
     private WeatherSettingsRecord _settings;
     private RegistrationState _registration;
+    // Written from the publisher without taking _gate: a save already holds _gate while it
+    // publishes, so reaching back for _gate from inside the publisher lock would invert the
+    // lock order. The value is an immutable record, so a volatile reference is enough.
+    private WeatherSummaryDto? _summary;
     private bool _disposed;
 
     public WeatherProviderRuntime(
@@ -51,7 +56,8 @@ public sealed class WeatherProviderRuntime : IDisposable
         {
             _visibilityRegistry.Register(
                 OpenMeteoWeatherProvider.InstanceId,
-                _registration.HostRegistration.SubscriptionId);
+                _registration.HostRegistration.SubscriptionId,
+                keepWarmWithoutPanel: true);
         }
         catch
         {
@@ -170,7 +176,8 @@ public sealed class WeatherProviderRuntime : IDisposable
             _httpClient,
             utcNow: () => _clock.UtcNow);
         var generationPublisher = new GenerationSnapshotPublisher(
-            _snapshotHub);
+            _snapshotHub,
+            CaptureSummary);
         var adapter = new ProviderCardSnapshotAdapter(
             OpenMeteoWeatherProvider.InstanceId,
             OpenMeteoWeatherProvider.CardTypeId,
@@ -204,6 +211,47 @@ public sealed class WeatherProviderRuntime : IDisposable
             hostRegistration);
     }
 
+    // The last good reading is kept in this process only, exactly like the card payload it
+    // is projected from: nothing here is written to SQLite.
+    private void CaptureSummary(CardStateSnapshot snapshot)
+    {
+        if (snapshot.Payload.ValueKind != JsonValueKind.Object ||
+            !snapshot.Payload.TryGetProperty("location", out JsonElement location) ||
+            !snapshot.Payload.TryGetProperty("current", out JsonElement current) ||
+            location.ValueKind != JsonValueKind.Object ||
+            current.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        if (!location.TryGetProperty("label", out JsonElement label) ||
+            label.ValueKind != JsonValueKind.String ||
+            !current.TryGetProperty("temperatureC", out JsonElement temperature) ||
+            !temperature.TryGetDouble(out double temperatureC) ||
+            !double.IsFinite(temperatureC))
+        {
+            return;
+        }
+
+        var summary = new WeatherSummaryDto
+        {
+            InstanceId = snapshot.InstanceId,
+            Label = label.GetString() ?? string.Empty,
+            TemperatureText =
+                Math.Round(temperatureC, MidpointRounding.AwayFromZero)
+                    .ToString("0", CultureInfo.InvariantCulture),
+            ObservedAtUtc = snapshot.GeneratedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            IsStale = snapshot.Freshness == CardSnapshotFreshness.Stale,
+        };
+
+        Volatile.Write(ref _summary, summary);
+    }
+
+    public WeatherSummaryDto? TryGetSummary()
+    {
+        return Volatile.Read(ref _summary);
+    }
+
     private long NextSequence() => checked(Interlocked.Increment(ref _sequence));
 
     private static WeatherSettingsRecord CreateDefaultSettings()
@@ -228,11 +276,15 @@ public sealed class WeatherProviderRuntime : IDisposable
     {
         private readonly object _gate = new();
         private readonly ICardSnapshotPublisher _inner;
+        private readonly Action<CardStateSnapshot> _observe;
         private bool _active = true;
 
-        public GenerationSnapshotPublisher(ICardSnapshotPublisher inner)
+        public GenerationSnapshotPublisher(
+            ICardSnapshotPublisher inner,
+            Action<CardStateSnapshot> observe)
         {
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _observe = observe ?? throw new ArgumentNullException(nameof(observe));
         }
 
         public ValueTask PublishAsync(
@@ -243,9 +295,13 @@ public sealed class WeatherProviderRuntime : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             lock (_gate)
             {
-                return !_active
-                    ? ValueTask.CompletedTask
-                    : _inner.PublishAsync(snapshot, cancellationToken);
+                if (!_active)
+                {
+                    return ValueTask.CompletedTask;
+                }
+
+                _observe(snapshot);
+                return _inner.PublishAsync(snapshot, cancellationToken);
             }
         }
 

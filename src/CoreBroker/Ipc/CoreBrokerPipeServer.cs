@@ -334,6 +334,9 @@ public sealed class CoreBrokerPipeServer
             .Concat(_commandRouter.CardsAvailable
                 ? CardsContract.Methods
                 : Array.Empty<string>())
+            .Concat(_commandRouter.WeatherSettingsAvailable
+                ? WeatherSettingsContract.Methods
+                : Array.Empty<string>())
             .ToArray(),
             MaxMessageBytes = ProtocolConstants.MaxMessageBytes,
         };

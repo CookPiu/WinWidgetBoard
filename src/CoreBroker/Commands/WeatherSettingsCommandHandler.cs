@@ -39,6 +39,14 @@ internal sealed class WeatherSettingsCommandHandler
             return HandleSave(request);
         }
 
+        if (string.Equals(
+                request.Method,
+                WeatherSettingsContract.SummaryGetMethod,
+                StringComparison.Ordinal))
+        {
+            return HandleSummaryGet(request);
+        }
+
         return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
     }
 
@@ -74,6 +82,34 @@ internal sealed class WeatherSettingsCommandHandler
             {
                 return ErrorResponse(request, "storage.read-failed", "storage");
             }
+        }
+    }
+
+    // Read-only and lock-free on the runtime side, so it does not queue behind a save.
+    private Envelope HandleSummaryGet(Envelope request)
+    {
+        if (!TryDeserializePayload(
+                request.Payload,
+                out WeatherSummaryGetRequest? payload) ||
+            payload is null ||
+            !IsValidWeatherInstanceId(payload.InstanceId))
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        try
+        {
+            return SuccessResponse(
+                request,
+                WeatherSettingsContract.SummaryGetMethod,
+                new WeatherSummaryGetResponse
+                {
+                    Summary = _weatherProviderRuntime.TryGetSummary(),
+                });
+        }
+        catch (ObjectDisposedException)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
         }
     }
 

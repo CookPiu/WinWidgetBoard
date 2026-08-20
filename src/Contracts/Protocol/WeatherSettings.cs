@@ -4,6 +4,10 @@ public static class WeatherSettingsContract
 {
     public const string GetMethod = "weather.settings.get";
     public const string SaveMethod = "weather.settings.save";
+    // Read-only projection of the last successful weather refresh, for callers that only
+    // need a short line of text and must not open a card subscription - today the native
+    // taskbar entry. Weather payloads still never reach SQLite.
+    public const string SummaryGetMethod = "weather.summary.get";
 
     public const int MaxInstanceIdLength = CardsContract.MaxInstanceIdLength;
     public const int MaxLabelLength = 80;
@@ -13,10 +17,13 @@ public static class WeatherSettingsContract
     public const double DefaultLatitude = 1.3521;
     public const double DefaultLongitude = 103.8198;
 
+    public const int MaxTemperatureTextLength = 16;
+
     public static IReadOnlyList<string> Methods { get; } =
     [
         GetMethod,
         SaveMethod,
+        SummaryGetMethod,
     ];
 
     public static bool IsValidInstanceId(string? value) =>
@@ -100,4 +107,31 @@ public sealed record WeatherSettingsDto
     public int Revision { get; init; }
 
     public string UpdatedAtUtc { get; init; } = string.Empty;
+}
+
+public sealed record WeatherSummaryGetRequest
+{
+    public string? InstanceId { get; init; }
+}
+
+public sealed record WeatherSummaryGetResponse
+{
+    // Absent until the first successful refresh of this process; callers render their own
+    // unavailable state rather than a stale or invented value.
+    public WeatherSummaryDto? Summary { get; init; }
+}
+
+public sealed record WeatherSummaryDto
+{
+    public string InstanceId { get; init; } = string.Empty;
+
+    public string Label { get; init; } = string.Empty;
+
+    // Rounded whole degrees Celsius as text, so a minimal native client does not have to
+    // parse or format a JSON number.
+    public string TemperatureText { get; init; } = string.Empty;
+
+    public string ObservedAtUtc { get; init; } = string.Empty;
+
+    public bool IsStale { get; init; }
 }
