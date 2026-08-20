@@ -1,6 +1,6 @@
 # 实施状态
 
-最后更新：2026-08-19
+最后更新：2026-08-20
 当前策略：轻量核心版
 当前代码基线：本文件所在提交
 
@@ -66,7 +66,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
 4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；查找一律限定在目标进程自己的顶层窗口内，并对可重试的 UIA COM 故障退避重试。
 5. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
-6. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置，`main` 已推送。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟；该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。workflow 目前仍只手动触发。
+6. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。
 7. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
 8. 完整显示、无障碍、性能和发布矩阵尚未执行。
 9. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
@@ -86,13 +86,12 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 ## 7. 下一步
 
-核心五项已全部具备真实桌面证据，功能面收口。当前优先级由「继续改代码」转为「消除单点风险并靠真实使用暴露问题」：
+核心五项已全部具备真实桌面证据，远程与 CI 已建立。当前优先级由「继续改代码」转为「靠真实使用暴露问题」：
 
-1. **决定是否恢复 CI 的 `push` / `pull_request` 触发**。托管镜像已验证可行，代价是每次推送消耗约 9 分钟 Actions 额度（两个 job 各约 2 分钟，Windows 按 2 倍计入）。顺带把 `actions/checkout` 与 `microsoft/setup-msbuild` 升到不再依赖 Node.js 20 的版本。见 §5.6。
-2. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
-3. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
-4. 性能暂不优化。首帧约 670 ms 属自包含 WinUI 正常范围，既无目标值也无实际抱怨；若要动，先做耗时构成分解，不能只凭总量。
-5. `ProviderRefreshScheduler.cs` 仅在其开始产生缺陷时再分解。
+1. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
+2. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
+3. 性能暂不优化。首帧约 670 ms 属自包含 WinUI 正常范围，既无目标值也无实际抱怨；若要动，先做耗时构成分解，不能只凭总量。
+4. `ProviderRefreshScheduler.cs` 仅在其开始产生缺陷时再分解。
 
 ## 8. 延期
 
