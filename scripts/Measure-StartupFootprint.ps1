@@ -255,6 +255,19 @@ try {
         $before = @(Get-Process -Name 'WinWidgetBoard.WorkspacePanel' -ErrorAction SilentlyContinue |
             ForEach-Object { $_.Id })
 
+        # Topmost z-order is shared: another topmost shell add-on can cover the entry until
+        # the launcher re-asserts it, and the click would then land in that window instead.
+        $ownerDeadline = [DateTime]::UtcNow.AddSeconds(15)
+        do {
+            $centerOwner = Get-WindowOwnerProcessAtPoint -X $entry.CenterX -Y $entry.CenterY
+            if ($centerOwner -eq $launcherProcess.Id) { break }
+            Start-Sleep -Milliseconds 250
+        } while ([DateTime]::UtcNow -lt $ownerDeadline)
+        if ($centerOwner -ne $launcherProcess.Id) {
+            throw ("The entry was covered by process $centerOwner at " +
+                "($($entry.CenterX),$($entry.CenterY)); cannot measure the entry click.")
+        }
+
         $stopwatch = [Diagnostics.Stopwatch]::StartNew()
         Invoke-LeftClickAtPoint -X $entry.CenterX -Y $entry.CenterY
 
