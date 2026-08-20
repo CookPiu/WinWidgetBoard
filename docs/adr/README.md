@@ -32,3 +32,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0021](0021-weather-location-settings.md) | Accepted | 天气位置设置通过版本化本地 IPC 保存并运行时替换 Provider |
 | [0022](0022-lightweight-core-strategy.md) | Accepted | 收缩为核心五项并采用风险分级工程门禁 |
 | [0023](0023-embedded-taskbar-entry-strip.md) | Accepted | 入口改为嵌入任务栏条带的自适应信息条 |
+| [0024](0024-background-provider-keepalive.md) | Accepted | 允许有界的低频后台刷新，入口可在面板关闭时显示天气 |

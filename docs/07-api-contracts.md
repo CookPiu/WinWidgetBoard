@@ -72,6 +72,7 @@ Envelope：
 | `cards.snapshot` | 服务端快照事件 | 事件 |
 | `weather.settings.get` | 读取天气位置 | 否 |
 | `weather.settings.save` | 保存天气位置 | 是 |
+| `weather.summary.get` | 读取最后一次成功天气读数的短投影 | 否 |
 
 写操作使用 `clientOperationId` 防止重试扩大副作用。相同 ID 和相同 payload 返回第一次结果；相同 ID 搭配不同 payload 返回 `validation.invalid-argument`。
 
@@ -230,6 +231,39 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 未保存时返回 Singapore 默认值和 revision `0`，读取不会写数据库。
 
 保存成功后 Broker 替换天气请求 key、继承当前可见性并发布 Loading 快照。天气 payload 不持久化。
+
+摘要读取：
+
+```json
+{
+  "method": "weather.summary.get",
+  "payload": {
+    "instanceId": "demo.weather"
+  }
+}
+```
+
+响应 `summary` 在本进程尚无成功读数时为 `null`，调用方据此呈现不可用态，不得填充占位值：
+
+```json
+{
+  "summary": {
+    "instanceId": "demo.weather",
+    "label": "Singapore",
+    "temperatureText": "32",
+    "observedAtUtc": "2026-08-20T06:55:00.0000000+00:00",
+    "isStale": false
+  }
+}
+```
+
+限制：
+
+- `instanceId` 必须是内置天气实例，否则返回 `validation.invalid-argument`；
+- `temperatureText` 是四舍五入到整数的摄氏度文本，最长 16 字符，供最小原生客户端直接显示；
+- 只读，不写数据库，也不改变刷新节奏；天气 payload 仍不持久化。
+
+该方法供任务栏入口在面板关闭时显示天气，配合 [ADR-0024](adr/0024-background-provider-keepalive.md) 的每小时后台刷新。
 
 ## 10. 天气 Provider
 
