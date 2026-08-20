@@ -43,7 +43,9 @@ flowchart LR
 
 - 不引用 WinUI、SQLite、HTTP 或托管 UI 运行时；
 - 不包含卡片业务；
-- 不注入、Hook 或读取 Explorer 私有 XAML；
+- 不注入、Hook 或读取 Explorer 私有 XAML；只读取用户级任务栏对齐设置；
+- 入口偏好（对齐、左对齐回退、显示内容）存放在 `HKCU\Software\WinWidgetBoard\Launcher`，
+  因为入口必须先于 Broker 连接完成定位；用户数据仍只由 CoreBroker 持有；
 - 几何不明确时安全隐藏或降级。
 
 ### WorkspacePanel
@@ -107,7 +109,7 @@ CoreBroker 使用 Windows 系统 `winsqlite3.dll`。当前数据库保存：
 - migration 在事务中执行；
 - 破坏性升级前保留备份恢复路径；
 - 更新和删除使用 revision 或时间戳冲突保护；
-- LauncherHost 不读取数据库；
+- LauncherHost 不读取数据库，只使用自己的注册表偏好；
 - 天气 payload 不写入 SQLite；
 - 验收数据库只能位于系统临时目录的隔离子目录。
 

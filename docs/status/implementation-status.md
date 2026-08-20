@@ -14,7 +14,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 | 能力 | 当前状态 | 仍需处理 |
 | --- | --- | --- |
-| 任务栏入口 | 已实现公开 Win32 几何、点击、穿透和面板交接；单台参考机的入口到面板延迟与空闲占用已测量 | 发布前补完整显示矩阵和多设备性能 |
+| 任务栏入口 | 已改为嵌入任务栏条带的自适应信息条，显示日期时间，位置与内容可由右键菜单切换并持久化；单台参考机的入口到面板延迟与空闲占用已测量 | 天气内容待定；发布前补完整显示矩阵和多设备性能 |
 | 面板 | 已实现 WinUI 壳层、Desktop Acrylic、系统强调色层级、圆角阴影、锚定动效、关闭和模态保护；完成单行头部与紧凑尺度收口 | 继续拆分集中式 code-behind，并在真实使用后校准细节 |
 | 基础布局 | 已实现 2/4/6 列、拖动、持久化、恢复和撤销 | 只修缺陷，不扩展复杂编辑 |
 | 便签 | 已实现 CRUD、搜索、Markdown、自动保存和安全删除；编辑区使用内容优先与渐进操作 | 只维护核心旅程 |
@@ -41,6 +41,9 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
 - 真实桌面 `Test-WeatherSettingsInteraction.ps1` 在移除脚本侧等待、直接把「取消对话框后立即点关闭」作为回归的前提下连续 3 次完整通过：`REAL-WEATHER-SETTINGS-PASS`（保存经真实面板写入 SQLite 并触发 provider 运行时重载）、`REAL-WEATHER-SETTINGS-RESTART-PASS`（重启后 `weather.settings.get` 读回 Tokyo / 35.6762 / 139.6503）和 `WINDOW-EXIT-PASS exitCode=0`；
 - CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、309/309 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
+- 真实桌面 `Test-LauncherEntryPlacement.ps1` 连续 3 次通过：入口落在任务栏条带 1904..2000 内，
+  实测 `16,1912 - 304,1992`（144×40 DIP，DPI 192），入口外的条带点位归属其他进程（穿透成立），
+  点击开启面板；`--geometry-smoke-test` 与四项 LauncherHost smoke 退出码均为 0；
 - 验收使用隔离临时数据和独立实例身份，结束后已清理。
 
 这属于 L2 针对性证据，不替代发布候选的完整显示器、偏好和无障碍矩阵。更早轮次的完成证据以 Git 提交和测试名称为准。
@@ -69,12 +72,19 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 6. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。
 7. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
 8. 完整显示、无障碍、性能和发布矩阵尚未执行。
-9. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
+9. 入口与其他 topmost 第三方任务栏扩展共享层级，可能被短暂压住，直到下一次 `EnsureTopmost`；
+   参考机上已观察到与一个系统监视器组件互相覆盖。真实回归必须先等待入口占据自身中心点再点击。
+10. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
 
 ## 6. 当前工作
 
 本轮已完成：
 
+- 任务栏入口由工作区内的 52 DIP 方形按钮改为嵌入任务栏条带的自适应信息条（[ADR-0023](../adr/0023-embedded-taskbar-entry-strip.md)）：
+  条带由 `monitorRect` 减 `workArea` 推导，不依赖只覆盖主任务栏的 `ABM_GETTASKBARPOS`；
+- 支持靠左/居中/靠右三种嵌入对齐与悬浮回退，系统图标左对齐时按用户配置避开开始按钮；
+  宽度随内容在 96～280 DIP 间自适应并带 8 DIP 滞回；偏好持久化在 `HKCU`；
+- 入口内容当前为日期与时间；天气模式在右键菜单中置灰，等 Broker 刷新策略决定；
 - 将 `CoreBrokerCommandRouter` 拆为领域 handler：`LayoutCommandHandler`、`WeatherSettingsCommandHandler`、`CardSubscriptionCommandHandler` 和 `PanelVisibilityCommandHandler`，与既有 `NoteCommandHandler` 对齐；
 - 路由器只保留 `session.ping`、按 Contract `Methods` 分发和连接释放，可用性标志与面板可见性状态改为向对应 handler 转发；
 - 全部 handler 继续共用路由器的同一把锁，域间序列化行为不变；操作缓存上限统一由 `CoreBrokerCommandSupport.MaxCachedOperations` 提供；
@@ -88,10 +98,12 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 核心五项已全部具备真实桌面证据，远程与 CI 已建立。当前优先级由「继续改代码」转为「靠真实使用暴露问题」：
 
-1. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
-2. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
-3. 性能暂不优化。首帧约 670 ms 属自包含 WinUI 正常范围，既无目标值也无实际抱怨；若要动，先做耗时构成分解，不能只凭总量。
-4. `ProviderRefreshScheduler.cs` 仅在其开始产生缺陷时再分解。
+1. 决定入口天气内容：需要原生 Broker 请求，且面板关闭时天气刷新按可见性暂停，常驻刷新与「按需运行」冲突，需单独 ADR。
+2. 补 ADR-0001 的显示矩阵：多显示器、100%～200% DPI、任务栏自动隐藏与左对齐、Explorer 重启、全屏。本轮只验证了参考机的底部居中任务栏。
+3. **真实使用一段时间**，只记录可复现缺陷。本轮两个缺陷都由实际运行暴露，不是读代码发现的。
+4. `MainWindow.xaml.cs` 的便签删除/编辑、拖动和设置协调**等下次真要改这些行为时顺带拆**，不单独开一轮；重构回报取决于后续还要改多少代码。
+5. 性能暂不优化。首帧约 670 ms 属自包含 WinUI 正常范围，既无目标值也无实际抱怨；若要动，先做耗时构成分解，不能只凭总量。
+6. `ProviderRefreshScheduler.cs` 仅在其开始产生缺陷时再分解。
 
 ## 8. 延期
 

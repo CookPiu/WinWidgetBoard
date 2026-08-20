@@ -26,6 +26,7 @@ src/
 ## 不可改变的边界
 
 - `LauncherHost` 不引用 WinUI、SQLite、HTTP 或托管 UI 运行时，不注入或读取 Explorer 私有视觉树；
+  入口放置与显示偏好由 `LauncherPreferences.cpp` 读写 `HKCU`，不经 CoreBroker；
 - `WorkspacePanel` 不直接打开 SQLite，不手工拼装低层 Envelope，只经 `Ipc/` 的会话与类型化客户端访问 Broker；
 - `CoreBroker` 不引用 WinUI，校验全部 IPC 输入，队列、重试、超时和释放均有上界；
 - `MainWindow.xaml.cs` 和 `Providers/ProviderRefreshScheduler.cs` 属于已知债务，

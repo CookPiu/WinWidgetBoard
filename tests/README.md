@@ -56,3 +56,5 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 `scripts/Test-NoteMarkdownPreviewInteraction.ps1` 使用临时 `LOCALAPPDATA`、真实 CoreBroker 和当前 Release x64 面板，验证 Markdown 模式切换、原始正文输入、预览可见性和返回源文按钮；它需要可置前的交互式 Windows 桌面，成功输出 `REAL-NOTE-MARKDOWN-PASS mode+preview`。
 
 `scripts/Measure-StartupFootprint.ps1` 采集性能结论所需的原始数据：面板进程启动到窗口、到布局就绪的耗时，任务栏入口点击到面板窗口的耗时，以及无面板时 CoreBroker 与 LauncherHost 的 CPU 时间和工作集。它同时打印设备、OS build、配置、调试器状态、迭代次数和每次原始值，使用隔离临时数据目录与临时 `LOCALAPPDATA`，只停止自己启动的进程，成功输出 `MEASURE-STARTUP-FOOTPRINT-PASS`。当前测量值记录在[实施状态](../docs/status/implementation-status.md)，本文不复制。
+
+`scripts/Test-LauncherEntryPlacement.ps1` 是任务栏入口的真实桌面回归：断言入口窗口落在由显示器与工作区推导的任务栏条带内、宽高在 96～280 与不小于 32 DIP 的范围内，入口形状之外的条带点位不归启动器（穿透成立），并验证点击开启面板，成功输出 `REAL-LAUNCHER-ENTRY-PASS`。它不启动 CoreBroker，因此不触碰生产数据；点击前会等待入口占据自身中心点，因为 topmost 层级与其他第三方任务栏扩展共享。
