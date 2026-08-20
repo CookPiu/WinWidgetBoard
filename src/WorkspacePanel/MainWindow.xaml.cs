@@ -118,13 +118,17 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             noteClient,
             dispatch: DispatchToUi);
         _noteList = new NoteListCoordinator(NoteEditor, NoteSearch);
+        StartupTrace.Mark("mainwindow-ctor-before-xaml");
         InitializeComponent();
+        StartupTrace.Mark("mainwindow-xaml-inflated");
         _reducedMotion = !new UISettings().AnimationsEnabled;
         _highContrast = new AccessibilitySettings().HighContrast;
         _surfaceMotion = new SurfaceMotionCoordinator(
             _reducedMotion,
             _highContrast);
+        StartupTrace.Mark("ctor-settings-read");
         TryConfigureSystemBackdrop();
+        StartupTrace.Mark("ctor-backdrop");
         _cardLayout = new CardLayoutViewModel(
             4,
             [
@@ -160,6 +164,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             : new LayoutPersistenceCoordinator(
                 layoutClient,
                 _cardLayout);
+        StartupTrace.Mark("ctor-viewmodels");
         CardItemsRepeater.Layout = _cardGridLayout;
         _cardLayout.PropertyChanged += CardLayout_PropertyChanged;
         _cardSurface.PropertyChanged += CardSurface_PropertyChanged;
@@ -205,10 +210,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         ContextText.Text =
             $"{_placement.WindowRect.Width} × {_placement.WindowRect.Height} px · " +
             $"DPI {_placement.Dpi}";
+        StartupTrace.Mark("ctor-wiring");
         ConfigureHeaderToolTips();
         UpdateEditLayoutButton();
 
+        StartupTrace.Mark("ctor-tooltips");
         SynchronizeCardSnapshotRuntimes();
+        StartupTrace.Mark("mainwindow-ctor-done");
     }
 
     public NoteEditorViewModel NoteEditor { get; }
