@@ -79,6 +79,30 @@ function Assert-PlaceholderActionGuard {
         "ACTION-GUARD-PASS card=$CardLabel present=true offscreen=$isOffscreen enabled=$isEnabled")
 }
 
+function Assert-PanelHidden {
+    param(
+        [Diagnostics.Process]$Process,
+        [TimeSpan]$Timeout = ([TimeSpan]::FromSeconds(10))
+    )
+
+    # The panel is resident: closing hides the window and keeps the process warm so the next
+    # open skips process, runtime and XAML startup. See ADR-0025.
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        if ($Process.HasExited) {
+            throw "WorkspacePanel exited instead of staying resident (code $($Process.ExitCode))."
+        }
+
+        if (@(Get-ProcessWindows -ProcessId $Process.Id).Count -eq 0) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw 'WorkspacePanel did not hide its window after the close request.'
+}
+
 try {
     $panelPath = Join-Path $PSScriptRoot (
         "..\artifacts\bin\WinWidgetBoard.WorkspacePanel\$Platform\$Configuration\" +
@@ -181,20 +205,10 @@ try {
         throw 'ClosePanelButton was not available for normal window exit.'
     }
     Invoke-Element -Element $closeButton
-    $exitDeadline = [DateTime]::UtcNow + [TimeSpan]::FromSeconds(10)
-    while (-not $panelProcess.HasExited -and
-        [DateTime]::UtcNow -lt $exitDeadline) {
-        Start-Sleep -Milliseconds 100
-    }
-    if (-not $panelProcess.HasExited) {
-        throw 'WorkspacePanel did not exit after invoking ClosePanelButton.'
-    }
-    if ($panelProcess.ExitCode -ne 0) {
-        throw "WorkspacePanel exited after ClosePanelButton with code $($panelProcess.ExitCode)."
-    }
+    Assert-PanelHidden -Process $panelProcess
 
     Write-Output (
-        "WINDOW-EXIT-PASS pid=$($panelProcess.Id) exitCode=$($panelProcess.ExitCode)")
+        "WINDOW-HIDDEN-PASS pid=$($panelProcess.Id) resident=true")
     Write-Output (
         'REAL-CARD-STATUS-PASS unavailable-anchors=5 ' +
         'placeholder-actions=guarded panel-exit=normal broker=false')

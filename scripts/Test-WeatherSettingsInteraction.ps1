@@ -62,6 +62,30 @@ function Wait-ElementName {
     throw "UIA element '$AutomationId' did not reach '$Pattern'; last name='$lastName'."
 }
 
+function Assert-PanelHidden {
+    param(
+        [Diagnostics.Process]$Process,
+        [TimeSpan]$Timeout = ([TimeSpan]::FromSeconds(10))
+    )
+
+    # The panel is resident: closing hides the window and keeps the process warm so the next
+    # open skips process, runtime and XAML startup. See ADR-0025.
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        if ($Process.HasExited) {
+            throw "WorkspacePanel exited instead of staying resident (code $($Process.ExitCode))."
+        }
+
+        if (@(Get-ProcessWindows -ProcessId $Process.Id).Count -eq 0) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw 'WorkspacePanel did not hide its window after the close request.'
+}
+
 function Start-Stack {
     param(
         [string]$BrokerPath,
@@ -224,9 +248,8 @@ try {
         -AutomationId 'ClosePanelButton' `
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $closeButton
-    if (-not $panelProcess.WaitForExit(10000)) {
-        throw 'WorkspacePanel did not exit after the first settings pass.'
-    }
+    Assert-PanelHidden -Process $panelProcess
+    Stop-OwnedProcess -Process $panelProcess
     Stop-OwnedProcess -Process $brokerProcess
     $panelProcess = $null
     $brokerProcess = $null
@@ -295,13 +318,8 @@ try {
 
     $closeButton = Wait-ElementByAutomationId -Root $window -AutomationId 'ClosePanelButton' -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $closeButton
-    if (-not $panelProcess.WaitForExit(10000)) {
-        throw 'WorkspacePanel did not exit after the restart settings pass.'
-    }
-    if ($panelProcess.ExitCode -ne 0) {
-        throw "WorkspacePanel exited with code $($panelProcess.ExitCode)."
-    }
-    Write-Output "WINDOW-EXIT-PASS exitCode=$($panelProcess.ExitCode)"
+    Assert-PanelHidden -Process $panelProcess
+    Write-Output "WINDOW-HIDDEN-PASS pid=$($panelProcess.Id) resident=true"
 }
 catch {
     $failure = $_
