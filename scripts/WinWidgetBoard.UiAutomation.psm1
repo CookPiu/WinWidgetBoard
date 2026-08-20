@@ -169,8 +169,12 @@ public static class WinWidgetBoardUiAutomationInput
         return input;
     }
 
-    public static bool SendLeftClick(int x, int y)
+    // SendInput takes absolute coordinates normalized across the whole virtual desktop.
+    private static bool TryNormalize(int x, int y, out int normalizedX, out int normalizedY)
     {
+        normalizedX = 0;
+        normalizedY = 0;
+
         int left = GetSystemMetrics(SmXVirtualScreen);
         int top = GetSystemMetrics(SmYVirtualScreen);
         int width = GetSystemMetrics(SmCxVirtualScreen);
@@ -180,8 +184,34 @@ public static class WinWidgetBoardUiAutomationInput
             return false;
         }
 
-        int normalizedX = (int)Math.Round((x - left) * 65535.0 / (width - 1));
-        int normalizedY = (int)Math.Round((y - top) * 65535.0 / (height - 1));
+        normalizedX = (int)Math.Round((x - left) * 65535.0 / (width - 1));
+        normalizedY = (int)Math.Round((y - top) * 65535.0 / (height - 1));
+        return true;
+    }
+
+    public static bool SendMouseMove(int x, int y)
+    {
+        int normalizedX;
+        int normalizedY;
+        if (!TryNormalize(x, y, out normalizedX, out normalizedY))
+        {
+            return false;
+        }
+
+        uint absolute = MouseMove | MouseAbsolute | MouseVirtualDesk;
+        var move = new Input[] { CreateMouseInput(absolute, normalizedX, normalizedY) };
+        return SendInput(1, move, Marshal.SizeOf<Input>()) == 1;
+    }
+
+    public static bool SendLeftClick(int x, int y)
+    {
+        int normalizedX;
+        int normalizedY;
+        if (!TryNormalize(x, y, out normalizedX, out normalizedY))
+        {
+            return false;
+        }
+
         uint absolute = MouseMove | MouseAbsolute | MouseVirtualDesk;
         var move = new Input[] { CreateMouseInput(absolute, normalizedX, normalizedY) };
         if (SendInput(1, move, Marshal.SizeOf<Input>()) != 1)
@@ -681,6 +711,48 @@ function Invoke-LeftClickAtPoint {
     }
 }
 
+function Move-PointerToPoint {
+    param(
+        [int]$X,
+        [int]$Y
+    )
+
+    if (-not [WinWidgetBoardUiAutomationInput]::SendMouseMove($X, $Y)) {
+        throw "SendInput failed while moving the pointer to ($X, $Y)."
+    }
+}
+
+# Captures a screen rectangle to a PNG. Used to review how a surface actually renders when
+# no automation property describes it - colour, antialiasing, elevation and motion states.
+function Save-ScreenRegionCapture {
+    param(
+        [Parameter(Mandatory = $true)][int]$Left,
+        [Parameter(Mandatory = $true)][int]$Top,
+        [Parameter(Mandatory = $true)][int]$Width,
+        [Parameter(Mandatory = $true)][int]$Height,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    Add-Type -AssemblyName System.Drawing
+    $bitmap = New-Object 'System.Drawing.Bitmap' $Width, $Height
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $graphics.CopyFromScreen($Left, $Top, 0, 0, (New-Object 'System.Drawing.Size' $Width, $Height))
+        }
+        finally {
+            $graphics.Dispose()
+        }
+
+        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    }
+    finally {
+        $bitmap.Dispose()
+    }
+
+    return $Path
+}
+
 function Stop-WinWidgetBoardProcess {
     param(
         [Diagnostics.Process]$Process,
@@ -803,6 +875,8 @@ Export-ModuleMember -Function @(
     'Get-WindowRectByClass',
     'Get-WindowOwnerProcessAtPoint',
     'Invoke-LeftClickAtPoint',
+    'Move-PointerToPoint',
+    'Save-ScreenRegionCapture',
     'Stop-WinWidgetBoardProcess',
     'Stop-TestProcess',
     'Stop-OwnedProcess',
