@@ -21,6 +21,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Shell\PanelLaunchContext.cs" Link="WorkspacePanel\Shell\PanelLaunchContext.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Shell\PanelGeometry.cs" Link="WorkspacePanel\Shell\PanelGeometry.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Shell\PanelActivationClosePolicy.cs" Link="WorkspacePanel\Shell\PanelActivationClosePolicy.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Shell\StartupTrace.cs" Link="WorkspacePanel\Shell\StartupTrace.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Shell\WorkspacePanelInstanceIdentity.cs" Link="WorkspacePanel\Shell\WorkspacePanelInstanceIdentity.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Interaction\CardDragController.cs" Link="WorkspacePanel\Interaction\CardDragController.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Motion\CriticallyDampedSpring.cs" Link="WorkspacePanel\Motion\CriticallyDampedSpring.cs" />

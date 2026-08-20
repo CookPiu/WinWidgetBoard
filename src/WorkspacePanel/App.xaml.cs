@@ -20,6 +20,8 @@ public partial class App : Application, IAsyncDisposable, IDisposable
 
     public App()
     {
+        StartupTrace.Initialize();
+        StartupTrace.Mark("app-ctor");
         string[] arguments = Environment.GetCommandLineArgs();
         _isSmokeTest = arguments
             .Any(argument => string.Equals(argument, "--smoke-test", StringComparison.OrdinalIgnoreCase));
@@ -40,17 +42,20 @@ public partial class App : Application, IAsyncDisposable, IDisposable
         }
 
         InitializeComponent();
+        StartupTrace.Mark("app-ctor-done");
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         try
         {
+            StartupTrace.Mark("app-launched");
             if (!_isSmokeTest && !_isBrokerSmokeTest)
             {
                 _brokerSession = new CoreBrokerSession();
             }
 
+            StartupTrace.Mark("broker-session-created");
             _window = new MainWindow(
                 _brokerSession?.Notes,
                 _brokerSession?.Layout,
@@ -72,7 +77,9 @@ public partial class App : Application, IAsyncDisposable, IDisposable
                 return;
             }
 
+            StartupTrace.Mark("window-constructed");
             _window.Activate();
+            StartupTrace.Mark("window-activated");
             if (_window is MainWindow mainWindow)
             {
                 mainWindow.FocusInitialElement();

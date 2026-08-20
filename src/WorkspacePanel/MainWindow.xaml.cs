@@ -1339,6 +1339,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                                 : "LayoutLoadedStatus");
                 }
 
+                StartupTrace.Mark("layout-ready");
+
                 if (loaded?.RecoveredItemCount > 0)
                 {
                     Debug.WriteLine(
