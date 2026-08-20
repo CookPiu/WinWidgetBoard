@@ -35,6 +35,9 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             "apparent_temperature",
             "weather_code",
             "wind_speed_10m",
+            // Day or night changes which illustration the card and the entry draw; the
+            // provider is the only place that knows the location's local daylight.
+            "is_day",
         ]);
 
     private readonly HttpClient _httpClient;
@@ -315,6 +318,7 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             current,
             "wind_speed_10m");
         int weatherCode = ReadRequiredInt32(current, "weather_code");
+        int isDay = ReadRequiredInt32(current, "is_day");
         string timezone = root.TryGetProperty("timezone", out JsonElement timezoneValue) &&
             timezoneValue.ValueKind == JsonValueKind.String
             ? timezoneValue.GetString() ?? ""
@@ -327,6 +331,7 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             humidityPercent,
             windSpeedKmh,
             weatherCode,
+            isDay != 0,
             timezone);
     }
 
@@ -355,6 +360,10 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                     relativeHumidityPercent = response.HumidityPercent,
                     windSpeedKmh = response.WindSpeedKmh,
                     weatherCode = response.WeatherCode,
+                    isDay = response.IsDay,
+                    conditionIconId = WeatherConditionContract.FromWeatherCode(
+                        response.WeatherCode,
+                        response.IsDay),
                 },
             },
             ContractJson.Options);
@@ -499,6 +508,7 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         double HumidityPercent,
         double WindSpeedKmh,
         int WeatherCode,
+        bool IsDay,
         string Timezone);
 }
 

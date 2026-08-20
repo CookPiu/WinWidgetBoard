@@ -31,6 +31,7 @@ enum class ExitCode : int
     PanelLaunchSmokeTestFailed = 18,
     CoreBrokerSmokeTestFailed = 19,
     EntryVisualSmokeTestFailed = 20,
+    EntryIconPreviewFailed = 21,
 };
 
 std::wstring FormatWin32Error(const DWORD error)
@@ -145,6 +146,7 @@ struct CommandLineOptions
     bool coreBrokerSmokeTest{};
     bool entryVisualSmokeTest{};
     bool noBroker{};
+    std::wstring entryIconPreviewPath;
 };
 
 bool ReadCommandLineOptions(CommandLineOptions& options, DWORD& error)
@@ -186,6 +188,13 @@ bool ReadCommandLineOptions(CommandLineOptions& options, DWORD& error)
         else if (std::wstring_view(arguments[index]) == L"--no-broker")
         {
             options.noBroker = true;
+        }
+        else if (std::wstring_view(arguments[index]).starts_with(
+            L"--entry-icon-preview="))
+        {
+            options.entryIconPreviewPath =
+                std::wstring_view(arguments[index]).substr(
+                    std::wstring_view(L"--entry-icon-preview=").size());
         }
     }
 
@@ -230,6 +239,22 @@ int WINAPI wWinMain(
         {
             return static_cast<int>(ExitCode::Success);
         }
+    }
+
+    if (!commandLineOptions.entryIconPreviewPath.empty())
+    {
+        std::wstring previewFailure;
+        if (!winwidgetboard::launcher::WriteEntryPreviewSheet(
+                commandLineOptions.entryIconPreviewPath,
+                previewFailure))
+        {
+            return FailDiagnostic(
+                ExitCode::EntryIconPreviewFailed,
+                L"entry icon preview failed",
+                previewFailure);
+        }
+
+        return static_cast<int>(ExitCode::Success);
     }
 
     if (commandLineOptions.smokeTest || commandLineOptions.entryVisualSmokeTest)

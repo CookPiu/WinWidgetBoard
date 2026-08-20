@@ -36,7 +36,7 @@ tests/
 
 `UT-BUILD-001 [BLD-001]` 验证 Contracts 程序集可加载；`UT-PANEL-GEO-001/002` 验证面板几何在触发工作区内、DPI 缩放和无效上下文 fail closed，`UT-PANEL-CONTEXT-001` 验证完整启动上下文解析。测试要求详见 `docs/08-testing-strategy.md`；后续任何任务栏定位、点击穿透、拖拽编排或动效变更都必须增加真实 UI 验证，不能只依赖单元测试。
 
-LauncherHost 还提供 `--geometry-smoke-test`，验证正常、DPI、自动隐藏、异常几何和不可用矩形；`--entry-visual-smoke-test` 在 96/144/192 dpi 三档离屏合成入口位图，断言预乘不变量、圆角透明与边缘抗锯齿、悬停强于静息、指示器随打开态增高、高对比度完全不透明，以及悬浮徽标是内边距内的圆形；`--smoke-test` 会同时验证几何契约、入口视觉契约与宿主消息窗口启动/退出；`--panel-launch-smoke-test` 验证真实 WorkspacePanel 进程创建和 CLI 上下文传递；`--panel-lifecycle-smoke-test` 验证正常窗口创建、`WM_CLOSE` 和进程退出。WorkspacePanel 的 `--smoke-test` 会构造真实 WinUI `MainWindow` 后退出，`--broker-smoke-test` 会在真实 CoreBroker 进程下完成握手和 `panel.report-visibility` 后退出。它们不能替代真实桌面测试，任务栏位置、透明点击穿透、前台激活、自动隐藏、Explorer 重启、多显示器、面板键盘/失焦交互和拖拽仍需人工验证。
+LauncherHost 还提供 `--geometry-smoke-test`，验证正常、DPI、自动隐藏、异常几何和不可用矩形；`--entry-visual-smoke-test` 在 96/144/192 dpi 三档离屏合成入口位图，断言预乘不变量、圆角透明与边缘抗锯齿、悬停强于静息、指示器随打开态增高、高对比度完全不透明，悬浮徽标是内边距内的圆形，以及每个天气图标都有笔画、彼此互不相同、并各自占住自己的宽度；`--entry-icon-preview=<路径>` 是诊断开关，把全部入口状态与天气图标在深浅两种任务栏底色上画成一张 BMP 对照表，用于离线审阅绘制效果，产品路径不会调用它；`--smoke-test` 会同时验证几何契约、入口视觉契约与宿主消息窗口启动/退出；`--panel-launch-smoke-test` 验证真实 WorkspacePanel 进程创建和 CLI 上下文传递；`--panel-lifecycle-smoke-test` 验证正常窗口创建、`WM_CLOSE` 和进程退出。WorkspacePanel 的 `--smoke-test` 会构造真实 WinUI `MainWindow` 后退出，`--broker-smoke-test` 会在真实 CoreBroker 进程下完成握手和 `panel.report-visibility` 后退出。它们不能替代真实桌面测试，任务栏位置、透明点击穿透、前台激活、自动隐藏、Explorer 重启、多显示器、面板键盘/失焦交互和拖拽仍需人工验证。
 `UT-CARD-DRAG-001/002/003` 覆盖拖动阈值、抓取位移、点击/拖动互斥和取消恢复；这些单元测试不能替代真实鼠标捕获、刷新率和 fall-through 验收。
 `UT-PANEL-MOTION-001/002/003` 覆盖面板打开、关闭反向、当前展示值连续性和减少动态效果；它们不能替代真实窗口首帧、失焦、反向和性能验收。
 `UT-CARD-MOTION-001/002/003` 覆盖卡片取消回归、回归中断和减少动态效果；它们不能替代真实鼠标捕获、刷新率和 fall-through 验收。

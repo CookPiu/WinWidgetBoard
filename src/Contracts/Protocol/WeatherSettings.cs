@@ -131,6 +131,10 @@ public sealed record WeatherSummaryDto
     // parse or format a JSON number.
     public string TemperatureText { get; init; } = string.Empty;
 
+    // A WeatherConditionContract token. The entry draws a glyph from it, which keeps the
+    // entry free of any language: there is no condition wording to translate.
+    public string ConditionIconId { get; init; } = WeatherConditionContract.Unknown;
+
     public string ObservedAtUtc { get; init; } = string.Empty;
 
     public bool IsStale { get; init; }

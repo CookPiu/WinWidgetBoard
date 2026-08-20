@@ -243,6 +243,11 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 }
 ```
 
+`conditionIconId` 是把 WMO 天气码归约后的稳定标记，取值限于
+`clear-day`、`clear-night`、`partly-cloudy-day`、`partly-cloudy-night`、`cloudy`、`fog`、
+`drizzle`、`rain`、`snow`、`thunderstorm`、`unknown`，长度不超过 32。调用方只做标记到图形的映射，
+不自行解释 WMO 码；未收录的码一律归为 `unknown`，由调用方画中性标记，而不是猜一个相近的天气。
+
 响应 `summary` 在本进程尚无成功读数时为 `null`，调用方据此呈现不可用态，不得填充占位值：
 
 ```json
@@ -251,6 +256,7 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
     "instanceId": "demo.weather",
     "label": "Singapore",
     "temperatureText": "32",
+    "conditionIconId": "partly-cloudy-night",
     "observedAtUtc": "2026-08-20T06:55:00.0000000+00:00",
     "isStale": false
   }

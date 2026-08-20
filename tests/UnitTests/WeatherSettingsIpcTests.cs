@@ -321,7 +321,7 @@ public sealed class WeatherSettingsIpcTests
                     "{\"timezone\":\"Asia/Singapore\",\"current\":{\"time\":\"2026-08-20T18:00\"," +
                     "\"temperature_2m\":31.2,\"relative_humidity_2m\":72," +
                     "\"apparent_temperature\":36.4,\"weather_code\":2," +
-                    "\"wind_speed_10m\":11.5}}",
+                    "\"wind_speed_10m\":11.5,\"is_day\":1}}",
                     System.Text.Encoding.UTF8,
                     "application/json"),
             };

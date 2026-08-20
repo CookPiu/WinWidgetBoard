@@ -190,24 +190,22 @@ bool CoreBrokerClient::RefreshWeatherSummary()
         return false;
     }
 
-    std::string label;
+    // The location is deliberately not read: the entry shows a condition glyph and the
+    // temperature, because the user already knows which place they configured.
     std::string temperature;
-    std::wstring summary;
-    if (FindJsonString(response, "label", label) &&
-        FindJsonString(response, "temperatureText", temperature) &&
+    std::string conditionIconId;
+    WeatherSummary summary;
+    if (FindJsonString(response, "temperatureText", temperature) &&
         !temperature.empty())
     {
-        // Decode each UTF-8 field on its own and join in the wide domain. Writing the degree
-        // sign as a narrow literal would depend on how the compiler reads this source file's
-        // encoding; the universal character name keeps the source pure ASCII.
-        const std::wstring wideTemperature = WideFromUtf8(temperature);
-        if (!wideTemperature.empty())
+        summary.temperature = WideFromUtf8(temperature);
+        if (FindJsonString(response, "conditionIconId", conditionIconId))
         {
-            summary = wideTemperature + L"\u00B0 " + WideFromUtf8(label);
+            summary.conditionIconId = std::move(conditionIconId);
         }
     }
 
-    const bool hasReading = !summary.empty();
+    const bool hasReading = summary.HasReading();
     std::lock_guard lock(_weatherMutex);
     _weatherSummary = std::move(summary);
     return hasReading;
@@ -248,7 +246,7 @@ std::wstring CoreBrokerClient::WideFromUtf8(const std::string_view value)
     return wide;
 }
 
-std::wstring CoreBrokerClient::GetWeatherSummary() const
+CoreBrokerClient::WeatherSummary CoreBrokerClient::GetWeatherSummary() const
 {
     std::lock_guard lock(_weatherMutex);
     return _weatherSummary;

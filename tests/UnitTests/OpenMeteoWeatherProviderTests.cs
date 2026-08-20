@@ -35,7 +35,7 @@ public sealed class OpenMeteoWeatherProviderTests
         {
             capturedRequest = request;
             return JsonResponse(
-                "{\"timezone\":\"Asia/Singapore\",\"current\":{\"time\":\"2026-08-15T18:00\",\"temperature_2m\":31.2,\"relative_humidity_2m\":72,\"apparent_temperature\":36.4,\"weather_code\":2,\"wind_speed_10m\":11.5}}");
+                "{\"timezone\":\"Asia/Singapore\",\"current\":{\"time\":\"2026-08-15T18:00\",\"temperature_2m\":31.2,\"relative_humidity_2m\":72,\"apparent_temperature\":36.4,\"weather_code\":2,\"wind_speed_10m\":11.5,\"is_day\":1}}");
         });
         using var client = new HttpClient(handler);
         var provider = new OpenMeteoWeatherProvider(
@@ -78,7 +78,7 @@ public sealed class OpenMeteoWeatherProviderTests
             if (callCount == 1)
             {
                 return JsonResponse(
-                    "{\"timezone\":\"Asia/Singapore\",\"current\":{\"time\":\"2026-08-15T18:00\",\"temperature_2m\":31.2,\"relative_humidity_2m\":72,\"apparent_temperature\":36.4,\"weather_code\":2,\"wind_speed_10m\":11.5}}");
+                    "{\"timezone\":\"Asia/Singapore\",\"current\":{\"time\":\"2026-08-15T18:00\",\"temperature_2m\":31.2,\"relative_humidity_2m\":72,\"apparent_temperature\":36.4,\"weather_code\":2,\"wind_speed_10m\":11.5,\"is_day\":1}}");
             }
 
             throw new HttpRequestException("offline");

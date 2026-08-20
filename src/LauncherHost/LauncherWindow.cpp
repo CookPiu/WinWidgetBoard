@@ -160,8 +160,12 @@ bool LauncherWindow::Create(
     LARGE_INTEGER frequency{};
     QueryPerformanceFrequency(&frequency);
     _performanceFrequency = frequency.QuadPart;
-    _content = ComposeContentText();
-    _contentWidthLogical = MeasureEntryContentWidthLogical(_content, _dpi, false);
+    _content = ComposeContent();
+    _contentWidthLogical = MeasureEntryContentWidthLogical(
+        _content.text,
+        _dpi,
+        false,
+        _content.icon);
 
     if (!InitializePlacement(error))
     {
@@ -195,7 +199,11 @@ bool LauncherWindow::Create(
     {
         _dpi = 96;
     }
-    _contentWidthLogical = MeasureEntryContentWidthLogical(_content, _dpi, false);
+    _contentWidthLogical = MeasureEntryContentWidthLogical(
+        _content.text,
+        _dpi,
+        false,
+        _content.icon);
     if (!InitializePlacement(error))
     {
         Destroy();
@@ -328,16 +336,22 @@ bool LauncherWindow::IsEmbedded() const noexcept
     return _placement.mode == LauncherPlacementMode::ExactWidgetReplacement;
 }
 
-std::wstring LauncherWindow::ComposeContentText() const
+LauncherWindow::EntryContent LauncherWindow::ComposeContent() const
 {
     if (_preferences.content == LauncherContentMode::Weather)
     {
         // Until the first successful refresh reaches the broker there is nothing to show;
         // fall back to the clock rather than inventing a reading or blanking the entry.
-        std::wstring weather = _coreBroker.GetWeatherSummary();
-        if (!weather.empty())
+        const CoreBrokerClient::WeatherSummary weather = _coreBroker.GetWeatherSummary();
+        if (weather.HasReading())
         {
-            return weather;
+            // No location: the user picked it, so repeating it every minute spends the
+            // entry's width on something they already know. The glyph carries the
+            // condition instead, which also keeps the entry free of any wording.
+            return EntryContent{
+                weather.temperature + L"\u00B0",
+                ParseEntryIcon(weather.conditionIconId),
+            };
         }
     }
 
@@ -360,19 +374,27 @@ std::wstring LauncherWindow::ComposeContentText() const
         nullptr);
     if (timeLength <= 0 || dateLength <= 0)
     {
-        return L"WinWidgetBoard";
+        return EntryContent{L"WinWidgetBoard", EntryIcon::None};
     }
 
-    return std::wstring{time} + L"   " + std::wstring{date};
+    return EntryContent{
+        std::wstring{time} + L"   " + std::wstring{date},
+        EntryIcon::None,
+    };
 }
 
 bool LauncherWindow::RefreshContent()
 {
-    std::wstring text = ComposeContentText();
-    const bool textChanged = text != _content;
-    _content = std::move(text);
+    EntryContent content = ComposeContent();
+    const bool textChanged =
+        content.text != _content.text || content.icon != _content.icon;
+    _content = std::move(content);
 
-    const int measured = MeasureEntryContentWidthLogical(_content, _dpi, false);
+    const int measured = MeasureEntryContentWidthLogical(
+        _content.text,
+        _dpi,
+        false,
+        _content.icon);
     const bool widthChanged =
         std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical;
     if (widthChanged)
@@ -418,7 +440,8 @@ void LauncherWindow::Render()
     request.dpi = _dpi;
     // The floating badge stays a circular mark; only the embedded strip carries content.
     request.compact = !IsEmbedded();
-    request.text = request.compact ? std::wstring(L"W") : _content;
+    request.text = request.compact ? std::wstring(L"W") : _content.text;
+    request.icon = request.compact ? EntryIcon::None : _content.icon;
 
     std::wstring error;
     if (!RenderEntry(_window, request, _theme, _animator.Value(), error))

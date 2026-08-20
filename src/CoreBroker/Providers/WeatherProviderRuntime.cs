@@ -240,11 +240,26 @@ public sealed class WeatherProviderRuntime : IDisposable
             TemperatureText =
                 Math.Round(temperatureC, MidpointRounding.AwayFromZero)
                     .ToString("0", CultureInfo.InvariantCulture),
+            ConditionIconId = ReadConditionIconId(current),
             ObservedAtUtc = snapshot.GeneratedAtUtc.ToString("O", CultureInfo.InvariantCulture),
             IsStale = snapshot.Freshness == CardSnapshotFreshness.Stale,
         };
 
         Volatile.Write(ref _summary, summary);
+    }
+
+    // The provider already reduced the WMO code to a token; only accept one this build
+    // knows, so an unrecognised value degrades to Unknown instead of reaching the entry.
+    private static string ReadConditionIconId(JsonElement current)
+    {
+        if (current.TryGetProperty("conditionIconId", out JsonElement value) &&
+            value.ValueKind == JsonValueKind.String &&
+            WeatherConditionContract.IsKnown(value.GetString()))
+        {
+            return value.GetString()!;
+        }
+
+        return WeatherConditionContract.Unknown;
     }
 
     public WeatherSummaryDto? TryGetSummary()

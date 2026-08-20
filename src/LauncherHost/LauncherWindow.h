@@ -48,7 +48,12 @@ private:
     void Render();
     void ApplyPreferences(const LauncherEntryPreferences& preferences);
     bool RefreshContent();
-    [[nodiscard]] std::wstring ComposeContentText() const;
+    struct EntryContent
+    {
+        std::wstring text;
+        EntryIcon icon{EntryIcon::None};
+    };
+    [[nodiscard]] EntryContent ComposeContent() const;
     [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
     void HandleMenuCommand(UINT command);
@@ -85,7 +90,7 @@ private:
     LONGLONG _animationTick{};
     LONGLONG _performanceFrequency{};
     RECT _localHitRect{};
-    std::wstring _content;
+    EntryContent _content;
     int _contentWidthLogical{};
     EntryTheme _theme{};
     EntryVisualAnimator _animator;

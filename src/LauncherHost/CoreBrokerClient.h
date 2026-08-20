@@ -32,9 +32,24 @@ public:
 
     bool RunSmokeTest(std::wstring& error);
 
-    // Last weather line the broker reported, or an empty string when there is no reading.
+    // Last weather reading the broker reported. Both fields are empty until the broker has
+    // completed one successful refresh.
+    struct WeatherSummary
+    {
+        // Rounded whole degrees Celsius, already formatted by the broker.
+        std::wstring temperature;
+        // A WeatherConditionContract token; the entry maps it to a drawn glyph.
+        std::string conditionIconId;
+
+        [[nodiscard]] bool HasReading() const noexcept
+        {
+            return !temperature.empty();
+        }
+    };
+
+    // Last weather reading the broker reported, or an empty summary when there is none.
     // Safe to call from the UI thread; the value is refreshed on the worker thread.
-    [[nodiscard]] std::wstring GetWeatherSummary() const;
+    [[nodiscard]] WeatherSummary GetWeatherSummary() const;
 
 private:
     bool ConnectAndHandshake(const std::wstring& sessionToken);
@@ -86,7 +101,7 @@ private:
     ULONGLONG _nextHeartbeatTick{};
     ULONGLONG _nextWeatherTick{};
     mutable std::mutex _weatherMutex;
-    std::wstring _weatherSummary;
+    WeatherSummary _weatherSummary;
     std::atomic<bool> _stopRequested{};
     std::atomic<bool> _connected{};
     std::condition_variable _wakeCondition;

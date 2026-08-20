@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <string>
+#include <string_view>
 
 namespace winwidgetboard::launcher
 {
@@ -15,6 +16,31 @@ inline constexpr int kEntryIndicatorGapLogical = 8;
 inline constexpr int kEntryIndicatorRestHeightLogical = 4;
 inline constexpr int kEntryIndicatorActiveHeightLogical = 16;
 inline constexpr int kEntryFontSizeLogical = 14;
+inline constexpr int kEntryIconSizeLogical = 18;
+inline constexpr int kEntryIconGapLogical = 8;
+
+// The condition glyphs the entry can draw. They are drawn from primitives rather than taken
+// from an icon font: the entry composites its own premultiplied bitmap, and a font would add
+// an availability dependency for a set this small.
+enum class EntryIcon : unsigned char
+{
+    None,
+    ClearDay,
+    ClearNight,
+    PartlyCloudyDay,
+    PartlyCloudyNight,
+    Cloudy,
+    Fog,
+    Drizzle,
+    Rain,
+    Snow,
+    Thunderstorm,
+    Unknown,
+};
+
+// Maps a WeatherConditionContract token to a glyph. Anything unrecognised becomes Unknown,
+// which draws a neutral mark rather than nothing at all.
+EntryIcon ParseEntryIcon(std::string_view conditionIconId);
 
 // Everything the entry needs to paint itself in the user's current theme. The entry draws on
 // a layered window, where XAML's ThemeResource lookups do not exist, so the panel's palette
@@ -91,6 +117,8 @@ struct EntryRenderRequest
     UINT dpi{96};
     // The floating badge is a circle with a centred glyph and no leading indicator.
     bool compact{};
+    // Drawn between the indicator and the text. None removes it and its spacing entirely.
+    EntryIcon icon{EntryIcon::None};
     std::wstring text;
 };
 
@@ -105,7 +133,11 @@ bool RenderEntry(
     std::wstring& error);
 
 // Logical width the entry needs for `text`, before clamping and quantisation.
-int MeasureEntryContentWidthLogical(const std::wstring& text, UINT dpi, bool compact);
+int MeasureEntryContentWidthLogical(
+    const std::wstring& text,
+    UINT dpi,
+    bool compact,
+    EntryIcon icon = EntryIcon::None);
 
 // True when `clientPoint` is inside the capsule itself rather than its bounding box, so the
 // rounded corners stay click-through now that no window region clips them.
@@ -114,4 +146,9 @@ bool IsPointInCapsule(const RECT& capsule, POINT clientPoint) noexcept;
 // Renders synthetic states off-screen and asserts the composition invariants. It does not
 // touch the desktop or any real window.
 bool RunEntryVisualSmokeTest(std::wstring& failure);
+
+// Diagnostic: writes a contact sheet of every entry state and condition glyph to a BMP, so
+// the drawn artwork can be reviewed without a desktop session or a live weather reading.
+// Never called by the product; see --entry-icon-preview.
+bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure);
 }

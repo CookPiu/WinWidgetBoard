@@ -266,6 +266,35 @@ int ResolveFontPixelHeight(const EntryRenderRequest& request)
     return std::max(base, capsuleHeight / 2);
 }
 
+// Everything left of the text, in logical pixels: padding, indicator, its gap, and the
+// condition glyph with its own gap when one is present.
+int LeadingWidthLogical(const EntryIcon icon)
+{
+    int width = kEntryLeadingPaddingLogical +
+        kEntryIndicatorWidthLogical +
+        kEntryIndicatorGapLogical;
+    if (icon != EntryIcon::None)
+    {
+        width += kEntryIconSizeLogical + kEntryIconGapLogical;
+    }
+
+    return width;
+}
+
+RECT ResolveIconRect(const EntryRenderRequest& request)
+{
+    const int size = ScaleLogical(kEntryIconSizeLogical, request.dpi);
+    const int left = request.capsule.left +
+        ScaleLogical(
+            kEntryLeadingPaddingLogical +
+                kEntryIndicatorWidthLogical +
+                kEntryIndicatorGapLogical,
+            request.dpi);
+    const int centerY = (request.capsule.top + request.capsule.bottom) / 2;
+    const int top = centerY - size / 2;
+    return RECT{left, top, left + size, top + size};
+}
+
 RECT ResolveTextRect(const EntryRenderRequest& request)
 {
     if (request.compact)
@@ -274,9 +303,7 @@ RECT ResolveTextRect(const EntryRenderRequest& request)
     }
 
     RECT textRect = request.capsule;
-    textRect.left += ScaleLogical(kEntryLeadingPaddingLogical, request.dpi) +
-        ScaleLogical(kEntryIndicatorWidthLogical, request.dpi) +
-        ScaleLogical(kEntryIndicatorGapLogical, request.dpi);
+    textRect.left += ScaleLogical(LeadingWidthLogical(request.icon), request.dpi);
     textRect.right -= ScaleLogical(kEntryTrailingPaddingLogical, request.dpi);
     return textRect;
 }
@@ -454,6 +481,348 @@ void ComposeCapsule(
     }
 }
 
+// --- condition glyphs -------------------------------------------------------------------
+//
+// Each glyph is described in a unit box and rasterised into a coverage mask, then blended
+// once. Accumulating coverage with max() rather than compositing shape by shape is what
+// keeps overlapping parts of a glyph - the three lobes of a cloud, say - from darkening
+// each other into visible seams at partial alpha.
+
+struct IconMask
+{
+    std::vector<double> coverage;
+    int width{};
+    int height{};
+    double unit{};
+    double originX{};
+    double originY{};
+
+    void Union(const int x, const int y, const double value)
+    {
+        if (x < 0 || y < 0 || x >= width || y >= height || value <= 0.0)
+        {
+            return;
+        }
+
+        double& target = coverage[
+            static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
+        target = std::max(target, Clamp01(value));
+    }
+
+    void Subtract(const int x, const int y, const double value)
+    {
+        if (x < 0 || y < 0 || x >= width || y >= height || value <= 0.0)
+        {
+            return;
+        }
+
+        double& target = coverage[
+            static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
+        target = Clamp01(target - Clamp01(value));
+    }
+};
+
+// Adds a rounded rectangle given in unit-box coordinates. A circle is the special case where
+// width equals height and the radius is half of it.
+void AddUnitRoundedRect(
+    IconMask& mask,
+    const double centerX,
+    const double centerY,
+    const double width,
+    const double height,
+    const double radius,
+    const bool subtract = false)
+{
+    const double halfWidth = width * mask.unit / 2.0;
+    const double halfHeight = height * mask.unit / 2.0;
+    const double pixelCenterX = mask.originX + centerX * mask.unit;
+    const double pixelCenterY = mask.originY + centerY * mask.unit;
+    const double pixelRadius = radius * mask.unit;
+
+    const int left = static_cast<int>(std::floor(pixelCenterX - halfWidth - 2.0));
+    const int right = static_cast<int>(std::ceil(pixelCenterX + halfWidth + 2.0));
+    const int top = static_cast<int>(std::floor(pixelCenterY - halfHeight - 2.0));
+    const int bottom = static_cast<int>(std::ceil(pixelCenterY + halfHeight + 2.0));
+
+    for (int y = top; y <= bottom; ++y)
+    {
+        for (int x = left; x <= right; ++x)
+        {
+            const double coverage = CoverageFromDistance(RoundedRectDistance(
+                static_cast<double>(x) + 0.5,
+                static_cast<double>(y) + 0.5,
+                pixelCenterX,
+                pixelCenterY,
+                halfWidth,
+                halfHeight,
+                pixelRadius));
+            if (subtract)
+            {
+                mask.Subtract(x, y, coverage);
+            }
+            else
+            {
+                mask.Union(x, y, coverage);
+            }
+        }
+    }
+}
+
+void AddUnitCircle(
+    IconMask& mask,
+    const double centerX,
+    const double centerY,
+    const double radius,
+    const bool subtract = false)
+{
+    AddUnitRoundedRect(
+        mask,
+        centerX,
+        centerY,
+        radius * 2.0,
+        radius * 2.0,
+        radius,
+        subtract);
+}
+
+// The bolt is the one shape a rounded rectangle cannot express. Supersampled
+// point-in-polygon is plenty at this size and avoids adding a second rasteriser.
+void AddUnitPolygon(
+    IconMask& mask,
+    const double* const pointsX,
+    const double* const pointsY,
+    const int pointCount)
+{
+    constexpr int kSamples = 4;
+    double minX = pointsX[0];
+    double maxX = pointsX[0];
+    double minY = pointsY[0];
+    double maxY = pointsY[0];
+    for (int index = 1; index < pointCount; ++index)
+    {
+        minX = std::min(minX, pointsX[index]);
+        maxX = std::max(maxX, pointsX[index]);
+        minY = std::min(minY, pointsY[index]);
+        maxY = std::max(maxY, pointsY[index]);
+    }
+
+    const int left = static_cast<int>(std::floor(mask.originX + minX * mask.unit)) - 1;
+    const int right = static_cast<int>(std::ceil(mask.originX + maxX * mask.unit)) + 1;
+    const int top = static_cast<int>(std::floor(mask.originY + minY * mask.unit)) - 1;
+    const int bottom = static_cast<int>(std::ceil(mask.originY + maxY * mask.unit)) + 1;
+
+    for (int y = top; y <= bottom; ++y)
+    {
+        for (int x = left; x <= right; ++x)
+        {
+            int hits = 0;
+            for (int sampleY = 0; sampleY < kSamples; ++sampleY)
+            {
+                for (int sampleX = 0; sampleX < kSamples; ++sampleX)
+                {
+                    const double sampleUnitX =
+                        ((static_cast<double>(x) +
+                            (static_cast<double>(sampleX) + 0.5) / kSamples) -
+                            mask.originX) / mask.unit;
+                    const double sampleUnitY =
+                        ((static_cast<double>(y) +
+                            (static_cast<double>(sampleY) + 0.5) / kSamples) -
+                            mask.originY) / mask.unit;
+
+                    bool inside = false;
+                    for (int i = 0, j = pointCount - 1; i < pointCount; j = i++)
+                    {
+                        if ((pointsY[i] > sampleUnitY) != (pointsY[j] > sampleUnitY) &&
+                            sampleUnitX < (pointsX[j] - pointsX[i]) *
+                                (sampleUnitY - pointsY[i]) /
+                                (pointsY[j] - pointsY[i]) + pointsX[i])
+                        {
+                            inside = !inside;
+                        }
+                    }
+
+                    if (inside)
+                    {
+                        ++hits;
+                    }
+                }
+            }
+
+            if (hits > 0)
+            {
+                mask.Union(
+                    x,
+                    y,
+                    static_cast<double>(hits) /
+                        static_cast<double>(kSamples * kSamples));
+            }
+        }
+    }
+}
+
+void AddCloud(IconMask& mask, const double offsetY)
+{
+    AddUnitCircle(mask, 0.34, 0.54 + offsetY, 0.17);
+    AddUnitCircle(mask, 0.52, 0.46 + offsetY, 0.22);
+    AddUnitCircle(mask, 0.71, 0.56 + offsetY, 0.15);
+    AddUnitRoundedRect(mask, 0.52, 0.63 + offsetY, 0.58, 0.20, 0.10);
+}
+
+void AddSun(
+    IconMask& mask,
+    const double centerX,
+    const double centerY,
+    const double radius)
+{
+    AddUnitCircle(mask, centerX, centerY, radius);
+    constexpr int kRayCount = 8;
+    const double rayDistance = radius + 0.115;
+    for (int index = 0; index < kRayCount; ++index)
+    {
+        const double angle = 6.283185307179586 *
+            static_cast<double>(index) / static_cast<double>(kRayCount);
+        AddUnitCircle(
+            mask,
+            centerX + std::cos(angle) * rayDistance,
+            centerY + std::sin(angle) * rayDistance,
+            0.052);
+    }
+}
+
+void AddCrescent(
+    IconMask& mask,
+    const double centerX,
+    const double centerY,
+    const double radius)
+{
+    AddUnitCircle(mask, centerX, centerY, radius);
+    AddUnitCircle(
+        mask,
+        centerX + radius * 0.62,
+        centerY - radius * 0.46,
+        radius * 0.92,
+        true);
+}
+
+void AddFall(IconMask& mask, const int count, const bool asDots, const double length)
+{
+    constexpr double kStart = 0.32;
+    constexpr double kStep = 0.20;
+    for (int index = 0; index < count; ++index)
+    {
+        const double x = kStart + kStep * static_cast<double>(index);
+        if (asDots)
+        {
+            AddUnitCircle(mask, x, 0.86, 0.055);
+        }
+        else
+        {
+            AddUnitRoundedRect(mask, x, 0.86, 0.075, length, 0.038);
+        }
+    }
+}
+
+void BuildIconMask(IconMask& mask, const EntryIcon icon)
+{
+    switch (icon)
+    {
+    case EntryIcon::ClearDay:
+        AddSun(mask, 0.5, 0.5, 0.23);
+        break;
+    case EntryIcon::ClearNight:
+        AddCrescent(mask, 0.47, 0.5, 0.30);
+        break;
+    case EntryIcon::PartlyCloudyDay:
+        AddSun(mask, 0.31, 0.28, 0.13);
+        AddCloud(mask, 0.06);
+        break;
+    case EntryIcon::PartlyCloudyNight:
+        AddCrescent(mask, 0.27, 0.23, 0.19);
+        AddCloud(mask, 0.09);
+        break;
+    case EntryIcon::Cloudy:
+        AddCloud(mask, 0.0);
+        break;
+    case EntryIcon::Fog:
+        AddCloud(mask, -0.10);
+        AddUnitRoundedRect(mask, 0.46, 0.80, 0.56, 0.075, 0.037);
+        AddUnitRoundedRect(mask, 0.54, 0.94, 0.44, 0.075, 0.037);
+        break;
+    case EntryIcon::Drizzle:
+        AddCloud(mask, -0.10);
+        AddFall(mask, 2, false, 0.14);
+        break;
+    case EntryIcon::Rain:
+        AddCloud(mask, -0.10);
+        AddFall(mask, 3, false, 0.22);
+        break;
+    case EntryIcon::Snow:
+        AddCloud(mask, -0.10);
+        AddFall(mask, 3, true, 0.0);
+        break;
+    case EntryIcon::Thunderstorm:
+    {
+        AddCloud(mask, -0.12);
+        const double boltX[] = {0.62, 0.38, 0.51, 0.34, 0.66, 0.51};
+        const double boltY[] = {0.62, 0.90, 0.90, 1.10, 0.83, 0.83};
+        AddUnitPolygon(mask, boltX, boltY, 6);
+        break;
+    }
+    case EntryIcon::Unknown:
+        // A neutral ring: it reads as "no reading" without imitating a real condition.
+        AddUnitCircle(mask, 0.5, 0.5, 0.30);
+        AddUnitCircle(mask, 0.5, 0.5, 0.19, true);
+        break;
+    case EntryIcon::None:
+    default:
+        break;
+    }
+}
+
+void ComposeIcon(
+    Canvas& canvas,
+    const EntryRenderRequest& request,
+    const COLORREF color,
+    const double alpha)
+{
+    if (request.compact || request.icon == EntryIcon::None || alpha <= 0.0)
+    {
+        return;
+    }
+
+    const RECT box = ResolveIconRect(request);
+    const int size = box.right - box.left;
+    if (size <= 0)
+    {
+        return;
+    }
+
+    IconMask mask{};
+    mask.width = canvas.width;
+    mask.height = canvas.height;
+    mask.coverage.assign(
+        static_cast<size_t>(mask.width) * static_cast<size_t>(mask.height),
+        0.0);
+    mask.unit = static_cast<double>(size);
+    mask.originX = static_cast<double>(box.left);
+    mask.originY = static_cast<double>(box.top);
+    BuildIconMask(mask, request.icon);
+
+    for (int y = 0; y < canvas.height; ++y)
+    {
+        for (int x = 0; x < canvas.width; ++x)
+        {
+            const double coverage = mask.coverage[
+                static_cast<size_t>(y) * static_cast<size_t>(canvas.width) +
+                    static_cast<size_t>(x)];
+            if (coverage > 0.0)
+            {
+                canvas.Blend(x, y, color, coverage * alpha);
+            }
+        }
+    }
+}
+
 void ComposeIndicator(
     Canvas& canvas,
     const EntryRenderRequest& request,
@@ -556,8 +925,57 @@ bool ComposeEntryBitmap(
     const double textAlpha = theme.highContrast
         ? 1.0
         : Lerp(theme.textAlpha, theme.activeTextAlpha, Clamp01(state.active));
+    ComposeIcon(canvas, request, textColor, textAlpha);
     return ComposeText(canvas, request, textColor, textAlpha);
 }
+}
+
+EntryIcon ParseEntryIcon(const std::string_view conditionIconId)
+{
+    // The tokens are WeatherConditionContract values; keep them in one place on this side
+    // too so a new condition is a single edit rather than a scattered one.
+    if (conditionIconId == "clear-day")
+    {
+        return EntryIcon::ClearDay;
+    }
+    if (conditionIconId == "clear-night")
+    {
+        return EntryIcon::ClearNight;
+    }
+    if (conditionIconId == "partly-cloudy-day")
+    {
+        return EntryIcon::PartlyCloudyDay;
+    }
+    if (conditionIconId == "partly-cloudy-night")
+    {
+        return EntryIcon::PartlyCloudyNight;
+    }
+    if (conditionIconId == "cloudy")
+    {
+        return EntryIcon::Cloudy;
+    }
+    if (conditionIconId == "fog")
+    {
+        return EntryIcon::Fog;
+    }
+    if (conditionIconId == "drizzle")
+    {
+        return EntryIcon::Drizzle;
+    }
+    if (conditionIconId == "rain")
+    {
+        return EntryIcon::Rain;
+    }
+    if (conditionIconId == "snow")
+    {
+        return EntryIcon::Snow;
+    }
+    if (conditionIconId == "thunderstorm")
+    {
+        return EntryIcon::Thunderstorm;
+    }
+
+    return EntryIcon::Unknown;
 }
 
 EntryTheme QueryEntryTheme()
@@ -723,7 +1141,8 @@ bool EntryVisualAnimator::Advance(
 int MeasureEntryContentWidthLogical(
     const std::wstring& text,
     const UINT dpi,
-    const bool compact)
+    const bool compact,
+    const EntryIcon icon)
 {
     if (compact)
     {
@@ -754,9 +1173,7 @@ int MeasureEntryContentWidthLogical(
     }
 
     return ToLogical(extent.cx, dpi) +
-        kEntryLeadingPaddingLogical +
-        kEntryIndicatorWidthLogical +
-        kEntryIndicatorGapLogical +
+        LeadingWidthLogical(icon) +
         kEntryTrailingPaddingLogical;
 }
 
@@ -848,6 +1265,235 @@ bool RenderEntry(
     }
 
     return true;
+}
+
+namespace
+{
+// Minimal 24-bit bottom-up BMP writer. A preview sheet needs no alpha and no dependency on
+// an image codec, so the file is assembled by hand.
+bool WriteBitmap24(
+    const std::wstring& path,
+    const std::vector<BYTE>& bgr,
+    const int width,
+    const int height,
+    std::wstring& failure)
+{
+    const int rowBytes = width * 3;
+    const int padding = (4 - (rowBytes % 4)) % 4;
+    const int strideBytes = rowBytes + padding;
+    const DWORD pixelBytes = static_cast<DWORD>(strideBytes) * static_cast<DWORD>(height);
+
+    BITMAPFILEHEADER fileHeader{};
+    fileHeader.bfType = 0x4D42;
+    fileHeader.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+    fileHeader.bfSize = fileHeader.bfOffBits + pixelBytes;
+
+    BITMAPINFOHEADER infoHeader{};
+    infoHeader.biSize = sizeof(infoHeader);
+    infoHeader.biWidth = width;
+    infoHeader.biHeight = height;
+    infoHeader.biPlanes = 1;
+    infoHeader.biBitCount = 24;
+    infoHeader.biCompression = BI_RGB;
+    infoHeader.biSizeImage = pixelBytes;
+
+    const HANDLE file = CreateFileW(
+        path.c_str(),
+        GENERIC_WRITE,
+        0,
+        nullptr,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+    {
+        failure = L"could not create the preview file: " +
+            std::to_wstring(GetLastError());
+        return false;
+    }
+
+    bool ok = true;
+    DWORD written = 0;
+    ok = ok && WriteFile(file, &fileHeader, sizeof(fileHeader), &written, nullptr) != FALSE;
+    ok = ok && WriteFile(file, &infoHeader, sizeof(infoHeader), &written, nullptr) != FALSE;
+
+    const std::vector<BYTE> pad(static_cast<size_t>(padding), 0);
+    for (int y = height - 1; y >= 0 && ok; --y)
+    {
+        const BYTE* const row = bgr.data() +
+            static_cast<size_t>(y) * static_cast<size_t>(rowBytes);
+        ok = WriteFile(file, row, static_cast<DWORD>(rowBytes), &written, nullptr) != FALSE;
+        if (ok && padding > 0)
+        {
+            ok = WriteFile(
+                file,
+                pad.data(),
+                static_cast<DWORD>(padding),
+                &written,
+                nullptr) != FALSE;
+        }
+    }
+
+    CloseHandle(file);
+    if (!ok)
+    {
+        failure = L"writing the preview file failed";
+    }
+
+    return ok;
+}
+
+// Composites a premultiplied tile over a flat background into the 24-bit sheet.
+void BlitTile(
+    std::vector<BYTE>& sheet,
+    const int sheetWidth,
+    const int destinationX,
+    const int destinationY,
+    const std::vector<BYTE>& tile,
+    const int tileWidth,
+    const int tileHeight,
+    const COLORREF background)
+{
+    for (int y = 0; y < tileHeight; ++y)
+    {
+        for (int x = 0; x < tileWidth; ++x)
+        {
+            const BYTE* const source = tile.data() +
+                (static_cast<size_t>(y) * static_cast<size_t>(tileWidth) +
+                    static_cast<size_t>(x)) * 4;
+            const double alpha = static_cast<double>(source[3]) / 255.0;
+            const size_t index =
+                (static_cast<size_t>(destinationY + y) * static_cast<size_t>(sheetWidth) +
+                    static_cast<size_t>(destinationX + x)) * 3;
+            if (index + 2 >= sheet.size())
+            {
+                continue;
+            }
+
+            const int channels[3] = {
+                GetBValue(background),
+                GetGValue(background),
+                GetRValue(background),
+            };
+            for (int channel = 0; channel < 3; ++channel)
+            {
+                const double premultiplied = static_cast<double>(source[channel]) / 255.0;
+                const double result = premultiplied +
+                    static_cast<double>(channels[channel]) / 255.0 * (1.0 - alpha);
+                sheet[index + static_cast<size_t>(channel)] =
+                    static_cast<BYTE>(std::lround(Clamp01(result) * 255.0));
+            }
+        }
+    }
+}
+}
+
+bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
+{
+    failure.clear();
+
+    const EntryIcon icons[] = {
+        EntryIcon::ClearDay,
+        EntryIcon::ClearNight,
+        EntryIcon::PartlyCloudyDay,
+        EntryIcon::PartlyCloudyNight,
+        EntryIcon::Cloudy,
+        EntryIcon::Fog,
+        EntryIcon::Drizzle,
+        EntryIcon::Rain,
+        EntryIcon::Snow,
+        EntryIcon::Thunderstorm,
+        EntryIcon::Unknown,
+    };
+    constexpr int kIconCount = static_cast<int>(std::size(icons));
+
+    // Two columns: the entry over a dark strip and over a light one, at 192 dpi so the
+    // artwork is reviewed at the density it actually renders at on the reference machine.
+    constexpr UINT kDpi = 192;
+    const int tileWidth = MulDiv(140, static_cast<int>(kDpi), 96);
+    const int tileHeight = MulDiv(40, static_cast<int>(kDpi), 96);
+    const int gap = MulDiv(8, static_cast<int>(kDpi), 96);
+    const int sheetWidth = gap + (tileWidth + gap) * 2;
+    const int sheetHeight = gap + (tileHeight + gap) * kIconCount;
+
+    const COLORREF darkStrip = RGB(32, 34, 38);
+    const COLORREF lightStrip = RGB(214, 224, 222);
+
+    std::vector<BYTE> sheet(
+        static_cast<size_t>(sheetWidth) * static_cast<size_t>(sheetHeight) * 3,
+        0);
+    for (int y = 0; y < sheetHeight; ++y)
+    {
+        for (int x = 0; x < sheetWidth; ++x)
+        {
+            const bool rightColumn = x > sheetWidth / 2;
+            const COLORREF background = rightColumn ? lightStrip : darkStrip;
+            const size_t index =
+                (static_cast<size_t>(y) * static_cast<size_t>(sheetWidth) +
+                    static_cast<size_t>(x)) * 3;
+            sheet[index] = GetBValue(background);
+            sheet[index + 1] = GetGValue(background);
+            sheet[index + 2] = GetRValue(background);
+        }
+    }
+
+    for (int row = 0; row < kIconCount; ++row)
+    {
+        for (int column = 0; column < 2; ++column)
+        {
+            EntryTheme theme{};
+            theme.darkStrip = column == 0;
+            theme.accent = RGB(0, 120, 212);
+            if (theme.darkStrip)
+            {
+                theme.surfaceTint = RGB(255, 255, 255);
+                theme.text = RGB(255, 255, 255);
+                theme.restAlpha = 0.10;
+                theme.hoverAlpha = 0.20;
+                theme.pressedAlpha = 0.26;
+                theme.activeAlpha = 0.24;
+                theme.textAlpha = 0.92;
+                theme.activeTextAlpha = 1.0;
+            }
+            else
+            {
+                theme.surfaceTint = RGB(0, 0, 0);
+                theme.text = RGB(16, 16, 16);
+                theme.restAlpha = 0.07;
+                theme.hoverAlpha = 0.15;
+                theme.pressedAlpha = 0.21;
+                theme.activeAlpha = 0.20;
+                theme.textAlpha = 0.88;
+                theme.activeTextAlpha = 1.0;
+            }
+
+            EntryRenderRequest request{};
+            request.windowSize = SIZE{tileWidth, tileHeight};
+            request.capsule = RECT{0, 0, tileWidth, tileHeight};
+            request.dpi = kDpi;
+            request.icon = icons[row];
+            request.text = L"26" + std::wstring(1, static_cast<wchar_t>(0x00B0));
+
+            std::vector<BYTE> tile;
+            if (!ComposeEntryBitmap(request, theme, EntryVisualState{}, tile))
+            {
+                failure = L"preview composition failed";
+                return false;
+            }
+
+            BlitTile(
+                sheet,
+                sheetWidth,
+                gap + (tileWidth + gap) * column,
+                gap + (tileHeight + gap) * row,
+                tile,
+                tileWidth,
+                tileHeight,
+                column == 0 ? darkStrip : lightStrip);
+        }
+    }
+
+    return WriteBitmap24(path, sheet, sheetWidth, sheetHeight, failure);
 }
 
 bool RunEntryVisualSmokeTest(std::wstring& failure)
@@ -1057,6 +1703,126 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
         if (MeasureEntryContentWidthLogical(L"W", 96, true) != 0)
         {
             failure = L"the floating badge must not request an adaptive width";
+            return false;
+        }
+    }
+
+    {
+        // Every condition glyph has to draw something, and each has to differ from the
+        // others: a mapping that silently collapsed two conditions onto one drawing would
+        // otherwise look perfectly fine until someone compared them side by side.
+        const EntryIcon icons[] = {
+            EntryIcon::ClearDay,
+            EntryIcon::ClearNight,
+            EntryIcon::PartlyCloudyDay,
+            EntryIcon::PartlyCloudyNight,
+            EntryIcon::Cloudy,
+            EntryIcon::Fog,
+            EntryIcon::Drizzle,
+            EntryIcon::Rain,
+            EntryIcon::Snow,
+            EntryIcon::Thunderstorm,
+            EntryIcon::Unknown,
+        };
+
+        EntryTheme theme{};
+        theme.darkStrip = true;
+        theme.accent = RGB(0, 120, 212);
+        theme.surfaceTint = RGB(255, 255, 255);
+        theme.text = RGB(255, 255, 255);
+        theme.restAlpha = 0.10;
+        theme.hoverAlpha = 0.20;
+        theme.pressedAlpha = 0.26;
+        theme.activeAlpha = 0.24;
+        theme.textAlpha = 0.92;
+        theme.activeTextAlpha = 1.0;
+
+        constexpr int kWidth = 200;
+        constexpr int kHeight = 40;
+        const RECT iconBox = ResolveIconRect(EntryRenderRequest{
+            SIZE{kWidth, kHeight},
+            RECT{0, 0, kWidth, kHeight},
+            96,
+            false,
+            EntryIcon::ClearDay,
+            {},
+        });
+
+        std::vector<std::vector<BYTE>> rendered;
+        for (const EntryIcon icon : icons)
+        {
+            EntryRenderRequest request{};
+            request.windowSize = SIZE{kWidth, kHeight};
+            request.capsule = RECT{0, 0, kWidth, kHeight};
+            request.dpi = 96;
+            request.icon = icon;
+            request.text = L"26";
+
+            std::vector<BYTE> pixels;
+            if (!ComposeEntryBitmap(request, theme, EntryVisualState{}, pixels))
+            {
+                failure = L"a condition glyph failed to compose";
+                return false;
+            }
+
+            // Only the glyph box is compared, so the shared capsule and text cannot mask a
+            // glyph that draws nothing.
+            std::vector<BYTE> box;
+            for (int y = iconBox.top; y < iconBox.bottom; ++y)
+            {
+                for (int x = iconBox.left; x < iconBox.right; ++x)
+                {
+                    box.push_back(pixels[
+                        (static_cast<size_t>(y) * static_cast<size_t>(kWidth) +
+                            static_cast<size_t>(x)) * 4 + 3]);
+                }
+            }
+
+            bool hasInk = false;
+            for (const BYTE alpha : box)
+            {
+                if (alpha > 40)
+                {
+                    hasInk = true;
+                    break;
+                }
+            }
+
+            if (!hasInk)
+            {
+                failure = L"a condition glyph drew nothing";
+                return false;
+            }
+
+            for (const std::vector<BYTE>& previous : rendered)
+            {
+                if (previous == box)
+                {
+                    failure = L"two condition glyphs are drawn identically";
+                    return false;
+                }
+            }
+
+            rendered.push_back(std::move(box));
+        }
+
+        // The glyph has to claim its own width, otherwise it would overlap the text.
+        const int withoutIcon =
+            MeasureEntryContentWidthLogical(L"26", 96, false, EntryIcon::None);
+        const int withIcon =
+            MeasureEntryContentWidthLogical(L"26", 96, false, EntryIcon::Rain);
+        if (withIcon - withoutIcon !=
+            kEntryIconSizeLogical + kEntryIconGapLogical)
+        {
+            failure = L"the condition glyph does not reserve its own width";
+            return false;
+        }
+
+        if (ParseEntryIcon("rain") != EntryIcon::Rain ||
+            ParseEntryIcon("clear-night") != EntryIcon::ClearNight ||
+            ParseEntryIcon("not-a-condition") != EntryIcon::Unknown)
+        {
+            failure = L"condition token parsing is wrong";
             return false;
         }
     }
