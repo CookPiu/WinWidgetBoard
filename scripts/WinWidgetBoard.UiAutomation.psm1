@@ -817,6 +817,48 @@ function Save-ScreenRegionCapture {
     return $Path
 }
 
+# A managed project writes to two different paths depending on whether Platform was passed
+# explicitly, so the same executable can exist twice with different ages. Scripts that pick
+# one path by hand end up verifying a stale build - which looks exactly like a product bug.
+# Take the freshest of the two and say which one was chosen.
+function Resolve-ManagedOutput {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$ProjectName,
+        [Parameter(Mandatory = $true)][string]$ExecutableName,
+        [string]$Configuration = 'Release',
+        [string]$Platform = 'x64',
+        [string]$TargetFramework = 'net10.0-windows10.0.26100.0',
+        [string]$RuntimeIdentifier = 'win-x64'
+    )
+
+    $candidates = @(
+        (Join-Path $RepositoryRoot ("artifacts\bin\$ProjectName\$Platform\$Configuration\" +
+            "$TargetFramework\$RuntimeIdentifier\$ExecutableName")),
+        (Join-Path $RepositoryRoot ("artifacts\bin\$ProjectName\$Configuration\" +
+            "$TargetFramework\$RuntimeIdentifier\$ExecutableName"))
+    ) | ForEach-Object { [IO.Path]::GetFullPath($_) }
+
+    $existing = @($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+    if ($existing.Count -eq 0) {
+        throw ("Neither build output exists for ${ProjectName}:`n  " +
+            ($candidates -join "`n  "))
+    }
+
+    $chosen = $existing |
+        Sort-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc } -Descending |
+        Select-Object -First 1
+
+    if ($existing.Count -gt 1) {
+        $age = (Get-Item -LiteralPath $chosen).LastWriteTime
+        # Write-Host, not Write-Output: this function returns a path, and anything written
+        # to the output stream would be concatenated into that return value.
+        Write-Host "BUILD-OUTPUT $ProjectName -> $chosen (built $age)"
+    }
+
+    return $chosen
+}
+
 function Stop-WinWidgetBoardProcess {
     param(
         [Diagnostics.Process]$Process,
@@ -942,6 +984,7 @@ Export-ModuleMember -Function @(
     'Move-PointerToPoint',
     'Save-ScreenRegionCapture',
     'Save-WindowCapture',
+    'Resolve-ManagedOutput',
     'Stop-WinWidgetBoardProcess',
     'Stop-TestProcess',
     'Stop-OwnedProcess',

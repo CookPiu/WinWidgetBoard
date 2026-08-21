@@ -154,7 +154,13 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     public string SearchQuery
     {
         get => _searchQuery;
-        set => SetField(ref _searchQuery, value ?? string.Empty);
+        set
+        {
+            if (SetField(ref _searchQuery, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CanSearch));
+            }
+        }
     }
 
     public ObservableCollection<WeatherLocationOption> SearchResults { get; } = [];
@@ -162,7 +168,13 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     public bool IsSearching
     {
         get => _isSearching;
-        private set => SetField(ref _isSearching, value);
+        private set
+        {
+            if (SetField(ref _isSearching, value))
+            {
+                OnPropertyChanged(nameof(CanSearch));
+            }
+        }
     }
 
     /// <summary>

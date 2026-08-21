@@ -113,14 +113,18 @@ function Assert-PanelHidden {
 
 try {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $panelPath = Join-Path $repoRoot (
-        "artifacts\bin\WinWidgetBoard.WorkspacePanel\$Platform\$Configuration\" +
-        'net10.0-windows10.0.26100.0\win-x64\WinWidgetBoard.WorkspacePanel.exe')
-    $brokerPath = Join-Path $repoRoot (
-        "artifacts\bin\WinWidgetBoard.CoreBroker\$Platform\$Configuration\" +
-        'net10.0-windows10.0.26100.0\win-x64\WinWidgetBoard.CoreBroker.exe')
-    $panelPath = [IO.Path]::GetFullPath($panelPath)
-    $brokerPath = [IO.Path]::GetFullPath($brokerPath)
+    $panelPath = Resolve-ManagedOutput `
+        -RepositoryRoot $repoRoot `
+        -ProjectName 'WinWidgetBoard.WorkspacePanel' `
+        -ExecutableName 'WinWidgetBoard.WorkspacePanel.exe' `
+        -Configuration $Configuration `
+        -Platform $Platform
+    $brokerPath = Resolve-ManagedOutput `
+        -RepositoryRoot $repoRoot `
+        -ProjectName 'WinWidgetBoard.CoreBroker' `
+        -ExecutableName 'WinWidgetBoard.CoreBroker.exe' `
+        -Configuration $Configuration `
+        -Platform $Platform
     foreach ($requiredPath in @($panelPath, $brokerPath)) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Required executable was not found: $requiredPath"

@@ -26,10 +26,23 @@ public sealed partial class WeatherSettingsDialog : ContentDialog
 
     // Search runs on submit, never per keystroke: every search leaves the machine, and a
     // request per character would send far more of what the user typed than they asked to.
-    private async void WeatherSettingsSearchBox_QuerySubmitted(
-        AutoSuggestBox sender,
-        AutoSuggestBoxQuerySubmittedEventArgs args)
+    private async void WeatherSettingsSearchButton_Click(
+        object sender,
+        Microsoft.UI.Xaml.RoutedEventArgs args)
     {
+        await ViewModel.SearchAsync(CancellationToken.None);
+    }
+
+    private async void WeatherSettingsSearchBox_KeyDown(
+        object sender,
+        Microsoft.UI.Xaml.Input.KeyRoutedEventArgs args)
+    {
+        if (args.Key != Windows.System.VirtualKey.Enter)
+        {
+            return;
+        }
+
+        args.Handled = true;
         await ViewModel.SearchAsync(CancellationToken.None);
     }
 

@@ -126,6 +126,15 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 共享 UIA 模块增加 `Save-WindowCapture`：用 `PrintWindow` 抓取窗口自身内容，
   不再受 z 序与焦点影响——常驻面板会因失焦隐藏，屏幕区域截图因此并不可靠。
 
+修复了一个真实缺陷：**卡片一直丢弃 Broker 推送的快照**。
+`sequence` 有两个互不相干的计数器 —— Broker 的，以及面板自己
+（占位快照、可见性调度）的 —— 而 `ApplySnapshot` 把两者放在同一个
+字段上比较。面板先跑一会儿后本地序号就超前了，之后 Broker
+推送的真实天气全部被当作「更旧」丢弃，卡片停在占位态。
+现在 Broker 快照只在它自己的序列空间内比较，首条无条件生效
+（`UT-CARD-097`～`UT-CARD-099`）。`Test-WeatherProviderInteraction.ps1` 因此由失败转为
+`REAL-WEATHER-PASS temperature="29.9 °C"`。
+
 本轮修正的一处判断错误：先前认为「天气卡片收不到数据」是既有缺陷，实际上是我一直在运行
 **前一天的面板产物**。`Install-WinWidgetBoard.ps1` 与真实桌面脚本读取的是 `x64\Release`，
 而 `dotnet build -c Release` 不带 `-p:Platform=x64` 写的是另一个路径。加上 `-p:Platform=x64`

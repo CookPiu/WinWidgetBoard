@@ -691,4 +691,10 @@
   <data name="WeatherSettingsSearchSelectedStatus" xml:space="preserve">
     <value>已选中地点，保存后生效。</value>
   </data>
+  <data name="WeatherSettingsSearchButton.Content" xml:space="preserve">
+    <value>搜索</value>
+  </data>
+  <data name="WeatherSettingsSearchButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>搜索地点</value>
+  </data>
 </root>

@@ -691,4 +691,10 @@
   <data name="WeatherSettingsSearchSelectedStatus" xml:space="preserve">
     <value>Place selected. Save to apply it.</value>
   </data>
+  <data name="WeatherSettingsSearchButton.Content" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="WeatherSettingsSearchButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search for a place</value>
+  </data>
 </root>

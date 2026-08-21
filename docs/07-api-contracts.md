@@ -166,6 +166,17 @@ revision 不匹配返回 `conflict.layout-revision`。WorkspacePanel 只在完�
 
 UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权限。
 
+### 序列号空间
+
+`sequence` 是 **CoreBroker 自己的计数器**。面板内部
+也会为卡片生成本地快照（占位、可见
+性调度），那是另一个计数器。两者
+**不得相互比较**：否则本地序号一旦超
+前，Broker 推送的真实数据会被当作「更旧
+」丢弃。实现上：首条 Broker 快照无条件
+生效，之后仅在 Broker 自身序列空间内保证
+递增。
+
 ## 8. 订阅与背压
 
 `cards.subscribe` 设置本连接关心的实例和可见实例：

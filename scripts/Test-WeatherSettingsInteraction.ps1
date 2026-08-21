@@ -138,14 +138,18 @@ function Start-Stack {
 
 try {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $panelPath = Join-Path $repoRoot (
-        "artifacts\bin\WinWidgetBoard.WorkspacePanel\$Platform\$Configuration\" +
-        'net10.0-windows10.0.26100.0\win-x64\WinWidgetBoard.WorkspacePanel.exe')
-    $brokerPath = Join-Path $repoRoot (
-        "artifacts\bin\WinWidgetBoard.CoreBroker\$Platform\$Configuration\" +
-        'net10.0-windows10.0.26100.0\win-x64\WinWidgetBoard.CoreBroker.exe')
-    $panelPath = [IO.Path]::GetFullPath($panelPath)
-    $brokerPath = [IO.Path]::GetFullPath($brokerPath)
+    $panelPath = Resolve-ManagedOutput `
+        -RepositoryRoot $repoRoot `
+        -ProjectName 'WinWidgetBoard.WorkspacePanel' `
+        -ExecutableName 'WinWidgetBoard.WorkspacePanel.exe' `
+        -Configuration $Configuration `
+        -Platform $Platform
+    $brokerPath = Resolve-ManagedOutput `
+        -RepositoryRoot $repoRoot `
+        -ProjectName 'WinWidgetBoard.CoreBroker' `
+        -ExecutableName 'WinWidgetBoard.CoreBroker.exe' `
+        -Configuration $Configuration `
+        -Platform $Platform
     foreach ($requiredPath in @($panelPath, $brokerPath)) {
         if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
             throw "Required executable was not found: $requiredPath"
@@ -208,17 +212,74 @@ try {
         -Root $automationRoot `
         -AutomationId 'WeatherSettingsLabelBox' `
         -Timeout ([TimeSpan]::FromSeconds(10))
-    $latitudeBox = Wait-ElementByAutomationId `
+    $searchBox = Wait-ElementByAutomationId `
         -Root $automationRoot `
-        -AutomationId 'WeatherSettingsLatitudeBox' `
+        -AutomationId 'WeatherSettingsSearchBox' `
         -Timeout ([TimeSpan]::FromSeconds(10))
-    $longitudeBox = Wait-ElementByAutomationId `
+
+    Set-ElementValue -Element $searchBox -Value 'Tokyo'
+
+    # Invoke the search button rather than sending a keystroke: SendKeys goes to whatever
+    # owns the foreground, which is not reliably this dialog during a test run.
+    $searchButton = Wait-ElementByAutomationId `
         -Root $automationRoot `
-        -AutomationId 'WeatherSettingsLongitudeBox' `
+        -AutomationId 'WeatherSettingsSearchButton' `
         -Timeout ([TimeSpan]::FromSeconds(10))
+    Invoke-Element -Element $searchButton
+
+    # Search leaves the machine, so allow for a slow answer before giving up. Poll for a
+    # selectable row rather than for the list element: an empty ListView is not always
+    # surfaced to UIA, so waiting on the list alone cannot tell "still loading" from
+    # "search failed".
+    $firstResult = $null
+    $searchDeadline = [DateTime]::UtcNow.AddSeconds(25)
+    do {
+        $resultsList = Get-ElementByAutomationId `
+            -Root $window `
+            -AutomationId 'WeatherSettingsResultsList'
+        if ($null -ne $resultsList) {
+            $firstResult = @(Get-Descendants -Root $resultsList) |
+                Where-Object {
+                    $_.GetSupportedPatterns().Contains(
+                        [System.Windows.Automation.SelectionItemPattern]::Pattern)
+                } |
+                Select-Object -First 1
+            if ($null -ne $firstResult) { break }
+        }
+
+        Start-Sleep -Milliseconds 400
+    } while ([DateTime]::UtcNow -lt $searchDeadline)
+
+    if ($null -eq $firstResult) {
+        $searchStatus = Get-ElementByAutomationId `
+            -Root $window `
+            -AutomationId 'WeatherSettingsStatusText'
+        $searchStatusText = if ($null -ne $searchStatus) {
+            $searchStatus.Current.Name
+        }
+        else {
+            '<no status element>'
+        }
+        throw ("The weather location search returned no selectable result for 'Tokyo'. " +
+            "Status: '$searchStatusText'.")
+    }
+
+    $firstResult.GetCurrentPattern(
+        [System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+
+    # The label stays editable: the searched name is not always what the user wants shown.
     Set-ElementValue -Element $labelBox -Value 'Tokyo'
-    Set-ElementValue -Element $latitudeBox -Value '35.6762'
-    Set-ElementValue -Element $longitudeBox -Value '139.6503'
+
+    $coordinatesBox = Wait-ElementByAutomationId `
+        -Root $automationRoot `
+        -AutomationId 'WeatherSettingsCoordinatesBox' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    $selectedCoordinates = Get-ElementText -Element $coordinatesBox
+    if ([string]::IsNullOrWhiteSpace($selectedCoordinates) -or
+        $selectedCoordinates -notmatch '\d') {
+        throw "Selecting a search result did not fill the coordinates: '$selectedCoordinates'."
+    }
+    Write-Output "WEATHER-SEARCH-PASS selected coordinates=`"$selectedCoordinates`""
 
     $saveButton = Wait-ElementByAutomationId `
         -Root $automationRoot `
@@ -288,15 +349,9 @@ try {
         -AutomationId 'WeatherSettingsLabelBox' `
         -Expected 'Tokyo' `
         -Timeout ([TimeSpan]::FromSeconds(10))
-    $reloadedLatitude = Wait-ElementValue `
+    $reloadedCoordinates = Wait-ElementByAutomationId `
         -Root $automationRoot `
-        -AutomationId 'WeatherSettingsLatitudeBox' `
-        -Expected '35.6762' `
-        -Timeout ([TimeSpan]::FromSeconds(10))
-    $reloadedLongitude = Wait-ElementValue `
-        -Root $automationRoot `
-        -AutomationId 'WeatherSettingsLongitudeBox' `
-        -Expected '139.6503' `
+        -AutomationId 'WeatherSettingsCoordinatesBox' `
         -Timeout ([TimeSpan]::FromSeconds(10))
     $dialogCloseButton = Get-ElementByNames `
         -Root $automationRoot `
@@ -312,8 +367,7 @@ try {
     Write-Output (
         "REAL-WEATHER-SETTINGS-RESTART-PASS settings.get " +
         "label=`"$(Get-ElementText -Element $reloadedLabel)`" " +
-        "latitude=`"$(Get-ElementText -Element $reloadedLatitude)`" " +
-        "longitude=`"$(Get-ElementText -Element $reloadedLongitude)`" " +
+        "coordinates=`"$(Get-ElementText -Element $reloadedCoordinates)`" " +
         'card_payload=not-required')
 
     $closeButton = Wait-ElementByAutomationId -Root $window -AutomationId 'ClosePanelButton' -Timeout ([TimeSpan]::FromSeconds(10))

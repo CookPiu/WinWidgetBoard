@@ -9,6 +9,7 @@ public sealed class CardRuntimeInstance :
 {
     private readonly object _gate = new();
     private CardRuntimeSnapshot _snapshot;
+    private long? _lastRemoteSequence;
     private CardLifecycleState _lifecycleState =
         CardLifecycleState.Created;
 
@@ -117,6 +118,42 @@ public sealed class CardRuntimeInstance :
                 return false;
             }
 
+            _snapshot = snapshot;
+        }
+
+        PublishSnapshot(snapshot);
+        return true;
+    }
+
+    /// <summary>
+    /// Applies a snapshot that came from CoreBroker.
+    ///
+    /// Broker sequences and locally produced sequences are two independent counters: the
+    /// panel's own visibility scheduler also publishes snapshots through
+    /// <see cref="ApplySnapshot"/>, incrementing the same field. Comparing a broker sequence
+    /// against a locally bumped one made the panel discard real card data as "older" - the
+    /// weather card stayed on its placeholder for as long as the panel had been running.
+    ///
+    /// Ordering is still enforced, but only within the broker's own sequence space, and the
+    /// first broker snapshot always wins over whatever local placeholder preceded it.
+    /// </summary>
+    public bool ApplyRemoteSnapshot(CardRuntimeSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ValidateSnapshot(Definition, InstanceId, snapshot);
+
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(
+                _lifecycleState == CardLifecycleState.Disposed,
+                this);
+            if (_lastRemoteSequence is long previous &&
+                snapshot.Sequence <= previous)
+            {
+                return false;
+            }
+
+            _lastRemoteSequence = snapshot.Sequence;
             _snapshot = snapshot;
         }
 

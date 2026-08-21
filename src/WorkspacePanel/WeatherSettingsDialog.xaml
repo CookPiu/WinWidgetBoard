@@ -17,13 +17,26 @@
             come back from the search and are shown read-only below, so what will be saved
             is visible without being editable.
         -->
-        <AutoSuggestBox
-            x:Name="WeatherSettingsSearchBox"
-            x:Uid="WeatherSettingsSearchBox"
-            QueryIcon="Find"
-            Text="{x:Bind ViewModel.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-            QuerySubmitted="WeatherSettingsSearchBox_QuerySubmitted"
-            automation:AutomationProperties.AutomationId="WeatherSettingsSearchBox" />
+        <Grid ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox
+                x:Name="WeatherSettingsSearchBox"
+                x:Uid="WeatherSettingsSearchBox"
+                Text="{x:Bind ViewModel.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                KeyDown="WeatherSettingsSearchBox_KeyDown"
+                automation:AutomationProperties.AutomationId="WeatherSettingsSearchBox" />
+            <Button
+                x:Name="WeatherSettingsSearchButton"
+                x:Uid="WeatherSettingsSearchButton"
+                Grid.Column="1"
+                VerticalAlignment="Bottom"
+                IsEnabled="{x:Bind ViewModel.CanSearch, Mode=OneWay}"
+                Click="WeatherSettingsSearchButton_Click"
+                automation:AutomationProperties.AutomationId="WeatherSettingsSearchButton" />
+        </Grid>
 
         <ProgressBar
             x:Name="WeatherSettingsSearchProgress"
@@ -86,6 +99,7 @@
             x:Name="WeatherSettingsStatusText"
             Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
             TextWrapping="Wrap"
+            automation:AutomationProperties.AutomationId="WeatherSettingsStatusText"
             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
     </StackPanel>
 </controls:ContentDialog>

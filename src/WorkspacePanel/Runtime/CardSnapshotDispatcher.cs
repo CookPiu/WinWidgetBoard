@@ -94,7 +94,9 @@ public sealed class CardSnapshotDispatcher
             snapshot.DiagnosticCode);
         try
         {
-            return runtime.ApplySnapshot(runtimeSnapshot)
+            // Broker sequences are compared only against other broker sequences; see
+            // CardRuntimeInstance.ApplyRemoteSnapshot.
+            return runtime.ApplyRemoteSnapshot(runtimeSnapshot)
                 ? CardSnapshotDispatchResult.Applied
                 : CardSnapshotDispatchResult.IgnoredOlder;
         }
