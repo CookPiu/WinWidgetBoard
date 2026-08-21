@@ -21,6 +21,8 @@ constexpr double kPressScale = 0.97;
 constexpr double kTopHighlightAlpha = 0.16;
 constexpr double kFillGradientAmount = 0.22;
 constexpr double kIndicatorRestAlpha = 0.55;
+// The segment separator, relative to the text it sits between.
+constexpr double kDividerAlpha = 0.30;
 
 // --- condition illustration palette ----------------------------------------------------
 //
@@ -272,6 +274,76 @@ HFONT CreateEntryFont(const int pixelHeight)
         L"Segoe UI");
 }
 
+// Holds one screen DC and one font for the whole render pass. A segmented entry measures
+// every segment, and creating a DC and a font per measurement would mean a dozen GDI object
+// round trips per animation frame.
+struct TextMeasurer
+{
+    HDC screen{};
+    HFONT font{};
+    HGDIOBJ previousFont{};
+
+    explicit TextMeasurer(const int fontPixelHeight)
+    {
+        screen = GetDC(nullptr);
+        if (screen == nullptr)
+        {
+            return;
+        }
+
+        font = CreateEntryFont(fontPixelHeight);
+        if (font != nullptr)
+        {
+            previousFont = SelectObject(screen, font);
+        }
+    }
+
+    TextMeasurer(const TextMeasurer&) = delete;
+    TextMeasurer& operator=(const TextMeasurer&) = delete;
+
+    ~TextMeasurer()
+    {
+        if (screen == nullptr)
+        {
+            return;
+        }
+
+        if (previousFont != nullptr)
+        {
+            SelectObject(screen, previousFont);
+        }
+
+        if (font != nullptr)
+        {
+            DeleteObject(font);
+        }
+
+        ReleaseDC(nullptr, screen);
+    }
+
+    [[nodiscard]] bool IsReady() const noexcept
+    {
+        return screen != nullptr && font != nullptr;
+    }
+
+    [[nodiscard]] int Measure(const std::wstring& text) const
+    {
+        SIZE extent{};
+        if (!IsReady() ||
+            text.empty() ||
+            GetTextExtentPoint32W(
+                screen,
+                text.c_str(),
+                static_cast<int>(text.size()),
+                &extent) == FALSE)
+        {
+            return 0;
+        }
+
+        return extent.cx;
+    }
+};
+
 int ResolveFontPixelHeight(const EntryRenderRequest& request)
 {
     const int base = ScaleLogical(kEntryFontSizeLogical, request.dpi);
@@ -284,11 +356,27 @@ int ResolveFontPixelHeight(const EntryRenderRequest& request)
     return std::max(base, capsuleHeight / 2);
 }
 
-// True when a condition carries an illustration. Unknown and None state no reading, so they
-// keep the neutral capsule instead of borrowing some weather's colour.
+// True when a condition carries an illustration. Only the weather glyphs do: Unknown and
+// None state no reading, and a hardware glyph has no sky to paint. Listing them rather than
+// excluding two is what keeps a newly added glyph from silently inheriting an illustration.
 bool HasBackdrop(const EntryIcon icon)
 {
-    return icon != EntryIcon::None && icon != EntryIcon::Unknown;
+    switch (icon)
+    {
+    case EntryIcon::ClearDay:
+    case EntryIcon::ClearNight:
+    case EntryIcon::PartlyCloudyDay:
+    case EntryIcon::PartlyCloudyNight:
+    case EntryIcon::Cloudy:
+    case EntryIcon::Fog:
+    case EntryIcon::Drizzle:
+    case EntryIcon::Rain:
+    case EntryIcon::Snow:
+    case EntryIcon::Thunderstorm:
+        return true;
+    default:
+        return false;
+    }
 }
 
 // Everything right of the text: the trailing padding, plus the illustration's own room when
@@ -326,6 +414,94 @@ RECT ResolveIconRect(const EntryRenderRequest& request)
     const int centerY = (request.capsule.top + request.capsule.bottom) / 2;
     const int top = centerY - size / 2;
     return RECT{left, top, left + size, top + size};
+}
+
+struct SegmentLayout
+{
+    RECT iconRect{};
+    RECT textRect{};
+    int dividerCenterX{};
+    bool hasDivider{};
+};
+
+// Lays the segments out left to right after the indicator. Each segment is glyph, gap, text;
+// consecutive segments are separated by a gap, a hairline, and another gap.
+std::vector<SegmentLayout> ResolveSegmentLayout(
+    const EntryRenderRequest& request,
+    const TextMeasurer& measurer)
+{
+    std::vector<SegmentLayout> layouts;
+    layouts.reserve(request.segments.size());
+
+    const int iconSize = ScaleLogical(kEntryIconSizeLogical, request.dpi);
+    const int iconGap = ScaleLogical(kEntryIconGapLogical, request.dpi);
+    const int segmentGap = ScaleLogical(kEntrySegmentGapLogical, request.dpi);
+    const int centerY = (request.capsule.top + request.capsule.bottom) / 2;
+
+    int cursor = request.capsule.left +
+        ScaleLogical(
+            kEntryLeadingPaddingLogical +
+                kEntryIndicatorWidthLogical +
+                kEntryIndicatorGapLogical,
+            request.dpi);
+
+    // A segment that will not fit whole is dropped rather than clipped. A strip that ends in
+    // half a glyph reads as a rendering fault; one that simply ends does not, and the card
+    // still shows every configured reading.
+    const int limit = request.capsule.right -
+        ScaleLogical(kEntryTrailingPaddingLogical, request.dpi);
+
+    for (size_t index = 0; index < request.segments.size(); ++index)
+    {
+        const EntrySegment& segment = request.segments[index];
+        SegmentLayout layout{};
+
+        const int segmentWidth =
+            (segment.icon != EntryIcon::None ? iconSize + iconGap : 0) +
+            measurer.Measure(segment.text);
+        if (!layouts.empty() && cursor + segmentWidth > limit)
+        {
+            break;
+        }
+
+        if (segment.icon != EntryIcon::None)
+        {
+            layout.iconRect = RECT{
+                cursor,
+                centerY - iconSize / 2,
+                cursor + iconSize,
+                centerY + iconSize / 2};
+            cursor += iconSize + iconGap;
+        }
+
+        const int textWidth = measurer.Measure(segment.text);
+        layout.textRect = RECT{
+            cursor,
+            request.capsule.top,
+            cursor + textWidth,
+            request.capsule.bottom};
+        cursor += textWidth;
+
+        if (index + 1 < request.segments.size())
+        {
+            layout.hasDivider = true;
+            layout.dividerCenterX = cursor + segmentGap;
+            cursor += segmentGap * 2 + ScaleLogical(
+                kEntryDividerWidthLogical,
+                request.dpi);
+        }
+
+        layouts.push_back(layout);
+    }
+
+    // The last segment that survived the fit check has nothing to its right to separate it
+    // from, so its divider goes with the segments that were dropped.
+    if (!layouts.empty())
+    {
+        layouts.back().hasDivider = false;
+    }
+
+    return layouts;
 }
 
 RECT ResolveTextRect(const EntryRenderRequest& request)
@@ -813,6 +989,76 @@ void AddFall(IconMask& mask, const int count, const bool asDots, const double le
     }
 }
 
+// A chip: a rounded body with a hollow core and pins along two sides. At 18 DIP the pins are
+// what separate it from every other rounded square in the set.
+void AddChip(IconMask& mask)
+{
+    AddUnitRoundedRect(mask, 0.5, 0.5, 0.56, 0.56, 0.12);
+    AddUnitRoundedRect(mask, 0.5, 0.5, 0.28, 0.28, 0.06, true);
+    for (int index = 0; index < 3; ++index)
+    {
+        const double offset = 0.34 + 0.16 * static_cast<double>(index);
+        AddUnitRoundedRect(mask, offset, 0.15, 0.055, 0.12, 0.027);
+        AddUnitRoundedRect(mask, offset, 0.85, 0.055, 0.12, 0.027);
+    }
+}
+
+// A memory module: a wide body notched from below, the shape of the contact edge.
+void AddMemoryStick(IconMask& mask)
+{
+    AddUnitRoundedRect(mask, 0.5, 0.46, 0.68, 0.40, 0.08);
+    for (int index = 0; index < 3; ++index)
+    {
+        const double offset = 0.32 + 0.18 * static_cast<double>(index);
+        AddUnitRoundedRect(mask, offset, 0.66, 0.07, 0.16, 0.03, true);
+    }
+
+    AddUnitRoundedRect(mask, 0.5, 0.79, 0.50, 0.09, 0.04);
+}
+
+// A graphics board: a wider body than the chip, with a fan hub inside it.
+void AddGraphicsBoard(IconMask& mask)
+{
+    AddUnitRoundedRect(mask, 0.5, 0.5, 0.76, 0.48, 0.10);
+    AddUnitCircle(mask, 0.5, 0.5, 0.15, true);
+    AddUnitCircle(mask, 0.5, 0.5, 0.06);
+}
+
+// A disk stack: three platters seen edge on.
+void AddDiskStack(IconMask& mask)
+{
+    for (int index = 0; index < 3; ++index)
+    {
+        AddUnitRoundedRect(
+            mask,
+            0.5,
+            0.28 + 0.22 * static_cast<double>(index),
+            0.66,
+            0.13,
+            0.065);
+    }
+}
+
+// A direction arrow. `up` flips it; the two network readings differ only in this, which is
+// exactly how the taskbar convention reads them.
+void AddTransferArrow(IconMask& mask, const bool up)
+{
+    const double tip = up ? 0.16 : 0.84;
+    const double base = up ? 0.52 : 0.48;
+    const double headX[] = {0.5, 0.16, 0.84};
+    const double headY[] = {tip, base, base};
+    AddUnitPolygon(mask, headX, headY, 3);
+    AddUnitRoundedRect(mask, 0.5, up ? 0.70 : 0.30, 0.22, 0.34, 0.08);
+}
+
+// A fan: a ring with a hub. Distinct from the unknown ring by the hub and a thinner rim.
+void AddFanGlyph(IconMask& mask)
+{
+    AddUnitCircle(mask, 0.5, 0.5, 0.34);
+    AddUnitCircle(mask, 0.5, 0.5, 0.25, true);
+    AddUnitCircle(mask, 0.5, 0.5, 0.10);
+}
+
 void BuildIconMask(IconMask& mask, const EntryIcon icon)
 {
     switch (icon)
@@ -859,6 +1105,27 @@ void BuildIconMask(IconMask& mask, const EntryIcon icon)
         AddUnitPolygon(mask, boltX, boltY, 6);
         break;
     }
+    case EntryIcon::Cpu:
+        AddChip(mask);
+        break;
+    case EntryIcon::Memory:
+        AddMemoryStick(mask);
+        break;
+    case EntryIcon::Gpu:
+        AddGraphicsBoard(mask);
+        break;
+    case EntryIcon::Disk:
+        AddDiskStack(mask);
+        break;
+    case EntryIcon::NetworkUp:
+        AddTransferArrow(mask, true);
+        break;
+    case EntryIcon::NetworkDown:
+        AddTransferArrow(mask, false);
+        break;
+    case EntryIcon::Fan:
+        AddFanGlyph(mask);
+        break;
     case EntryIcon::Unknown:
         // A neutral ring: it reads as "no reading" without imitating a real condition.
         AddUnitCircle(mask, 0.5, 0.5, 0.30);
@@ -870,48 +1137,204 @@ void BuildIconMask(IconMask& mask, const EntryIcon icon)
     }
 }
 
+// Rasterises one glyph into `box`. The mask covers only the box, clipped to the canvas, so a
+// strip of several glyphs costs a few small buffers instead of one canvas-sized buffer each.
+void ComposeGlyph(
+    Canvas& canvas,
+    const RECT& box,
+    const EntryIcon icon,
+    const COLORREF color,
+    const double alpha)
+{
+    const int size = box.right - box.left;
+    if (icon == EntryIcon::None || alpha <= 0.0 || size <= 0)
+    {
+        return;
+    }
+
+    // A glyph can reach slightly outside its box - the thunderbolt drops below it - so the
+    // mask is padded before being clipped to the canvas.
+    const int pad = std::max(2, size / 4);
+    const int left = std::max(0, static_cast<int>(box.left) - pad);
+    const int top = std::max(0, static_cast<int>(box.top) - pad);
+    const int right = std::min(canvas.width, static_cast<int>(box.right) + pad);
+    const int bottom = std::min(canvas.height, static_cast<int>(box.bottom) + pad);
+    if (right <= left || bottom <= top)
+    {
+        return;
+    }
+
+    const int width = right - left;
+    const int height = bottom - top;
+
+    IconMask mask{};
+    mask.width = width;
+    mask.height = height;
+    mask.coverage.assign(
+        static_cast<size_t>(width) * static_cast<size_t>(height),
+        0.0);
+    mask.unit = static_cast<double>(size);
+    mask.originX = static_cast<double>(box.left - left);
+    mask.originY = static_cast<double>(box.top - top);
+    BuildIconMask(mask, icon);
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            const double coverage = mask.coverage[
+                static_cast<size_t>(y) * static_cast<size_t>(width) +
+                    static_cast<size_t>(x)];
+            if (coverage > 0.0)
+            {
+                canvas.Blend(left + x, top + y, color, coverage * alpha);
+            }
+        }
+    }
+}
+
 void ComposeIcon(
     Canvas& canvas,
     const EntryRenderRequest& request,
     const COLORREF color,
     const double alpha)
 {
-    if (request.compact || request.icon == EntryIcon::None || alpha <= 0.0)
+    if (request.compact || request.icon == EntryIcon::None)
     {
         return;
     }
 
-    const RECT box = ResolveIconRect(request);
-    const int size = box.right - box.left;
-    if (size <= 0)
+    ComposeGlyph(canvas, ResolveIconRect(request), request.icon, color, alpha);
+}
+
+// The whole segmented strip: each glyph, each already-composed value, and a hairline between
+// neighbours. All the text goes through one scratch surface rather than one per segment.
+bool ComposeSegments(
+    Canvas& canvas,
+    const EntryRenderRequest& request,
+    const COLORREF color,
+    const double alpha)
+{
+    if (request.segments.empty() || alpha <= 0.0)
     {
-        return;
+        return true;
     }
 
-    IconMask mask{};
-    mask.width = canvas.width;
-    mask.height = canvas.height;
-    mask.coverage.assign(
-        static_cast<size_t>(mask.width) * static_cast<size_t>(mask.height),
-        0.0);
-    mask.unit = static_cast<double>(size);
-    mask.originX = static_cast<double>(box.left);
-    mask.originY = static_cast<double>(box.top);
-    BuildIconMask(mask, request.icon);
+    const TextMeasurer measurer(ResolveFontPixelHeight(request));
+    if (!measurer.IsReady())
+    {
+        return false;
+    }
+
+    const std::vector<SegmentLayout> layouts = ResolveSegmentLayout(request, measurer);
+
+    DibSurface textMask;
+    if (!textMask.Create(canvas.width, canvas.height))
+    {
+        return false;
+    }
+
+    HFONT font = CreateEntryFont(ResolveFontPixelHeight(request));
+    if (font == nullptr)
+    {
+        return false;
+    }
+
+    HGDIOBJ previousFont = SelectObject(textMask.deviceContext, font);
+    SetBkMode(textMask.deviceContext, TRANSPARENT);
+    SetTextColor(textMask.deviceContext, RGB(255, 255, 255));
+
+    for (size_t index = 0; index < layouts.size(); ++index)
+    {
+        const EntrySegment& segment = request.segments[index];
+        if (segment.text.empty())
+        {
+            continue;
+        }
+
+        RECT textRect = layouts[index].textRect;
+        DrawTextW(
+            textMask.deviceContext,
+            segment.text.c_str(),
+            static_cast<int>(segment.text.size()),
+            &textRect,
+            DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_LEFT | DT_NOCLIP);
+    }
+
+    SelectObject(textMask.deviceContext, previousFont);
+    DeleteObject(font);
 
     for (int y = 0; y < canvas.height; ++y)
     {
         for (int x = 0; x < canvas.width; ++x)
         {
-            const double coverage = mask.coverage[
-                static_cast<size_t>(y) * static_cast<size_t>(canvas.width) +
-                    static_cast<size_t>(x)];
-            if (coverage > 0.0)
+            const BYTE* const source = textMask.bits +
+                (static_cast<size_t>(y) * static_cast<size_t>(canvas.width) +
+                    static_cast<size_t>(x)) * 4;
+            const BYTE coverage = std::max(source[0], std::max(source[1], source[2]));
+            if (coverage != 0)
             {
-                canvas.Blend(x, y, color, coverage * alpha);
+                canvas.Blend(
+                    x,
+                    y,
+                    color,
+                    alpha * static_cast<double>(coverage) / 255.0);
             }
         }
     }
+
+    const double dividerWidth = static_cast<double>(
+        ScaleLogical(kEntryDividerWidthLogical, request.dpi));
+    const double dividerHeight = static_cast<double>(
+        ScaleLogical(kEntryDividerHeightLogical, request.dpi));
+    const double centerY =
+        (static_cast<double>(request.capsule.top) +
+            static_cast<double>(request.capsule.bottom)) / 2.0;
+
+    for (size_t index = 0; index < layouts.size(); ++index)
+    {
+        const SegmentLayout& layout = layouts[index];
+        ComposeGlyph(
+            canvas,
+            layout.iconRect,
+            request.segments[index].icon,
+            color,
+            alpha);
+
+        if (!layout.hasDivider)
+        {
+            continue;
+        }
+
+        const double centerX = static_cast<double>(layout.dividerCenterX);
+        const int left = static_cast<int>(std::floor(centerX - dividerWidth)) - 1;
+        const int right = static_cast<int>(std::ceil(centerX + dividerWidth)) + 1;
+        const int top = static_cast<int>(std::floor(centerY - dividerHeight / 2.0)) - 1;
+        const int bottom = static_cast<int>(std::ceil(centerY + dividerHeight / 2.0)) + 1;
+
+        for (int y = std::max(0, top); y <= std::min(canvas.height - 1, bottom); ++y)
+        {
+            for (int x = std::max(0, left); x <= std::min(canvas.width - 1, right); ++x)
+            {
+                const double coverage = CoverageFromDistance(RoundedRectDistance(
+                    static_cast<double>(x) + 0.5,
+                    static_cast<double>(y) + 0.5,
+                    centerX,
+                    centerY,
+                    dividerWidth / 2.0,
+                    dividerHeight / 2.0,
+                    dividerWidth / 2.0));
+                if (coverage > 0.0)
+                {
+                    // Well below the text: a separator that competes with the readings has
+                    // stopped being a separator.
+                    canvas.Blend(x, y, color, coverage * alpha * kDividerAlpha);
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 // --- condition illustration ------------------------------------------------------------
@@ -1346,6 +1769,11 @@ bool ComposeEntryBitmap(
     const double textAlpha = theme.highContrast
         ? 1.0
         : Lerp(theme.textAlpha, theme.activeTextAlpha, Clamp01(state.active));
+    if (!request.segments.empty())
+    {
+        return ComposeSegments(canvas, request, textColor, textAlpha);
+    }
+
     ComposeIcon(canvas, request, textColor, textAlpha);
     return ComposeText(canvas, request, textColor, textAlpha);
 }
@@ -1353,8 +1781,8 @@ bool ComposeEntryBitmap(
 
 EntryIcon ParseEntryIcon(const std::string_view conditionIconId)
 {
-    // The tokens are WeatherConditionContract values; keep them in one place on this side
-    // too so a new condition is a single edit rather than a scattered one.
+    // The tokens are WeatherConditionContract and SystemMonitorContract values; keep them in
+    // one place on this side too so a new one is a single edit rather than a scattered one.
     if (conditionIconId == "clear-day")
     {
         return EntryIcon::ClearDay;
@@ -1394,6 +1822,36 @@ EntryIcon ParseEntryIcon(const std::string_view conditionIconId)
     if (conditionIconId == "thunderstorm")
     {
         return EntryIcon::Thunderstorm;
+    }
+
+    // SystemMonitorContract icon tokens.
+    if (conditionIconId == "cpu")
+    {
+        return EntryIcon::Cpu;
+    }
+    if (conditionIconId == "memory")
+    {
+        return EntryIcon::Memory;
+    }
+    if (conditionIconId == "gpu")
+    {
+        return EntryIcon::Gpu;
+    }
+    if (conditionIconId == "disk")
+    {
+        return EntryIcon::Disk;
+    }
+    if (conditionIconId == "net-up")
+    {
+        return EntryIcon::NetworkUp;
+    }
+    if (conditionIconId == "net-down")
+    {
+        return EntryIcon::NetworkDown;
+    }
+    if (conditionIconId == "fan")
+    {
+        return EntryIcon::Fan;
     }
 
     return EntryIcon::Unknown;
@@ -1596,6 +2054,44 @@ int MeasureEntryContentWidthLogical(
     return ToLogical(extent.cx, dpi) +
         LeadingWidthLogical(icon) +
         TrailingWidthLogical(icon);
+}
+
+int MeasureEntrySegmentsWidthLogical(
+    const std::vector<EntrySegment>& segments,
+    const UINT dpi)
+{
+    if (segments.empty())
+    {
+        return 0;
+    }
+
+    const TextMeasurer measurer(ScaleLogical(kEntryFontSizeLogical, dpi));
+    if (!measurer.IsReady())
+    {
+        return 0;
+    }
+
+    int width = kEntryLeadingPaddingLogical +
+        kEntryIndicatorWidthLogical +
+        kEntryIndicatorGapLogical +
+        kEntryTrailingPaddingLogical;
+
+    for (size_t index = 0; index < segments.size(); ++index)
+    {
+        const EntrySegment& segment = segments[index];
+        if (segment.icon != EntryIcon::None)
+        {
+            width += kEntryIconSizeLogical + kEntryIconGapLogical;
+        }
+
+        width += ToLogical(measurer.Measure(segment.text), dpi);
+        if (index + 1 < segments.size())
+        {
+            width += kEntrySegmentGapLogical * 2 + kEntryDividerWidthLogical;
+        }
+    }
+
+    return width;
 }
 
 bool IsPointInCapsule(const RECT& capsule, const POINT clientPoint) noexcept
@@ -1834,10 +2330,16 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
     const int tileWidth = MulDiv(140, static_cast<int>(kDpi), 96);
     const int tileHeight = MulDiv(40, static_cast<int>(kDpi), 96);
     const int gap = MulDiv(8, static_cast<int>(kDpi), 96);
-    const int sheetWidth = gap + (tileWidth + gap) * 2;
-    const int sheetHeight = gap + (tileHeight + gap) * kIconCount;
+    // The hardware strip is far wider than a weather chip, so it gets its own two rows at the
+    // bottom of the sheet rather than being squeezed into the glyph column.
+    const int stripWidth = MulDiv(460, static_cast<int>(kDpi), 96);
+    const int sheetWidth = std::max(
+        gap + (tileWidth + gap) * 2,
+        gap + stripWidth + gap);
+    const int sheetHeight =
+        gap + (tileHeight + gap) * kIconCount + (tileHeight + gap) * 2;
 
-    const COLORREF darkStrip = RGB(32, 34, 38);
+    const COLORREF darkStrip1 = RGB(32, 34, 38);
     const COLORREF lightStrip = RGB(214, 224, 222);
 
     std::vector<BYTE> sheet(
@@ -1848,7 +2350,7 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
         for (int x = 0; x < sheetWidth; ++x)
         {
             const bool rightColumn = x > sheetWidth / 2;
-            const COLORREF background = rightColumn ? lightStrip : darkStrip;
+            const COLORREF background = rightColumn ? lightStrip : darkStrip1;
             const size_t index =
                 (static_cast<size_t>(y) * static_cast<size_t>(sheetWidth) +
                     static_cast<size_t>(x)) * 3;
@@ -1910,8 +2412,73 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
                 tile,
                 tileWidth,
                 tileHeight,
-                column == 0 ? darkStrip : lightStrip);
+                column == 0 ? darkStrip1 : lightStrip);
         }
+    }
+
+    // Two hardware strips, one per taskbar theme, with the glyph set the monitor actually
+    // uses and values in the shapes the broker composes.
+    const EntrySegment monitorSegments[] = {
+        EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+        EntrySegment{EntryIcon::Memory, L"MEM 61%"},
+        EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
+        EntrySegment{EntryIcon::NetworkDown, L"7.2 MB/s"},
+        EntrySegment{EntryIcon::NetworkUp, L"164 KB/s"},
+    };
+
+    for (int row = 0; row < 2; ++row)
+    {
+        const bool darkStrip = row == 0;
+        EntryTheme theme{};
+        theme.darkStrip = darkStrip;
+        theme.accent = RGB(0, 120, 212);
+        if (darkStrip)
+        {
+            theme.surfaceTint = RGB(255, 255, 255);
+            theme.text = RGB(255, 255, 255);
+            theme.restAlpha = 0.10;
+            theme.hoverAlpha = 0.20;
+            theme.pressedAlpha = 0.26;
+            theme.activeAlpha = 0.24;
+            theme.textAlpha = 0.92;
+            theme.activeTextAlpha = 1.0;
+        }
+        else
+        {
+            theme.surfaceTint = RGB(0, 0, 0);
+            theme.text = RGB(16, 16, 16);
+            theme.restAlpha = 0.07;
+            theme.hoverAlpha = 0.15;
+            theme.pressedAlpha = 0.21;
+            theme.activeAlpha = 0.20;
+            theme.textAlpha = 0.88;
+            theme.activeTextAlpha = 1.0;
+        }
+
+        EntryRenderRequest request{};
+        request.windowSize = SIZE{stripWidth, tileHeight};
+        request.capsule = RECT{0, 0, stripWidth, tileHeight};
+        request.dpi = kDpi;
+        request.segments.assign(
+            std::begin(monitorSegments),
+            std::end(monitorSegments));
+
+        std::vector<BYTE> tile;
+        if (!ComposeEntryBitmap(request, theme, EntryVisualState{}, tile))
+        {
+            failure = L"monitor strip composition failed";
+            return false;
+        }
+
+        BlitTile(
+            sheet,
+            sheetWidth,
+            gap,
+            gap + (tileHeight + gap) * (kIconCount + row),
+            tile,
+            stripWidth,
+            tileHeight,
+            darkStrip ? darkStrip1 : lightStrip);
     }
 
     return WriteBitmap24(path, sheet, sheetWidth, sheetHeight, failure);
@@ -2143,6 +2710,13 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             EntryIcon::Rain,
             EntryIcon::Snow,
             EntryIcon::Thunderstorm,
+            EntryIcon::Cpu,
+            EntryIcon::Memory,
+            EntryIcon::Gpu,
+            EntryIcon::Disk,
+            EntryIcon::NetworkUp,
+            EntryIcon::NetworkDown,
+            EntryIcon::Fan,
             EntryIcon::Unknown,
         };
 
@@ -2385,6 +2959,173 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             HasBackdrop(EntryIcon::None))
         {
             failure = L"the illustration is claimed for a condition that has none";
+            return false;
+        }
+    }
+
+    {
+        // The segmented strip: several readings, a hairline between neighbours, and a clean
+        // end when the configured set is wider than the entry can be.
+        EntryTheme theme{};
+        theme.darkStrip = true;
+        theme.accent = RGB(0, 120, 212);
+        theme.surfaceTint = RGB(255, 255, 255);
+        theme.text = RGB(255, 255, 255);
+        theme.restAlpha = 0.10;
+        theme.hoverAlpha = 0.20;
+        theme.pressedAlpha = 0.26;
+        theme.activeAlpha = 0.24;
+        theme.textAlpha = 0.92;
+        theme.activeTextAlpha = 1.0;
+
+        constexpr int kWidth = 420;
+        constexpr int kHeight = 40;
+
+        const auto compose = [&](
+            const std::vector<EntrySegment>& segments,
+            std::vector<BYTE>& pixels)
+        {
+            EntryRenderRequest request{};
+            request.windowSize = SIZE{kWidth, kHeight};
+            request.capsule = RECT{0, 0, kWidth, kHeight};
+            request.dpi = 96;
+            request.segments = segments;
+            return ComposeEntryBitmap(request, theme, EntryVisualState{}, pixels);
+        };
+
+        const auto alphaAt = [](const std::vector<BYTE>& pixels, const int x, const int y)
+        {
+            return pixels[(static_cast<size_t>(y) * static_cast<size_t>(kWidth) +
+                static_cast<size_t>(x)) * 4 + 3];
+        };
+
+        const std::vector<EntrySegment> three = {
+            EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+            EntrySegment{EntryIcon::Memory, L"MEM 61%"},
+            EntrySegment{EntryIcon::NetworkDown, L"7.2 MB/s"},
+        };
+
+        std::vector<BYTE> strip;
+        if (!compose(three, strip))
+        {
+            failure = L"the segmented strip failed to compose";
+            return false;
+        }
+
+        // Every segment has to leave ink: a glyph that silently drew nothing, or a value that
+        // landed outside its rectangle, would otherwise look like an empty stretch of strip.
+        const int thirds[] = {kWidth / 6, kWidth / 2, kWidth * 5 / 6};
+        for (const int sampleX : thirds)
+        {
+            bool hasInk = false;
+            for (int y = 0; y < kHeight && !hasInk; ++y)
+            {
+                for (int x = std::max(0, sampleX - 30);
+                    x < std::min(kWidth, sampleX + 30);
+                    ++x)
+                {
+                    if (alphaAt(strip, x, y) > 120)
+                    {
+                        hasInk = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasInk)
+            {
+                failure = L"a segment of the strip drew nothing";
+                return false;
+            }
+        }
+
+        // A single segment has no neighbour, so it must draw no divider at all. Comparing the
+        // two renders is what proves the hairline comes from the separation and not from the
+        // segment itself.
+        std::vector<BYTE> single;
+        if (!compose({EntrySegment{EntryIcon::Cpu, L"CPU 24%"}}, single))
+        {
+            failure = L"the single-segment strip failed to compose";
+            return false;
+        }
+
+        const auto inkColumns = [&](const std::vector<BYTE>& pixels)
+        {
+            int count = 0;
+            for (int x = 0; x < kWidth; ++x)
+            {
+                for (int y = 0; y < kHeight; ++y)
+                {
+                    if (alphaAt(pixels, x, y) > 96)
+                    {
+                        ++count;
+                        break;
+                    }
+                }
+            }
+
+            return count;
+        };
+
+        if (inkColumns(strip) <= inkColumns(single))
+        {
+            failure = L"three segments did not occupy more of the strip than one";
+            return false;
+        }
+
+        // More segments than fit must end the strip cleanly rather than clip one in half.
+        std::vector<EntrySegment> tooMany;
+        for (int index = 0; index < 8; ++index)
+        {
+            tooMany.push_back(EntrySegment{EntryIcon::Gpu, L"GPU 100%"});
+        }
+
+        std::vector<BYTE> overflowing;
+        if (!compose(tooMany, overflowing))
+        {
+            failure = L"the overflowing strip failed to compose";
+            return false;
+        }
+
+        const int trailing = ScaleLogical(kEntryTrailingPaddingLogical, 96);
+        for (int x = kWidth - trailing; x < kWidth; ++x)
+        {
+            for (int y = 0; y < kHeight; ++y)
+            {
+                // The capsule fill reaches the edge; only content is forbidden there, and
+                // content is what is opaque.
+                if (alphaAt(overflowing, x, y) > 200)
+                {
+                    failure = L"a dropped segment still painted into the trailing padding";
+                    return false;
+                }
+            }
+        }
+
+        if (MeasureEntrySegmentsWidthLogical(three, 96) <=
+            MeasureEntrySegmentsWidthLogical(
+                {EntrySegment{EntryIcon::Cpu, L"CPU 24%"}},
+                96))
+        {
+            failure = L"the segmented measurement does not grow with the segments";
+            return false;
+        }
+
+        if (ParseEntryIcon("cpu") != EntryIcon::Cpu ||
+            ParseEntryIcon("net-up") != EntryIcon::NetworkUp ||
+            ParseEntryIcon("net-down") != EntryIcon::NetworkDown ||
+            ParseEntryIcon("rain") != EntryIcon::Rain)
+        {
+            failure = L"the shared icon token table is wrong";
+            return false;
+        }
+
+        // A hardware glyph must never inherit the weather illustration.
+        if (HasBackdrop(EntryIcon::Cpu) ||
+            HasBackdrop(EntryIcon::NetworkUp) ||
+            !HasBackdrop(EntryIcon::Rain))
+        {
+            failure = L"the illustration is claimed for a glyph that has no sky";
             return false;
         }
     }

@@ -23,7 +23,6 @@ public static class SystemMonitorFormatter
     private static readonly HashSet<string> RateMetrics = new(StringComparer.Ordinal)
     {
         SystemMonitorContract.CpuUsage,
-        SystemMonitorContract.CpuClock,
         SystemMonitorContract.GpuUsage,
         SystemMonitorContract.GpuMemory,
         SystemMonitorContract.DiskActivity,

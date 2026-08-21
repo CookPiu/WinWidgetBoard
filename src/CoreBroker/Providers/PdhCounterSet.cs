@@ -9,8 +9,6 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// </summary>
 internal readonly record struct PdhReadings
 {
-    public double? CpuClockMhz { get; init; }
-
     public double? DiskBusyPercent { get; init; }
 
     public double? GpuUsagePercent { get; init; }
@@ -34,12 +32,6 @@ internal sealed class PdhCounterSet : IDisposable
     private const uint ErrorSuccess = 0;
     private const uint PdhMoreData = 0x800007D2;
 
-    // Processor Frequency reports the current clock in MHz directly. The obvious
-    // alternative - % Processor Performance times the registry's ~MHz - is wrong on a hybrid
-    // CPU: ~MHz records whatever the boot frequency happened to be, so on the reference
-    // machine (Core Ultra 5 225H) that product read 8.18 GHz.
-    private const string CpuFrequencyPath =
-        @"\Processor Information(_Total)\Processor Frequency";
     private const string DiskIdlePath = @"\PhysicalDisk(_Total)\% Idle Time";
     private const string GpuUtilizationPath = @"\GPU Engine(*)\Utilization Percentage";
     // An integrated GPU holds everything in shared memory and reports zero dedicated usage, so
@@ -48,7 +40,6 @@ internal sealed class PdhCounterSet : IDisposable
     private const string GpuSharedMemoryPath = @"\GPU Adapter Memory(*)\Shared Usage";
 
     private readonly IntPtr _query;
-    private readonly IntPtr _cpuFrequency;
     private readonly IntPtr _diskIdle;
     private readonly IntPtr _gpuUtilization;
     private readonly IntPtr _gpuDedicatedMemory;
@@ -59,14 +50,12 @@ internal sealed class PdhCounterSet : IDisposable
 
     private PdhCounterSet(
         IntPtr query,
-        IntPtr cpuFrequency,
         IntPtr diskIdle,
         IntPtr gpuUtilization,
         IntPtr gpuDedicatedMemory,
         IntPtr gpuSharedMemory)
     {
         _query = query;
-        _cpuFrequency = cpuFrequency;
         _diskIdle = diskIdle;
         _gpuUtilization = gpuUtilization;
         _gpuDedicatedMemory = gpuDedicatedMemory;
@@ -84,14 +73,12 @@ internal sealed class PdhCounterSet : IDisposable
             return null;
         }
 
-        IntPtr cpuFrequency = TryAddCounter(query, CpuFrequencyPath);
         IntPtr diskIdle = TryAddCounter(query, DiskIdlePath);
         IntPtr gpuUtilization = TryAddCounter(query, GpuUtilizationPath);
         IntPtr gpuDedicatedMemory = TryAddCounter(query, GpuDedicatedMemoryPath);
         IntPtr gpuSharedMemory = TryAddCounter(query, GpuSharedMemoryPath);
 
-        if (cpuFrequency == IntPtr.Zero &&
-            diskIdle == IntPtr.Zero &&
+        if (diskIdle == IntPtr.Zero &&
             gpuUtilization == IntPtr.Zero &&
             gpuDedicatedMemory == IntPtr.Zero &&
             gpuSharedMemory == IntPtr.Zero)
@@ -102,7 +89,6 @@ internal sealed class PdhCounterSet : IDisposable
 
         return new PdhCounterSet(
             query,
-            cpuFrequency,
             diskIdle,
             gpuUtilization,
             gpuDedicatedMemory,
@@ -135,7 +121,6 @@ internal sealed class PdhCounterSet : IDisposable
         double? diskIdle = ReadSingle(_diskIdle);
         return new PdhReadings
         {
-            CpuClockMhz = ReadSingle(_cpuFrequency),
             DiskBusyPercent = diskIdle is { } idle
                 ? Math.Clamp(100d - idle, 0d, 100d)
                 : null,

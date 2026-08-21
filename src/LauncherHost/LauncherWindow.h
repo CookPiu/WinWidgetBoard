@@ -52,8 +52,13 @@ private:
     {
         std::wstring text;
         EntryIcon icon{EntryIcon::None};
+        // Populated only by the hardware monitor, which shows several readings at once. The
+        // other modes stay on the single text-and-glyph path.
+        std::vector<EntrySegment> segments;
     };
     [[nodiscard]] EntryContent ComposeContent() const;
+    [[nodiscard]] int MeasureContentWidthLogical() const;
+    void ApplyContentMode();
     [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
     void HandleMenuCommand(UINT command);

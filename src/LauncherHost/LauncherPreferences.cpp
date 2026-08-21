@@ -61,6 +61,8 @@ LauncherContentMode ToContent(const DWORD value)
     {
     case 1:
         return LauncherContentMode::Weather;
+    case 2:
+        return LauncherContentMode::SystemMonitor;
     case 0:
     default:
         return LauncherContentMode::DateTime;
@@ -99,7 +101,16 @@ DWORD FromLeftAlignFallback(const LauncherLeftAlignFallback fallback)
 
 DWORD FromContent(const LauncherContentMode content)
 {
-    return content == LauncherContentMode::Weather ? 1u : 0u;
+    switch (content)
+    {
+    case LauncherContentMode::Weather:
+        return 1u;
+    case LauncherContentMode::SystemMonitor:
+        return 2u;
+    case LauncherContentMode::DateTime:
+    default:
+        return 0u;
+    }
 }
 
 bool WriteDword(const HKEY key, const wchar_t* name, const DWORD value)

@@ -82,6 +82,7 @@ public sealed class SystemMonitorFormatterTests
             SystemMonitorContract.CpuTemperature,
             SystemMonitorContract.GpuTemperature,
             SystemMonitorContract.FanSpeed,
+            SystemMonitorContract.CpuClock,
         })
         {
             SystemMonitorMetricDto metric = SystemMonitorFormatter.FormatMetric(

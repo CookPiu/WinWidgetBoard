@@ -111,7 +111,13 @@ public sealed class SystemMetricSampler : IDisposable
         return new SystemMetricSample
         {
             CpuUsagePercent = cpuUsage,
-            CpuClockMhz = pdh.CpuClockMhz,
+            // Not measurable from user mode on a hybrid CPU. Processor Frequency reports a
+            // fixed nominal - 1.33 GHz on the reference machine while the part was actually
+            // running near 4.2 GHz - and % Processor Performance times the registry's ~MHz
+            // gives 8.18 GHz, because ~MHz records the boot frequency rather than the base.
+            // A wrong number next to Task Manager is worse than an honest gap, so the clock
+            // waits for the sensor service like the temperatures do.
+            CpuClockMhz = null,
             MemoryUsedBytes = memoryUsed,
             MemoryTotalBytes = memoryTotal,
             GpuUsagePercent = pdh.GpuUsagePercent,

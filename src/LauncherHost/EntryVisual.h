@@ -4,6 +4,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace winwidgetboard::launcher
 {
@@ -22,6 +23,11 @@ inline constexpr int kEntryIconGapLogical = 8;
 // cap instead of sitting under the temperature. It mirrors the card, where the illustration
 // owns the empty bottom-right corner rather than the text column.
 inline constexpr int kEntryMotifWidthLogical = 26;
+// Hardware readings are shown as several segments on one strip. The divider is a hairline
+// rather than a gap alone: at four segments, spacing by itself stops reading as separation.
+inline constexpr int kEntrySegmentGapLogical = 10;
+inline constexpr int kEntryDividerWidthLogical = 1;
+inline constexpr int kEntryDividerHeightLogical = 14;
 
 // The condition glyphs the entry can draw. They are drawn from primitives rather than taken
 // from an icon font: the entry composites its own premultiplied bitmap, and a font would add
@@ -39,12 +45,30 @@ enum class EntryIcon : unsigned char
     Rain,
     Snow,
     Thunderstorm,
+    // Hardware monitor glyphs. They share the enum and the drawing primitives with the
+    // weather set so both look like they came from the same hand, but they carry no
+    // illustration: a condition has a sky, a CPU does not.
+    Cpu,
+    Memory,
+    Gpu,
+    Disk,
+    NetworkUp,
+    NetworkDown,
+    Fan,
     Unknown,
 };
 
-// Maps a WeatherConditionContract token to a glyph. Anything unrecognised becomes Unknown,
+// Maps a WeatherConditionContract or SystemMonitorContract icon token to a glyph. The two
+// token sets are disjoint, so one table serves both. Anything unrecognised becomes Unknown,
 // which draws a neutral mark rather than nothing at all.
-EntryIcon ParseEntryIcon(std::string_view conditionIconId);
+EntryIcon ParseEntryIcon(std::string_view iconId);
+
+// One piece of a multi-reading entry: a glyph and the text the broker already composed.
+struct EntrySegment
+{
+    EntryIcon icon{EntryIcon::None};
+    std::wstring text;
+};
 
 // Everything the entry needs to paint itself in the user's current theme. The entry draws on
 // a layered window, where XAML's ThemeResource lookups do not exist, so the panel's palette
@@ -124,6 +148,10 @@ struct EntryRenderRequest
     // Drawn between the indicator and the text. None removes it and its spacing entirely.
     EntryIcon icon{EntryIcon::None};
     std::wstring text;
+    // When non-empty this replaces `icon` and `text`: the entry lays the segments out in a
+    // row with a hairline between them. Used by the hardware monitor, where one strip carries
+    // several readings at once.
+    std::vector<EntrySegment> segments;
 };
 
 // Composes the entry into a premultiplied BGRA bitmap and hands it to the layered window in
@@ -142,6 +170,11 @@ int MeasureEntryContentWidthLogical(
     UINT dpi,
     bool compact,
     EntryIcon icon = EntryIcon::None);
+
+// Logical width a segmented entry needs, dividers and per-segment glyphs included.
+int MeasureEntrySegmentsWidthLogical(
+    const std::vector<EntrySegment>& segments,
+    UINT dpi);
 
 // True when `clientPoint` is inside the capsule itself rather than its bounding box, so the
 // rounded corners stay click-through now that no window region clips them.

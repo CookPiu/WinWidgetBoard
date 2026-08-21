@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 namespace winwidgetboard::launcher
 {
@@ -50,6 +51,21 @@ public:
     // Last weather reading the broker reported, or an empty summary when there is none.
     // Safe to call from the UI thread; the value is refreshed on the worker thread.
     [[nodiscard]] WeatherSummary GetWeatherSummary() const;
+
+    // One already-composed hardware reading. The broker owns units and rounding, so this side
+    // never formats a number.
+    struct MonitorSegment
+    {
+        std::string iconId;
+        std::wstring text;
+    };
+
+    // Turns the two-second hardware poll on or off. Asking for a summary is also what keeps
+    // the broker sampling at all, so polling while nothing displays it would hold the machine
+    // awake for a reading nobody reads.
+    void SetSystemMonitorEnabled(bool enabled);
+
+    [[nodiscard]] std::vector<MonitorSegment> GetSystemMonitorSegments() const;
 
 private:
     bool ConnectAndHandshake(const std::wstring& sessionToken);
@@ -93,6 +109,11 @@ private:
         std::string_view field);
     void RunLoop();
     bool RefreshWeatherSummary();
+    bool RefreshSystemMonitorSummary();
+    static bool ParseMonitorSegments(
+        std::string_view response,
+        std::vector<MonitorSegment>& segments);
+    static std::string UnescapeJson(std::string_view value);
     void WaitForWake(ULONGLONG milliseconds);
     void ClosePipe();
 
@@ -100,8 +121,12 @@ private:
     ULONGLONG _nextConnectionAttemptTick{};
     ULONGLONG _nextHeartbeatTick{};
     ULONGLONG _nextWeatherTick{};
+    ULONGLONG _nextMonitorTick{};
+    std::atomic<bool> _monitorEnabled{};
     mutable std::mutex _weatherMutex;
     WeatherSummary _weatherSummary;
+    mutable std::mutex _monitorMutex;
+    std::vector<MonitorSegment> _monitorSegments;
     std::atomic<bool> _stopRequested{};
     std::atomic<bool> _connected{};
     std::condition_variable _wakeCondition;

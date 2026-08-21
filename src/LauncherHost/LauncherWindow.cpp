@@ -16,6 +16,9 @@ constexpr UINT_PTR kVisibilityTimerId = 1;
 constexpr UINT kVisibilityPollMilliseconds = 500;
 constexpr UINT_PTR kContentTimerId = 2;
 constexpr UINT kContentPollMilliseconds = 15000;
+// Hardware readings go stale in seconds, so that mode repaints on the provider's own cadence
+// instead of the clock's.
+constexpr UINT kMonitorContentPollMilliseconds = 2000;
 // Runs only while a state change is in flight, and is killed the moment it settles, so a
 // resting entry costs no timer wake-ups at all.
 constexpr UINT_PTR kAnimationTimerId = 3;
@@ -34,6 +37,7 @@ enum ContextMenuCommand : UINT
     MenuExit = 1006,
     MenuContentDateTime = 1010,
     MenuContentWeather = 1011,
+    MenuContentSystemMonitor = 1012,
     MenuPlacementEmbeddedLeft = 1020,
     MenuPlacementEmbeddedCenter = 1021,
     MenuPlacementEmbeddedRight = 1022,
@@ -161,11 +165,7 @@ bool LauncherWindow::Create(
     QueryPerformanceFrequency(&frequency);
     _performanceFrequency = frequency.QuadPart;
     _content = ComposeContent();
-    _contentWidthLogical = MeasureEntryContentWidthLogical(
-        _content.text,
-        _dpi,
-        false,
-        _content.icon);
+    _contentWidthLogical = MeasureContentWidthLogical();
 
     if (!InitializePlacement(error))
     {
@@ -199,11 +199,7 @@ bool LauncherWindow::Create(
     {
         _dpi = 96;
     }
-    _contentWidthLogical = MeasureEntryContentWidthLogical(
-        _content.text,
-        _dpi,
-        false,
-        _content.icon);
+    _contentWidthLogical = MeasureContentWidthLogical();
     if (!InitializePlacement(error))
     {
         Destroy();
@@ -214,7 +210,7 @@ bool LauncherWindow::Create(
     _animator.SnapToTarget();
     ApplyPlacement();
     SetTimer(_window, kVisibilityTimerId, kVisibilityPollMilliseconds, nullptr);
-    SetTimer(_window, kContentTimerId, kContentPollMilliseconds, nullptr);
+    ApplyContentMode();
     _coreBroker.Poll();
     return true;
 }
@@ -336,8 +332,45 @@ bool LauncherWindow::IsEmbedded() const noexcept
     return _placement.mode == LauncherPlacementMode::ExactWidgetReplacement;
 }
 
+// The entry has two content shapes and therefore two measurements. Keeping the choice in one
+// place stops a caller from measuring a segmented strip as if it were a single label.
+int LauncherWindow::MeasureContentWidthLogical() const
+{
+    if (!_content.segments.empty())
+    {
+        return MeasureEntrySegmentsWidthLogical(_content.segments, _dpi);
+    }
+
+    return MeasureEntryContentWidthLogical(
+        _content.text,
+        _dpi,
+        false,
+        _content.icon);
+}
+
 LauncherWindow::EntryContent LauncherWindow::ComposeContent() const
 {
+    if (_preferences.content == LauncherContentMode::SystemMonitor)
+    {
+        const std::vector<CoreBrokerClient::MonitorSegment> readings =
+            _coreBroker.GetSystemMonitorSegments();
+        if (!readings.empty())
+        {
+            EntryContent content;
+            content.segments.reserve(readings.size());
+            for (const CoreBrokerClient::MonitorSegment& reading : readings)
+            {
+                content.segments.push_back(
+                    EntrySegment{ParseEntryIcon(reading.iconId), reading.text});
+            }
+
+            return content;
+        }
+
+        // Nothing sampled yet: fall through to the clock rather than showing an empty strip
+        // or a row of placeholders that look like readings.
+    }
+
     if (_preferences.content == LauncherContentMode::Weather)
     {
         // Until the first successful refresh reaches the broker there is nothing to show;
@@ -386,15 +419,28 @@ LauncherWindow::EntryContent LauncherWindow::ComposeContent() const
 bool LauncherWindow::RefreshContent()
 {
     EntryContent content = ComposeContent();
-    const bool textChanged =
+    bool textChanged =
         content.text != _content.text || content.icon != _content.icon;
+    if (!textChanged && content.segments.size() != _content.segments.size())
+    {
+        textChanged = true;
+    }
+    else if (!textChanged)
+    {
+        for (size_t index = 0; index < content.segments.size(); ++index)
+        {
+            if (content.segments[index].text != _content.segments[index].text ||
+                content.segments[index].icon != _content.segments[index].icon)
+            {
+                textChanged = true;
+                break;
+            }
+        }
+    }
+
     _content = std::move(content);
 
-    const int measured = MeasureEntryContentWidthLogical(
-        _content.text,
-        _dpi,
-        false,
-        _content.icon);
+    const int measured = MeasureContentWidthLogical();
     const bool widthChanged =
         std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical;
     if (widthChanged)
@@ -420,8 +466,26 @@ void LauncherWindow::ApplyPreferences(const LauncherEntryPreferences& preference
         Log(L"failed to persist launcher preferences");
     }
 
+    ApplyContentMode();
     RefreshContent();
     Reposition();
+}
+
+// Asking the broker for a hardware summary is also what keeps it sampling, so the request and
+// the repaint cadence are turned on together and off together.
+void LauncherWindow::ApplyContentMode()
+{
+    const bool monitor =
+        _preferences.content == LauncherContentMode::SystemMonitor;
+    _coreBroker.SetSystemMonitorEnabled(monitor);
+    if (_window != nullptr)
+    {
+        SetTimer(
+            _window,
+            kContentTimerId,
+            monitor ? kMonitorContentPollMilliseconds : kContentPollMilliseconds,
+            nullptr);
+    }
 }
 
 void LauncherWindow::Render()
@@ -442,6 +506,10 @@ void LauncherWindow::Render()
     request.compact = !IsEmbedded();
     request.text = request.compact ? std::wstring(L"W") : _content.text;
     request.icon = request.compact ? EntryIcon::None : _content.icon;
+    if (!request.compact)
+    {
+        request.segments = _content.segments;
+    }
 
     std::wstring error;
     if (!RenderEntry(_window, request, _theme, _animator.Value(), error))
@@ -548,6 +616,11 @@ void LauncherWindow::ShowContextMenu(const POINT screenPoint)
             MenuContentWeather,
             L"天气",
             _preferences.content == LauncherContentMode::Weather);
+        AppendRadioItem(
+            contentMenu,
+            MenuContentSystemMonitor,
+            L"硬件监控",
+            _preferences.content == LauncherContentMode::SystemMonitor);
         AppendMenuW(
             menu,
             MF_STRING | MF_POPUP,
@@ -657,11 +730,14 @@ void LauncherWindow::HandleMenuCommand(const UINT command)
         break;
     case MenuContentDateTime:
     case MenuContentWeather:
+    case MenuContentSystemMonitor:
     {
         LauncherEntryPreferences updated = _preferences;
         updated.content = command == MenuContentWeather
             ? LauncherContentMode::Weather
-            : LauncherContentMode::DateTime;
+            : command == MenuContentSystemMonitor
+                ? LauncherContentMode::SystemMonitor
+                : LauncherContentMode::DateTime;
         ApplyPreferences(updated);
         break;
     }

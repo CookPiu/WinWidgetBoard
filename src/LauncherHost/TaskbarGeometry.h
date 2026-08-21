@@ -46,6 +46,7 @@ enum class LauncherContentMode : unsigned char
 {
     DateTime,
     Weather,
+    SystemMonitor,
 };
 
 struct LauncherEntryPreferences

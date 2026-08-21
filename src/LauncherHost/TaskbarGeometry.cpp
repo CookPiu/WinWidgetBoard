@@ -18,7 +18,9 @@ constexpr int kEdgeGapLogical = 8;
 constexpr int kMinimumTaskbarThicknessPx = 8;
 constexpr int kMaximumTaskbarThicknessPx = 240;
 constexpr int kEntryMinWidthLogical = 96;
-constexpr int kEntryMaxWidthLogical = 280;
+// Wide enough for the hardware monitor's several readings on one strip. The other content
+// modes are unaffected: width follows the measured content, and a clock never gets near this.
+constexpr int kEntryMaxWidthLogical = 520;
 constexpr int kEntryWidthQuantumLogical = 4;
 constexpr int kEntryMinHeightLogical = 32;
 constexpr int kEntryMaxHeightLogical = 40;

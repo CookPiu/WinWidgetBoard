@@ -88,8 +88,8 @@ try {
     if ($dpi -le 0) { $dpi = 96 }
     $widthLogical = [int][math]::Round($width * 96.0 / $dpi)
     $heightLogical = [int][math]::Round($height * 96.0 / $dpi)
-    if ($widthLogical -lt 96 -or $widthLogical -gt 280) {
-        throw "Entry width $widthLogical DIP is outside the supported 96..280 range."
+    if ($widthLogical -lt 96 -or $widthLogical -gt 460) {
+        throw "Entry width $widthLogical DIP is outside the supported 96..460 range."
     }
     if ($heightLogical -lt 32) {
         throw "Entry height $heightLogical DIP is below the 32 DIP hit-target minimum."

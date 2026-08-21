@@ -28,6 +28,9 @@ constexpr ULONGLONG kHeartbeatIntervalMilliseconds = 5000;
 // far more often than the projection can change. Before the first reading exists - broker
 // just started, network still coming up - poll faster so the entry fills in promptly.
 constexpr ULONGLONG kWeatherPollIntervalMilliseconds = 60000;
+// The hardware monitor is the one reading where a stale number is a wrong number, so it polls
+// at the provider's own cadence rather than at the weather's leisurely one.
+constexpr ULONGLONG kMonitorPollIntervalMilliseconds = 2000;
 constexpr ULONGLONG kWeatherInitialPollIntervalMilliseconds = 3000;
 constexpr uint32_t kMaxMessageBytes = 1024 * 1024;
 
@@ -164,6 +167,14 @@ void CoreBrokerClient::RunLoop()
             }
         }
 
+        if (IsConnected() &&
+            _monitorEnabled.load(std::memory_order_acquire) &&
+            now >= _nextMonitorTick)
+        {
+            RefreshSystemMonitorSummary();
+            _nextMonitorTick = now + kMonitorPollIntervalMilliseconds;
+        }
+
         if (IsConnected() && now >= _nextWeatherTick)
         {
             const bool hasReading = RefreshWeatherSummary();
@@ -209,6 +220,150 @@ bool CoreBrokerClient::RefreshWeatherSummary()
     std::lock_guard lock(_weatherMutex);
     _weatherSummary = std::move(summary);
     return hasReading;
+}
+
+void CoreBrokerClient::SetSystemMonitorEnabled(const bool enabled)
+{
+    const bool previous = _monitorEnabled.exchange(enabled, std::memory_order_acq_rel);
+    if (previous == enabled)
+    {
+        return;
+    }
+
+    if (!enabled)
+    {
+        std::lock_guard lock(_monitorMutex);
+        _monitorSegments.clear();
+        return;
+    }
+
+    // Ask on the next loop pass rather than waiting out a full interval, so switching the
+    // entry to hardware does not show an empty strip for two seconds.
+    _nextMonitorTick = 0;
+    _wakeCondition.notify_all();
+}
+
+std::vector<CoreBrokerClient::MonitorSegment>
+CoreBrokerClient::GetSystemMonitorSegments() const
+{
+    std::lock_guard lock(_monitorMutex);
+    return _monitorSegments;
+}
+
+bool CoreBrokerClient::RefreshSystemMonitorSummary()
+{
+    std::string response;
+    if (!SendRequest(
+            "sysmon.summary.get",
+            "{\"instanceId\":\"demo.sysmon\"}",
+            response))
+    {
+        ClosePipe();
+        return false;
+    }
+
+    std::vector<MonitorSegment> segments;
+    if (!ParseMonitorSegments(response, segments))
+    {
+        return false;
+    }
+
+    std::lock_guard lock(_monitorMutex);
+    _monitorSegments = std::move(segments);
+    return true;
+}
+
+// A deliberately small reader for one known shape: the segments array of
+// sysmon.summary.get. LauncherHost has no JSON library and is not getting one for this.
+bool CoreBrokerClient::ParseMonitorSegments(
+    const std::string_view response,
+    std::vector<MonitorSegment>& segments)
+{
+    constexpr std::string_view kSegmentsKey = "\"segments\":[";
+    const size_t arrayStart = response.find(kSegmentsKey);
+    if (arrayStart == std::string_view::npos)
+    {
+        return false;
+    }
+
+    size_t cursor = arrayStart + kSegmentsKey.size();
+    while (cursor < response.size())
+    {
+        const size_t objectStart = response.find('{', cursor);
+        if (objectStart == std::string_view::npos)
+        {
+            break;
+        }
+
+        const size_t objectEnd = response.find('}', objectStart);
+        if (objectEnd == std::string_view::npos)
+        {
+            break;
+        }
+
+        // Stop at the end of this array rather than wandering into the next object in the
+        // envelope: a closing bracket before the next brace means the array is done.
+        const size_t arrayEnd = response.find(']', cursor);
+        if (arrayEnd != std::string_view::npos && arrayEnd < objectStart)
+        {
+            break;
+        }
+
+        const std::string_view object =
+            response.substr(objectStart, objectEnd - objectStart + 1);
+        std::string iconId;
+        std::string text;
+        if (FindJsonString(object, "iconId", iconId) &&
+            FindJsonString(object, "text", text))
+        {
+            MonitorSegment segment;
+            segment.iconId = std::move(iconId);
+            segment.text = WideFromUtf8(UnescapeJson(text));
+            segments.push_back(std::move(segment));
+        }
+
+        cursor = objectEnd + 1;
+    }
+
+    return true;
+}
+
+std::string CoreBrokerClient::UnescapeJson(const std::string_view value)
+{
+    std::string result;
+    result.reserve(value.size());
+    for (size_t index = 0; index < value.size(); ++index)
+    {
+        if (value[index] != '\\' || index + 1 >= value.size())
+        {
+            result.push_back(value[index]);
+            continue;
+        }
+
+        const char next = value[index + 1];
+        switch (next)
+        {
+        case '"':
+        case '\\':
+        case '/':
+            result.push_back(next);
+            ++index;
+            break;
+        case 'n':
+            result.push_back('\n');
+            ++index;
+            break;
+        case 't':
+            result.push_back('\t');
+            ++index;
+            break;
+        default:
+            result.push_back(value[index]);
+            break;
+        }
+    }
+
+    return result;
 }
 
 std::wstring CoreBrokerClient::WideFromUtf8(const std::string_view value)
