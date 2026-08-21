@@ -149,7 +149,19 @@ public sealed class CardRuntimeStatusUiContractTests
         string styles = File.ReadAllText(GetAssetPath(
             "Styles",
             "WorkspaceVisualStyles.xaml"));
-        Assert.IsFalse(styles.Contains('#', StringComparison.Ordinal));
+        // Literal colour is allowed only on the weather illustration palette, which
+        // UT-UI-002 pins in detail; here it is enough that nothing else acquired one.
+        foreach (string line in styles.Split('\n'))
+        {
+            if (line.Contains('#', StringComparison.Ordinal))
+            {
+                StringAssert.Contains(
+                    line,
+                    "WwbWeather",
+                    "Only the weather illustration palette may state a literal color.");
+            }
+        }
+
         StringAssert.Contains(styles, "CardRuntimeStatus");
 
         string mainWindowCode = File.ReadAllText(GetSourcePath(

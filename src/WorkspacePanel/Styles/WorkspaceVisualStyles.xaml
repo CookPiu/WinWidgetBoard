@@ -6,6 +6,20 @@
         <ResourceDictionary x:Key="Default">
             <Thickness x:Key="WwbSurfaceBorderThickness">0</Thickness>
             <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
+            <!--
+                The weather illustration is the one place in the panel that needs literal
+                colour: no Windows semantic brush means "overcast sky". The whole palette is
+                defined here and nowhere else, so a page never states a colour of its own,
+                and high contrast drops all of it below.
+            -->
+            <SolidColorBrush x:Key="WwbWeatherSkyClearBrush" Color="#4AA3E8" Opacity="0.22" />
+            <SolidColorBrush x:Key="WwbWeatherSkyNightBrush" Color="#4C5DA8" Opacity="0.24" />
+            <SolidColorBrush x:Key="WwbWeatherSkyCloudyBrush" Color="#8996A6" Opacity="0.20" />
+            <SolidColorBrush x:Key="WwbWeatherSkyWetBrush" Color="#5480A8" Opacity="0.22" />
+            <SolidColorBrush x:Key="WwbWeatherSkySnowBrush" Color="#9CC4E4" Opacity="0.20" />
+            <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="#5B5488" Opacity="0.26" />
+            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#FFFFFF" Opacity="0.10" />
+            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#FFFFFF" Opacity="0.20" />
             <LinearGradientBrush
                 x:Key="WwbPanelAccentWashBrush"
                 StartPoint="0,0"
@@ -19,12 +33,49 @@
                     Offset="0.38" />
             </LinearGradientBrush>
         </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+            <Thickness x:Key="WwbSurfaceBorderThickness">0</Thickness>
+            <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
+            <LinearGradientBrush
+                x:Key="WwbPanelAccentWashBrush"
+                StartPoint="0,0"
+                EndPoint="0,1"
+                Opacity="0.06">
+                <GradientStop
+                    Color="{ThemeResource SystemAccentColor}"
+                    Offset="0" />
+                <GradientStop
+                    Color="Transparent"
+                    Offset="0.38" />
+            </LinearGradientBrush>
+            <!--
+                A light card needs a stronger wash to read at all, and the motif has to be a
+                darker tone rather than white, which would vanish into the surface.
+            -->
+            <SolidColorBrush x:Key="WwbWeatherSkyClearBrush" Color="#2E8BD8" Opacity="0.20" />
+            <SolidColorBrush x:Key="WwbWeatherSkyNightBrush" Color="#3B4C96" Opacity="0.20" />
+            <SolidColorBrush x:Key="WwbWeatherSkyCloudyBrush" Color="#6E7C8C" Opacity="0.18" />
+            <SolidColorBrush x:Key="WwbWeatherSkyWetBrush" Color="#3E6E96" Opacity="0.20" />
+            <SolidColorBrush x:Key="WwbWeatherSkySnowBrush" Color="#7FAED4" Opacity="0.20" />
+            <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="#4A4276" Opacity="0.22" />
+            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#173A5E" Opacity="0.12" />
+            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#173A5E" Opacity="0.22" />
+        </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <Thickness x:Key="WwbSurfaceBorderThickness">1</Thickness>
             <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
             <SolidColorBrush
                 x:Key="WwbPanelAccentWashBrush"
                 Color="Transparent" />
+            <!-- High contrast conveys state with text and shape only; no illustration. -->
+            <SolidColorBrush x:Key="WwbWeatherSkyClearBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherSkyNightBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherSkyCloudyBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherSkyWetBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherSkySnowBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="Transparent" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

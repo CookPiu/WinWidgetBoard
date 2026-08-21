@@ -153,6 +153,22 @@ public static class WinWidgetBoardUiAutomationInput
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindowVisible(IntPtr window);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PrintWindow(IntPtr window, IntPtr deviceContext, uint flags);
+
+    // PW_RENDERFULLCONTENT. Without it a DWM-composited window renders blank.
+    private const uint PrintWindowFullContent = 0x00000002;
+
+    // Copies a window's own content, so a capture does not depend on the window being
+    // focused or unobscured. Screen-region capture cannot give that: whatever sits on top
+    // is what lands in the bitmap, and a resident panel that hides on focus loss makes
+    // "just bring it to the front first" unreliable.
+    public static bool PrintWindowToDc(IntPtr window, IntPtr deviceContext)
+    {
+        return PrintWindow(window, deviceContext, PrintWindowFullContent);
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint inputCount, Input[] inputs, int inputSize);
 
@@ -722,6 +738,54 @@ function Move-PointerToPoint {
     }
 }
 
+# Captures one window's own content to a PNG, regardless of z-order or focus. Prefer this
+# over Save-ScreenRegionCapture whenever the target is a window this session owns.
+function Save-WindowCapture {
+    param(
+        [Parameter(Mandatory = $true)][IntPtr]$WindowHandle,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    Add-Type -AssemblyName System.Drawing
+    $rect = New-Object 'WinWidgetBoardUiAutomationInput+WindowRect'
+    if (-not [WinWidgetBoardUiAutomationInput]::GetWindowRect($WindowHandle, [ref]$rect)) {
+        throw "GetWindowRect failed for window $WindowHandle."
+    }
+
+    $width = $rect.Right - $rect.Left
+    $height = $rect.Bottom - $rect.Top
+    if ($width -le 0 -or $height -le 0) {
+        throw "Window $WindowHandle has no drawable area."
+    }
+
+    $bitmap = New-Object 'System.Drawing.Bitmap' $width, $height
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $deviceContext = $graphics.GetHdc()
+            try {
+                if (-not [WinWidgetBoardUiAutomationInput]::PrintWindowToDc(
+                        $WindowHandle, $deviceContext)) {
+                    throw "PrintWindow failed for window $WindowHandle."
+                }
+            }
+            finally {
+                $graphics.ReleaseHdc($deviceContext)
+            }
+        }
+        finally {
+            $graphics.Dispose()
+        }
+
+        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    }
+    finally {
+        $bitmap.Dispose()
+    }
+
+    return $Path
+}
+
 # Captures a screen rectangle to a PNG. Used to review how a surface actually renders when
 # no automation property describes it - colour, antialiasing, elevation and motion states.
 function Save-ScreenRegionCapture {
@@ -877,6 +941,7 @@ Export-ModuleMember -Function @(
     'Invoke-LeftClickAtPoint',
     'Move-PointerToPoint',
     'Save-ScreenRegionCapture',
+    'Save-WindowCapture',
     'Stop-WinWidgetBoardProcess',
     'Stop-TestProcess',
     'Stop-OwnedProcess',

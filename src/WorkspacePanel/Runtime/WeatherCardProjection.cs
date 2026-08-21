@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using WinWidgetBoard.Contracts.Protocol;
 
 namespace WinWidgetBoard.WorkspacePanel.Runtime;
 
@@ -14,6 +15,7 @@ public sealed record WeatherCardProjection
         string temperatureText,
         string apparentTemperatureText,
         string conditionText,
+        string conditionIconId,
         string humidityText,
         string windText,
         string observedAtText,
@@ -25,6 +27,7 @@ public sealed record WeatherCardProjection
         TemperatureText = temperatureText;
         ApparentTemperatureText = apparentTemperatureText;
         ConditionText = conditionText;
+        ConditionIconId = conditionIconId;
         HumidityText = humidityText;
         WindText = windText;
         ObservedAtText = observedAtText;
@@ -40,6 +43,13 @@ public sealed record WeatherCardProjection
     public string ApparentTemperatureText { get; }
 
     public string ConditionText { get; }
+
+    /// <summary>
+    /// A <see cref="WeatherConditionContract"/> token. The card picks its illustration from
+    /// this rather than from the WMO code, so the panel, the broker and the taskbar entry
+    /// all read the same reduced condition set.
+    /// </summary>
+    public string ConditionIconId { get; }
 
     public string HumidityText { get; }
 
@@ -58,6 +68,7 @@ public sealed record WeatherCardProjection
         "—",
         "—",
         "—",
+        WeatherConditionContract.Unknown,
         "—",
         "—",
         "—",
@@ -96,6 +107,7 @@ public sealed record WeatherCardProjection
                 "—",
                 "—",
                 "—",
+                WeatherConditionContract.Unknown,
                 "—",
                 "—",
                 "—",
@@ -114,6 +126,7 @@ public sealed record WeatherCardProjection
             temperatureText,
             FormatTemperature(current, "apparentTemperatureC"),
             DescribeWeatherCode(ReadInt32(current, "weatherCode")),
+            ReadConditionIconId(current),
             FormatPercentage(current, "relativeHumidityPercent"),
             FormatSpeed(current, "windSpeedKmh"),
             ReadString(current, "observedAtLocal") ?? "—",
@@ -185,6 +198,31 @@ public sealed record WeatherCardProjection
         value.TryGetInt32(out int result)
             ? result
             : null;
+
+    /// <summary>
+    /// Prefers the token the provider already produced and falls back to deriving one from
+    /// the WMO code, so a payload from an older provider build still gets an illustration.
+    /// An unrecognised token is treated as absent rather than trusted.
+    /// </summary>
+    private static string ReadConditionIconId(JsonElement current)
+    {
+        if (current.TryGetProperty("conditionIconId", out JsonElement value) &&
+            value.ValueKind == JsonValueKind.String &&
+            WeatherConditionContract.IsKnown(value.GetString()))
+        {
+            return value.GetString()!;
+        }
+
+        int? code = ReadInt32(current, "weatherCode");
+        if (code is null)
+        {
+            return WeatherConditionContract.Unknown;
+        }
+
+        bool isDay = !current.TryGetProperty("isDay", out JsonElement isDayValue) ||
+            isDayValue.ValueKind != JsonValueKind.False;
+        return WeatherConditionContract.FromWeatherCode(code.Value, isDay);
+    }
 
     private static string DescribeWeatherCode(int? code) =>
         code switch

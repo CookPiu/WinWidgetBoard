@@ -79,6 +79,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public string WeatherConditionText => WeatherProjection.ConditionText;
 
+    public string WeatherConditionIconId => WeatherProjection.ConditionIconId;
+
     public string WeatherHumidityText => WeatherProjection.HumidityText;
 
     public string WeatherWindText => WeatherProjection.WindText;
@@ -230,6 +232,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherConditionText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherConditionIconId)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherHumidityText)));

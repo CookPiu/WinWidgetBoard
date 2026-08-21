@@ -130,9 +130,7 @@ public sealed class WorkspaceVisualFoundationContractTests
             "28");
 
         StringAssert.Contains(source, "{ThemeResource ");
-        Assert.IsFalse(
-            source.Contains('#', StringComparison.Ordinal),
-            "The visual foundation must not bypass system themes with literal colors.");
+        AssertLiteralColorsAreWeatherIllustrationOnly(document);
 
         AssertThemeThickness(document, "Default", "0");
         AssertThemeThickness(document, "HighContrast", "1");
@@ -528,6 +526,62 @@ public sealed class WorkspaceVisualFoundationContractTests
             surfaceMotion.Contains(
                 "Storyboard",
                 StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Literal colour is banned everywhere in the shared dictionary except the weather
+    /// illustration, which has no semantic equivalent - no Windows brush means "overcast
+    /// sky". The exception is kept narrow on purpose: every literal must sit on a
+    /// <c>WwbWeather*</c> brush, and high contrast must neutralise every one of them, so a
+    /// page can still never state a colour of its own.
+    /// </summary>
+    private static void AssertLiteralColorsAreWeatherIllustrationOnly(XDocument document)
+    {
+        var literalKeys = new List<string>();
+        foreach (XElement brush in document.Descendants().Where(
+            element => element.Name.LocalName == "SolidColorBrush"))
+        {
+            string? color = (string?)brush.Attribute("Color");
+            if (color is null || !color.StartsWith('#'))
+            {
+                continue;
+            }
+
+            string key = (string?)brush.Attribute(Xaml + "Key") ?? "";
+            Assert.IsTrue(
+                key.StartsWith("WwbWeather", StringComparison.Ordinal),
+                $"Literal color {color} is only allowed on the weather illustration " +
+                $"palette, but it is on '{key}'.");
+            literalKeys.Add(key);
+        }
+
+        Assert.IsTrue(
+            literalKeys.Count > 0,
+            "The weather illustration palette went missing from the shared dictionary.");
+
+        // Every literal-colour brush has to exist in high contrast too, and be transparent
+        // there: high contrast conveys state with text and shape, never with illustration.
+        XElement highContrast = document
+            .Descendants(Presentation + "ResourceDictionary")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Key"),
+                    "HighContrast",
+                    StringComparison.Ordinal));
+        foreach (string key in literalKeys.Distinct(StringComparer.Ordinal))
+        {
+            XElement? brush = highContrast
+                .Elements()
+                .FirstOrDefault(element =>
+                    (string?)element.Attribute(Xaml + "Key") == key);
+            Assert.IsNotNull(
+                brush,
+                $"High contrast does not override '{key}'.");
+            Assert.AreEqual(
+                "Transparent",
+                (string?)brush!.Attribute("Color"),
+                $"High contrast must neutralise '{key}'.");
+        }
     }
 
     private static void AssertThemeThickness(

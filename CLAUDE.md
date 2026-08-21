@@ -127,6 +127,8 @@ For everyday use rather than a dev run, install it instead — the installed ent
 
 It copies the Release x64 build to `%LOCALAPPDATA%\WinWidgetBoard\app` (LauncherHost at the root, the two .NET apps in `WorkspacePanel\` and `CoreBroker\` subdirectories, which is the second path LauncherHost probes), creates Start-menu and sign-in shortcuts pointing straight at the exe, and starts it. Current user only; `-Uninstall` reverses everything, `-NoAutoStart` skips the sign-in shortcut.
 
+The installer reads WorkspacePanel from the **`x64\Release`** output and CoreBroker from the one **without** that segment, matching `Run-WinWidgetBoard.ps1`. A plain `dotnet build -c Release` writes the panel to the *other* path, so it will not refresh what gets installed — build the panel with `-p:Platform=x64` before installing, or you will ship a stale panel and debug ghosts.
+
 **LauncherHost now starts CoreBroker itself** (ADR 0026) whenever `WINWIDGETBOARD_COREBROKER_SESSION_TOKEN` is *not* already set — it generates the token with `BCryptGenRandom` and puts it only in its own environment block, never on a command line. Scripts that provision the session themselves are therefore untouched. Any script that starts LauncherHost directly and must not touch the production database has to pass `--no-broker`; `Test-LauncherEntryPlacement.ps1` does.
 
 Every child process is created suspended, assigned to a `KILL_ON_JOB_CLOSE` job object, then resumed. That is what stops a force-killed launcher from orphaning the resident panel, so don't spawn a child outside `ChildProcessJob`.
@@ -195,6 +197,17 @@ Touching `CardGridLayout`, `CardLayoutSurfaceViewModel`, repeater binding, drag,
 ### Weather
 
 Open-Meteo is the only network provider (`app.winwidgetboard.weather.open-meteo`, 15-minute visible cadence, 10-second deadline). Requests carry label, lat/long, and units — no account, device ID, or auto-location. Location label and coordinates persist to SQLite; **weather payloads never do** — they stay in the broker process, and failures degrade to Offline/Stale/Error while keeping the last in-process success (ADR 0020, 0021). Saving a location swaps the provider request key at runtime via `WeatherProviderRuntime` and publishes a Loading snapshot.
+
+## A XAML-referenced type must not use an expression-bodied `as`-plus-`switch`
+
+WinUI's markup compiler resolves `using:`-namespace types by parsing the project's C# sources itself, and its parser is narrower than Roslyn. A `DataTemplateSelector` whose override was written as
+
+```csharp
+protected override DataTemplate? SelectTemplateCore(object item) =>
+    item as string switch { ... };
+```
+
+made the compiler report `WMC0001: Unknown type` for that selector — and then, because it bails, `Cannot resolve DataType` for **every** type later in the file, including ones that had compiled for months. The C# itself is valid and builds fine on its own. Use a block body with an `is` pattern instead. If a wave of `WMC0909` errors appears after adding one type, fix the first `WMC0001` and ignore the rest; they are all cascade.
 
 ## The unit-test project links WorkspacePanel sources
 
