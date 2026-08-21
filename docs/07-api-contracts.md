@@ -74,6 +74,9 @@ Envelope：
 | `weather.settings.save` | 保存天气位置 | 是 |
 | `weather.summary.get` | 读取最后一次成功天气读数的短投影 | 否 |
 | `weather.locations.search` | 按地名搜索可选位置 | 否 |
+| `sysmon.settings.get` | 读取硬件监控显示项 | 否 |
+| `sysmon.settings.save` | 保存硬件监控显示项 | 是 |
+| `sysmon.summary.get` | 读取任务栏入口用的已排版读数分段 | 否 |
 
 写操作使用 `clientOperationId` 防止重试扩大副作用。相同 ID 和相同 payload 返回第一次结果；相同 ID 搭配不同 payload 返回 `validation.invalid-argument`。
 
@@ -319,6 +322,57 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 `region` 与 `country` 只用于区分同名地点。搜索结果不缓存、不落盘；落盘的仍然只有标签与经纬度。
 
 
+## 9.1 硬件监控
+
+三个方法，一个内置实例 `demo.sysmon`。
+
+### sysmon.settings.get / sysmon.settings.save
+
+配置的是**显示什么**，不是采集什么：一次采样读取整台机器，所以改显示项不改采样，
+provider 的请求键从不变化。
+
+```json
+{
+  "instanceId": "demo.sysmon",
+  "cardItems":  [ { "metricId": "cpu.usage", "detail": "detailed" } ],
+  "entryItems": [ { "metricId": "cpu.usage", "detail": "normal" } ],
+  "revision": 3,
+  "updatedAtUtc": "2026-08-21T06:27:21.0998747Z"
+}
+```
+
+- `cardItems` 与 `entryItems` **各自独立**，各最多 8 项，**顺序即显示顺序**（没有单独的序号字段）；
+- 同一列表内不允许重复 `metricId`；未收录的 `metricId` 一律 `validation.invalid-argument`；
+- `detail` 取 `compact` / `normal` / `detailed`；
+- 保存受 `expectedRevision` 保护，冲突返回 `conflict.sysmon-settings-revision`。
+
+指标标记（三个进程共用一张表）：`cpu.usage`、`cpu.clock`、`cpu.temperature`、`memory.usage`、
+`gpu.usage`、`gpu.memory`、`gpu.temperature`、`disk.activity`、`disk.usage`、`net.up`、
+`net.down`、`fan.speed`。
+
+### sysmon.summary.get
+
+任务栏入口用的只读投影。返回的 `text` 是**成品字符串**：Broker 负责单位与取整，
+入口不做格式化也不做本地化，与 `weather.summary.get` 同一纪律。
+
+```json
+{
+  "summary": {
+    "instanceId": "demo.sysmon",
+    "segments": [
+      { "metricId": "cpu.usage", "iconId": "cpu", "text": "CPU 6%" },
+      { "metricId": "net.down", "iconId": "net-down", "text": "7.2 MB/s" }
+    ],
+    "sampledAtUtc": "2026-08-21T06:27:20.4398792+00:00"
+  }
+}
+```
+
+首次采样之前 `summary` 为 `null`——调用方显示自己的不可用状态，不展示占位读数。
+
+**索要摘要本身就是需求信号**：Provider 仅在卡片可见、或近 10 秒内有过一次
+`sysmon.summary.get` 时才采样，两者皆无时休眠（[ADR-0028](adr/0028-system-monitor-scope-and-sensor-tiers.md)）。
+
 ## 10. 天气 Provider
 
 当前唯一网络 Provider：
@@ -350,6 +404,7 @@ resource.unavailable
 conflict.notes-revision
 conflict.layout-revision
 conflict.weather-settings-revision
+conflict.sysmon-settings-revision
 provider.timeout
 provider.failed
 storage.migration-failed

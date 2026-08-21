@@ -51,6 +51,8 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 
 `scripts/Test-CardLayoutHistoryInteraction.ps1` 用 UI Automation 验证编辑模式下的实际缩放、撤销和重做按钮状态；当前参考桌面的按钮流程输出 `REAL-HISTORY-PASS mode-visibility+resize+buttons keyboard-skipped`，键盘快捷键仍需单独拥有前台焦点的流程覆盖。
 
+`scripts/Test-SystemMonitorInteraction.ps1` 覆盖硬件监控的整条链路：等待卡片经 UIA 播报一个百分比读数（`SYSMON-CARD-PASS`），在设置对话框中切换一项并保存（`SYSMON-SETTINGS-PASS`），确认卡片在一个刷新周期内跟随（`SYSMON-CARD-FOLLOWS-SETTINGS-PASS`），再只重启面板、保留同一个 Broker 与数据库，确认设置回读（`SYSMON-RESTART-PASS`），全部通过后输出 `REAL-SYSMON-PASS`。断言读的是行的自动化名称，也就是屏幕阅读器实际播报的内容。对话框里的列表是虚拟化的，靠后的指标未必已实现化，所以断言目标选在列表靠前的位置。
+
 `scripts/Test-WeatherSettingsInteraction.ps1` 用隔离临时数据和两轮进程启动验证天气位置保存与重启回读：保存后核对状态文本和卡片位置输出 `REAL-WEATHER-SETTINGS-PASS`，重启后经 `weather.settings.get` 回读三个输入框输出 `REAL-WEATHER-SETTINGS-RESTART-PASS`，最后确认面板正常退出。元素查找限定在面板进程自己的顶层窗口内，不遍历桌面根；取消设置对话框后立即点击关闭，是「模态作用域仍被持有时关闭请求必须补发而不是丢弃」的回归。
 
 `scripts/Test-NoteMarkdownPreviewInteraction.ps1` 使用临时 `LOCALAPPDATA`、真实 CoreBroker 和当前 Release x64 面板，验证 Markdown 模式切换、原始正文输入、预览可见性和返回源文按钮；它需要可置前的交互式 Windows 桌面，成功输出 `REAL-NOTE-MARKDOWN-PASS mode+preview`。

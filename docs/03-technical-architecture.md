@@ -181,6 +181,22 @@ WeatherSettingsDialog
 
 自动定位、城市搜索、多天气实例和跨重启天气缓存延期。
 
+## 9.1 硬件监控
+
+硬件读数分两层，见 [ADR-0028](adr/0028-system-monitor-scope-and-sensor-tiers.md)：
+
+- **公开 API 层**在 CoreBroker 内，走 `GetSystemTimes`、`GlobalMemoryStatusEx`、
+  `NetworkInterface`、`DriveInfo` 与 PDH。PDH 计数器一律用 `PdhAddEnglishCounter` 添加——
+  计数器路径是本地化的，在非英文 Windows 上用本地化变体添加英文路径会静默失败；
+- **传感器层**（温度、风扇、CPU 频率）需要内核驱动，尚未实现。其第三方依赖将只落在独立的
+  `src/SensorHost` 项目里，CoreBroker 保持无第三方运行时依赖。
+
+采样是**按需**的：卡片可见，或任务栏入口在近 10 秒内索要过摘要，才会以 2 秒节奏采样；
+两者皆无时 provider 完全休眠，并在唤醒时丢弃增量基线。这是产品原则 5 在这条链路上的具体形态。
+
+配置只决定**显示什么**，不决定采集什么：一次采样读取整台机器，因此改显示项不重建注册，
+provider 的请求键从不变化。
+
 ## 10. 复杂度预算
 
 - 不新增进程或项目，除非现有边界无法安全承载已批准核心需求。
