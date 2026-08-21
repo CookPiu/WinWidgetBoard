@@ -354,6 +354,9 @@ public sealed class CoreBrokerPipeServer
             .Concat(_commandRouter.WeatherLocationSearchAvailable
                 ? [WeatherLocationSearchContract.SearchMethod]
                 : Array.Empty<string>())
+            .Concat(_commandRouter.SystemMonitorAvailable
+                ? SystemMonitorContract.Methods
+                : Array.Empty<string>())
             .ToArray(),
             MaxMessageBytes = ProtocolConstants.MaxMessageBytes,
         };

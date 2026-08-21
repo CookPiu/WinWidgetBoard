@@ -14,6 +14,7 @@ public sealed class CoreBrokerCommandRouter
     private readonly NoteCommandHandler? _noteCommandHandler;
     private readonly LayoutCommandHandler? _layoutCommandHandler;
     private readonly WeatherSettingsCommandHandler? _weatherSettingsCommandHandler;
+    private readonly SystemMonitorCommandHandler? _systemMonitorCommandHandler;
     private readonly CardSubscriptionCommandHandler _cardSubscriptionCommandHandler;
     private readonly PanelVisibilityCommandHandler _panelVisibilityCommandHandler;
 
@@ -23,7 +24,8 @@ public sealed class CoreBrokerCommandRouter
         CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null,
         ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null,
         WeatherProviderRuntime? weatherProviderRuntime = null,
-        OpenMeteoGeocodingService? geocodingService = null)
+        OpenMeteoGeocodingService? geocodingService = null,
+        SystemMonitorRuntime? systemMonitorRuntime = null)
     {
         _noteCommandHandler = noteRepository is null
             ? null
@@ -37,6 +39,9 @@ public sealed class CoreBrokerCommandRouter
                 weatherProviderRuntime,
                 _gate,
                 geocodingService);
+        _systemMonitorCommandHandler = systemMonitorRuntime is null
+            ? null
+            : new SystemMonitorCommandHandler(systemMonitorRuntime, _gate);
         _cardSubscriptionCommandHandler = new CardSubscriptionCommandHandler(
             cardSnapshotSubscriptionHub,
             providerVisibilityRegistry);
@@ -53,6 +58,8 @@ public sealed class CoreBrokerCommandRouter
 
     public bool WeatherLocationSearchAvailable =>
         _weatherSettingsCommandHandler?.LocationSearchAvailable == true;
+
+    public bool SystemMonitorAvailable => _systemMonitorCommandHandler is not null;
 
     /// <summary>
     /// The only asynchronous command. It is routed separately rather than through
@@ -145,6 +152,12 @@ public sealed class CoreBrokerCommandRouter
         if (WeatherSettingsContract.Methods.Contains(request.Method, StringComparer.Ordinal))
         {
             return _weatherSettingsCommandHandler?.Handle(request) ??
+                ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (SystemMonitorContract.Methods.Contains(request.Method, StringComparer.Ordinal))
+        {
+            return _systemMonitorCommandHandler?.Handle(request) ??
                 ErrorResponse(request, "resource.unavailable", "resource-unavailable");
         }
 

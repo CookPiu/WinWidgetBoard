@@ -134,5 +134,24 @@ public static class SqliteSchema
                     ON weather_settings(revision);
                 PRAGMA user_version = 3;
                 """),
+            // The two item lists are stored as JSON text rather than as a child table. They
+            // are short, ordered, and only ever read or written whole, so a child table would
+            // buy nothing but an ordering column and a join.
+            new SqliteMigration(
+                4,
+                "persist-system-monitor-settings",
+                """
+                CREATE TABLE IF NOT EXISTS sysmon_settings (
+                    instance_id TEXT NOT NULL PRIMARY KEY,
+                    card_items TEXT NOT NULL,
+                    entry_items TEXT NOT NULL,
+                    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+                    updated_at_utc TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_sysmon_settings_revision
+                    ON sysmon_settings(revision);
+                PRAGMA user_version = 4;
+                """),
         };
 }

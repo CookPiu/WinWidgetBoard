@@ -25,6 +25,14 @@ internal static class Program
             return await RunPipeHandshakeSmokeAsync().ConfigureAwait(false);
         }
 
+        if (args.Any(argument => string.Equals(
+                argument,
+                "--sysmon-smoke-test",
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            return await SystemMonitorSmokeTest.RunAsync().ConfigureAwait(false);
+        }
+
         if (!CoreBrokerDataDirectoryResolver.TryResolve(
                 args,
                 Environment.GetFolderPath(
@@ -109,6 +117,12 @@ internal static class Program
             cardSnapshotSubscriptionHub,
             weatherHttpClient,
             refreshClock);
+        using var systemMonitorRuntime = new SystemMonitorRuntime(
+            new SystemMonitorSettingsRepository(database),
+            providerHost,
+            providerVisibilityRegistry,
+            cardSnapshotSubscriptionHub,
+            refreshClock);
         var server = new CoreBrokerPipeServer(
             CoreBrokerPipeNames.Production,
             sessionToken,
@@ -119,7 +133,8 @@ internal static class Program
                 cardSnapshotSubscriptionHub,
                 providerVisibilityRegistry,
                 weatherRuntime,
-                geocodingService));
+                geocodingService,
+                systemMonitorRuntime));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;

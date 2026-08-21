@@ -71,6 +71,46 @@ public sealed class ProviderRefreshVisibilityRegistry : IDisposable
                 DisplayConnected: keepWarmWithoutPanel));
     }
 
+    /// <summary>
+    /// Turns "keep running with no panel attached" on or off after registration.
+    ///
+    /// Weather sets this once and leaves it on, because an hourly refresh costs nothing worth
+    /// measuring. The hardware monitor samples every two seconds, so it may only stay warm
+    /// while the taskbar entry is actually asking for readings - it turns this on when a
+    /// summary is requested and off again once the requests stop.
+    /// </summary>
+    public bool SetKeptWarm(string instanceId, bool keptWarm)
+    {
+        if (!CardsContract.IsValidIdentifier(
+                instanceId,
+                CardsContract.MaxInstanceIdLength))
+        {
+            return false;
+        }
+
+        CardsSubscribeRequest[] connections;
+        lock (_gate)
+        {
+            if (_disposed || !_providerSubscriptions.ContainsKey(instanceId))
+            {
+                return false;
+            }
+
+            bool changed = keptWarm
+                ? _keptWarmInstances.Add(instanceId)
+                : _keptWarmInstances.Remove(instanceId);
+            if (!changed)
+            {
+                return true;
+            }
+
+            connections = _connections.Values.ToArray();
+        }
+
+        ApplyVisibility(connections);
+        return true;
+    }
+
     public bool Apply(
         Guid connectionId,
         CardsSubscribeRequest? request)
