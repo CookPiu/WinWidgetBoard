@@ -4,6 +4,15 @@ using WinWidgetBoard.WorkspacePanel.Notes;
 
 namespace WinWidgetBoard.WorkspacePanel.Runtime;
 
+/// <summary>
+/// One built-in card as an identity plus its definition. The catalog's definitions carry a
+/// card type but no instance ID, and the layout is keyed by instance, so the pair is what the
+/// add-card picker actually needs.
+/// </summary>
+public sealed record BuiltInCardInstance(
+    string InstanceId,
+    ICardDefinition Definition);
+
 public static class BuiltInCardCatalog
 {
     public const string NotesInstanceId = "demo.notes";
@@ -84,6 +93,22 @@ public static class BuiltInCardCatalog
             Calendar,
             SystemMonitor,
             Unknown,
+        ]);
+
+    /// <summary>
+    /// The instances the panel can put back on the board, in the order the picker offers
+    /// them - the same order the panel ships with. Unknown is excluded: it is the fallback a
+    /// stored layout resolves to when its card type is gone, not something to add on purpose.
+    /// </summary>
+    public static IReadOnlyList<BuiltInCardInstance> Addable { get; } =
+        Array.AsReadOnly<BuiltInCardInstance>(
+        [
+            new BuiltInCardInstance(NotesInstanceId, Notes),
+            new BuiltInCardInstance(WeatherInstanceId, Weather),
+            new BuiltInCardInstance(TimerInstanceId, Timer),
+            new BuiltInCardInstance(TodoInstanceId, Todo),
+            new BuiltInCardInstance(CalendarInstanceId, Calendar),
+            new BuiltInCardInstance(SystemMonitorInstanceId, SystemMonitor),
         ]);
 
     public static ICardDefinition ResolveInstance(string instanceId)

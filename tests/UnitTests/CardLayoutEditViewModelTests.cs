@@ -283,4 +283,53 @@ public sealed class CardLayoutEditViewModelTests
         Assert.AreEqual(original, restored);
         Assert.IsFalse(editMode.IsEditing);
     }
+
+    [TestMethod(DisplayName = "UT-GRID-050 [LYT-007] Adding a card requires edit mode and appends once")]
+    public void AddingCardRequiresEditModeAndAppendsOnce()
+    {
+        var layout = new CardLayoutViewModel(
+            4,
+            [new CardLayoutItem("first", CardSize.M)]);
+        var editMode = new CardLayoutEditViewModel(layout);
+
+        Assert.IsFalse(editMode.TryAddCard("second", CardSize.M));
+        Assert.AreEqual(1, layout.Items.Count);
+
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryAddCard("second", CardSize.L));
+        Assert.AreEqual(
+            CardSize.L,
+            layout.Items.Single(item => item.InstanceId == "second").Size);
+
+        // Built-in instances are singletons; a second add of the same identity is refused
+        // rather than producing two cards that share a broker subscription.
+        Assert.IsFalse(editMode.TryAddCard("second", CardSize.M));
+        Assert.AreEqual(2, layout.Items.Count);
+    }
+
+    [TestMethod(DisplayName = "UT-GRID-051 [LYT-007] Undo removes an added card and redo brings it back")]
+    public void UndoRemovesAddedCardAndRedoBringsItBack()
+    {
+        var layout = new CardLayoutViewModel(
+            4,
+            [new CardLayoutItem("first", CardSize.M)]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        editMode.BeginEdit();
+
+        Assert.IsTrue(editMode.TryAddCard("second", CardSize.M));
+        Assert.IsTrue(editMode.CanUndo);
+
+        Assert.IsTrue(editMode.TryUndo());
+        Assert.AreEqual(1, layout.Items.Count);
+
+        Assert.IsTrue(editMode.TryRedo());
+        CollectionAssert.AreEquivalent(
+            ExpectedCardIds,
+            layout.Items.Select(item => item.InstanceId).ToArray());
+
+        // Cancelling the session drops the addition with everything else in it.
+        editMode.CancelEdit();
+        Assert.AreEqual(1, layout.Items.Count);
+    }
 }

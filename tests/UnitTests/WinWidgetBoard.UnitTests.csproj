@@ -55,6 +55,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherLocationOption.cs" Link="WorkspacePanel\Settings\WeatherLocationOption.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\SystemMonitorSettingsViewModel.cs" Link="WorkspacePanel\Settings\SystemMonitorSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\SystemMonitorMetricOption.cs" Link="WorkspacePanel\Settings\SystemMonitorMetricOption.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Settings\AddCardViewModel.cs" Link="WorkspacePanel\Settings\AddCardViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteClipboardFormatter.cs" Link="WorkspacePanel\Notes\NoteClipboardFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteMarkdownPreviewFormatter.cs" Link="WorkspacePanel\Notes\NoteMarkdownPreviewFormatter.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Notes\NoteListCoordinator.cs" Link="WorkspacePanel\Notes\NoteListCoordinator.cs" />

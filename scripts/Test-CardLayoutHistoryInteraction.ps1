@@ -149,18 +149,6 @@ function Wait-VisibleElementByAutomationId {
     throw "Visible UI Automation element not found: $AutomationId. Last state: $lastState. Process: $processState. Root: $rootState"
 }
 
-function Assert-ElementHiddenByAutomationId {
-    param(
-        [System.Windows.Automation.AutomationElement]$Root,
-        [string]$AutomationId
-    )
-
-    $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
-    if ($null -ne $element -and -not $element.Current.IsOffscreen) {
-        throw "UI Automation element must be hidden outside layout edit mode: $AutomationId"
-    }
-}
-
 function Get-EnabledResizeButton {
     param(
         [System.Windows.Automation.AutomationElement]$Root

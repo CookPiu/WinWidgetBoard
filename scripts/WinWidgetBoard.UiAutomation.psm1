@@ -533,6 +533,43 @@ function Wait-VisibleElementByAutomationId {
     throw "Visible UI Automation element not found: $AutomationId. Last state: $lastState"
 }
 
+function Assert-ElementHiddenByAutomationId {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$AutomationId,
+        [string]$Because = 'must not be visible in this state'
+    )
+
+    $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
+    if ($null -ne $element -and -not $element.Current.IsOffscreen) {
+        throw "UI Automation element '$AutomationId' $Because."
+    }
+}
+
+# Flips a check box and returns the state it landed in. Toggling through the pattern rather
+# than clicking keeps the caller off pixel coordinates for a control that a virtualizing list
+# may have moved since it was found.
+function Invoke-ElementToggle {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element
+    )
+
+    if (-not $Element.Current.IsEnabled -or $Element.Current.IsOffscreen) {
+        throw "UI Automation element is not toggleable: $($Element.Current.Name)"
+    }
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.TogglePattern]::Pattern,
+            [ref]$pattern)) {
+        throw "TogglePattern unavailable: $($Element.Current.Name)"
+    }
+
+    ([System.Windows.Automation.TogglePattern]$pattern).Toggle()
+    return $Element.GetCurrentPattern(
+        [System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState
+}
+
 function Wait-VisibleElementByName {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
@@ -994,12 +1031,14 @@ Export-ModuleMember -Function @(
     'Get-ElementByName',
     'Get-ElementByNames',
     'Wait-VisibleElementByAutomationId',
+    'Assert-ElementHiddenByAutomationId',
     'Wait-VisibleElementByName',
     'Wait-ElementValue',
     'Get-ElementText',
     'Set-ElementValue',
     'Set-TextValue',
     'Invoke-Element',
+    'Invoke-ElementToggle',
     'Set-VerticalScrollPercent',
     'Focus-PanelWindow',
     'Get-WindowRectByClass',

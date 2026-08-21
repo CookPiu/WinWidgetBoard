@@ -68,7 +68,7 @@ Note the inconsistency: managed projects gain an extra `x64\` segment when `Plat
 ## Test
 
 ```powershell
-# Full suite (current Release baseline: 306/306)
+# Full suite (the current pass count lives in docs/status/implementation-status.md)
 dotnet test .\tests\UnitTests\WinWidgetBoard.UnitTests.csproj -c Release --no-restore
 
 # A single test class or method
@@ -96,6 +96,7 @@ Each executable self-tests without a desktop session — CI runs the first two:
 .\scripts\Test-CardDragInteraction.ps1 -WithBroker
 .\scripts\Test-CardDragInteraction.ps1 -ResizeDragCombination   # cross-card drag + resize regression
 .\scripts\Test-NoteMarkdownPreviewInteraction.ps1
+.\scripts\Test-AddCardInteraction.ps1                            # edit-mode card picker + persistence
 ```
 
 They need an interactive, focusable desktop and refuse to run alongside an existing WorkspacePanel.
@@ -276,7 +277,7 @@ Practical rules that get violated most often:
 - Search boxes, single button groups, and steady-state status must not occupy their own permanent row. Low-frequency actions use progressive disclosure; content space wins.
 - Animate only compositor properties (`Opacity`, `Scale`, `Translation`) — never `Width`/`Height`/`Margin`. Every animation must be interruptible, must resume from the current displayed value on reversal, and must degrade under reduced motion. High-frequency click/type/drag/resize gets zero added latency. No `RepositionThemeTransition` in the card grid: it breaks 1:1 pointer projection during drag.
 - Every icon button needs a localized tooltip, a readable automation name, and a stable unique `AutomationId` — the UIA scripts depend on those IDs. Hit targets stay logical (32 DIP header buttons); never hard-code physical pixels.
-- User-visible strings go in **both** `src/WorkspacePanel/Strings/en-US/Resources.resw` and `zh-CN/Resources.resw`; they must stay in sync (205 entries each today).
+- User-visible strings go in **both** `src/WorkspacePanel/Strings/en-US/Resources.resw` and `zh-CN/Resources.resw`; they must stay in sync (259 entries each today).
 
 ## Documentation
 

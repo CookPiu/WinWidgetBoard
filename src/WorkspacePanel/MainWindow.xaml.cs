@@ -588,6 +588,64 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    private async void AddCardButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isSavingLayout || !_cardEdit.IsEditing || RootGrid.XamlRoot is null)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref _statusVersion);
+        try
+        {
+            var viewModel = new AddCardViewModel(
+                _cardLayout.Items.Select(item => item.InstanceId),
+                key => _resources.GetString(key.Replace('.', '/')));
+            if (!viewModel.HasOptions)
+            {
+                StatusText.Text = _resources.GetString("AddCardNoneAvailableStatus");
+                return;
+            }
+
+            var dialog = new AddCardDialog(viewModel)
+            {
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            using (IDisposable modalScope = EnterModalScope())
+            {
+                await dialog.ShowAsync();
+            }
+
+            Interlocked.Increment(ref _statusVersion);
+            if (!dialog.WasConfirmed)
+            {
+                return;
+            }
+
+            int added = 0;
+            foreach (AddCardOption option in viewModel.Selected)
+            {
+                if (_cardEdit.TryAddCard(option.InstanceId, option.DefaultSize))
+                {
+                    added++;
+                }
+            }
+
+            StatusText.Text = added > 0
+                ? _resources.GetString("CardAddedStatus")
+                : _resources.GetString("AddCardNoneAvailableStatus");
+        }
+        catch (Exception exception)
+            when (exception is not OutOfMemoryException and
+                not StackOverflowException and
+                not AccessViolationException)
+        {
+            Debug.WriteLine($"WorkspacePanel add card dialog failed: {exception}");
+            Interlocked.Increment(ref _statusVersion);
+            StatusText.Text = _resources.GetString("AddCardFailedStatus");
+        }
+    }
+
     private void UndoLayoutButton_Click(object sender, RoutedEventArgs e)
     {
         _ = TryUndoLayout();
@@ -626,6 +684,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             ListNotesButton,
             _resources.GetString("ListNotesButtonToolTip"));
         ToolTipService.SetToolTip(
+            AddCardButton,
+            _resources.GetString("AddCardButtonToolTip"));
+        ToolTipService.SetToolTip(
             UndoLayoutButton,
             _resources.GetString("UndoLayoutButtonToolTip"));
         ToolTipService.SetToolTip(
@@ -656,8 +717,10 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         Visibility visibility = _cardEdit.IsEditing
             ? Visibility.Visible
             : Visibility.Collapsed;
+        AddCardButton.Visibility = visibility;
         UndoLayoutButton.Visibility = visibility;
         RedoLayoutButton.Visibility = visibility;
+        AddCardButton.IsEnabled = !_isSavingLayout;
         UndoLayoutButton.IsEnabled = !_isSavingLayout && _cardEdit.CanUndo;
         RedoLayoutButton.IsEnabled = !_isSavingLayout && _cardEdit.CanRedo;
     }

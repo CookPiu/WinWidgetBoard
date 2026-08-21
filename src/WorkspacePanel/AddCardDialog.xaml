@@ -1,0 +1,53 @@
+<controls:ContentDialog
+    x:Class="WinWidgetBoard.WorkspacePanel.AddCardDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:settings="using:WinWidgetBoard.WorkspacePanel.Settings"
+    x:Uid="AddCardDialog"
+    DefaultButton="Close">
+    <controls:ContentDialog.Resources>
+        <DataTemplate
+            x:Key="AddCardOptionTemplate"
+            x:DataType="settings:AddCardOption">
+            <CheckBox
+                Content="{x:Bind DisplayName}"
+                IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                MinWidth="0"
+                Padding="0,2"
+                automation:AutomationProperties.Name="{x:Bind DisplayName}"
+                automation:AutomationProperties.AutomationId="{x:Bind IncludeAutomationId}" />
+        </DataTemplate>
+    </controls:ContentDialog.Resources>
+
+    <StackPanel Spacing="12">
+        <TextBlock
+            x:Uid="AddCardDescription"
+            TextWrapping="Wrap" />
+
+        <ListView
+            x:Name="AddCardList"
+            MaxHeight="240"
+            SelectionMode="None"
+            ItemsSource="{x:Bind ViewModel.Options, Mode=OneWay}"
+            ItemTemplate="{StaticResource AddCardOptionTemplate}"
+            automation:AutomationProperties.AutomationId="AddCardList" />
+
+        <Button
+            x:Name="AddCardConfirmButton"
+            x:Uid="AddCardConfirmButton"
+            HorizontalAlignment="Right"
+            Style="{StaticResource WwbPrimaryToolbarButtonStyle}"
+            IsEnabled="{x:Bind ViewModel.CanAdd, Mode=OneWay}"
+            Click="ConfirmButton_Click"
+            automation:AutomationProperties.AutomationId="AddCardConfirmButton" />
+
+        <TextBlock
+            x:Name="AddCardStatusText"
+            Style="{StaticResource WwbCardCaptionStyle}"
+            Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+            TextWrapping="Wrap"
+            automation:AutomationProperties.AutomationId="AddCardStatusText" />
+    </StackPanel>
+</controls:ContentDialog>

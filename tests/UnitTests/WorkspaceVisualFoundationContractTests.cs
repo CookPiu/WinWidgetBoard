@@ -396,13 +396,24 @@ public sealed class WorkspaceVisualFoundationContractTests
             "{StaticResource WwbWeatherTemperatureStyle}",
             (string?)weatherTemperature.Attribute("Style"));
 
-        Assert.IsFalse(document
-            .Descendants()
-            .Any(element =>
-                string.Equals(
-                    (string?)element.Attribute(Xaml + "Name"),
-                    "AddCardButton",
-                    StringComparison.Ordinal)));
+        // The quiet canvas rejected a permanently visible add-card button. The button exists
+        // again, but as a layout-edit action: it ships collapsed and the code-behind reveals
+        // it with undo and redo when an edit session begins, so the steady-state toolbar is
+        // unchanged. Asserting the markup default is what keeps it from drifting back into
+        // permanent chrome.
+        foreach (string editAction in new[]
+                 {
+                     "AddCardButton",
+                     "UndoLayoutButton",
+                     "RedoLayoutButton",
+                 })
+        {
+            XElement action = GetNamedElement(document, "Button", editAction);
+            Assert.AreEqual(
+                "Collapsed",
+                (string?)action.Attribute("Visibility"),
+                $"{editAction} must stay hidden outside layout edit mode.");
+        }
 
         foreach (string locale in new[] { "zh-CN", "en-US" })
         {

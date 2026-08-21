@@ -128,7 +128,7 @@
     <value>Save the current draft before opening another note.</value>
   </data>
   <data name="AddCardButton.Content" xml:space="preserve">
-    <value>Add</value>
+    <value>&#xE710;</value>
   </data>
   <data name="AddCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Add card</value>
@@ -807,5 +807,32 @@
   </data>
   <data name="SysMonMoveDownButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Move down</value>
+  </data>
+  <data name="AddCardButtonToolTip" xml:space="preserve">
+    <value>Add card</value>
+  </data>
+  <data name="AddCardDialog.Title" xml:space="preserve">
+    <value>Add card</value>
+  </data>
+  <data name="AddCardDialog.CloseButtonText" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="AddCardDescription.Text" xml:space="preserve">
+    <value>Cards that are not on the board right now. Added cards go to the end of the layout and are saved when you finish editing.</value>
+  </data>
+  <data name="AddCardConfirmButton.Content" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="AddCardConfirmButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Add the selected cards</value>
+  </data>
+  <data name="CardAddedStatus" xml:space="preserve">
+    <value>Card added; undo restores the previous layout.</value>
+  </data>
+  <data name="AddCardNoneAvailableStatus" xml:space="preserve">
+    <value>Every card is already on the board.</value>
+  </data>
+  <data name="AddCardFailedStatus" xml:space="preserve">
+    <value>The card picker could not be opened.</value>
   </data>
 </root>

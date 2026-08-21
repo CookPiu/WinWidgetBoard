@@ -128,7 +128,7 @@
     <value>请先保存当前草稿，再打开其他便签。</value>
   </data>
   <data name="AddCardButton.Content" xml:space="preserve">
-    <value>添加</value>
+    <value>&#xE710;</value>
   </data>
   <data name="AddCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>添加卡片</value>
@@ -807,5 +807,32 @@
   </data>
   <data name="SysMonMoveDownButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>下移</value>
+  </data>
+  <data name="AddCardButtonToolTip" xml:space="preserve">
+    <value>添加卡片</value>
+  </data>
+  <data name="AddCardDialog.Title" xml:space="preserve">
+    <value>添加卡片</value>
+  </data>
+  <data name="AddCardDialog.CloseButtonText" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="AddCardDescription.Text" xml:space="preserve">
+    <value>当前不在面板上的卡片。添加后放在布局末尾，完成编辑时一并保存。</value>
+  </data>
+  <data name="AddCardConfirmButton.Content" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="AddCardConfirmButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>添加选中的卡片</value>
+  </data>
+  <data name="CardAddedStatus" xml:space="preserve">
+    <value>卡片已添加；撤销可恢复之前的布局。</value>
+  </data>
+  <data name="AddCardNoneAvailableStatus" xml:space="preserve">
+    <value>所有卡片都已在面板上。</value>
+  </data>
+  <data name="AddCardFailedStatus" xml:space="preserve">
+    <value>无法打开卡片选择器。</value>
   </data>
 </root>

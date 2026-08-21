@@ -432,6 +432,7 @@
                                 Click="IncreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="RemoveCardButton"
+                                automation:AutomationProperties.AutomationId="NotesCardRemoveButton"
                                 Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="RemoveCardButton_Click" />
@@ -852,6 +853,7 @@
                                 Click="IncreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="RemoveCardButton"
+                                automation:AutomationProperties.AutomationId="WeatherCardRemoveButton"
                                 Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="RemoveCardButton_Click" />
@@ -937,6 +939,7 @@
                                     Click="IncreaseCardSizeButton_Click" />
                                 <Button
                                     x:Uid="RemoveCardButton"
+                                    automation:AutomationProperties.AutomationId="TimerCardRemoveButton"
                                     Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="RemoveCardButton_Click" />
@@ -1022,6 +1025,7 @@
                                     Click="IncreaseCardSizeButton_Click" />
                                 <Button
                                     x:Uid="RemoveCardButton"
+                                    automation:AutomationProperties.AutomationId="TodoCardRemoveButton"
                                     Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="RemoveCardButton_Click" />
@@ -1107,6 +1111,7 @@
                                     Click="IncreaseCardSizeButton_Click" />
                                 <Button
                                     x:Uid="RemoveCardButton"
+                                    automation:AutomationProperties.AutomationId="CalendarCardRemoveButton"
                                     Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="RemoveCardButton_Click" />
@@ -1187,6 +1192,7 @@
                                 Click="IncreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="RemoveCardButton"
+                                automation:AutomationProperties.AutomationId="UnknownCardRemoveButton"
                                 Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="RemoveCardButton_Click" />
@@ -1338,6 +1344,7 @@
                                 Click="IncreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="RemoveCardButton"
+                                automation:AutomationProperties.AutomationId="SystemMonitorCardRemoveButton"
                                 Style="{StaticResource WwbDestructiveActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="RemoveCardButton_Click" />
@@ -1459,6 +1466,12 @@
                                 x:Uid="EditLayoutButton"
                                 Style="{StaticResource WwbToolbarButtonStyle}"
                                 Click="EditLayoutButton_Click" />
+                            <Button
+                                x:Name="AddCardButton"
+                                x:Uid="AddCardButton"
+                                Style="{StaticResource WwbToolbarButtonStyle}"
+                                Visibility="Collapsed"
+                                Click="AddCardButton_Click" />
                             <Button
                                 x:Name="UndoLayoutButton"
                                 x:Uid="UndoLayoutButton"

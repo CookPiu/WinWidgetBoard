@@ -162,6 +162,42 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
             TryResizeCard(instanceId, orderedSizes[nextIndex]);
     }
 
+    /// <summary>
+    /// Puts a card back on the board at the end of the current order. Built-in instances are
+    /// singletons - the same identity is what the broker subscription, the layout record and
+    /// the note editor all key on - so adding one that is already placed is refused rather
+    /// than duplicated.
+    /// </summary>
+    public bool TryAddCard(string instanceId, CardSize size)
+    {
+        if (!_isEditing)
+        {
+            return false;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+        if (!Enum.IsDefined(size))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(size),
+                size,
+                "Card size must be a defined card size.");
+        }
+
+        if (_layout.Items.Any(item => string.Equals(
+                item.InstanceId,
+                instanceId,
+                StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        LayoutSnapshot before = CaptureSnapshot();
+        _layout.AddCard(new CardLayoutItem(instanceId, size));
+        RecordMutation(before);
+        return true;
+    }
+
     public bool TryRemoveCard(string instanceId)
     {
         if (!_isEditing)
