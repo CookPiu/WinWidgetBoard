@@ -22,6 +22,24 @@ constexpr double kTopHighlightAlpha = 0.16;
 constexpr double kFillGradientAmount = 0.22;
 constexpr double kIndicatorRestAlpha = 0.55;
 
+// --- condition illustration palette ----------------------------------------------------
+//
+// The weather card paints a flat condition illustration behind its content
+// (WeatherBackdrop*Template in MainWindow.xaml, coloured by the WwbWeather* brushes in
+// WorkspaceVisualStyles.xaml). The entry carries the same artwork, but it has no XAML and so
+// no ThemeResource lookup; the palette is restated here the way the 4 DIP metrics above
+// already are. WorkspaceVisualStyles.xaml stays the authority - these are its Default
+// dictionary for a dark strip and its Light dictionary for a light one, and high contrast
+// draws no illustration at all because every WwbWeather* brush is Transparent there.
+//
+// The motif is composed in a square box this many capsule heights across, anchored just past
+// the closing cap so it bleeds a little - the entry's equivalent of the card's negative
+// margins. It stays close to one capsule height on purpose: a larger box turns the artwork
+// into a cropped blob at this size instead of a drawing.
+constexpr double kMotifUnitScale = 1.05;
+constexpr double kMotifOverflowX = 0.02;
+constexpr double kMotifOverflowY = 0.05;
+
 constexpr wchar_t kPersonalizeKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr wchar_t kSystemUsesLightThemeValue[] = L"SystemUsesLightTheme";
@@ -266,6 +284,21 @@ int ResolveFontPixelHeight(const EntryRenderRequest& request)
     return std::max(base, capsuleHeight / 2);
 }
 
+// True when a condition carries an illustration. Unknown and None state no reading, so they
+// keep the neutral capsule instead of borrowing some weather's colour.
+bool HasBackdrop(const EntryIcon icon)
+{
+    return icon != EntryIcon::None && icon != EntryIcon::Unknown;
+}
+
+// Everything right of the text: the trailing padding, plus the illustration's own room when
+// there is one to draw.
+int TrailingWidthLogical(const EntryIcon icon)
+{
+    return kEntryTrailingPaddingLogical +
+        (HasBackdrop(icon) ? kEntryMotifWidthLogical : 0);
+}
+
 // Everything left of the text, in logical pixels: padding, indicator, its gap, and the
 // condition glyph with its own gap when one is present.
 int LeadingWidthLogical(const EntryIcon icon)
@@ -304,7 +337,7 @@ RECT ResolveTextRect(const EntryRenderRequest& request)
 
     RECT textRect = request.capsule;
     textRect.left += ScaleLogical(LeadingWidthLogical(request.icon), request.dpi);
-    textRect.right -= ScaleLogical(kEntryTrailingPaddingLogical, request.dpi);
+    textRect.right -= ScaleLogical(TrailingWidthLogical(request.icon), request.dpi);
     return textRect;
 }
 
@@ -376,22 +409,57 @@ bool ComposeText(
     return true;
 }
 
+// The capsule as it is actually drawn, press scale included. The fill and the condition
+// illustration have to agree on it exactly: the illustration is clipped by this shape, and a
+// half-pixel disagreement would show up as a coloured fringe along the edge.
+struct CapsuleShape
+{
+    double centerX{};
+    double centerY{};
+    double halfWidth{};
+    double halfHeight{};
+    double radius{};
+
+    [[nodiscard]] double CoverageAt(const double pixelX, const double pixelY) const
+    {
+        return CoverageFromDistance(RoundedRectDistance(
+            pixelX,
+            pixelY,
+            centerX,
+            centerY,
+            halfWidth,
+            halfHeight,
+            radius));
+    }
+};
+
+CapsuleShape ResolveCapsuleShape(
+    const EntryRenderRequest& request,
+    const EntryVisualState& state)
+{
+    const double scale = 1.0 - (1.0 - kPressScale) * Clamp01(state.pressed);
+    CapsuleShape shape{};
+    shape.centerX =
+        (static_cast<double>(request.capsule.left) +
+            static_cast<double>(request.capsule.right)) / 2.0;
+    shape.centerY =
+        (static_cast<double>(request.capsule.top) +
+            static_cast<double>(request.capsule.bottom)) / 2.0;
+    shape.halfWidth = RectWidthOf(request.capsule) / 2.0 * scale;
+    shape.halfHeight = RectHeightOf(request.capsule) / 2.0 * scale;
+    shape.radius = std::min(shape.halfWidth, shape.halfHeight);
+    return shape;
+}
+
 void ComposeCapsule(
     Canvas& canvas,
     const EntryRenderRequest& request,
     const EntryTheme& theme,
     const EntryVisualState& state)
 {
-    const double scale = 1.0 - (1.0 - kPressScale) * Clamp01(state.pressed);
-    const double centerX =
-        (static_cast<double>(request.capsule.left) +
-            static_cast<double>(request.capsule.right)) / 2.0;
-    const double centerY =
-        (static_cast<double>(request.capsule.top) +
-            static_cast<double>(request.capsule.bottom)) / 2.0;
-    const double halfWidth = RectWidthOf(request.capsule) / 2.0 * scale;
-    const double halfHeight = RectHeightOf(request.capsule) / 2.0 * scale;
-    const double radius = std::min(halfWidth, halfHeight);
+    const CapsuleShape shape = ResolveCapsuleShape(request, state);
+    const double centerY = shape.centerY;
+    const double halfHeight = shape.halfHeight;
 
     double fillAlpha = theme.restAlpha +
         (theme.hoverAlpha - theme.restAlpha) * Clamp01(state.hover) +
@@ -431,11 +499,11 @@ void ComposeCapsule(
             const double distance = RoundedRectDistance(
                 pixelX,
                 pixelY,
-                centerX,
+                shape.centerX,
                 centerY,
-                halfWidth,
+                shape.halfWidth,
                 halfHeight,
-                radius);
+                shape.radius);
             const double coverage = CoverageFromDistance(distance);
             if (coverage <= 0.0)
             {
@@ -660,12 +728,35 @@ void AddUnitPolygon(
     }
 }
 
+// The cloud in its own terms: three lobes over a flat base, spanning 0.69 x 0.49 of the unit
+// box around (0.515, 0.485). `scale` and the centre place that silhouette anywhere, which is
+// what lets the 18 DIP glyph and the much larger illustration share one drawing.
+void AddCloudAt(
+    IconMask& mask,
+    const double centerX,
+    const double centerY,
+    const double scale)
+{
+    constexpr double kAnchorX = 0.515;
+    constexpr double kAnchorY = 0.485;
+    const auto placeX = [&](const double x) { return centerX + (x - kAnchorX) * scale; };
+    const auto placeY = [&](const double y) { return centerY + (y - kAnchorY) * scale; };
+
+    AddUnitCircle(mask, placeX(0.34), placeY(0.54), 0.17 * scale);
+    AddUnitCircle(mask, placeX(0.52), placeY(0.46), 0.22 * scale);
+    AddUnitCircle(mask, placeX(0.71), placeY(0.56), 0.15 * scale);
+    AddUnitRoundedRect(
+        mask,
+        placeX(0.52),
+        placeY(0.63),
+        0.58 * scale,
+        0.20 * scale,
+        0.10 * scale);
+}
+
 void AddCloud(IconMask& mask, const double offsetY)
 {
-    AddUnitCircle(mask, 0.34, 0.54 + offsetY, 0.17);
-    AddUnitCircle(mask, 0.52, 0.46 + offsetY, 0.22);
-    AddUnitCircle(mask, 0.71, 0.56 + offsetY, 0.15);
-    AddUnitRoundedRect(mask, 0.52, 0.63 + offsetY, 0.58, 0.20, 0.10);
+    AddCloudAt(mask, 0.515, 0.485 + offsetY, 1.0);
 }
 
 void AddSun(
@@ -823,6 +914,333 @@ void ComposeIcon(
     }
 }
 
+// --- condition illustration ------------------------------------------------------------
+
+struct WeatherPalette
+{
+    COLORREF sky{};
+    double skyAlpha{};
+    COLORREF motif{};
+    double motifAlpha{};
+    double motifStrongAlpha{};
+};
+
+// The WwbWeatherSky* families, keyed the way the card's template selector keys them: one sky
+// per weather family, not one per condition.
+enum class SkyFamily : unsigned char
+{
+    Clear,
+    Night,
+    Cloudy,
+    Wet,
+    Snow,
+    Storm,
+};
+
+SkyFamily ResolveSkyFamily(const EntryIcon icon)
+{
+    switch (icon)
+    {
+    case EntryIcon::ClearNight:
+    case EntryIcon::PartlyCloudyNight:
+        return SkyFamily::Night;
+    case EntryIcon::Cloudy:
+    case EntryIcon::Fog:
+        return SkyFamily::Cloudy;
+    case EntryIcon::Drizzle:
+    case EntryIcon::Rain:
+        return SkyFamily::Wet;
+    case EntryIcon::Snow:
+        return SkyFamily::Snow;
+    case EntryIcon::Thunderstorm:
+        return SkyFamily::Storm;
+    default:
+        return SkyFamily::Clear;
+    }
+}
+
+bool ResolveWeatherPalette(
+    const EntryIcon icon,
+    const EntryTheme& theme,
+    WeatherPalette& palette)
+{
+    // High contrast draws no illustration: every WwbWeather* brush is Transparent there, and
+    // a tint is exactly the kind of colour-only signal that theme exists to remove.
+    if (theme.highContrast || !HasBackdrop(icon))
+    {
+        return false;
+    }
+
+    // WwbWeatherSky*Brush: the Default dictionary, then the Light one. The alphas are the
+    // card's unchanged - the illustration sits on the capsule the way the card's sits on the
+    // card surface, so it needs the same weight to read as the same material.
+    struct SkyTone
+    {
+        COLORREF darkStrip;
+        double darkAlpha;
+        COLORREF lightStrip;
+        double lightAlpha;
+    };
+
+    SkyTone tone{};
+    switch (ResolveSkyFamily(icon))
+    {
+    case SkyFamily::Night:
+        tone = {RGB(0x4C, 0x5D, 0xA8), 0.24, RGB(0x3B, 0x4C, 0x96), 0.20};
+        break;
+    case SkyFamily::Cloudy:
+        tone = {RGB(0x89, 0x96, 0xA6), 0.20, RGB(0x6E, 0x7C, 0x8C), 0.18};
+        break;
+    case SkyFamily::Wet:
+        tone = {RGB(0x54, 0x80, 0xA8), 0.22, RGB(0x3E, 0x6E, 0x96), 0.20};
+        break;
+    case SkyFamily::Snow:
+        tone = {RGB(0x9C, 0xC4, 0xE4), 0.20, RGB(0x7F, 0xAE, 0xD4), 0.20};
+        break;
+    case SkyFamily::Storm:
+        tone = {RGB(0x5B, 0x54, 0x88), 0.26, RGB(0x4A, 0x42, 0x76), 0.22};
+        break;
+    case SkyFamily::Clear:
+    default:
+        tone = {RGB(0x4A, 0xA3, 0xE8), 0.22, RGB(0x2E, 0x8B, 0xD8), 0.20};
+        break;
+    }
+
+    if (theme.darkStrip)
+    {
+        palette.sky = tone.darkStrip;
+        palette.skyAlpha = tone.darkAlpha;
+        // WwbWeatherMotifBrush and WwbWeatherMotifStrongBrush, Default dictionary.
+        palette.motif = RGB(0xFF, 0xFF, 0xFF);
+        palette.motifAlpha = 0.10;
+        palette.motifStrongAlpha = 0.20;
+    }
+    else
+    {
+        palette.sky = tone.lightStrip;
+        palette.skyAlpha = tone.lightAlpha;
+        palette.motif = RGB(0x17, 0x3A, 0x5E);
+        palette.motifAlpha = 0.12;
+        palette.motifStrongAlpha = 0.22;
+    }
+
+    return true;
+}
+
+// The falling element, staggered so three marks do not read as a comb.
+void AddBackdropFall(IconMask& mask, const int count, const bool asDots)
+{
+    constexpr double kStart = 0.40;
+    constexpr double kStep = 0.15;
+    for (int index = 0; index < count; ++index)
+    {
+        const double x = kStart + kStep * static_cast<double>(index);
+        const double y = 0.76 - (index % 2 == 0 ? 0.0 : 0.06);
+        if (asDots)
+        {
+            AddUnitCircle(mask, x, y, 0.042);
+        }
+        else
+        {
+            AddUnitRoundedRect(mask, x, y, 0.058, 0.15, 0.029);
+        }
+    }
+}
+
+// Composes the illustration into two coverage masks, one per motif weight, and reports
+// whether the strong one belongs in front. The card draws the sun and the moon behind their
+// cloud and the bolt in front of it; the entry has to keep that reading.
+bool BuildBackdropArt(const EntryIcon icon, IconMask& regular, IconMask& strong)
+{
+    switch (icon)
+    {
+    case EntryIcon::ClearDay:
+        AddUnitCircle(strong, 0.60, 0.56, 0.30);
+        break;
+    case EntryIcon::ClearNight:
+        AddCrescent(strong, 0.58, 0.54, 0.32);
+        break;
+    case EntryIcon::PartlyCloudyDay:
+        AddUnitCircle(strong, 0.46, 0.34, 0.19);
+        AddCloudAt(regular, 0.62, 0.64, 0.88);
+        break;
+    case EntryIcon::PartlyCloudyNight:
+        AddCrescent(strong, 0.44, 0.33, 0.20);
+        AddCloudAt(regular, 0.62, 0.64, 0.88);
+        break;
+    case EntryIcon::Cloudy:
+        AddCloudAt(regular, 0.62, 0.62, 0.92);
+        AddCloudAt(regular, 0.38, 0.38, 0.62);
+        break;
+    case EntryIcon::Fog:
+        AddCloudAt(regular, 0.58, 0.44, 0.86);
+        AddUnitRoundedRect(regular, 0.56, 0.74, 0.56, 0.06, 0.03);
+        AddUnitRoundedRect(regular, 0.64, 0.88, 0.40, 0.06, 0.03);
+        break;
+    case EntryIcon::Drizzle:
+    case EntryIcon::Rain:
+        // Drizzle and rain share one illustration, exactly as they share one card template:
+        // a drawing this size cannot honestly show the difference.
+        AddCloudAt(regular, 0.58, 0.42, 0.86);
+        AddBackdropFall(regular, 3, false);
+        break;
+    case EntryIcon::Snow:
+        AddCloudAt(regular, 0.58, 0.42, 0.86);
+        AddBackdropFall(regular, 3, true);
+        break;
+    case EntryIcon::Thunderstorm:
+    {
+        AddCloudAt(regular, 0.56, 0.40, 0.86);
+        constexpr double kSourceX[] = {0.62, 0.38, 0.51, 0.34, 0.66, 0.51};
+        constexpr double kSourceY[] = {0.62, 0.90, 0.90, 1.10, 0.83, 0.83};
+        double boltX[std::size(kSourceX)]{};
+        double boltY[std::size(kSourceY)]{};
+        for (size_t index = 0; index < std::size(kSourceX); ++index)
+        {
+            boltX[index] = 0.60 + (kSourceX[index] - 0.50) * 0.72;
+            boltY[index] = 0.76 + (kSourceY[index] - 0.86) * 0.72;
+        }
+
+        AddUnitPolygon(
+            strong,
+            boltX,
+            boltY,
+            static_cast<int>(std::size(kSourceX)));
+        return true;
+    }
+    default:
+        break;
+    }
+
+    return false;
+}
+
+// Paints the sky wash over the whole capsule and the motif into the trailing room reserved
+// for it, both clipped to the capsule so the artwork bleeds off the closing cap instead of
+// stopping at an invisible box.
+void ComposeBackdrop(
+    Canvas& canvas,
+    const EntryRenderRequest& request,
+    const EntryTheme& theme,
+    const EntryVisualState& state)
+{
+    WeatherPalette palette{};
+    if (!ResolveWeatherPalette(request.icon, theme, palette))
+    {
+        return;
+    }
+
+    const CapsuleShape shape = ResolveCapsuleShape(request, state);
+
+    for (int y = 0; y < canvas.height; ++y)
+    {
+        const double pixelY = static_cast<double>(y) + 0.5;
+        for (int x = 0; x < canvas.width; ++x)
+        {
+            const double coverage =
+                shape.CoverageAt(static_cast<double>(x) + 0.5, pixelY);
+            if (coverage > 0.0)
+            {
+                canvas.Blend(x, y, palette.sky, coverage * palette.skyAlpha);
+            }
+        }
+    }
+
+    const double unit = RectHeightOf(request.capsule) * kMotifUnitScale;
+    if (unit < 8.0)
+    {
+        return;
+    }
+
+    const double boxRight =
+        static_cast<double>(request.capsule.right) + unit * kMotifOverflowX;
+    const double boxBottom =
+        static_cast<double>(request.capsule.bottom) + unit * kMotifOverflowY;
+    const double boxLeft = boxRight - unit;
+    const double boxTop = boxBottom - unit;
+
+    // The masks cover only the motif box clipped to the canvas, so the illustration costs a
+    // small buffer per frame rather than a second full-canvas one.
+    const int left = std::max(0, static_cast<int>(std::floor(boxLeft)) - 2);
+    const int top = std::max(0, static_cast<int>(std::floor(boxTop)) - 2);
+    const int right =
+        std::min(canvas.width, static_cast<int>(std::ceil(boxRight)) + 2);
+    const int bottom =
+        std::min(canvas.height, static_cast<int>(std::ceil(boxBottom)) + 2);
+    if (right <= left || bottom <= top)
+    {
+        return;
+    }
+
+    const int regionWidth = right - left;
+    const int regionHeight = bottom - top;
+
+    IconMask regular{};
+    IconMask strong{};
+    for (IconMask* const mask : {&regular, &strong})
+    {
+        mask->width = regionWidth;
+        mask->height = regionHeight;
+        mask->coverage.assign(
+            static_cast<size_t>(regionWidth) * static_cast<size_t>(regionHeight),
+            0.0);
+        mask->unit = unit;
+        mask->originX = boxLeft - static_cast<double>(left);
+        mask->originY = boxTop - static_cast<double>(top);
+    }
+
+    const bool strongInFront = BuildBackdropArt(request.icon, regular, strong);
+
+    for (int y = 0; y < regionHeight; ++y)
+    {
+        const int canvasY = top + y;
+        const double pixelY = static_cast<double>(canvasY) + 0.5;
+        for (int x = 0; x < regionWidth; ++x)
+        {
+            const size_t index =
+                static_cast<size_t>(y) * static_cast<size_t>(regionWidth) +
+                    static_cast<size_t>(x);
+            const double regularCoverage = regular.coverage[index];
+            const double strongCoverage = strong.coverage[index];
+            if (regularCoverage <= 0.0 && strongCoverage <= 0.0)
+            {
+                continue;
+            }
+
+            const int canvasX = left + x;
+            const double clip =
+                shape.CoverageAt(static_cast<double>(canvasX) + 0.5, pixelY);
+            if (clip <= 0.0)
+            {
+                continue;
+            }
+
+            const auto blend = [&](const double coverage, const double alpha)
+            {
+                if (coverage > 0.0)
+                {
+                    canvas.Blend(
+                        canvasX,
+                        canvasY,
+                        palette.motif,
+                        coverage * alpha * clip);
+                }
+            };
+
+            if (strongInFront)
+            {
+                blend(regularCoverage, palette.motifAlpha);
+                blend(strongCoverage, palette.motifStrongAlpha);
+            }
+            else
+            {
+                blend(strongCoverage, palette.motifStrongAlpha);
+                blend(regularCoverage, palette.motifAlpha);
+            }
+        }
+    }
+}
+
 void ComposeIndicator(
     Canvas& canvas,
     const EntryRenderRequest& request,
@@ -914,6 +1332,9 @@ bool ComposeEntryBitmap(
     Canvas canvas{bgra.data(), width, height};
 
     ComposeCapsule(canvas, request, theme, state);
+    // The illustration sits on the capsule, the way the card's sits on the card surface.
+    // Under the neutral fill both the sky and the motif came out diluted to a grey smudge.
+    ComposeBackdrop(canvas, request, theme, state);
     ComposeIndicator(canvas, request, theme, state);
 
     const COLORREF textColor = theme.highContrast
@@ -1174,7 +1595,7 @@ int MeasureEntryContentWidthLogical(
 
     return ToLogical(extent.cx, dpi) +
         LeadingWidthLogical(icon) +
-        kEntryTrailingPaddingLogical;
+        TrailingWidthLogical(icon);
 }
 
 bool IsPointInCapsule(const RECT& capsule, const POINT clientPoint) noexcept
@@ -1806,15 +2227,26 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             rendered.push_back(std::move(box));
         }
 
-        // The glyph has to claim its own width, otherwise it would overlap the text.
+        // The glyph and the illustration each have to claim their own width, otherwise one
+        // of them would end up on top of the text.
         const int withoutIcon =
             MeasureEntryContentWidthLogical(L"26", 96, false, EntryIcon::None);
         const int withIcon =
             MeasureEntryContentWidthLogical(L"26", 96, false, EntryIcon::Rain);
         if (withIcon - withoutIcon !=
+            kEntryIconSizeLogical + kEntryIconGapLogical + kEntryMotifWidthLogical)
+        {
+            failure = L"the condition glyph and illustration do not reserve their own width";
+            return false;
+        }
+
+        // Unknown draws a glyph but no illustration, so it must not claim the motif room.
+        const int withUnknown =
+            MeasureEntryContentWidthLogical(L"26", 96, false, EntryIcon::Unknown);
+        if (withUnknown - withoutIcon !=
             kEntryIconSizeLogical + kEntryIconGapLogical)
         {
-            failure = L"the condition glyph does not reserve its own width";
+            failure = L"an unknown condition reserved illustration room it never draws";
             return false;
         }
 
@@ -1823,6 +2255,136 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             ParseEntryIcon("not-a-condition") != EntryIcon::Unknown)
         {
             failure = L"condition token parsing is wrong";
+            return false;
+        }
+    }
+
+    {
+        // The condition illustration: it has to colour the capsule, add motif ink of its own
+        // in the room reserved for it, stay clipped to the capsule, and disappear entirely in
+        // high contrast, where every WwbWeather* brush is Transparent.
+        constexpr int kWidth = 200;
+        constexpr int kHeight = 40;
+
+        EntryTheme theme{};
+        theme.darkStrip = true;
+        theme.accent = RGB(0, 120, 212);
+        theme.surfaceTint = RGB(255, 255, 255);
+        theme.text = RGB(255, 255, 255);
+        theme.restAlpha = 0.10;
+        theme.hoverAlpha = 0.20;
+        theme.pressedAlpha = 0.26;
+        theme.activeAlpha = 0.24;
+        theme.textAlpha = 0.92;
+        theme.activeTextAlpha = 1.0;
+
+        const auto render = [&](
+            const EntryIcon icon,
+            const EntryTheme& useTheme,
+            std::vector<BYTE>& pixels)
+        {
+            EntryRenderRequest request{};
+            request.windowSize = SIZE{kWidth, kHeight};
+            request.capsule = RECT{0, 0, kWidth, kHeight};
+            request.dpi = 96;
+            request.icon = icon;
+            request.text = L"26";
+            return ComposeEntryBitmap(request, useTheme, EntryVisualState{}, pixels);
+        };
+
+        const auto channelAt = [](
+            const std::vector<BYTE>& pixels,
+            const int x,
+            const int y,
+            const int channel)
+        {
+            return static_cast<int>(pixels[
+                (static_cast<size_t>(y) * static_cast<size_t>(kWidth) +
+                    static_cast<size_t>(x)) * 4 + static_cast<size_t>(channel)]);
+        };
+
+        // The trailing motif box, restated from the same constants the compositor uses, and
+        // a point inside the cloud every falling condition draws.
+        constexpr double kUnit = static_cast<double>(kHeight) * kMotifUnitScale;
+        constexpr double kBoxLeft =
+            static_cast<double>(kWidth) + kUnit * kMotifOverflowX - kUnit;
+        constexpr double kBoxTop =
+            static_cast<double>(kHeight) + kUnit * kMotifOverflowY - kUnit;
+        constexpr int kMotifX = static_cast<int>(kBoxLeft + 0.64 * kUnit);
+        constexpr int kMotifY = static_cast<int>(kBoxTop + 0.46 * kUnit);
+        static_assert(
+            kMotifX > kWidth / 2 && kMotifX < kWidth &&
+                kMotifY > 0 && kMotifY < kHeight,
+            "the illustration sample has to land inside the entry's trailing motif room");
+
+        std::vector<BYTE> neutral;
+        std::vector<BYTE> rainy;
+        if (!render(EntryIcon::Unknown, theme, neutral) ||
+            !render(EntryIcon::Rain, theme, rainy))
+        {
+            failure = L"the condition illustration failed to compose";
+            return false;
+        }
+
+        // Premultiplied BGRA: channel 0 is blue, channel 2 is red. The neutral capsule is a
+        // white tint, so its channels match; a wet sky has to be visibly bluer than that.
+        if (std::abs(channelAt(neutral, kWidth / 2, kMotifY, 0) -
+                channelAt(neutral, kWidth / 2, kMotifY, 2)) > 2)
+        {
+            failure = L"the neutral capsule is not colour-free";
+            return false;
+        }
+
+        if (channelAt(rainy, kWidth / 2, kMotifY, 0) -
+                channelAt(rainy, kWidth / 2, kMotifY, 2) < 6)
+        {
+            failure = L"the condition illustration did not tint the capsule";
+            return false;
+        }
+
+        // The motif has to add ink over the sky wash, not just repeat it.
+        const int skyAlpha = channelAt(rainy, kWidth / 2, kMotifY, 3);
+        const int motifAlpha = channelAt(rainy, kMotifX, kMotifY, 3);
+        if (motifAlpha - skyAlpha < 10)
+        {
+            failure = L"the condition illustration drew no motif";
+            return false;
+        }
+
+        if (channelAt(rainy, 0, 0, 3) != 0 ||
+            channelAt(rainy, kWidth - 1, kHeight - 1, 3) != 0)
+        {
+            failure = L"the condition illustration escaped the capsule";
+            return false;
+        }
+
+        EntryTheme contrast = theme;
+        contrast.highContrast = true;
+        contrast.highContrastFace = RGB(0, 0, 0);
+        contrast.highContrastActiveFace = RGB(255, 255, 0);
+        contrast.highContrastText = RGB(255, 255, 255);
+        contrast.highContrastActiveText = RGB(0, 0, 0);
+        contrast.highContrastBorder = RGB(255, 255, 255);
+
+        std::vector<BYTE> opaque;
+        if (!render(EntryIcon::Rain, contrast, opaque))
+        {
+            failure = L"the high contrast illustration failed to compose";
+            return false;
+        }
+
+        if (channelAt(opaque, kWidth / 2, kMotifY, 0) !=
+                channelAt(opaque, kWidth / 2, kMotifY, 2))
+        {
+            failure = L"high contrast kept the condition tint";
+            return false;
+        }
+
+        if (!HasBackdrop(EntryIcon::Rain) ||
+            HasBackdrop(EntryIcon::Unknown) ||
+            HasBackdrop(EntryIcon::None))
+        {
+            failure = L"the illustration is claimed for a condition that has none";
             return false;
         }
     }

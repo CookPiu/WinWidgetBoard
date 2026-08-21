@@ -18,6 +18,10 @@ inline constexpr int kEntryIndicatorActiveHeightLogical = 16;
 inline constexpr int kEntryFontSizeLogical = 14;
 inline constexpr int kEntryIconSizeLogical = 18;
 inline constexpr int kEntryIconGapLogical = 8;
+// Trailing room reserved for the condition illustration, so the motif bleeds off the closing
+// cap instead of sitting under the temperature. It mirrors the card, where the illustration
+// owns the empty bottom-right corner rather than the text column.
+inline constexpr int kEntryMotifWidthLogical = 26;
 
 // The condition glyphs the entry can draw. They are drawn from primitives rather than taken
 // from an icon font: the entry composites its own premultiplied bitmap, and a font would add
