@@ -424,8 +424,20 @@ struct SegmentLayout
     bool hasDivider{};
 };
 
-// Lays the segments out left to right after the indicator. Each segment is glyph, gap, text;
-// consecutive segments are separated by a gap, a hairline, and another gap.
+// The width one segment needs: its glyph and gap when it has one, plus its text.
+int MeasureSegmentCellWidth(
+    const EntrySegment& segment,
+    const TextMeasurer& measurer,
+    const int iconSize,
+    const int iconGap)
+{
+    return (segment.icon != EntryIcon::None ? iconSize + iconGap : 0) +
+        measurer.Measure(segment.text);
+}
+
+// Lays the segments out in columns of two after the indicator. Every cell in a column starts
+// at the same x so the readings line up vertically; the column is as wide as its widest cell.
+// Neighbouring columns are separated by a gap, a hairline spanning both rows, and another gap.
 std::vector<SegmentLayout> ResolveSegmentLayout(
     const EntryRenderRequest& request,
     const TextMeasurer& measurer)
@@ -433,9 +445,11 @@ std::vector<SegmentLayout> ResolveSegmentLayout(
     std::vector<SegmentLayout> layouts;
     layouts.reserve(request.segments.size());
 
-    const int iconSize = ScaleLogical(kEntryIconSizeLogical, request.dpi);
-    const int iconGap = ScaleLogical(kEntryIconGapLogical, request.dpi);
-    const int segmentGap = ScaleLogical(kEntrySegmentGapLogical, request.dpi);
+    const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, request.dpi);
+    const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, request.dpi);
+    const int columnGap = ScaleLogical(kEntrySegmentColumnGapLogical, request.dpi);
+    const int dividerWidth = ScaleLogical(kEntryDividerWidthLogical, request.dpi);
+    const int rowHeight = ScaleLogical(kEntrySegmentRowHeightLogical, request.dpi);
     const int centerY = (request.capsule.top + request.capsule.bottom) / 2;
 
     int cursor = request.capsule.left +
@@ -445,57 +459,77 @@ std::vector<SegmentLayout> ResolveSegmentLayout(
                 kEntryIndicatorGapLogical,
             request.dpi);
 
-    // A segment that will not fit whole is dropped rather than clipped. A strip that ends in
+    // A column that will not fit whole is dropped rather than clipped. A strip that ends in
     // half a glyph reads as a rendering fault; one that simply ends does not, and the card
-    // still shows every configured reading.
+    // still shows every configured reading. Columns are dropped together so the surviving
+    // strip never shows a top reading with an empty slot under it.
     const int limit = request.capsule.right -
         ScaleLogical(kEntryTrailingPaddingLogical, request.dpi);
 
-    for (size_t index = 0; index < request.segments.size(); ++index)
+    const size_t count = request.segments.size();
+    for (size_t first = 0; first < count; first += kEntrySegmentRowsPerColumn)
     {
-        const EntrySegment& segment = request.segments[index];
-        SegmentLayout layout{};
+        const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
+        const int rowCount = static_cast<int>(past - first);
 
-        const int segmentWidth =
-            (segment.icon != EntryIcon::None ? iconSize + iconGap : 0) +
-            measurer.Measure(segment.text);
-        if (!layouts.empty() && cursor + segmentWidth > limit)
+        int columnWidth = 0;
+        for (size_t index = first; index < past; ++index)
+        {
+            columnWidth = std::max(
+                columnWidth,
+                MeasureSegmentCellWidth(
+                    request.segments[index],
+                    measurer,
+                    iconSize,
+                    iconGap));
+        }
+
+        if (!layouts.empty() && cursor + columnWidth > limit)
         {
             break;
         }
 
-        if (segment.icon != EntryIcon::None)
+        // A column of one - the odd reading at the end, or a strip with a single segment -
+        // sits on the centre line rather than pretending its missing partner is below it.
+        const int columnTop = centerY - rowHeight * rowCount / 2;
+        for (size_t index = first; index < past; ++index)
         {
-            layout.iconRect = RECT{
-                cursor,
-                centerY - iconSize / 2,
-                cursor + iconSize,
-                centerY + iconSize / 2};
-            cursor += iconSize + iconGap;
+            const EntrySegment& segment = request.segments[index];
+            const int rowTop =
+                columnTop + rowHeight * static_cast<int>(index - first);
+            const int rowCenterY = rowTop + rowHeight / 2;
+
+            SegmentLayout layout{};
+            int cellCursor = cursor;
+            if (segment.icon != EntryIcon::None)
+            {
+                layout.iconRect = RECT{
+                    cellCursor,
+                    rowCenterY - iconSize / 2,
+                    cellCursor + iconSize,
+                    rowCenterY + iconSize / 2};
+                cellCursor += iconSize + iconGap;
+            }
+
+            layout.textRect = RECT{
+                cellCursor,
+                rowTop,
+                cursor + columnWidth,
+                rowTop + rowHeight};
+            layouts.push_back(layout);
         }
 
-        const int textWidth = measurer.Measure(segment.text);
-        layout.textRect = RECT{
-            cursor,
-            request.capsule.top,
-            cursor + textWidth,
-            request.capsule.bottom};
-        cursor += textWidth;
-
-        if (index + 1 < request.segments.size())
+        cursor += columnWidth;
+        if (past < count)
         {
-            layout.hasDivider = true;
-            layout.dividerCenterX = cursor + segmentGap;
-            cursor += segmentGap * 2 + ScaleLogical(
-                kEntryDividerWidthLogical,
-                request.dpi);
+            layouts.back().hasDivider = true;
+            layouts.back().dividerCenterX = cursor + columnGap;
+            cursor += columnGap * 2 + dividerWidth;
         }
-
-        layouts.push_back(layout);
     }
 
-    // The last segment that survived the fit check has nothing to its right to separate it
-    // from, so its divider goes with the segments that were dropped.
+    // The last column that survived the fit check has nothing to its right to separate it
+    // from, so its divider goes with the columns that were dropped.
     if (!layouts.empty())
     {
         layouts.back().hasDivider = false;
@@ -1220,7 +1254,11 @@ bool ComposeSegments(
         return true;
     }
 
-    const TextMeasurer measurer(ResolveFontPixelHeight(request));
+    // The segmented strip has its own type size - see kEntrySegmentFontSizeLogical - so it
+    // does not go through ResolveFontPixelHeight, which serves the single-line modes.
+    const int fontPixelHeight =
+        ScaleLogical(kEntrySegmentFontSizeLogical, request.dpi);
+    const TextMeasurer measurer(fontPixelHeight);
     if (!measurer.IsReady())
     {
         return false;
@@ -1234,7 +1272,7 @@ bool ComposeSegments(
         return false;
     }
 
-    HFONT font = CreateEntryFont(ResolveFontPixelHeight(request));
+    HFONT font = CreateEntryFont(fontPixelHeight);
     if (font == nullptr)
     {
         return false;
@@ -2065,29 +2103,39 @@ int MeasureEntrySegmentsWidthLogical(
         return 0;
     }
 
-    const TextMeasurer measurer(ScaleLogical(kEntryFontSizeLogical, dpi));
+    const TextMeasurer measurer(ScaleLogical(kEntrySegmentFontSizeLogical, dpi));
     if (!measurer.IsReady())
     {
         return 0;
     }
+
+    const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, dpi);
+    const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, dpi);
 
     int width = kEntryLeadingPaddingLogical +
         kEntryIndicatorWidthLogical +
         kEntryIndicatorGapLogical +
         kEntryTrailingPaddingLogical;
 
-    for (size_t index = 0; index < segments.size(); ++index)
+    // Mirrors ResolveSegmentLayout's column packing: a column is as wide as its widest cell,
+    // and only the columns pay for a divider. Measuring per segment instead would ask the
+    // taskbar for roughly twice the width the strip then draws into.
+    const size_t count = segments.size();
+    for (size_t first = 0; first < count; first += kEntrySegmentRowsPerColumn)
     {
-        const EntrySegment& segment = segments[index];
-        if (segment.icon != EntryIcon::None)
+        const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
+        int columnWidth = 0;
+        for (size_t index = first; index < past; ++index)
         {
-            width += kEntryIconSizeLogical + kEntryIconGapLogical;
+            columnWidth = std::max(
+                columnWidth,
+                MeasureSegmentCellWidth(segments[index], measurer, iconSize, iconGap));
         }
 
-        width += ToLogical(measurer.Measure(segment.text), dpi);
-        if (index + 1 < segments.size())
+        width += ToLogical(columnWidth, dpi);
+        if (past < count)
         {
-            width += kEntrySegmentGapLogical * 2 + kEntryDividerWidthLogical;
+            width += kEntrySegmentColumnGapLogical * 2 + kEntryDividerWidthLogical;
         }
     }
 
@@ -2330,9 +2378,32 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
     const int tileWidth = MulDiv(140, static_cast<int>(kDpi), 96);
     const int tileHeight = MulDiv(40, static_cast<int>(kDpi), 96);
     const int gap = MulDiv(8, static_cast<int>(kDpi), 96);
+    // Two hardware strips, one per taskbar theme, with the glyph set the monitor actually
+    // uses and values in the shapes the broker composes. Eight readings is the cap the
+    // contract allows and what the shipped default asks for once every metric this machine
+    // can read is turned on.
+    const EntrySegment monitorSegments[] = {
+        EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+        EntrySegment{EntryIcon::Memory, L"MEM 61%"},
+        EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
+        EntrySegment{EntryIcon::Gpu, L"VRAM 42%"},
+        EntrySegment{EntryIcon::Disk, L"DISK 12%"},
+        EntrySegment{EntryIcon::Disk, L"DISK 68%"},
+        EntrySegment{EntryIcon::NetworkDown, L"7.2 MB/s"},
+        EntrySegment{EntryIcon::NetworkUp, L"164 KB/s"},
+    };
+    const std::vector<EntrySegment> monitorStrip(
+        std::begin(monitorSegments),
+        std::end(monitorSegments));
+
     // The hardware strip is far wider than a weather chip, so it gets its own two rows at the
-    // bottom of the sheet rather than being squeezed into the glyph column.
-    const int stripWidth = MulDiv(460, static_cast<int>(kDpi), 96);
+    // bottom of the sheet rather than being squeezed into the glyph column. Its width comes
+    // from the same measurement the taskbar asks for, so the sheet shows the room the entry
+    // actually claims instead of a figure picked for the sheet.
+    const int stripWidth = MulDiv(
+        MeasureEntrySegmentsWidthLogical(monitorStrip, kDpi),
+        static_cast<int>(kDpi),
+        96);
     const int sheetWidth = std::max(
         gap + (tileWidth + gap) * 2,
         gap + stripWidth + gap);
@@ -2416,16 +2487,6 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
         }
     }
 
-    // Two hardware strips, one per taskbar theme, with the glyph set the monitor actually
-    // uses and values in the shapes the broker composes.
-    const EntrySegment monitorSegments[] = {
-        EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
-        EntrySegment{EntryIcon::Memory, L"MEM 61%"},
-        EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
-        EntrySegment{EntryIcon::NetworkDown, L"7.2 MB/s"},
-        EntrySegment{EntryIcon::NetworkUp, L"164 KB/s"},
-    };
-
     for (int row = 0; row < 2; ++row)
     {
         const bool darkStrip = row == 0;
@@ -2459,9 +2520,7 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
         request.windowSize = SIZE{stripWidth, tileHeight};
         request.capsule = RECT{0, 0, stripWidth, tileHeight};
         request.dpi = kDpi;
-        request.segments.assign(
-            std::begin(monitorSegments),
-            std::end(monitorSegments));
+        request.segments = monitorStrip;
 
         std::vector<BYTE> tile;
         if (!ComposeEntryBitmap(request, theme, EntryVisualState{}, tile))
@@ -3012,31 +3071,66 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             return false;
         }
 
-        // Every segment has to leave ink: a glyph that silently drew nothing, or a value that
-        // landed outside its rectangle, would otherwise look like an empty stretch of strip.
-        const int thirds[] = {kWidth / 6, kWidth / 2, kWidth * 5 / 6};
-        for (const int sampleX : thirds)
+        const auto hasInkInBand = [&](
+            const std::vector<BYTE>& pixels,
+            const int fromX,
+            const int pastX,
+            const int fromY,
+            const int pastY)
         {
-            bool hasInk = false;
-            for (int y = 0; y < kHeight && !hasInk; ++y)
+            for (int y = std::max(0, fromY); y < std::min(kHeight, pastY); ++y)
             {
-                for (int x = std::max(0, sampleX - 30);
-                    x < std::min(kWidth, sampleX + 30);
-                    ++x)
+                for (int x = std::max(0, fromX); x < std::min(kWidth, pastX); ++x)
                 {
-                    if (alphaAt(strip, x, y) > 120)
+                    if (alphaAt(pixels, x, y) > 120)
                     {
-                        hasInk = true;
-                        break;
+                        return true;
                     }
                 }
             }
 
-            if (!hasInk)
-            {
-                failure = L"a segment of the strip drew nothing";
-                return false;
-            }
+            return false;
+        };
+
+        // Both rows have to carry ink. A layout that quietly collapsed back to a single line
+        // would still light up every column, so sampling columns alone cannot see it.
+        const int contentLeft = ScaleLogical(
+            kEntryLeadingPaddingLogical +
+                kEntryIndicatorWidthLogical +
+                kEntryIndicatorGapLogical,
+            96);
+        const int contentRight =
+            MeasureEntrySegmentsWidthLogical(three, 96) - kEntryTrailingPaddingLogical;
+        const int centerY = kHeight / 2;
+        if (!hasInkInBand(strip, contentLeft, contentRight, 0, centerY) ||
+            !hasInkInBand(strip, contentLeft, contentRight, centerY, kHeight))
+        {
+            failure = L"the segmented strip did not fill both of its rows";
+            return false;
+        }
+
+        // Nothing may be drawn past the width the strip asked the taskbar for; a measurement
+        // that undercounts would show up here as ink beyond the reserved room.
+        if (hasInkInBand(strip, contentRight, kWidth, 0, kHeight))
+        {
+            failure = L"the segmented strip drew past its measured width";
+            return false;
+        }
+
+        // The second reading shares a column with the first, so an identical pair must claim
+        // exactly the width one of them does. This is the two-row packing stated as a number
+        // rather than as pixels, and it is what a return to one row would break first.
+        const std::vector<EntrySegment> onePair = {
+            EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+            EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+        };
+        if (MeasureEntrySegmentsWidthLogical(onePair, 96) !=
+            MeasureEntrySegmentsWidthLogical(
+                {EntrySegment{EntryIcon::Cpu, L"CPU 24%"}},
+                96))
+        {
+            failure = L"a second reading did not share the first reading's column";
+            return false;
         }
 
         // A single segment has no neighbour, so it must draw no divider at all. Comparing the
@@ -3074,10 +3168,13 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
         }
 
         // More segments than fit must end the strip cleanly rather than clip one in half.
+        // Eight readings at the detailed shape is the widest the contract allows, and it does
+        // not fit this capsule even folded into four columns.
         std::vector<EntrySegment> tooMany;
         for (int index = 0; index < 8; ++index)
         {
-            tooMany.push_back(EntrySegment{EntryIcon::Gpu, L"GPU 100%"});
+            tooMany.push_back(
+                EntrySegment{EntryIcon::Gpu, L"GPU 100% 12.0 GB / 24.0 GB"});
         }
 
         std::vector<BYTE> overflowing;

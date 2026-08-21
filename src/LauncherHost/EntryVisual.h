@@ -23,11 +23,27 @@ inline constexpr int kEntryIconGapLogical = 8;
 // cap instead of sitting under the temperature. It mirrors the card, where the illustration
 // owns the empty bottom-right corner rather than the text column.
 inline constexpr int kEntryMotifWidthLogical = 26;
-// Hardware readings are shown as several segments on one strip. The divider is a hairline
-// rather than a gap alone: at four segments, spacing by itself stops reading as separation.
-inline constexpr int kEntrySegmentGapLogical = 10;
+// Hardware readings are packed two rows deep, the way TrafficMonitor stacks its upload over
+// its download. At the entry's normal 14 DIP type a single row runs out of width after four
+// readings and still leaves most of the capsule's height empty; halving the type and folding
+// the strip in two fits the whole configured set and reads as one dense instrument instead of
+// a sentence. Segments fill column by column - segment 0 above segment 1, segment 2 above
+// segment 3 - so a related pair such as up/down stays together in one column.
+inline constexpr int kEntrySegmentRowsPerColumn = 2;
+inline constexpr int kEntrySegmentFontSizeLogical = 7;
+// One text row plus its leading. Two of these stack around the capsule's centre line.
+inline constexpr int kEntrySegmentRowHeightLogical = 11;
+// The glyph shrinks with the type it labels, and its gap with it; at 18 DIP it would be
+// taller than the two rows it sits beside.
+inline constexpr int kEntrySegmentIconSizeLogical = 10;
+inline constexpr int kEntrySegmentIconGapLogical = 4;
+// Each side of the divider. Tighter than the single-row strip's: with columns half as wide,
+// the old 10 DIP read as a hole rather than as breathing room.
+inline constexpr int kEntrySegmentColumnGapLogical = 6;
+// The divider is a hairline rather than a gap alone: at four columns, spacing by itself stops
+// reading as separation. It spans both rows.
 inline constexpr int kEntryDividerWidthLogical = 1;
-inline constexpr int kEntryDividerHeightLogical = 14;
+inline constexpr int kEntryDividerHeightLogical = 22;
 
 // The condition glyphs the entry can draw. They are drawn from primitives rather than taken
 // from an icon font: the entry composites its own premultiplied bitmap, and a font would add

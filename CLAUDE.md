@@ -100,6 +100,11 @@ Each executable self-tests without a desktop session — CI runs the first two:
 
 They need an interactive, focusable desktop and refuse to run alongside an existing WorkspacePanel.
 
+Run them from **`pwsh`**, not `powershell`. Windows PowerShell 5.1 is DPI-unaware, so `GetWindowRect`
+and `Screen.Bounds` come back virtualized; at 200% scaling a script that checks window geometry
+(`Test-LauncherEntryPlacement.ps1`) reads every width as half its real value and fails on a correct
+build.
+
 Write-path acceptance runs **must** isolate process identity and data: `--acceptance-test --test-instance-id <new guid> --data-directory <strict subdir of %TEMP%>`, kill only the processes the script started, delete the temp dir at the end, and never touch the production database. Do not change production single-instance or default data paths to make a test easier (ADR 0017).
 
 ### Run the app
