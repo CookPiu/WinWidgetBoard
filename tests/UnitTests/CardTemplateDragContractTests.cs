@@ -76,6 +76,7 @@ public sealed class CardTemplateDragContractTests
             "TimerCardDragHandle",
             "TodoCardDragHandle",
             "CalendarCardDragHandle",
+            "SystemMonitorCardDragHandle",
             "UnknownCardDragHandle",
         ];
 

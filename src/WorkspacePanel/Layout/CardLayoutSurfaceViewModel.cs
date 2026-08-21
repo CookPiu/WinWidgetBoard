@@ -12,6 +12,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
     private readonly NoteEditorViewModel _noteEditor;
     private readonly Func<NoteEditorStatus, string> _statusFormatter;
     private readonly Func<string, string?> _runtimeResourceResolver;
+    private readonly Action<Action> _uiInvoker;
     private readonly CardRuntimeVisibilityScheduler _visibilityScheduler;
     private readonly ObservableCollection<CardSurfaceItem> _items = [];
     private bool _disposed;
@@ -21,7 +22,8 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
         NoteEditorViewModel noteEditor,
         Func<NoteEditorStatus, string>? statusFormatter = null,
         CardRuntimeVisibilityScheduler? visibilityScheduler = null,
-        Func<string, string?>? runtimeResourceResolver = null)
+        Func<string, string?>? runtimeResourceResolver = null,
+        Action<Action>? uiInvoker = null)
     {
         ArgumentNullException.ThrowIfNull(editMode);
         ArgumentNullException.ThrowIfNull(noteEditor);
@@ -31,6 +33,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
         _statusFormatter = statusFormatter ?? (status => status.ToString());
         _runtimeResourceResolver = runtimeResourceResolver ??
             (static key => key);
+        _uiInvoker = uiInvoker ?? (static action => action());
         _visibilityScheduler = visibilityScheduler ??
             new CardRuntimeVisibilityScheduler();
         _layout.PropertyChanged += Layout_PropertyChanged;
@@ -188,7 +191,8 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
                     _editMode,
                     _statusFormatter,
                     _visibilityScheduler,
-                    _runtimeResourceResolver);
+                    _runtimeResourceResolver,
+                    _uiInvoker);
                 _items.Insert(Math.Min(desiredIndex, _items.Count), item);
                 membershipChanged = true;
             }

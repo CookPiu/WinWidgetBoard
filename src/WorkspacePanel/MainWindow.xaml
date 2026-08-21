@@ -1196,6 +1196,157 @@
             </Border>
         </DataTemplate>
 
+        <!--
+            One metric row. The meter is decoration over a number the row already states, so it
+            carries no automation name of its own; the row's name has the name and the value.
+            A metric with no ceiling - a network rate - shows no meter at all rather than a bar
+            drawn against an invented maximum.
+        -->
+        <DataTemplate
+            x:Key="SystemMonitorMetricTemplate"
+            x:DataType="runtime:SystemMonitorMetricViewModel">
+            <Grid
+                Padding="0,3"
+                RowSpacing="3"
+                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind Name, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        Text="{x:Bind PrimaryText, Mode=OneWay}"
+                        Visibility="{x:Bind HasReading, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind MetricStatusText, Mode=OneWay}"
+                        Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
+                </Grid>
+                <ProgressBar
+                    Grid.Row="1"
+                    Height="4"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{x:Bind MeterPercent, Mode=OneWay}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    IsTabStop="False"
+                    automation:AutomationProperties.AccessibilityView="Raw"
+                    Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
+                <TextBlock
+                    Grid.Row="2"
+                    Style="{StaticResource WwbCardCaptionStyle}"
+                    Text="{x:Bind SecondaryText, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="SystemMonitorCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="160"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <Grid RowSpacing="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Uid="SystemMonitorCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <Button
+                            x:Uid="SysMonSettingsButton"
+                            Grid.Column="1"
+                            Style="{StaticResource WwbCardIconButtonStyle}"
+                            Click="SysMonSettingsButton_Click"
+                            automation:AutomationProperties.AutomationId="SysMonSettingsButton">
+                            <FontIcon FontSize="14" Glyph="&#xE713;" />
+                        </Button>
+                    </Grid>
+                    <Grid Grid.Row="1">
+                        <ContentControl
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
+                        <ItemsControl
+                            VerticalAlignment="Top"
+                            ItemsSource="{x:Bind SystemMonitorMetrics}"
+                            ItemTemplate="{StaticResource SystemMonitorMetricTemplate}"
+                            IsTabStop="False"
+                            automation:AutomationProperties.AutomationId="SystemMonitorMetricList"
+                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
+                    </Grid>
+                    <Border
+                        Grid.Row="2"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Border
+                                Tag="{x:Bind InstanceId}"
+                                Style="{StaticResource WwbDragHandleStyle}">
+                                <TextBlock
+                                    x:Name="SystemMonitorCardDragHandle"
+                                    x:Uid="DragCardHandle"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <Button
+                                x:Uid="DecreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="DecreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="IncreaseCardButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="IncreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="RemoveCardButton"
+                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="RemoveCardButton_Click" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
         <layout:CardSurfaceTemplateSelector
             x:Key="CardTemplateSelector"
             NotesTemplate="{StaticResource NotesCardTemplate}"
@@ -1203,6 +1354,7 @@
             TimerTemplate="{StaticResource TimerCardTemplate}"
             TodoTemplate="{StaticResource TodoCardTemplate}"
             CalendarTemplate="{StaticResource CalendarCardTemplate}"
+            SystemMonitorTemplate="{StaticResource SystemMonitorCardTemplate}"
             DefaultTemplate="{StaticResource UnknownCardTemplate}" />
         </Grid.Resources>
         <Border

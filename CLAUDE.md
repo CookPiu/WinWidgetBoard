@@ -209,6 +209,24 @@ protected override DataTemplate? SelectTemplateCore(object item) =>
 
 made the compiler report `WMC0001: Unknown type` for that selector — and then, because it bails, `Cannot resolve DataType` for **every** type later in the file, including ones that had compiled for months. The C# itself is valid and builds fine on its own. Use a block body with an `is` pattern instead. If a wave of `WMC0909` errors appears after adding one type, fix the first `WMC0001` and ignore the rest; they are all cascade.
 
+## An `x:Bind` property must not share a name with an `x:Name` on the same page
+
+A `DataTemplate` in `MainWindow.xaml` bound `Text="{x:Bind StatusText}"` against its own
+`x:DataType`. The page also has `<TextBlock x:Name="StatusText">`, which the compiler turns into
+a field on the page's partial class. The two names collided, and instead of reporting that, the
+markup compiler crashed:
+
+```
+Xaml Internal Error error WMC9999: ... could not find any resources appropriate for the
+specified culture ... "Microsoft.UI.Xaml.Markup.Compiler.ErrorMessages.resources" ...
+```
+
+That message is the compiler failing to load its own error strings while formatting the real
+error, so it names no file, no line and no symbol. **Do not read it as a broken NuGet package or
+a corrupt SDK.** Bisect instead: the failure is in whatever XAML changed, and renaming the bound
+property (`StatusText` -> `MetricStatusText`) fixes it. The page-level `x:Name` is the one that
+wins; rename the view-model property, not the element.
+
 ## The unit-test project links WorkspacePanel sources
 
 WorkspacePanel is a WinUI app and cannot be `ProjectReference`d, so `tests/UnitTests/WinWidgetBoard.UnitTests.csproj` pulls its files in individually with `<Compile Include="..\..\src\WorkspacePanel\...">`. The test project references no Windows App SDK package, which makes the split enforceable:

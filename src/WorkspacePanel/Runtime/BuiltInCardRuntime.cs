@@ -11,12 +11,14 @@ public static class BuiltInCardCatalog
     public const string TimerInstanceId = "demo.timer";
     public const string TodoInstanceId = "demo.todo";
     public const string CalendarInstanceId = "demo.calendar";
+    public const string SystemMonitorInstanceId = "demo.sysmon";
 
     public const string NotesCardTypeId = "builtin.notes";
     public const string WeatherCardTypeId = "builtin.weather";
     public const string TimerCardTypeId = "builtin.timer";
     public const string TodoCardTypeId = "builtin.todo";
     public const string CalendarCardTypeId = "builtin.calendar";
+    public const string SystemMonitorCardTypeId = "builtin.sysmon";
     public const string UnknownCardTypeId = "builtin.unknown";
 
     private static readonly CardSize[] StandardSizes =
@@ -58,6 +60,14 @@ public static class BuiltInCardCatalog
         CardSize.M,
         StandardSizes);
 
+    // Larger than the other built-ins by default: the card stacks one row per reading, and at
+    // M the shipped five-metric default is clipped after the second row.
+    public static ICardDefinition SystemMonitor { get; } = new CardDefinition(
+        SystemMonitorCardTypeId,
+        "SystemMonitorCardTitle.Text",
+        CardSize.L,
+        StandardSizes);
+
     public static ICardDefinition Unknown { get; } = new CardDefinition(
         UnknownCardTypeId,
         "UnknownCardTitle.Text",
@@ -72,6 +82,7 @@ public static class BuiltInCardCatalog
             Timer,
             Todo,
             Calendar,
+            SystemMonitor,
             Unknown,
         ]);
 
@@ -87,6 +98,7 @@ public static class BuiltInCardCatalog
             TimerInstanceId => Timer,
             TodoInstanceId => Todo,
             CalendarInstanceId => Calendar,
+            SystemMonitorInstanceId => SystemMonitor,
             _ => Unknown,
         };
     }

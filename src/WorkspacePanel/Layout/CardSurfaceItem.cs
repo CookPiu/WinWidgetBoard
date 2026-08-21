@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using WinWidgetBoard.WorkspacePanel.Notes;
 using WinWidgetBoard.WorkspacePanel.Runtime;
@@ -9,10 +10,16 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     private readonly CardLayoutEditViewModel _editMode;
     private readonly Func<NoteEditorStatus, string> _statusFormatter;
     private readonly Func<string, string?> _runtimeResourceResolver;
+    // Snapshots reach this type from two directions: broker pushes arrive already marshalled
+    // onto the UI dispatcher, but the local visibility scheduler completes on whichever thread
+    // ran the tick. Only the metric list is a collection, and mutating one off-thread is what
+    // WinUI actually refuses, so the merge - and nothing else - goes through here.
+    private readonly Action<Action> _uiInvoker;
     private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
     private readonly CardRuntimeRegistration? _visibilityRegistration;
     private CardRuntimeStatusPresentation _runtimePresentation;
     private WeatherCardProjection _weatherProjection;
+    private SystemMonitorCardProjection _systemMonitorProjection;
     private bool _disposed;
 
     public CardSurfaceItem(
@@ -21,7 +28,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         CardLayoutEditViewModel editMode,
         Func<NoteEditorStatus, string>? statusFormatter = null,
         CardRuntimeVisibilityScheduler? visibilityScheduler = null,
-        Func<string, string?>? runtimeResourceResolver = null)
+        Func<string, string?>? runtimeResourceResolver = null,
+        Action<Action>? uiInvoker = null)
     {
         ArgumentNullException.ThrowIfNull(noteEditor);
         ArgumentNullException.ThrowIfNull(editMode);
@@ -31,6 +39,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         _statusFormatter = statusFormatter ?? (status => status.ToString());
         _runtimeResourceResolver = runtimeResourceResolver ??
             (static key => key);
+        _uiInvoker = uiInvoker ?? (static action => action());
         _visibilityScheduler = visibilityScheduler;
         Runtime = BuiltInCardRuntimeFactory.Create(
             placement.InstanceId,
@@ -40,6 +49,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             _runtimeResourceResolver);
         _weatherProjection = WeatherCardProjection.FromSnapshot(
             Runtime.Snapshot);
+        _systemMonitorProjection = SystemMonitorCardProjection.FromSnapshot(
+            Runtime.Snapshot,
+            _runtimeResourceResolver);
+        SystemMonitorMetrics = [];
+        SystemMonitorMetricListMerger.Merge(
+            SystemMonitorMetrics,
+            _systemMonitorProjection.Metrics);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
             RefreshSnapshotAsync);
@@ -90,6 +106,18 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string WeatherAttributionText => WeatherProjection.AttributionText;
 
     public bool HasWeatherData => WeatherProjection.HasData;
+
+    public SystemMonitorCardProjection SystemMonitorProjection =>
+        Volatile.Read(ref _systemMonitorProjection);
+
+    /// <summary>
+    /// A stable collection updated in place. Replacing it every tick would rebuild each row's
+    /// visuals twice a second on a card whose entire purpose is to sit still and change
+    /// numbers.
+    /// </summary>
+    public ObservableCollection<SystemMonitorMetricViewModel> SystemMonitorMetrics { get; }
+
+    public bool HasSystemMonitorData => SystemMonitorProjection.HasData;
 
     public string WeatherAutomationSummary =>
         string.Join(
@@ -208,6 +236,14 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             Interlocked.Exchange(
                 ref _weatherProjection,
                 WeatherCardProjection.FromSnapshot(Runtime.Snapshot));
+            SystemMonitorCardProjection systemMonitor =
+                SystemMonitorCardProjection.FromSnapshot(
+                    Runtime.Snapshot,
+                    _runtimeResourceResolver);
+            Interlocked.Exchange(ref _systemMonitorProjection, systemMonitor);
+            _uiInvoker(() => SystemMonitorMetricListMerger.Merge(
+                SystemMonitorMetrics,
+                systemMonitor.Metrics));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(RuntimeSnapshot)));
@@ -253,6 +289,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherAutomationSummary)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(SystemMonitorProjection)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasSystemMonitorData)));
         }
     }
 }

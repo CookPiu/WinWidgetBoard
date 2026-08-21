@@ -697,4 +697,115 @@
   <data name="WeatherSettingsSearchButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Search for a place</value>
   </data>
+  <data name="SystemMonitorCardTitle.Text" xml:space="preserve">
+    <value>Hardware</value>
+  </data>
+  <data name="SysMonMetric.CpuUsage" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="SysMonMetric.CpuClock" xml:space="preserve">
+    <value>CPU clock</value>
+  </data>
+  <data name="SysMonMetric.CpuTemperature" xml:space="preserve">
+    <value>CPU temperature</value>
+  </data>
+  <data name="SysMonMetric.MemoryUsage" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="SysMonMetric.GpuUsage" xml:space="preserve">
+    <value>GPU</value>
+  </data>
+  <data name="SysMonMetric.GpuMemory" xml:space="preserve">
+    <value>GPU memory</value>
+  </data>
+  <data name="SysMonMetric.GpuTemperature" xml:space="preserve">
+    <value>GPU temperature</value>
+  </data>
+  <data name="SysMonMetric.DiskActivity" xml:space="preserve">
+    <value>Disk activity</value>
+  </data>
+  <data name="SysMonMetric.DiskUsage" xml:space="preserve">
+    <value>Disk usage</value>
+  </data>
+  <data name="SysMonMetric.NetworkUp" xml:space="preserve">
+    <value>Upload</value>
+  </data>
+  <data name="SysMonMetric.NetworkDown" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="SysMonMetric.FanSpeed" xml:space="preserve">
+    <value>Fan</value>
+  </data>
+  <data name="SysMonMetric.Unknown" xml:space="preserve">
+    <value>Unknown reading</value>
+  </data>
+  <data name="SysMonStatus.Pending" xml:space="preserve">
+    <value>Measuring…</value>
+  </data>
+  <data name="SysMonStatus.Unavailable" xml:space="preserve">
+    <value>Not available on this PC</value>
+  </data>
+  <data name="SysMonDetail.Compact" xml:space="preserve">
+    <value>Value only</value>
+  </data>
+  <data name="SysMonDetail.Normal" xml:space="preserve">
+    <value>Value and meter</value>
+  </data>
+  <data name="SysMonDetail.Detailed" xml:space="preserve">
+    <value>Full detail</value>
+  </data>
+  <data name="SysMonSettingsDialog.Title" xml:space="preserve">
+    <value>Hardware monitor</value>
+  </data>
+  <data name="SysMonSettingsDialog.CloseButtonText" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="SysMonSettingsDescription.Text" xml:space="preserve">
+    <value>Choose what the card and the taskbar entry show, and in what order.</value>
+  </data>
+  <data name="SysMonCardSectionHeader.Text" xml:space="preserve">
+    <value>On the card</value>
+  </data>
+  <data name="SysMonEntrySectionHeader.Text" xml:space="preserve">
+    <value>On the taskbar</value>
+  </data>
+  <data name="SysMonSettingsSaveButton.Content" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="SysMonSettingsSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Save hardware monitor settings</value>
+  </data>
+  <data name="SysMonSettingsLoadedStatus" xml:space="preserve">
+    <value>Settings loaded.</value>
+  </data>
+  <data name="SysMonSettingsUnavailableStatus" xml:space="preserve">
+    <value>The hardware monitor is unavailable.</value>
+  </data>
+  <data name="SysMonSettingsLoadFailedStatus" xml:space="preserve">
+    <value>Could not load the settings.</value>
+  </data>
+  <data name="SysMonSettingsSavedStatus" xml:space="preserve">
+    <value>Settings saved.</value>
+  </data>
+  <data name="SysMonSettingsSaveFailedStatus" xml:space="preserve">
+    <value>Could not save the settings.</value>
+  </data>
+  <data name="SysMonSettingsConflictStatus" xml:space="preserve">
+    <value>The settings changed elsewhere. Reopen the dialog and try again.</value>
+  </data>
+  <data name="SysMonSettingsTooManyItems" xml:space="preserve">
+    <value>Each surface can show at most 8 readings.</value>
+  </data>
+  <data name="SysMonSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Hardware monitor settings</value>
+  </data>
+  <data name="SysMonSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Hardware monitor settings</value>
+  </data>
+  <data name="SysMonMoveUpButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="SysMonMoveDownButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Move down</value>
+  </data>
 </root>

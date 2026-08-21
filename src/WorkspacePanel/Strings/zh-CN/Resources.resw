@@ -697,4 +697,115 @@
   <data name="WeatherSettingsSearchButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>搜索地点</value>
   </data>
+  <data name="SystemMonitorCardTitle.Text" xml:space="preserve">
+    <value>硬件</value>
+  </data>
+  <data name="SysMonMetric.CpuUsage" xml:space="preserve">
+    <value>CPU</value>
+  </data>
+  <data name="SysMonMetric.CpuClock" xml:space="preserve">
+    <value>CPU 频率</value>
+  </data>
+  <data name="SysMonMetric.CpuTemperature" xml:space="preserve">
+    <value>CPU 温度</value>
+  </data>
+  <data name="SysMonMetric.MemoryUsage" xml:space="preserve">
+    <value>内存</value>
+  </data>
+  <data name="SysMonMetric.GpuUsage" xml:space="preserve">
+    <value>GPU</value>
+  </data>
+  <data name="SysMonMetric.GpuMemory" xml:space="preserve">
+    <value>显存</value>
+  </data>
+  <data name="SysMonMetric.GpuTemperature" xml:space="preserve">
+    <value>GPU 温度</value>
+  </data>
+  <data name="SysMonMetric.DiskActivity" xml:space="preserve">
+    <value>磁盘活动</value>
+  </data>
+  <data name="SysMonMetric.DiskUsage" xml:space="preserve">
+    <value>磁盘占用</value>
+  </data>
+  <data name="SysMonMetric.NetworkUp" xml:space="preserve">
+    <value>上传</value>
+  </data>
+  <data name="SysMonMetric.NetworkDown" xml:space="preserve">
+    <value>下载</value>
+  </data>
+  <data name="SysMonMetric.FanSpeed" xml:space="preserve">
+    <value>风扇</value>
+  </data>
+  <data name="SysMonMetric.Unknown" xml:space="preserve">
+    <value>未知项</value>
+  </data>
+  <data name="SysMonStatus.Pending" xml:space="preserve">
+    <value>测量中…</value>
+  </data>
+  <data name="SysMonStatus.Unavailable" xml:space="preserve">
+    <value>此电脑无法读取</value>
+  </data>
+  <data name="SysMonDetail.Compact" xml:space="preserve">
+    <value>仅数值</value>
+  </data>
+  <data name="SysMonDetail.Normal" xml:space="preserve">
+    <value>数值与进度条</value>
+  </data>
+  <data name="SysMonDetail.Detailed" xml:space="preserve">
+    <value>完整信息</value>
+  </data>
+  <data name="SysMonSettingsDialog.Title" xml:space="preserve">
+    <value>硬件监控</value>
+  </data>
+  <data name="SysMonSettingsDialog.CloseButtonText" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="SysMonSettingsDescription.Text" xml:space="preserve">
+    <value>选择卡片与任务栏入口显示哪些硬件项，以及它们的顺序。</value>
+  </data>
+  <data name="SysMonCardSectionHeader.Text" xml:space="preserve">
+    <value>卡片上</value>
+  </data>
+  <data name="SysMonEntrySectionHeader.Text" xml:space="preserve">
+    <value>任务栏上</value>
+  </data>
+  <data name="SysMonSettingsSaveButton.Content" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="SysMonSettingsSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>保存硬件监控设置</value>
+  </data>
+  <data name="SysMonSettingsLoadedStatus" xml:space="preserve">
+    <value>设置已载入。</value>
+  </data>
+  <data name="SysMonSettingsUnavailableStatus" xml:space="preserve">
+    <value>硬件监控当前不可用。</value>
+  </data>
+  <data name="SysMonSettingsLoadFailedStatus" xml:space="preserve">
+    <value>无法载入设置。</value>
+  </data>
+  <data name="SysMonSettingsSavedStatus" xml:space="preserve">
+    <value>设置已保存。</value>
+  </data>
+  <data name="SysMonSettingsSaveFailedStatus" xml:space="preserve">
+    <value>无法保存设置。</value>
+  </data>
+  <data name="SysMonSettingsConflictStatus" xml:space="preserve">
+    <value>设置已在别处更改，请重新打开对话框后再试。</value>
+  </data>
+  <data name="SysMonSettingsTooManyItems" xml:space="preserve">
+    <value>每处最多显示 8 项。</value>
+  </data>
+  <data name="SysMonSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>硬件监控设置</value>
+  </data>
+  <data name="SysMonSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>硬件监控设置</value>
+  </data>
+  <data name="SysMonMoveUpButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>上移</value>
+  </data>
+  <data name="SysMonMoveDownButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>下移</value>
+  </data>
 </root>

@@ -313,20 +313,44 @@ function Get-PanelWindow {
         [TimeSpan]$Timeout
     )
 
+    # The panel process owns more than one top-level window, and only one of them holds the
+    # XAML tree. Taking the first match by process ID picks whichever the UIA root happens to
+    # list first, which is sometimes an empty host window - the caller then sees a window that
+    # exists but has no descendants at all. Prefer a window that actually has children, and
+    # fall back to the first one only after the timeout.
     $condition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
         $ProcessId)
     $deadline = [DateTime]::UtcNow + $Timeout
+    $firstSeen = $null
     do {
-        $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
-            [System.Windows.Automation.TreeScope]::Children,
-            $condition)
-        if ($null -ne $window) {
-            return $window
+        $windows = Invoke-UiaQuery -Query {
+            [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+                [System.Windows.Automation.TreeScope]::Children,
+                $condition)
+        }
+
+        foreach ($window in $windows) {
+            if ($null -eq $firstSeen) {
+                $firstSeen = $window
+            }
+
+            $child = Invoke-UiaQuery -Query {
+                $window.FindFirst(
+                    [System.Windows.Automation.TreeScope]::Children,
+                    [System.Windows.Automation.Condition]::TrueCondition)
+            }
+            if ($null -ne $child) {
+                return $window
+            }
         }
 
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
+
+    if ($null -ne $firstSeen) {
+        return $firstSeen
+    }
 
     throw "WorkspacePanel window did not appear within $($Timeout.TotalSeconds) seconds."
 }

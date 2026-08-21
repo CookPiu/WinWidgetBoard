@@ -1,3 +1,4 @@
+using System.Globalization;
 using WinWidgetBoard.CoreBroker.Persistence;
 
 namespace WinWidgetBoard.UnitTests;
@@ -5,6 +6,9 @@ namespace WinWidgetBoard.UnitTests;
 [TestClass]
 public sealed class SqliteMigrationTests
 {
+    private static string LatestUserVersion =>
+        SqliteSchema.Migrations[^1].Version.ToString(CultureInfo.InvariantCulture);
+
     [TestMethod(DisplayName = "UT-STORAGE-001 [DAT-001] Initial schema creates core tables and constraints")]
     public async Task InitialSchemaCreatesCoreTablesAndConstraints()
     {
@@ -13,8 +17,10 @@ public sealed class SqliteMigrationTests
 
         int applied = await database.ApplySchemaAsync();
 
-        Assert.AreEqual(3, applied);
-        Assert.AreEqual("3", await ScalarTextAsync(database.Connection, "PRAGMA user_version;"));
+        Assert.AreEqual(SqliteSchema.Migrations.Count, applied);
+        Assert.AreEqual(
+            LatestUserVersion,
+            await ScalarTextAsync(database.Connection, "PRAGMA user_version;"));
         foreach (string table in new[]
                  {
                      "schema_migrations",
@@ -57,7 +63,9 @@ public sealed class SqliteMigrationTests
             await using (SqliteDatabase first = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath)))
             {
-                Assert.AreEqual(3, await first.ApplySchemaAsync());
+                Assert.AreEqual(
+                    SqliteSchema.Migrations.Count,
+                    await first.ApplySchemaAsync());
             }
 
             await using (SqliteDatabase second = await SqliteDatabase.OpenAsync(
@@ -248,8 +256,11 @@ public sealed class SqliteMigrationTests
             await using (SqliteDatabase upgraded = await SqliteDatabase.OpenAsync(
                              new SqliteDatabaseOptions(databasePath)))
             {
-                Assert.AreEqual(2, await upgraded.ApplySchemaAsync());
-                Assert.AreEqual("3", await ScalarTextAsync(
+                Assert.AreEqual(
+                    SqliteSchema.Migrations.Count - 1,
+                    await upgraded.ApplySchemaAsync(),
+                    "Migration 1 was applied by hand above; the rest follow.");
+                Assert.AreEqual(LatestUserVersion, await ScalarTextAsync(
                     upgraded.Connection,
                     "PRAGMA user_version;"));
                 Assert.IsTrue(await ColumnExistsAsync(

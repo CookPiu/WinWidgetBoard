@@ -1,0 +1,114 @@
+<controls:ContentDialog
+    x:Class="WinWidgetBoard.WorkspacePanel.SystemMonitorSettingsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation"
+    xmlns:settings="using:WinWidgetBoard.WorkspacePanel.Settings"
+    x:Uid="SysMonSettingsDialog"
+    DefaultButton="Close">
+    <controls:ContentDialog.Resources>
+        <!--
+            One row template serves both lists. Every automation ID carries the surface it
+            belongs to, because the same twelve metrics appear twice and a script has to be
+            able to say which copy it means.
+        -->
+        <DataTemplate
+            x:Key="SysMonMetricOptionTemplate"
+            x:DataType="settings:SystemMonitorMetricOption">
+            <Grid
+                ColumnSpacing="8"
+                Padding="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox
+                    Content="{x:Bind DisplayName}"
+                    IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                    MinWidth="0"
+                    automation:AutomationProperties.Name="{x:Bind DisplayName}"
+                    automation:AutomationProperties.AutomationId="{x:Bind IncludeAutomationId}" />
+                <ComboBox
+                    Grid.Column="1"
+                    MinWidth="132"
+                    ItemsSource="{x:Bind DetailOptions}"
+                    DisplayMemberPath="DisplayName"
+                    SelectedIndex="{x:Bind DetailIndex, Mode=TwoWay}"
+                    automation:AutomationProperties.Name="{x:Bind DisplayName}"
+                    automation:AutomationProperties.AutomationId="{x:Bind DetailAutomationId}" />
+                <Button
+                    x:Uid="SysMonMoveUpButton"
+                    Grid.Column="2"
+                    Style="{StaticResource WwbCardIconButtonStyle}"
+                    Tag="{x:Bind MetricId}"
+                    Click="MoveUpButton_Click"
+                    automation:AutomationProperties.AutomationId="{x:Bind MoveUpAutomationId}">
+                    <FontIcon FontSize="12" Glyph="&#xE74A;" />
+                </Button>
+                <Button
+                    x:Uid="SysMonMoveDownButton"
+                    Grid.Column="3"
+                    Style="{StaticResource WwbCardIconButtonStyle}"
+                    Tag="{x:Bind MetricId}"
+                    Click="MoveDownButton_Click"
+                    automation:AutomationProperties.AutomationId="{x:Bind MoveDownAutomationId}">
+                    <FontIcon FontSize="12" Glyph="&#xE74B;" />
+                </Button>
+            </Grid>
+        </DataTemplate>
+    </controls:ContentDialog.Resources>
+
+    <StackPanel Spacing="12">
+        <TextBlock
+            x:Uid="SysMonSettingsDescription"
+            TextWrapping="Wrap" />
+
+        <TextBlock
+            x:Uid="SysMonCardSectionHeader"
+            Style="{StaticResource WwbCardTitleStyle}" />
+        <ListView
+            x:Name="SysMonCardList"
+            MaxHeight="228"
+            SelectionMode="None"
+            ItemsSource="{x:Bind ViewModel.CardOptions, Mode=OneWay}"
+            ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
+            automation:AutomationProperties.AutomationId="SysMonCardList" />
+
+        <TextBlock
+            x:Uid="SysMonEntrySectionHeader"
+            Style="{StaticResource WwbCardTitleStyle}" />
+        <ListView
+            x:Name="SysMonEntryList"
+            MaxHeight="228"
+            SelectionMode="None"
+            ItemsSource="{x:Bind ViewModel.EntryOptions, Mode=OneWay}"
+            ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
+            automation:AutomationProperties.AutomationId="SysMonEntryList" />
+
+        <TextBlock
+            x:Name="SysMonSettingsValidationText"
+            Style="{StaticResource WwbCardCaptionStyle}"
+            Text="{x:Bind ViewModel.ValidationText, Mode=OneWay}"
+            TextWrapping="Wrap"
+            automation:AutomationProperties.AutomationId="SysMonSettingsValidationText" />
+
+        <Button
+            x:Name="SysMonSettingsSaveButton"
+            x:Uid="SysMonSettingsSaveButton"
+            HorizontalAlignment="Right"
+            Style="{StaticResource WwbPrimaryToolbarButtonStyle}"
+            IsEnabled="{x:Bind ViewModel.CanSave, Mode=OneWay}"
+            Click="SaveButton_Click"
+            automation:AutomationProperties.AutomationId="SysMonSettingsSaveButton" />
+
+        <TextBlock
+            x:Name="SysMonSettingsStatusText"
+            Style="{StaticResource WwbCardCaptionStyle}"
+            Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+            TextWrapping="Wrap"
+            automation:AutomationProperties.AutomationId="SysMonSettingsStatusText" />
+    </StackPanel>
+</controls:ContentDialog>

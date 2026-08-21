@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly IntPtr _windowHandle;
     private readonly PanelPlacement _placement;
     private readonly IWeatherSettingsClient? _weatherSettingsClient;
+    private readonly ISystemMonitorSettingsClient? _systemMonitorClient;
     private readonly CardSnapshotDispatcher _cardSnapshotDispatcher;
     private int _statusVersion;
     private readonly CardSubscriptionLifecycleCoordinator?
@@ -98,9 +99,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         ILayoutClient? layoutClient = null,
         bool keepOpenForAcceptance = false,
         CoreBrokerCardsClient? cardsClient = null,
-        IWeatherSettingsClient? weatherSettingsClient = null)
+        IWeatherSettingsClient? weatherSettingsClient = null,
+        ISystemMonitorSettingsClient? systemMonitorClient = null)
     {
         _weatherSettingsClient = weatherSettingsClient;
+        _systemMonitorClient = systemMonitorClient;
         _keepOpenForAcceptance = keepOpenForAcceptance;
         _uiDispatcherQueue = UiDispatcherQueue.GetForCurrentThread();
         _cardSnapshotDispatcher = new CardSnapshotDispatcher(
@@ -148,6 +151,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 new CardLayoutItem(
                     BuiltInCardCatalog.CalendarInstanceId,
                     CardSize.M),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.SystemMonitorInstanceId,
+                    CardSize.L),
             ]);
         _cardEdit = new CardLayoutEditViewModel(_cardLayout);
         _cardSurface = new CardLayoutSurfaceViewModel(
@@ -155,7 +161,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             NoteEditor,
             FormatNoteStatus,
             runtimeResourceResolver: key => _resources.GetString(
-                key.Replace('.', '/')));
+                key.Replace('.', '/')),
+            uiInvoker: action =>
+            {
+                if (DispatcherQueue.HasThreadAccess)
+                {
+                    action();
+                }
+                else
+                {
+                    DispatcherQueue.TryEnqueue(() => action());
+                }
+            });
         _cardGridLayout = new CardGridLayout
         {
             ColumnCount = _cardLayout.ColumnCount,
@@ -456,6 +473,38 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         if (_modalScopeDepth == 0)
         {
             RequestCloseMotion();
+        }
+    }
+
+    private async void SysMonSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        Interlocked.Increment(ref _statusVersion);
+        try
+        {
+            var viewModel = new SystemMonitorSettingsViewModel(
+                _systemMonitorClient,
+                key => _resources.GetString(key.Replace('.', '/')));
+            if (RootGrid.XamlRoot is null)
+            {
+                return;
+            }
+
+            var dialog = new SystemMonitorSettingsDialog(viewModel)
+            {
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            await viewModel.LoadAsync(CancellationToken.None);
+            using IDisposable modalScope = EnterModalScope();
+            await dialog.ShowAsync();
+            Interlocked.Increment(ref _statusVersion);
+            StatusText.Text = viewModel.StatusText;
+        }
+        catch (Exception exception)
+            when (exception is not OutOfMemoryException and
+                not StackOverflowException)
+        {
+            Interlocked.Increment(ref _statusVersion);
+            StatusText.Text = _resources.GetString("SysMonSettingsLoadFailedStatus");
         }
     }
 

@@ -40,6 +40,7 @@ public sealed class CoreBrokerSession : IAsyncDisposable
         Layout = new CoreBrokerLayoutClient(_client);
         Cards = new CoreBrokerCardsClient(_client);
         WeatherSettings = new CoreBrokerWeatherSettingsClient(_client);
+        SystemMonitor = new CoreBrokerSystemMonitorClient(_client);
         _heartbeatInterval = heartbeatInterval ?? HeartbeatInterval;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
             _heartbeatInterval,
@@ -58,6 +59,8 @@ public sealed class CoreBrokerSession : IAsyncDisposable
     public CoreBrokerCardsClient Cards { get; }
 
     public CoreBrokerWeatherSettingsClient WeatherSettings { get; }
+
+    public CoreBrokerSystemMonitorClient SystemMonitor { get; }
 
     public event EventHandler? Reconnected;
 
