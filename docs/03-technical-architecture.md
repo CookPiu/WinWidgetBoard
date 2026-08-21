@@ -188,8 +188,9 @@ WeatherSettingsDialog
 - **公开 API 层**在 CoreBroker 内，走 `GetSystemTimes`、`GlobalMemoryStatusEx`、
   `NetworkInterface`、`DriveInfo` 与 PDH。PDH 计数器一律用 `PdhAddEnglishCounter` 添加——
   计数器路径是本地化的，在非英文 Windows 上用本地化变体添加英文路径会静默失败；
-- **传感器层**（温度、风扇、CPU 频率）需要内核驱动，尚未实现。其第三方依赖将只落在独立的
-  `src/SensorHost` 项目里，CoreBroker 保持无第三方运行时依赖。
+- **传感器层**（温度、风扇、CPU 频率）需要内核驱动，**不予实现**
+  （[ADR-0029](adr/0029-drop-the-bundled-sensor-driver.md)）。这四项状态恒为 `unavailable`。
+  进程数因此保持三个，锁文件里也仍然只有微软与测试框架包。
 
 采样是**按需**的：卡片可见，或任务栏入口在近 10 秒内索要过摘要，才会以 2 秒节奏采样；
 两者皆无时 provider 完全休眠，并在唤醒时丢弃增量基线。这是产品原则 5 在这条链路上的具体形态。

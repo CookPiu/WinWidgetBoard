@@ -37,4 +37,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0026](0026-launcher-owned-process-tree.md) | Accepted | 启动器用 Job Object 持有整棵进程树并自启动 CoreBroker |
 | [0027](0027-weather-location-search.md) | Accepted | 天气位置改为地点搜索，新增 Open-Meteo 地理编码端点 |
 | [0028](0028-system-monitor-scope-and-sensor-tiers.md) | Accepted | 重新纳入硬件监控，读数分公开 API 层与传感器层 |
-| [0028](0028-system-monitor-scope-and-sensor-tiers.md) | Accepted | 重新纳入硬件监控，读数分公开 API 层与传感器层 |
+| [0029](0029-drop-the-bundled-sensor-driver.md) | Accepted | 不分发内核传感器驱动，温度类读数保持不可读 |
