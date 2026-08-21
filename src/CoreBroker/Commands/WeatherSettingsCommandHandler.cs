@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Persistence;
 using WinWidgetBoard.CoreBroker.Providers;
@@ -9,16 +10,75 @@ internal sealed class WeatherSettingsCommandHandler
 {
     private readonly object _gate;
     private readonly WeatherProviderRuntime _weatherProviderRuntime;
+    private readonly OpenMeteoGeocodingService? _geocodingService;
     private readonly Dictionary<Guid, CachedWeatherSettingsOperation> _cachedOperations = new();
     private readonly Queue<Guid> _operationOrder = new();
 
     public WeatherSettingsCommandHandler(
         WeatherProviderRuntime weatherProviderRuntime,
-        object gate)
+        object gate,
+        OpenMeteoGeocodingService? geocodingService = null)
     {
         _weatherProviderRuntime = weatherProviderRuntime ??
             throw new ArgumentNullException(nameof(weatherProviderRuntime));
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        _geocodingService = geocodingService;
+    }
+
+    public bool LocationSearchAvailable => _geocodingService is not null;
+
+    /// <summary>
+    /// Location search is the one weather command that does not take the router gate: it is
+    /// an outbound network call, and holding the gate across it would stall every other
+    /// domain behind a remote host. It reads and writes no shared state, so it does not
+    /// need the gate to be correct.
+    /// </summary>
+    public async Task<Envelope> SearchLocationsAsync(
+        Envelope request,
+        CancellationToken cancellationToken)
+    {
+        if (_geocodingService is null)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (!TryDeserializePayload(
+                request.Payload,
+                out WeatherLocationSearchRequest? payload) ||
+            payload is null ||
+            !WeatherLocationSearchContract.TryNormalizeQuery(
+                payload.Query,
+                out string? query) ||
+            query is null)
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        try
+        {
+            IReadOnlyList<WeatherLocationCandidateDto> results = await _geocodingService
+                .SearchAsync(query, cancellationToken)
+                .ConfigureAwait(false);
+            return SuccessResponse(
+                request,
+                WeatherLocationSearchContract.SearchMethod,
+                new WeatherLocationSearchResponse { Results = results });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (
+            exception is HttpRequestException or
+                IOException or
+                InvalidDataException or
+                JsonException or
+                OperationCanceledException)
+        {
+            // The dialog degrades to "search unavailable" and the user can still keep the
+            // location they already have; nothing here is worth failing the connection over.
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
     }
 
     public Envelope Handle(Envelope request)

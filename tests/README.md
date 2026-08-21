@@ -59,6 +59,8 @@ LauncherHost 提供 `--corebroker-smoke-test`，在同一会话令牌和真实 C
 
 `scripts/Test-LauncherEntryPlacement.ps1` 是任务栏入口的真实桌面回归：断言入口窗口落在由显示器与工作区推导的任务栏条带内、宽高在 96～280 与不小于 32 DIP 的范围内，入口形状之外的条带点位不归启动器（穿透成立），并验证点击开启面板，成功输出 `REAL-LAUNCHER-ENTRY-PASS`。它不启动 CoreBroker，因此不触碰生产数据；点击前会等待入口占据自身中心点，因为 topmost 层级与其他第三方任务栏扩展共享。
 
+真实桌面脚本与安装脚本读取的是面板的 `x64\Release` 产物，而 `dotnet build -c Release` 不带 `-p:Platform=x64` 写的是另一个路径。跑真实流程前先确认面板是用 `-p:Platform=x64` 构建的，否则你验证的是一个旧产物。
+
 安装后的入口（`scripts/Install-WinWidgetBoard.ps1`）会随登录常驻，本目录下的真实桌面脚本会因检测到已有进程而拒绝运行；跑测试前先从入口右键菜单退出。
 
 LauncherHost 现在会自启动 CoreBroker（[ADR-0026](../docs/adr/0026-launcher-owned-process-tree.md)）。任何直接启动 LauncherHost 且不希望触碰生产数据库的脚本**必须**传 `--no-broker`；设置了 `WINWIDGETBOARD_COREBROKER_SESSION_TOKEN` 的脚本会自动被跳过，因为那表示会话已由外部提供。

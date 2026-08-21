@@ -152,7 +152,7 @@
     <value>取消</value>
   </data>
   <data name="WeatherSettingsDescription.Text" xml:space="preserve">
-    <value>选择位置名称和经纬度。当前未启用自动定位。</value>
+    <value>搜索地点，从列表中选中后保存。经纬度由搜索结果提供。</value>
   </data>
   <data name="WeatherSettingsLabelBox.Header" xml:space="preserve">
     <value>位置名称</value>
@@ -162,18 +162,6 @@
   </data>
   <data name="WeatherSettingsLabelBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>天气位置名称</value>
-  </data>
-  <data name="WeatherSettingsLatitudeBox.Header" xml:space="preserve">
-    <value>纬度（-90 至 90）</value>
-  </data>
-  <data name="WeatherSettingsLatitudeBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>天气纬度</value>
-  </data>
-  <data name="WeatherSettingsLongitudeBox.Header" xml:space="preserve">
-    <value>经度（-180 至 180）</value>
-  </data>
-  <data name="WeatherSettingsLongitudeBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>天气经度</value>
   </data>
   <data name="WeatherSettingsSaveButton.Content" xml:space="preserve">
     <value>保存</value>
@@ -672,5 +660,35 @@
   </data>
   <data name="DemoCardDropRejectedStatus" xml:space="preserve">
     <value>没有可用的合法落点，卡片正在返回原位置。</value>
+  </data>
+  <data name="WeatherSettingsSearchBox.Header" xml:space="preserve">
+    <value>搜索地点</value>
+  </data>
+  <data name="WeatherSettingsSearchBox.PlaceholderText" xml:space="preserve">
+    <value>城市或区县名称</value>
+  </data>
+  <data name="WeatherSettingsSearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>搜索地点</value>
+  </data>
+  <data name="WeatherSettingsResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>搜索结果</value>
+  </data>
+  <data name="WeatherSettingsCoordinatesBox.Header" xml:space="preserve">
+    <value>将保存的经纬度</value>
+  </data>
+  <data name="WeatherSettingsCoordinatesBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>将保存的经纬度</value>
+  </data>
+  <data name="WeatherSettingsSearchReadyStatus" xml:space="preserve">
+    <value>请从结果中选择地点。</value>
+  </data>
+  <data name="WeatherSettingsSearchEmptyStatus" xml:space="preserve">
+    <value>没有匹配的地点。</value>
+  </data>
+  <data name="WeatherSettingsSearchFailedStatus" xml:space="preserve">
+    <value>搜索暂时不可用。</value>
+  </data>
+  <data name="WeatherSettingsSearchSelectedStatus" xml:space="preserve">
+    <value>已选中地点，保存后生效。</value>
   </data>
 </root>

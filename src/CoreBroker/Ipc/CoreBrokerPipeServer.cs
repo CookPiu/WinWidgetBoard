@@ -116,6 +116,20 @@ public sealed class CoreBrokerPipeServer
                         handshakeComplete = response.Error is null;
                         nextSubscription = null;
                     }
+                    else if (string.Equals(
+                        request!.Method,
+                        WeatherLocationSearchContract.SearchMethod,
+                        StringComparison.Ordinal))
+                    {
+                        // The only command that leaves the machine while a user waits, so it
+                        // is awaited here instead of running inside the synchronous router.
+                        response = await _commandRouter
+                            .SearchWeatherLocationsAsync(
+                                request,
+                                connectionCancellation.Token)
+                            .ConfigureAwait(false);
+                        nextSubscription = null;
+                    }
                     else
                     {
                         response = HandleEstablishedRequest(
@@ -336,6 +350,9 @@ public sealed class CoreBrokerPipeServer
                 : Array.Empty<string>())
             .Concat(_commandRouter.WeatherSettingsAvailable
                 ? WeatherSettingsContract.Methods
+                : Array.Empty<string>())
+            .Concat(_commandRouter.WeatherLocationSearchAvailable
+                ? [WeatherLocationSearchContract.SearchMethod]
                 : Array.Empty<string>())
             .ToArray(),
             MaxMessageBytes = ProtocolConstants.MaxMessageBytes,

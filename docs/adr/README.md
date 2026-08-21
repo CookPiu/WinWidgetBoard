@@ -35,3 +35,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0024](0024-background-provider-keepalive.md) | Accepted | 允许有界的低频后台刷新，入口可在面板关闭时显示天气 |
 | [0025](0025-resident-workspace-panel.md) | Accepted | 面板关闭改为隐藏，进程常驻以消除冷启动 |
 | [0026](0026-launcher-owned-process-tree.md) | Accepted | 启动器用 Job Object 持有整棵进程树并自启动 CoreBroker |
+| [0027](0027-weather-location-search.md) | Accepted | 天气位置改为地点搜索，新增 Open-Meteo 地理编码端点 |

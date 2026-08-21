@@ -22,7 +22,8 @@ public sealed class CoreBrokerCommandRouter
         LayoutRepository? layoutRepository = null,
         CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null,
         ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null,
-        WeatherProviderRuntime? weatherProviderRuntime = null)
+        WeatherProviderRuntime? weatherProviderRuntime = null,
+        OpenMeteoGeocodingService? geocodingService = null)
     {
         _noteCommandHandler = noteRepository is null
             ? null
@@ -32,7 +33,10 @@ public sealed class CoreBrokerCommandRouter
             : new LayoutCommandHandler(layoutRepository, _gate);
         _weatherSettingsCommandHandler = weatherProviderRuntime is null
             ? null
-            : new WeatherSettingsCommandHandler(weatherProviderRuntime, _gate);
+            : new WeatherSettingsCommandHandler(
+                weatherProviderRuntime,
+                _gate,
+                geocodingService);
         _cardSubscriptionCommandHandler = new CardSubscriptionCommandHandler(
             cardSnapshotSubscriptionHub,
             providerVisibilityRegistry);
@@ -46,6 +50,35 @@ public sealed class CoreBrokerCommandRouter
     public bool CardsAvailable => _cardSubscriptionCommandHandler.SubscriptionsAvailable;
 
     public bool WeatherSettingsAvailable => _weatherSettingsCommandHandler is not null;
+
+    public bool WeatherLocationSearchAvailable =>
+        _weatherSettingsCommandHandler?.LocationSearchAvailable == true;
+
+    /// <summary>
+    /// The only asynchronous command. It is routed separately rather than through
+    /// <see cref="Handle(Envelope, Guid, out CardSnapshotSubscription?)"/> so the
+    /// synchronous path keeps its single-gate serialization unchanged.
+    /// </summary>
+    public Task<Envelope> SearchWeatherLocationsAsync(
+        Envelope request,
+        CancellationToken cancellationToken)
+    {
+        if (request.MessageType != EnvelopeMessageType.Request)
+        {
+            return Task.FromResult(
+                ErrorResponse(request, "validation.invalid-argument", "validation"));
+        }
+
+        if (_weatherSettingsCommandHandler is null)
+        {
+            return Task.FromResult(
+                ErrorResponse(request, "resource.unavailable", "resource-unavailable"));
+        }
+
+        return _weatherSettingsCommandHandler.SearchLocationsAsync(
+            request,
+            cancellationToken);
+    }
 
     public bool PanelVisible => _panelVisibilityCommandHandler.PanelVisible;
 

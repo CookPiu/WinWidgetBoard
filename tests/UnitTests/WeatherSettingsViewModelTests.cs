@@ -46,6 +46,24 @@ public sealed class WeatherSettingsViewModelTests
     {
         public WeatherSettingsSaveRequest? LastSaveRequest { get; private set; }
 
+        public string? LastSearchQuery { get; private set; }
+
+        public IReadOnlyList<WeatherLocationCandidateDto> SearchResults { get; set; } =
+            Array.Empty<WeatherLocationCandidateDto>();
+
+        public Exception? SearchFailure { get; set; }
+
+        public Task<IReadOnlyList<WeatherLocationCandidateDto>> SearchLocationsAsync(
+            string query,
+            CancellationToken cancellationToken)
+        {
+            LastSearchQuery = query;
+            return SearchFailure is null
+                ? Task.FromResult(SearchResults)
+                : Task.FromException<IReadOnlyList<WeatherLocationCandidateDto>>(
+                    SearchFailure);
+        }
+
         public Task<WeatherSettingsDto> GetWeatherSettingsAsync(
             string instanceId,
             CancellationToken cancellationToken) =>

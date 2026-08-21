@@ -108,28 +108,28 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 ## 6. 当前工作
 
-本轮已完成：
+本轮已完成（天气三项优化）：
 
-- 修复常驻遗留的孤儿进程缺口（[ADR-0026](../adr/0026-launcher-owned-process-tree.md)）：LauncherHost 建立
-  `KILL_ON_JOB_CLOSE` 的 Job Object，面板与 Broker 都在 `CREATE_SUSPENDED` 下先入 Job 再恢复；
-  对启动器执行 `Process.Kill()` 后三个进程全部消失（实测）；
-- LauncherHost 自启动 CoreBroker：`BCryptGenRandom` 生成令牌并写入自身环境块，令牌不再经由命令行；
-  外部已提供会话（开发脚本）时不接管，`--no-broker` 可显式关闭，真实桌面测试据此保持数据隔离；
-- 子进程路径解析新增「同目录下的同名子目录」一档，安装布局因此可让三个 .NET 应用各自保留依赖集；
-- 新增 `scripts/Install-WinWidgetBoard.ps1`：安装到 `%LOCALAPPDATA%\WinWidgetBoard\app`，建立开始菜单与
-  登录启动快捷方式，`-Uninstall` 完整回退；仅当前用户，无提权、无服务、无注册表类注册；
-- 入口渲染由「色键透明 + `RoundRect` + `GetSysColor(COLOR_BTNFACE)`」改为预乘 BGRA 位图 +
-  `UpdateLayeredWindow`：胶囊边缘、指示器与文字都带真实逐像素 alpha，不再有一位透明度的锯齿边；
-  同时移除 `SetWindowRgn`，命中判定改为胶囊本体的有符号距离场；
-- 入口获得悬停、按下（缩放 `0.97`）与「面板已打开」三种状态，各由一条与面板开合同角频率
-  （`15.4919`）的临界阻尼弹簧驱动；打开态的判据是指示器由圆点长成竖条，不只靠颜色；
-  动画定时器只在迁移期间存在，静息入口无定时器唤醒；`SPI_GETCLIENTAREAANIMATION` 关闭时退化为淡入淡出；
-- 颜色映射改为：强调色取 `COLOR_HIGHLIGHT`，中性底色由 `SystemUsesLightTheme` 在纯白/纯黑间选择，
-  高对比度整体退回 `GetSysColor` 并恢复 1 DIP 系统边界；
-- 新增 `--entry-visual-smoke-test` 并折叠进 `--smoke-test`，因此 CI 无需改动即覆盖：预乘不变量、
-  圆角透明与抗锯齿、悬停步长、指示器随打开态增高、高对比度不透明，以及 96/144/192 dpi 三档；
-- 共享 UIA 模块增加 `Move-PointerToPoint` 与 `Save-ScreenRegionCapture`，并把 `SendInput` 的
-  绝对坐标归一化提取为共用实现。
+- **入口改为图标 + 温度，去掉地区**：地区是用户自己设的，每分钟重复一遍只是在花掉入口宽度。
+  Provider 增加 `is_day`，并把 WMO 码归约成 `conditionIconId` 标记放进 Contracts，
+  由 Broker、面板卡片和原生入口共用一张表；入口用自己的合成器画出十一个图形
+  （圆、圆角矩形和一个多边形），不引入图标字体，单色跟随文字颜色；
+- **卡片获得随天气变化的平面插画**：底色 + 一到三个图形放在卡片右下角空白处并溢出圆角，
+  裁剪到卡片自身圆角，不接收指针输入、不带自动化名称；配色集中在 `WwbWeather*` 主题画刷，
+  高对比度全部清零。`UT-UI-002` 由「禁止一切字面颜色」收紧为「字面颜色只能出现在天气插画画刷上，
+  且必须在高对比度里被清零」——是加强而不是放宽；
+- **位置设置改为地点搜索**（[ADR-0027](../adr/0027-weather-location-search.md)）：
+  新增 `weather.locations.search`，经 Open-Meteo 地理编码端点解析地名，返回最多 8 条候选；
+  对话框改为「搜索 → 选择 → 保存」，经纬度只读展示；搜索只在提交时发生，不做按键即搜。
+  这是第一条把用户输入文本送出本机的路径，隐私文档已相应更新；
+- 该方法是唯一的异步命令，单独在管道循环里 await，不占用路由器全局锁；
+- 共享 UIA 模块增加 `Save-WindowCapture`：用 `PrintWindow` 抓取窗口自身内容，
+  不再受 z 序与焦点影响——常驻面板会因失焦隐藏，屏幕区域截图因此并不可靠。
+
+本轮修正的一处判断错误：先前认为「天气卡片收不到数据」是既有缺陷，实际上是我一直在运行
+**前一天的面板产物**。`Install-WinWidgetBoard.ps1` 与真实桌面脚本读取的是 `x64\Release`，
+而 `dotnet build -c Release` 不带 `-p:Platform=x64` 写的是另一个路径。加上 `-p:Platform=x64`
+后卡片订阅正常：`cards.subscribe` 返回 `ready` 快照并被应用。该陷阱已写入 CLAUDE.md。
 
 ## 7. 下一步
 

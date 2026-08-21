@@ -73,6 +73,7 @@ Envelope：
 | `weather.settings.get` | 读取天气位置 | 否 |
 | `weather.settings.save` | 保存天气位置 | 是 |
 | `weather.summary.get` | 读取最后一次成功天气读数的短投影 | 否 |
+| `weather.locations.search` | 按地名搜索可选位置 | 否 |
 
 写操作使用 `clientOperationId` 防止重试扩大副作用。相同 ID 和相同 payload 返回第一次结果；相同 ID 搭配不同 payload 返回 `validation.invalid-argument`。
 
@@ -270,6 +271,42 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 - 只读，不写数据库，也不改变刷新节奏；天气 payload 仍不持久化。
 
 该方法供任务栏入口在面板关闭时显示天气，配合 [ADR-0024](adr/0024-background-provider-keepalive.md) 的每小时后台刷新。
+
+### weather.locations.search
+
+将用户输入的地名解析为可选位置。该方法是**唯一会把用户输入的文本发往远端的方法**（[ADR-0027](adr/0027-weather-location-search.md)），也是唯一的异步命令：它不占用路由器全局锁，因为它不读写任何共享状态。
+
+```json
+{
+  "method": "weather.locations.search",
+  "payload": {
+    "query": "Hangzhou"
+  }
+}
+```
+
+限制：`query` 去空白后为 2～64 字符且不含控制字符，否则返回 `validation.invalid-argument`；最多返回 8 条；响应上限 64 KiB；超时 8 秒。缺少坐标或坐标越界的条目被丢弃，不半填展示。
+
+无匹配返回**空数组**，不是错误；只有请求本身失败才返回 `resource.unavailable`。调用方据此区分「没有这个地方」与「搜索不可用」，两者在界面上是不同的提示。
+
+```json
+{
+  "results": [
+    {
+      "name": "Hangzhou",
+      "region": "Zhejiang",
+      "country": "China",
+      "countryCode": "CN",
+      "latitude": 30.29365,
+      "longitude": 120.16142,
+      "timezone": "Asia/Shanghai"
+    }
+  ]
+}
+```
+
+`region` 与 `country` 只用于区分同名地点。搜索结果不缓存、不落盘；落盘的仍然只有标签与经纬度。
+
 
 ## 10. 天气 Provider
 

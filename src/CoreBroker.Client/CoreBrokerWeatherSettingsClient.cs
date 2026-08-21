@@ -12,6 +12,15 @@ public interface IWeatherSettingsClient
     Task<WeatherSettingsDto> SaveWeatherSettingsAsync(
         WeatherSettingsSaveRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Resolves a typed place name to pickable candidates. Returns an empty list when
+    /// nothing matched; throws only when the request itself could not be completed, so the
+    /// caller can tell "no such place" apart from "search is unavailable".
+    /// </summary>
+    Task<IReadOnlyList<WeatherLocationCandidateDto>> SearchLocationsAsync(
+        string query,
+        CancellationToken cancellationToken);
 }
 
 public sealed class CoreBrokerWeatherSettingsClient : IWeatherSettingsClient
@@ -37,6 +46,22 @@ public sealed class CoreBrokerWeatherSettingsClient : IWeatherSettingsClient
         return Deserialize<WeatherSettingsGetResponse>(
             response,
             WeatherSettingsContract.GetMethod).Settings;
+    }
+
+    public async Task<IReadOnlyList<WeatherLocationCandidateDto>> SearchLocationsAsync(
+        string query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        Envelope response = await _client.SendWithReconnectAsync(
+            CreateRequest(
+                WeatherLocationSearchContract.SearchMethod,
+                new WeatherLocationSearchRequest { Query = query }),
+            cancellationToken).ConfigureAwait(false);
+        EnsureSuccess(response, WeatherLocationSearchContract.SearchMethod);
+        return Deserialize<WeatherLocationSearchResponse>(
+            response,
+            WeatherLocationSearchContract.SearchMethod).Results;
     }
 
     public async Task<WeatherSettingsDto> SaveWeatherSettingsAsync(

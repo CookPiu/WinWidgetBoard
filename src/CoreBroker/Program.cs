@@ -99,6 +99,9 @@ internal static class Program
             Timeout = Timeout.InfiniteTimeSpan,
         };
         var weatherSettingsRepository = new WeatherSettingsRepository(database);
+        // Shares the weather HttpClient: same vendor, same privacy boundary, and one place
+        // to change if either ever needs a proxy or a different timeout policy.
+        var geocodingService = new OpenMeteoGeocodingService(weatherHttpClient);
         using var weatherRuntime = new WeatherProviderRuntime(
             weatherSettingsRepository,
             providerHost,
@@ -115,7 +118,8 @@ internal static class Program
                 new LayoutRepository(database),
                 cardSnapshotSubscriptionHub,
                 providerVisibilityRegistry,
-                weatherRuntime));
+                weatherRuntime,
+                geocodingService));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;

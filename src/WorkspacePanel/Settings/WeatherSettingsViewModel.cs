@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -54,6 +55,10 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         .ToString("0.#######", CultureInfo.InvariantCulture);
     private string _statusText = string.Empty;
     private string _validationText = string.Empty;
+    private string _searchQuery = string.Empty;
+    private CancellationTokenSource? _searchCancellation;
+    private bool _isSearching;
+    private bool _searchUnavailable;
     private int _revision;
     private bool _isBusy;
     private bool _wasSaved;
@@ -77,14 +82,32 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     public string LatitudeText
     {
         get => _latitudeText;
-        set => SetField(ref _latitudeText, value ?? string.Empty);
+        set
+        {
+            if (SetField(ref _latitudeText, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CoordinatesText));
+            }
+        }
     }
 
     public string LongitudeText
     {
         get => _longitudeText;
-        set => SetField(ref _longitudeText, value ?? string.Empty);
+        set
+        {
+            if (SetField(ref _longitudeText, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CoordinatesText));
+            }
+        }
     }
+
+    /// <summary>
+    /// The coordinates exactly as they will be saved. Shown read-only so what leaves the
+    /// machine on the next weather request is visible without inviting hand-editing.
+    /// </summary>
+    public string CoordinatesText => string.Concat(LatitudeText, ", ", LongitudeText);
 
     public string StatusText
     {
@@ -122,6 +145,134 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     {
         get => _wasSaved;
         private set => SetField(ref _wasSaved, value);
+    }
+
+    /// <summary>
+    /// What the user typed into the place search. Setting it does not start a request; the
+    /// view decides when to search so a keystroke cannot become a network call.
+    /// </summary>
+    public string SearchQuery
+    {
+        get => _searchQuery;
+        set => SetField(ref _searchQuery, value ?? string.Empty);
+    }
+
+    public ObservableCollection<WeatherLocationOption> SearchResults { get; } = [];
+
+    public bool IsSearching
+    {
+        get => _isSearching;
+        private set => SetField(ref _isSearching, value);
+    }
+
+    /// <summary>
+    /// True once a search failed for a reason other than "no match": the broker has no
+    /// search capability, or the request could not be completed. The dialog says so rather
+    /// than leaving an empty list that looks like "no such place".
+    /// </summary>
+    public bool SearchUnavailable
+    {
+        get => _searchUnavailable;
+        private set => SetField(ref _searchUnavailable, value);
+    }
+
+    public bool CanSearch =>
+        _client is not null &&
+        !IsSearching &&
+        WeatherLocationSearchContract.TryNormalizeQuery(SearchQuery, out _);
+
+    /// <summary>
+    /// Runs one search, superseding any search still in flight. Results replace the previous
+    /// list wholesale: a stale response must never be merged into a newer query's results.
+    /// </summary>
+    public async Task<bool> SearchAsync(CancellationToken cancellationToken)
+    {
+        if (_client is null)
+        {
+            SearchResults.Clear();
+            SearchUnavailable = true;
+            SetStatus("WeatherSettingsUnavailableStatus");
+            return false;
+        }
+
+        if (!WeatherLocationSearchContract.TryNormalizeQuery(
+                SearchQuery,
+                out string? query) ||
+            query is null)
+        {
+            SearchResults.Clear();
+            SearchUnavailable = false;
+            return false;
+        }
+
+        CancellationTokenSource? previous = _searchCancellation;
+        var current = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _searchCancellation = current;
+        previous?.Cancel();
+        previous?.Dispose();
+
+        IsSearching = true;
+        SearchUnavailable = false;
+        try
+        {
+            IReadOnlyList<WeatherLocationCandidateDto> results = await _client
+                .SearchLocationsAsync(query, current.Token)
+                .ConfigureAwait(true);
+            if (!ReferenceEquals(_searchCancellation, current))
+            {
+                // A newer query started while this one was in flight.
+                return false;
+            }
+
+            SearchResults.Clear();
+            foreach (WeatherLocationCandidateDto candidate in results)
+            {
+                SearchResults.Add(WeatherLocationOption.FromCandidate(candidate));
+            }
+
+            SetStatus(
+                SearchResults.Count == 0
+                    ? "WeatherSettingsSearchEmptyStatus"
+                    : "WeatherSettingsSearchReadyStatus");
+            return SearchResults.Count > 0;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception exception)
+            when (exception is CoreBrokerClientException or IOException or TimeoutException)
+        {
+            SearchResults.Clear();
+            SearchUnavailable = true;
+            SetStatus("WeatherSettingsSearchFailedStatus");
+            return false;
+        }
+        finally
+        {
+            if (ReferenceEquals(_searchCancellation, current))
+            {
+                IsSearching = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adopts a searched place. The coordinates come from the search result, never from the
+    /// user: that is the whole point of the list.
+    /// </summary>
+    public void SelectSearchResult(WeatherLocationOption? option)
+    {
+        if (option is null)
+        {
+            return;
+        }
+
+        LocationLabel = option.Label;
+        LatitudeText = option.Latitude.ToString("0.#######", CultureInfo.InvariantCulture);
+        LongitudeText = option.Longitude.ToString("0.#######", CultureInfo.InvariantCulture);
+        ValidationText = string.Empty;
+        SetStatus("WeatherSettingsSearchSelectedStatus");
     }
 
     public async Task<bool> LoadAsync(CancellationToken cancellationToken)
