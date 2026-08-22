@@ -36,15 +36,15 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- Release UnitTests：373/373；
+- Release UnitTests：380/380；
 - CoreBroker 与 WorkspacePanel Release x64 构建：0 警告、0 错误；
 - `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test`、`WinWidgetBoard.WorkspacePanel.exe --smoke-test` 与 `--broker-smoke-test`（配真实 Broker）退出码均为 0；
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
 - 真实桌面 `Test-WeatherSettingsInteraction.ps1` 在移除脚本侧等待、直接把「取消对话框后立即点关闭」作为回归的前提下连续 3 次完整通过：`REAL-WEATHER-SETTINGS-PASS`（保存经真实面板写入 SQLite 并触发 provider 运行时重载）、`REAL-WEATHER-SETTINGS-RESTART-PASS`（重启后 `weather.settings.get` 读回 Tokyo / 35.6762 / 139.6503）和 `WINDOW-EXIT-PASS exitCode=0`；
-- CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、373/373 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
+- CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
 - 真实桌面 `Test-LauncherEntryPlacement.ps1` 通过：入口落在任务栏条带 1904..2000 内，
-  实测 `16,1912 - 328,1992`（156×40 DIP，DPI 192），入口外的条带点位归属其他进程（穿透成立），
-  点击开启面板；`--geometry-smoke-test` 与 `--entry-visual-smoke-test` 退出码均为 0。
+  入口外的条带点位归属其他进程（穿透成立），点击开启面板；
+  `--geometry-smoke-test` 与 `--entry-visual-smoke-test` 退出码均为 0。
   该脚本必须在 DPI 感知的宿主（`pwsh`）里运行：Windows PowerShell 5.1 是 DPI 非感知进程，
   `GetWindowRect` 会返回虚拟化后的坐标，200% 缩放下把宽度报成一半并误判为越界；
 - 真实桌面：Broker 与入口同时运行、无面板打开时，入口显示真实读数（Open-Meteo 真实请求），
@@ -53,9 +53,11 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面 `Test-SystemMonitorInteraction.ps1` 通过（`REAL-SYSMON-PASS`）：卡片经 UIA 播报
   `内存 60% 18.8 GB / 31.4 GB`，在对话框中切换 `cpu.clock` 后卡片在一个刷新周期内跟随，
   重启面板后设置从 SQLite 读回；
-- 真实桌面：安装态入口切到硬件监控模式后，两行密排显示（CPU/MEM 一列），实测 148 DIP 宽；
-  同一构建以 `--entry-icon-preview` 输出 192 DPI 对照表核对，八项读数折成四列共 288 DIP，
-  改版前同样字号的单行版本在 460 DIP 内只放得下四项；
+- 真实桌面：安装态入口同时显示主胶囊与硬件胶囊，实测窗口 `16,1912 - 656,1992`（320×40 DIP，
+  DPI 192），其中主胶囊为时钟、硬件胶囊为 CPU/MEM 与上下行两列；`--entry-icon-preview` 的
+  192 DPI 对照表新增「单独硬件胶囊」与「主胶囊 + 硬件胶囊」两组，逐格评审字号与走势图；
+- 真实桌面 `Test-LauncherEntryPlacement.ps1`（`--no-broker`，因此没有读数、只画主胶囊）实测
+  `16,1912 - 312,1992`，148×40 DIP；
 - 真实桌面 `Test-AddCardInteraction.ps1` 通过（`REAL-ADDCARD-PASS`）：编辑模式外添加按钮不可见，
   进入编辑后出现；全部卡片在板时不弹空对话框；移除计时器卡片后经选择器加回，完成编辑并重启面板后
   仍在布局中；
@@ -137,9 +139,16 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - **采样按需**：卡片可见或入口近 10 秒内索要过摘要才以 2 秒节奏采样，否则完全休眠，
   唤醒时丢弃增量基线；
 - **卡片与任务栏各自独立配置**，每处最多 8 项，顺序即列表顺序，经版本化 IPC 落盘；
-- **入口分段显示**：两行密排，两个读数为一列，列间 1 DIP 细线跨越两行；分段字号 7 DIP、
-  图形 10 DIP，是单行内容的一半；装不下的**整列**省略而不半截截断，落单读数居中；
-  宽度上限 520 DIP，入口不出现任何需要翻译的文字。
+- **入口是两枚胶囊**：左边主胶囊（指示器 + 时间或天气，96～280 DIP），间隙 8 DIP，
+  右边硬件胶囊（上限 440 DIP，无下限，没有读数时整枚不画）。硬件监控因此是独立开关而非
+  第三种显示内容，天气与读数可以同时存在；旧的 `Content = 2` 配置在读取时迁移成
+  「时钟 + 显示硬件监控」；
+- **硬件胶囊两行密排**：两个读数为一列，列间 1 DIP 细线跨越两行；分段字号 10 DIP、图形 12 DIP；
+  装不下的**整列**省略而不半截截断，落单读数居中；条带放不下两枚时先丢硬件胶囊而不是入口本身；
+  入口不出现任何需要翻译的文字；
+- **每个读数画在自己的历史走势之上**：最近 60 个采样（2 秒节奏 ≈ 2 分钟）由 Broker 归一化为
+  0..1 随 `sysmon.summary.get` 下发，入口只把它映射成一层填充面积。有上限的指标按自身上限绘制，
+  速率按窗口峰值相对绘制并设 4 KB/s 下限门槛，读不到的指标不画图。
 
 **传感器层已验证并放弃**（[ADR-0029](../adr/0029-drop-the-bundled-sensor-driver.md)）：
 以管理员运行 LibreHardwareMonitorLib 0.9.6，CPU 温度、CPU 频率、风扇**全部无读数**，
