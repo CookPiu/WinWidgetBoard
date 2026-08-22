@@ -45,6 +45,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private const uint SwpFrameChanged = 0x0020;
     private const int DwmwaWindowCornerPreference = 33;
     private const int DwmwcpRound = 2;
+
+    // Distance (DIP) the closed presentation sits offset from its settled position,
+    // toward the entry corner (PNL-003). Large enough to read as a slide rather
+    // than a jitter, small enough that the transient excursion past the panel's
+    // edge margin (docs/02-ux-design-spec.md §4.1) stays unnoticeable.
+    private const double ClosedMotionOffset = 18;
     private static readonly CardSize[] EditableCardSizes = [
         CardSize.S,
         CardSize.M,
@@ -211,8 +217,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _placement);
         RootGrid.RenderTransformOrigin = transformOrigin;
         _motion = new PanelMotionCoordinator(
-            transformOrigin.X < 0.5 ? -10 : 10,
-            transformOrigin.Y < 0.5 ? -10 : 10,
+            transformOrigin.X < 0.5 ? -ClosedMotionOffset : ClosedMotionOffset,
+            transformOrigin.Y < 0.5 ? -ClosedMotionOffset : ClosedMotionOffset,
             _reducedMotion,
             _uiDispatcherQueue,
             ApplyPanelMotion,
@@ -1830,8 +1836,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _placement.WindowRect.Top + ToPhysicalPixels(value.OffsetY));
         PanelMotionTransform.TranslateX = 0;
         PanelMotionTransform.TranslateY = 0;
-        PanelMotionTransform.ScaleX = value.Scale;
-        PanelMotionTransform.ScaleY = value.Scale;
+        PanelMotionTransform.ScaleX = value.ScaleX;
+        PanelMotionTransform.ScaleY = value.ScaleY;
 
         if (_nativeOpacitySupported)
         {

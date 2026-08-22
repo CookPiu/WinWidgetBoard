@@ -19,7 +19,8 @@ public sealed class PanelMotionControllerTests
 
         Assert.AreEqual(PanelMotionState.Open, controller.State);
         Assert.AreEqual(1, controller.Value.Opacity, 0.001);
-        Assert.AreEqual(1, controller.Value.Scale, 0.001);
+        Assert.AreEqual(1, controller.Value.ScaleX, 0.001);
+        Assert.AreEqual(1, controller.Value.ScaleY, 0.001);
         Assert.AreEqual(0, controller.Value.OffsetX, 0.001);
         Assert.AreEqual(0, controller.Value.OffsetY, 0.001);
     }
@@ -67,7 +68,8 @@ public sealed class PanelMotionControllerTests
 
         Assert.AreEqual(PanelMotionState.Open, controller.State);
         Assert.AreEqual(1, controller.Value.Opacity, 0.001);
-        Assert.AreEqual(1, controller.Value.Scale, 0.001);
+        Assert.AreEqual(1, controller.Value.ScaleX, 0.001);
+        Assert.AreEqual(1, controller.Value.ScaleY, 0.001);
         Assert.AreEqual(0, controller.Value.OffsetX, 0.001);
         Assert.AreEqual(0, controller.Value.OffsetY, 0.001);
     }
@@ -78,7 +80,8 @@ public sealed class PanelMotionControllerTests
         var controller = new PanelMotionController(-10, 10, reducedMotion: false);
         PanelMotionValue previous = controller.Value;
 
-        Assert.AreEqual(0.99, previous.Scale, 0.001);
+        Assert.AreEqual(0.95, previous.ScaleX, 0.001);
+        Assert.AreEqual(0.88, previous.ScaleY, 0.001);
         controller.RequestOpen();
         for (int frame = 0; frame < 120 && controller.IsAnimating; frame++)
         {
@@ -87,8 +90,10 @@ public sealed class PanelMotionControllerTests
 
             Assert.IsTrue(current.Opacity >= previous.Opacity);
             Assert.IsTrue(current.Opacity <= 1);
-            Assert.IsTrue(current.Scale >= previous.Scale);
-            Assert.IsTrue(current.Scale <= 1);
+            Assert.IsTrue(current.ScaleX >= previous.ScaleX);
+            Assert.IsTrue(current.ScaleX <= 1);
+            Assert.IsTrue(current.ScaleY >= previous.ScaleY);
+            Assert.IsTrue(current.ScaleY <= 1);
             Assert.IsTrue(current.OffsetX >= previous.OffsetX);
             Assert.IsTrue(current.OffsetX <= 0);
             Assert.IsTrue(current.OffsetY <= previous.OffsetY);
@@ -122,8 +127,12 @@ public sealed class PanelMotionControllerTests
             oneTwentyFps.Value.Opacity,
             0.00001);
         Assert.AreEqual(
-            thirtyFps.Value.Scale,
-            oneTwentyFps.Value.Scale,
+            thirtyFps.Value.ScaleX,
+            oneTwentyFps.Value.ScaleX,
+            0.00001);
+        Assert.AreEqual(
+            thirtyFps.Value.ScaleY,
+            oneTwentyFps.Value.ScaleY,
             0.00001);
         Assert.AreEqual(
             thirtyFps.Value.OffsetX,
