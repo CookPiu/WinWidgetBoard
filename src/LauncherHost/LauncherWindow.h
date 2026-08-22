@@ -82,6 +82,12 @@ private:
 
     HINSTANCE _instance{};
     HWND _window{};
+    // Re-asserts the entry's topmost position the moment Explorer re-stacks the taskbar,
+    // instead of waiting out the visibility poll.
+    HWINEVENTHOOK _foregroundHook{};
+    // Short re-asserts still owed after the current activation. Zero when none is in flight,
+    // which is also when the settle timer is not running at all.
+    int _topmostSettleTicksLeft{};
     HMONITOR _monitor{};
     UINT _taskbarCreatedMessage{};
     UINT _dpi{96};

@@ -12,8 +12,21 @@ namespace
 {
 constexpr wchar_t kWindowClassName[] = L"WinWidgetBoard.LauncherHost.EntryWindow";
 constexpr UINT kRepositionMessage = WM_APP + 1;
+// Posted from the foreground WinEvent hook. The hook runs on this thread's message queue, but
+// it must not do work inline: a hook callback that blocks delays every window activation on
+// the desktop.
+constexpr UINT kEnsureTopmostMessage = WM_APP + 2;
 constexpr UINT_PTR kVisibilityTimerId = 1;
 constexpr UINT kVisibilityPollMilliseconds = 500;
+// Explorer re-stacks Shell_TrayWnd while it handles a window activation, and it can do so
+// either side of our own re-assert. Reacting to the activation alone therefore still loses
+// the race about a third of the time, so the reaction is followed by a few short re-asserts
+// that cover the window in which Explorer might still raise the taskbar. Measured on the
+// reference machine: the entry stayed covered ~357 ms with the visibility poll alone, and
+// 62-156 ms with a single 120 ms follow-up.
+constexpr UINT_PTR kTopmostTimerId = 4;
+constexpr UINT kTopmostSettleMilliseconds = 40;
+constexpr int kTopmostSettleTicks = 3;
 constexpr UINT_PTR kContentTimerId = 2;
 constexpr UINT kContentPollMilliseconds = 15000;
 // Hardware readings go stale in seconds, so that mode repaints on the provider's own cadence
@@ -112,6 +125,31 @@ bool IsDesktopShellWindow(const HWND window)
     return name == L"Progman" ||
         name == L"WorkerW" ||
         name == L"SHELLDLL_DefView";
+}
+
+// The one entry window in this process, for the WinEvent hook. The hook signature carries no
+// user data, and the alternative - a map keyed by thread - would be machinery for a case that
+// cannot happen: LauncherHost is single-instance and creates exactly one entry.
+HWND g_entryWindowForHook = nullptr;
+
+void CALLBACK ForegroundEventProc(
+    HWINEVENTHOOK,
+    const DWORD event,
+    const HWND,
+    const LONG objectId,
+    const LONG,
+    const DWORD,
+    const DWORD)
+{
+    if (event != EVENT_SYSTEM_FOREGROUND || objectId != OBJID_WINDOW)
+    {
+        return;
+    }
+
+    if (g_entryWindowForHook != nullptr)
+    {
+        PostMessageW(g_entryWindowForHook, kEnsureTopmostMessage, 0, 0);
+    }
 }
 }
 
@@ -212,6 +250,28 @@ bool LauncherWindow::Create(
     _animator.SnapToTarget();
     ApplyPlacement();
     SetTimer(_window, kVisibilityTimerId, kVisibilityPollMilliseconds, nullptr);
+
+    // The taskbar and this entry share the topmost band, and Explorer raises Shell_TrayWnd
+    // whenever it handles a window activation. Waiting for the next visibility poll left the
+    // capsule covered for up to half a second every time - the blink this hook removes.
+    // Out-of-context so the callback is delivered to this message queue rather than injected
+    // into every process on the desktop.
+    g_entryWindowForHook = _window;
+    _foregroundHook = SetWinEventHook(
+        EVENT_SYSTEM_FOREGROUND,
+        EVENT_SYSTEM_FOREGROUND,
+        nullptr,
+        ForegroundEventProc,
+        0,
+        0,
+        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+    if (_foregroundHook == nullptr)
+    {
+        // Not fatal: the visibility poll still recovers the z-order, just less promptly.
+        Log(L"SetWinEventHook(EVENT_SYSTEM_FOREGROUND) failed; "
+            L"topmost recovery falls back to the visibility poll");
+    }
+
     ApplyContentMode();
     _coreBroker.Poll();
     return true;
@@ -222,11 +282,18 @@ void LauncherWindow::Destroy()
     // The panel is resident, so it outlives its own close; take it down with the launcher.
     _panelProcess.Shutdown();
     _coreBroker.Close();
+    if (_foregroundHook != nullptr)
+    {
+        UnhookWinEvent(_foregroundHook);
+        _foregroundHook = nullptr;
+    }
+    g_entryWindowForHook = nullptr;
     if (_window != nullptr)
     {
         KillTimer(_window, kVisibilityTimerId);
         KillTimer(_window, kContentTimerId);
         KillTimer(_window, kAnimationTimerId);
+        KillTimer(_window, kTopmostTimerId);
         DestroyWindow(_window);
         _window = nullptr;
     }
@@ -1161,6 +1228,17 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         {
             self->AdvanceAnimation();
         }
+        else if (wParam == kTopmostTimerId)
+        {
+            self->EnsureTopmost();
+            if (--self->_topmostSettleTicksLeft <= 0)
+            {
+                // The timer exists only for the length of one activation; a resting entry
+                // keeps the visibility poll as its only wake-up.
+                KillTimer(window, kTopmostTimerId);
+                self->_topmostSettleTicksLeft = 0;
+            }
+        }
         return 0;
 
     case WM_CLOSE:
@@ -1171,6 +1249,7 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         KillTimer(window, kVisibilityTimerId);
         KillTimer(window, kContentTimerId);
         KillTimer(window, kAnimationTimerId);
+        KillTimer(window, kTopmostTimerId);
         PostQuitMessage(0);
         return 0;
 
@@ -1181,6 +1260,18 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
             self->ScheduleReposition();
             return 0;
         }
+        if (message == kEnsureTopmostMessage)
+        {
+            self->EnsureTopmost();
+            self->_topmostSettleTicksLeft = kTopmostSettleTicks;
+            SetTimer(
+                window,
+                kTopmostTimerId,
+                kTopmostSettleMilliseconds,
+                nullptr);
+            return 0;
+        }
+
         if (message == kRepositionMessage)
         {
             self->Reposition();
