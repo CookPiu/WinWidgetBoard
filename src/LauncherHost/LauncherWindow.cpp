@@ -36,9 +36,7 @@ constexpr UINT kMonitorContentPollMilliseconds = 2000;
 // resting entry costs no timer wake-ups at all.
 constexpr UINT_PTR kAnimationTimerId = 3;
 constexpr UINT kAnimationIntervalMilliseconds = 16;
-// Only re-place the window when the measured width moves out of this band, so a changing
-// clock cannot make the entry twitch every time a glyph gets narrower.
-constexpr int kContentWidthHysteresisLogical = 8;
+
 
 enum ContextMenuCommand : UINT
 {
@@ -239,7 +237,8 @@ bool LauncherWindow::Create(
     {
         _dpi = 96;
     }
-    _contentWidthLogical = MeasureContentWidthLogical();
+    _contentWidthLogical = 0;
+    TryRefitEntryWidth(MeasureContentWidthLogical(), _contentWidthLogical);
     if (!InitializePlacement(error))
     {
         Destroy();
@@ -533,22 +532,14 @@ bool LauncherWindow::RefreshContent()
     _content = std::move(content);
     _monitorSegments = std::move(segments);
 
-    const int measured = MeasureContentWidthLogical();
-    const int measuredMonitor = MeasureMonitorWidthLogical();
-    // The capsule appearing or disappearing is a layout change regardless of how small the
-    // width step is; only a capsule that stays present gets the hysteresis band.
-    const bool monitorPresenceChanged =
-        (measuredMonitor > 0) != (_monitorWidthLogical > 0);
-    const bool widthChanged =
-        std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical ||
-        monitorPresenceChanged ||
-        std::abs(measuredMonitor - _monitorWidthLogical) >=
-            kContentWidthHysteresisLogical;
-    if (widthChanged)
-    {
-        _contentWidthLogical = measured;
-        _monitorWidthLogical = measuredMonitor;
-    }
+    // Both fields hold the width currently reserved, not the last measurement; TryRefit*
+    // updates them in place and reports whether the window has to move. A capsule appearing or
+    // disappearing needs no special case - it is a refit from or to zero.
+    const bool mainRefit =
+        TryRefitEntryWidth(MeasureContentWidthLogical(), _contentWidthLogical);
+    const bool monitorRefit =
+        TryRefitMonitorWidth(MeasureMonitorWidthLogical(), _monitorWidthLogical);
+    const bool widthChanged = mainRefit || monitorRefit;
 
     if (textChanged && !widthChanged)
     {

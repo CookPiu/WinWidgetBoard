@@ -114,6 +114,20 @@ int ResolveEntryWidthLogical(int measuredContentWidthLogical);
 // to hold open - it simply is not drawn when there is nothing to show - and its own ceiling.
 int ResolveMonitorWidthLogical(int measuredMonitorWidthLogical);
 
+// Decides whether a freshly measured content width needs the entry re-placed, and if so what
+// to reserve. `reservedLogical` is both the width currently reserved and, on a true return,
+// the width to reserve next.
+//
+// The rule is deliberately asymmetric. Growth is honoured the moment the content no longer
+// fits, because a capsule that is too narrow does not clip its contents - the layout drops a
+// whole column, and with the shipped configuration that column is the network readings, which
+// is what made them wink out. Shrinking is what needs damping: a clock or a rate whose text
+// gets a few pixels narrower must not make the entry twitch, so room is only reclaimed once
+// there is a worthwhile amount of it. A refit also reserves a little headroom, so an
+// oscillating reading does not re-place the window every couple of seconds.
+bool TryRefitEntryWidth(int measuredLogical, int& reservedLogical);
+bool TryRefitMonitorWidth(int measuredLogical, int& reservedLogical);
+
 bool QueryMonitorSnapshot(
     HMONITOR monitor,
     MonitorSnapshot& snapshot,

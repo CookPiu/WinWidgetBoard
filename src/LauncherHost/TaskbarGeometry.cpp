@@ -29,6 +29,12 @@ constexpr int kMonitorMaxWidthLogical = 440;
 // Between the two capsules. Wider than the 4 DIP rhythm's usual step because it has to read
 // as a break between two separate instruments, not as padding inside one.
 constexpr int kCapsuleGapLogical = 8;
+// Spare room reserved beyond the measured content on every refit, so a reading that grows a
+// little does not need the window moved again immediately.
+constexpr int kWidthHeadroomLogical = 8;
+// How much unused room has to accumulate before it is worth reclaiming. Larger than the
+// headroom, so reserving headroom cannot itself trigger the shrink that undoes it.
+constexpr int kWidthReclaimLogical = 16;
 constexpr int kEntryMinHeightLogical = 32;
 constexpr int kEntryMaxHeightLogical = 40;
 constexpr int kStripMarginLogical = 4;
@@ -361,6 +367,51 @@ int ResolveMonitorWidthLogical(const int measuredMonitorWidthLogical)
     return std::min(
         Quantise(std::min(measuredMonitorWidthLogical, kMonitorMaxWidthLogical)),
         kMonitorMaxWidthLogical);
+}
+
+static bool TryRefitWidth(
+    const int measuredLogical,
+    int& reservedLogical,
+    int (*resolve)(int))
+{
+    const int measured = std::max(measuredLogical, 0);
+    // Canonicalise first: the main capsule has a floor, so 0 and 96 describe the same reserved
+    // width, and leaving both spellings in the field would make later comparisons lie.
+    const int reserved = resolve(reservedLogical);
+    reservedLogical = reserved;
+    const int target = resolve(measured > 0 ? measured + kWidthHeadroomLogical : 0);
+
+    // Grows only when the content genuinely no longer fits, and shrinks only once enough room
+    // has gone spare. Comparing resolved widths rather than raw measurements is what keeps the
+    // main capsule from twitching against its own 96 DIP floor, where a narrower clock changes
+    // nothing that is actually reserved.
+    const bool mustGrow = measured > reserved;
+    const bool worthShrinking = reserved - target >= kWidthReclaimLogical;
+    if (!mustGrow && !worthShrinking)
+    {
+        return false;
+    }
+
+    // Never shrink below what the content needs; a reclaim that clipped would be worse than
+    // the wasted room it recovered.
+    const int next = std::max(target, resolve(measured));
+    if (next == reserved)
+    {
+        return false;
+    }
+
+    reservedLogical = next;
+    return true;
+}
+
+bool TryRefitEntryWidth(const int measuredLogical, int& reservedLogical)
+{
+    return TryRefitWidth(measuredLogical, reservedLogical, ResolveEntryWidthLogical);
+}
+
+bool TryRefitMonitorWidth(const int measuredLogical, int& reservedLogical)
+{
+    return TryRefitWidth(measuredLogical, reservedLogical, ResolveMonitorWidthLogical);
 }
 
 TaskbarEdge InferTaskbarEdge(const RECT& monitorRect, const RECT& workArea)
@@ -861,6 +912,73 @@ static bool RunEmbeddedEntryContractSmokeTest(
     {
         failure = L"left-align fallback did not honour the configured alignment";
         return false;
+    }
+
+    // The width refit rule. The case that matters is the one that used to lose a column: the
+    // readings grew by only a couple of DIP, the old symmetric hysteresis kept the window
+    // still, and the layout dropped the whole network column because it no longer fitted.
+    {
+        int reserved = 0;
+        if (!TryRefitMonitorWidth(149, reserved) || reserved < 149)
+        {
+            failure = L"the first measurement did not reserve room for itself";
+            return false;
+        }
+
+        const int afterFirst = reserved;
+        if (TryRefitMonitorWidth(154, reserved) || reserved != afterFirst)
+        {
+            failure = L"a reading that still fits moved the entry";
+            return false;
+        }
+
+        // Beyond the reserved room it must move, however small the step.
+        if (!TryRefitMonitorWidth(afterFirst + 1, reserved) ||
+            reserved <= afterFirst)
+        {
+            failure = L"content wider than the reserved room did not refit";
+            return false;
+        }
+
+        // Room is reclaimed only once enough of it has gone spare.
+        const int wide = reserved;
+        if (TryRefitMonitorWidth(wide - kWidthReclaimLogical + 1, reserved) ||
+            reserved != wide)
+        {
+            failure = L"a small shrink reclaimed room and moved the entry";
+            return false;
+        }
+
+        if (!TryRefitMonitorWidth(40, reserved) || reserved >= wide || reserved < 40)
+        {
+            failure = L"a large shrink did not reclaim room";
+            return false;
+        }
+
+        // Absent readings collapse the capsule entirely rather than holding a hole open.
+        if (!TryRefitMonitorWidth(0, reserved) || reserved != 0)
+        {
+            failure = L"an empty hardware capsule still reserved room";
+            return false;
+        }
+
+        // The main capsule has a floor. Anything narrower than it is already covered, so a
+        // clock whose text keeps changing under that floor must never re-place the entry.
+        int mainReserved = 0;
+        if (TryRefitEntryWidth(60, mainReserved) ||
+            TryRefitEntryWidth(40, mainReserved) ||
+            mainReserved != ResolveEntryWidthLogical(0))
+        {
+            failure = L"the main capsule twitched against its own minimum width";
+            return false;
+        }
+
+        // Past the floor it reserves room like any other capsule.
+        if (!TryRefitEntryWidth(200, mainReserved) || mainReserved < 200)
+        {
+            failure = L"the main capsule did not reserve room past its minimum";
+            return false;
+        }
     }
 
     // The hardware capsule rides beside the main one, never inside it, and only when it was
