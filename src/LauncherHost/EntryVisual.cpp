@@ -255,6 +255,14 @@ struct DibSurface
     }
 };
 
+// The semibold face by name, not by weight. Asking the "Segoe UI" family for FW_SEMIBOLD
+// resolves to tmWeight 700 - GDI's mapper rounds up to the Bold face rather than picking the
+// Semibold one - and full bold at this size fills its own counters and reads as ragged.
+// "Segoe UI Semibold" is a face in its own right and resolves to 600 exactly. It has shipped
+// with Windows since 8; if it were ever missing the mapper would substitute exactly what the
+// old request already produced, so there is nothing worse to fall back to.
+constexpr wchar_t kEntryFontFace[] = L"Segoe UI Semibold";
+
 HFONT CreateEntryFont(const int pixelHeight)
 {
     return CreateFontW(
@@ -269,11 +277,25 @@ HFONT CreateEntryFont(const int pixelHeight)
         DEFAULT_CHARSET,
         OUT_DEFAULT_PRECIS,
         CLIP_DEFAULT_PRECIS,
-        // Grey-scale antialiasing only. ClearType's subpixel coverage has no meaning on a
-        // layered window composited over an unknown background and shows colour fringes.
-        ANTIALIASED_QUALITY,
+        // ClearType, but read as three horizontal samples rather than as colour - see
+        // CoverageFromMask. Where the system has subpixel rendering turned off this degrades
+        // to plain grey-scale antialiasing and the same read still produces the right value.
+        CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_SWISS,
-        L"Segoe UI");
+        kEntryFontFace);
+}
+
+// One text-mask pixel as coverage. ClearType writes the three subpixel samples into B, G and
+// R; averaging them recovers a grey-scale coverage sampled at three times the horizontal
+// resolution, which is what smooths the diagonals and curves that a per-pixel mask leaves
+// notched. Taking the maximum instead - the obvious reading - keeps the fringe and throws the
+// extra resolution away.
+BYTE CoverageFromMask(const BYTE* const pixel) noexcept
+{
+    const int total = static_cast<int>(pixel[0]) +
+        static_cast<int>(pixel[1]) +
+        static_cast<int>(pixel[2]);
+    return static_cast<BYTE>((total + 1) / 3);
 }
 
 // Holds one screen DC and one font for the whole render pass. A segmented entry measures
@@ -611,8 +633,7 @@ bool ComposeText(
             const BYTE* const source = mask.bits +
                 (static_cast<size_t>(y) * static_cast<size_t>(canvas.width) +
                     static_cast<size_t>(x)) * 4;
-            const BYTE coverage =
-                std::max(source[0], std::max(source[1], source[2]));
+            const BYTE coverage = CoverageFromMask(source);
             if (coverage == 0)
             {
                 continue;
@@ -1389,7 +1410,7 @@ bool ComposeSegments(
             const BYTE* const source = textMask.bits +
                 (static_cast<size_t>(y) * static_cast<size_t>(canvas.width) +
                     static_cast<size_t>(x)) * 4;
-            const BYTE coverage = std::max(source[0], std::max(source[1], source[2]));
+            const BYTE coverage = CoverageFromMask(source);
             if (coverage != 0)
             {
                 canvas.Blend(
