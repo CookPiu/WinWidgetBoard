@@ -25,7 +25,6 @@ public sealed class PanelMotionCoordinator : IDisposable
     public PanelMotionCoordinator(
         double closedOffsetX,
         double closedOffsetY,
-        PanelMotionAxis primaryAxis,
         bool reducedMotion,
         DispatcherQueue uiDispatcherQueue,
         Action<PanelMotionValue> applyPanelMotion,
@@ -48,7 +47,6 @@ public sealed class PanelMotionCoordinator : IDisposable
         _panelMotion = new PanelMotionController(
             closedOffsetX,
             closedOffsetY,
-            primaryAxis,
             reducedMotion);
         _cardReturnMotion = new CardReturnMotionController(reducedMotion);
         _timer = uiDispatcherQueue.CreateTimer();
