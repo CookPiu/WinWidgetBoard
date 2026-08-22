@@ -1,6 +1,6 @@
 # 实施状态
 
-最后更新：2026-08-20
+最后更新：2026-08-22
 当前策略：轻量核心版
 当前代码基线：本文件所在提交
 
@@ -36,7 +36,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- Release UnitTests：380/380；
+- Release UnitTests：382/382；
 - CoreBroker 与 WorkspacePanel Release x64 构建：0 警告、0 错误；
 - `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test`、`WinWidgetBoard.WorkspacePanel.exe --smoke-test` 与 `--broker-smoke-test`（配真实 Broker）退出码均为 0；
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
@@ -62,7 +62,9 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
   进入编辑后出现；全部卡片在板时不弹空对话框；移除计时器卡片后经选择器加回，完成编辑并重启面板后
   仍在布局中；
 - `WinWidgetBoard.CoreBroker.exe --sysmon-smoke-test` 退出码 0，参考机上 8 项读数为 `ready`，
-  温度、风扇、CPU 频率 4 项为 `unavailable`；
+  温度、风扇、CPU 频率 4 项为 `unavailable`；网速采样改为仅累计具有 IPv4/IPv6 接口索引的
+  IP 层端点，参考机从 17 个原始 `Up` 条目收敛为 4 个逻辑接口；`UT-SYSMON-054/055` 覆盖接口
+  加入、移除和历史累计值不得形成尖峰；
 - 验收使用隔离临时数据和独立实例身份，结束后已清理。
 
 这属于 L2 针对性证据，不替代发布候选的完整显示器、偏好和无障碍矩阵。更早轮次的完成证据以 Git 提交和测试名称为准。
@@ -143,6 +145,10 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
   而 `% Processor Performance × ~MHz` 得到 8.18 GHz，因为 `~MHz` 记录的是开机频率而非基准频率；
 - **采样按需**：卡片可见或入口近 10 秒内索要过摘要才以 2 秒节奏采样，否则完全休眠，
   唤醒时丢弃增量基线；
+- **网速去重与尖峰保护**：不再把所有 `Up` 的 `NetworkInterface` 累加。WFP、QoS 与抓包过滤层
+  可能重报实体网卡的同一字节计数，却没有可用的 IPv4/IPv6 接口索引；现在仅统计 IP 层端点。
+  基线按接口 ID 保存，接口加入、移除、重连或计数器回退时下一拍报 `pending`，随后再建立速率，
+  不把接口的历史累计值误作当前 2 秒流量；
 - **卡片与任务栏各自独立配置**，每处最多 8 项，顺序即列表顺序，经版本化 IPC 落盘；
 - **入口是两枚胶囊**：左边主胶囊（指示器 + 时间或天气，96～280 DIP），间隙 8 DIP，
   右边硬件胶囊（上限 440 DIP，无下限，没有读数时整枚不画）。硬件监控因此是独立开关而非

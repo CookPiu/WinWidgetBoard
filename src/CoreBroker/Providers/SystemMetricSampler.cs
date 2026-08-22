@@ -42,13 +42,124 @@ public sealed record SystemMetricSample
     public double? FanRpm { get; init; }
 
     /// <summary>
-    /// False on the first tick after the sampler starts or wakes. Rate metrics are deltas, so
-    /// without a previous tick there is nothing to subtract from; the surfaces show a
-    /// placeholder for one tick rather than a zero that reads as a real measurement.
+    /// False on the first tick after the sampler starts or wakes, and after the active IP
+    /// interface set changes. Rate metrics are deltas, so without a like-for-like previous tick
+    /// there is nothing honest to subtract from; the surfaces show a placeholder rather than a
+    /// zero or a lifetime counter that reads as a real measurement.
     /// </summary>
     public bool HasBaseline { get; init; }
 }
 
+/// <summary>
+/// One IP-layer interface counter snapshot. The interface ID is stable only while the interface
+/// is present; a change in the set of IDs deliberately restarts the rate baseline.
+/// </summary>
+internal readonly record struct NetworkInterfaceCounterSnapshot(
+    string InterfaceId,
+    long ReceivedBytes,
+    long SentBytes);
+
+/// <summary>
+/// The rate result for one sample. A missing baseline is distinct from a measured zero rate.
+/// </summary>
+internal readonly record struct NetworkRateMeasurement(
+    double? UpBytesPerSecond,
+    double? DownBytesPerSecond,
+    bool HasBaseline);
+
+/// <summary>
+/// Converts per-interface cumulative byte counters to rates. Keeping the baseline per interface
+/// is essential: an adapter that appears between ticks already has a lifetime counter, which
+/// must never be mistaken for traffic from the current two-second window.
+/// </summary>
+internal sealed class NetworkRateTracker
+{
+    private readonly Dictionary<string, NetworkInterfaceCounterSnapshot> _previous =
+        new(StringComparer.Ordinal);
+    private DateTimeOffset? _previousSampledAtUtc;
+
+    public void Reset()
+    {
+        _previous.Clear();
+        _previousSampledAtUtc = null;
+    }
+
+    public NetworkRateMeasurement Sample(
+        IReadOnlyList<NetworkInterfaceCounterSnapshot> counters,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(counters);
+
+        var current = new Dictionary<string, NetworkInterfaceCounterSnapshot>(StringComparer.Ordinal);
+        foreach (NetworkInterfaceCounterSnapshot counter in counters)
+        {
+            if (string.IsNullOrWhiteSpace(counter.InterfaceId) ||
+                counter.ReceivedBytes < 0L ||
+                counter.SentBytes < 0L ||
+                !current.TryAdd(counter.InterfaceId, counter))
+            {
+                Reset();
+                return default;
+            }
+        }
+
+        if (current.Count == 0)
+        {
+            Reset();
+            return default;
+        }
+
+        if (_previousSampledAtUtc is not { } previousAt || _previous.Count == 0)
+        {
+            StoreBaseline(current, nowUtc);
+            return default;
+        }
+
+        double seconds = (nowUtc - previousAt).TotalSeconds;
+        if (seconds <= 0d || current.Count != _previous.Count)
+        {
+            StoreBaseline(current, nowUtc);
+            return default;
+        }
+
+        double receivedDelta = 0d;
+        double sentDelta = 0d;
+        foreach (KeyValuePair<string, NetworkInterfaceCounterSnapshot> pair in current)
+        {
+            if (!_previous.TryGetValue(pair.Key, out NetworkInterfaceCounterSnapshot previous) ||
+                pair.Value.ReceivedBytes < previous.ReceivedBytes ||
+                pair.Value.SentBytes < previous.SentBytes)
+            {
+                // This covers adapter additions, removals, counter resets and reconnects. All
+                // make the aggregate incomparable with the previous tick.
+                StoreBaseline(current, nowUtc);
+                return default;
+            }
+
+            receivedDelta += pair.Value.ReceivedBytes - previous.ReceivedBytes;
+            sentDelta += pair.Value.SentBytes - previous.SentBytes;
+        }
+
+        StoreBaseline(current, nowUtc);
+        return new NetworkRateMeasurement(
+            sentDelta / seconds,
+            receivedDelta / seconds,
+            HasBaseline: true);
+    }
+
+    private void StoreBaseline(
+        IReadOnlyDictionary<string, NetworkInterfaceCounterSnapshot> counters,
+        DateTimeOffset nowUtc)
+    {
+        _previous.Clear();
+        foreach (KeyValuePair<string, NetworkInterfaceCounterSnapshot> pair in counters)
+        {
+            _previous.Add(pair.Key, pair.Value);
+        }
+
+        _previousSampledAtUtc = nowUtc;
+    }
+}
 /// <summary>
 /// Samples what Windows exposes to a normal, unelevated process: system times, memory status,
 /// interface counters, drive space, and the PDH counter set. Temperature, fan speed and any
@@ -59,14 +170,11 @@ public sealed class SystemMetricSampler : IDisposable
 {
     private readonly PdhCounterSet? _counters;
     private readonly double? _gpuMemoryTotalBytes;
+    private readonly NetworkRateTracker _networkRateTracker = new();
 
     private ulong _previousIdleTicks;
     private ulong _previousBusyTicks;
-    private long _previousNetworkReceivedBytes;
-    private long _previousNetworkSentBytes;
-    private DateTimeOffset? _previousSampledAtUtc;
     private bool _hasCpuBaseline;
-    private bool _hasNetworkBaseline;
     private bool _disposed;
 
     public SystemMetricSampler()
@@ -85,8 +193,7 @@ public sealed class SystemMetricSampler : IDisposable
     public void ResetBaseline()
     {
         _hasCpuBaseline = false;
-        _hasNetworkBaseline = false;
-        _previousSampledAtUtc = null;
+        _networkRateTracker.Reset();
         _counters?.ResetBaseline();
     }
 
@@ -96,17 +203,13 @@ public sealed class SystemMetricSampler : IDisposable
 
         // Read before sampling: the samplers below establish the baselines they are missing,
         // so asking afterwards would always say yes, including on the very first tick.
-        bool hasBaseline = _hasCpuBaseline &&
-            _hasNetworkBaseline &&
-            _previousSampledAtUtc is not null;
+        bool hasCpuBaseline = _hasCpuBaseline;
 
         double? cpuUsage = SampleCpuUsage();
-        (double? upRate, double? downRate) = SampleNetworkRates(nowUtc);
+        NetworkRateMeasurement networkRates = SampleNetworkRates(nowUtc);
         PdhReadings pdh = _counters?.Read() ?? default;
         (double? memoryUsed, double? memoryTotal) = ReadMemory();
         (double? diskUsed, double? diskTotal) = ReadSystemDriveSpace();
-
-        _previousSampledAtUtc = nowUtc;
 
         return new SystemMetricSample
         {
@@ -126,13 +229,13 @@ public sealed class SystemMetricSampler : IDisposable
             DiskBusyPercent = pdh.DiskBusyPercent,
             DiskUsedBytes = diskUsed,
             DiskTotalBytes = diskTotal,
-            NetworkUpBytesPerSecond = upRate,
-            NetworkDownBytesPerSecond = downRate,
+            NetworkUpBytesPerSecond = networkRates.UpBytesPerSecond,
+            NetworkDownBytesPerSecond = networkRates.DownBytesPerSecond,
             // Every sensor below needs a kernel driver; see the sensor service.
             CpuTemperatureCelsius = null,
             GpuTemperatureCelsius = null,
             FanRpm = null,
-            HasBaseline = hasBaseline,
+            HasBaseline = hasCpuBaseline && networkRates.HasBaseline,
         };
     }
 
@@ -184,62 +287,17 @@ public sealed class SystemMetricSampler : IDisposable
         return Math.Clamp(busyDelta * 100d / totalDelta, 0d, 100d);
     }
 
-    private (double? UpBytesPerSecond, double? DownBytesPerSecond) SampleNetworkRates(
-        DateTimeOffset nowUtc)
-    {
-        long received = 0;
-        long sent = 0;
-        bool sawInterface = false;
+    private NetworkRateMeasurement SampleNetworkRates(DateTimeOffset nowUtc) =>
+        _networkRateTracker.Sample(ReadNetworkCounters(), nowUtc);
 
-        foreach (NetworkInterface adapter in EnumerateInterfaces())
-        {
-            try
-            {
-                IPInterfaceStatistics statistics = adapter.GetIPStatistics();
-                received += statistics.BytesReceived;
-                sent += statistics.BytesSent;
-                sawInterface = true;
-            }
-            catch (NetworkInformationException)
-            {
-                // An adapter can disappear between enumeration and query; the remaining ones
-                // still produce a usable total.
-            }
-            catch (PlatformNotSupportedException)
-            {
-            }
-        }
-
-        if (!sawInterface)
-        {
-            return (null, null);
-        }
-
-        if (!_hasNetworkBaseline || _previousSampledAtUtc is not { } previousAt)
-        {
-            _previousNetworkReceivedBytes = received;
-            _previousNetworkSentBytes = sent;
-            _hasNetworkBaseline = true;
-            return (null, null);
-        }
-
-        double seconds = (nowUtc - previousAt).TotalSeconds;
-        long receivedDelta = received - _previousNetworkReceivedBytes;
-        long sentDelta = sent - _previousNetworkSentBytes;
-        _previousNetworkReceivedBytes = received;
-        _previousNetworkSentBytes = sent;
-
-        // An adapter that went away takes its counter with it, which shows up as a negative
-        // delta. Report nothing for that tick rather than a negative rate.
-        if (seconds <= 0d || receivedDelta < 0 || sentDelta < 0)
-        {
-            return (null, null);
-        }
-
-        return (sentDelta / seconds, receivedDelta / seconds);
-    }
-
-    private static IEnumerable<NetworkInterface> EnumerateInterfaces()
+    /// <summary>
+    /// Reads one counter per real IP-layer interface. Windows may expose the same physical NIC
+    /// through one or more NDIS filter layers (WFP, QoS, capture filters); those layers often
+    /// report the underlying byte counter too, but do not expose an IP interface index. Counting
+    /// them would multiply one packet's traffic, so a usable IPv4 or IPv6 interface index is the
+    /// boundary between a logical endpoint and a transport filter.
+    /// </summary>
+    private static List<NetworkInterfaceCounterSnapshot> ReadNetworkCounters()
     {
         NetworkInterface[] adapters;
         try
@@ -248,17 +306,106 @@ public sealed class SystemMetricSampler : IDisposable
         }
         catch (NetworkInformationException)
         {
-            yield break;
+            return [];
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return [];
         }
 
+        var counters = new List<NetworkInterfaceCounterSnapshot>();
+        var seenInterfaceIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (NetworkInterface adapter in adapters)
         {
-            if (adapter.OperationalStatus == OperationalStatus.Up &&
-                adapter.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
-                adapter.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
+            if (adapter.OperationalStatus != OperationalStatus.Up ||
+                adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
+                adapter.NetworkInterfaceType == NetworkInterfaceType.Tunnel ||
+                !TryGetIpInterfaceId(adapter, out string interfaceId) ||
+                !seenInterfaceIds.Add(interfaceId))
             {
-                yield return adapter;
+                continue;
             }
+
+            try
+            {
+                IPInterfaceStatistics statistics = adapter.GetIPStatistics();
+                if (statistics.BytesReceived < 0L || statistics.BytesSent < 0L)
+                {
+                    continue;
+                }
+
+                counters.Add(
+                    new NetworkInterfaceCounterSnapshot(
+                        interfaceId,
+                        statistics.BytesReceived,
+                        statistics.BytesSent));
+            }
+            catch (NetworkInformationException)
+            {
+                // An adapter can disappear between enumeration and query. The tracker sees the
+                // changed set and waits for a fresh baseline instead of inventing a rate.
+            }
+            catch (PlatformNotSupportedException)
+            {
+            }
+        }
+
+        return counters;
+    }
+
+    private static bool TryGetIpInterfaceId(NetworkInterface adapter, out string interfaceId)
+    {
+        interfaceId = string.Empty;
+        IPInterfaceProperties properties;
+        try
+        {
+            properties = adapter.GetIPProperties();
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return false;
+        }
+
+        if (!HasUsableIpInterfaceIndex(properties))
+        {
+            return false;
+        }
+
+        interfaceId = adapter.Id;
+        return !string.IsNullOrWhiteSpace(interfaceId);
+    }
+
+    private static bool HasUsableIpInterfaceIndex(IPInterfaceProperties properties)
+    {
+        try
+        {
+            if (properties.GetIPv4Properties().Index > 0)
+            {
+                return true;
+            }
+        }
+        catch (NetworkInformationException)
+        {
+        }
+        catch (PlatformNotSupportedException)
+        {
+        }
+
+        try
+        {
+            return properties.GetIPv6Properties().Index > 0;
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return false;
         }
     }
 
