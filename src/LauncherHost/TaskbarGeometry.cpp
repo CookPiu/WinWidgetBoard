@@ -18,10 +18,17 @@ constexpr int kEdgeGapLogical = 8;
 constexpr int kMinimumTaskbarThicknessPx = 8;
 constexpr int kMaximumTaskbarThicknessPx = 240;
 constexpr int kEntryMinWidthLogical = 96;
-// Wide enough for the hardware monitor's several readings on one strip. The other content
-// modes are unaffected: width follows the measured content, and a clock never gets near this.
-constexpr int kEntryMaxWidthLogical = 520;
+// The main capsule shows a clock, or a glyph and a temperature. It never needed more than
+// this; the hardware readings moved to their own capsule with its own ceiling.
+constexpr int kEntryMaxWidthLogical = 280;
 constexpr int kEntryWidthQuantumLogical = 4;
+// The hardware capsule. No minimum: it is simply absent when there is nothing to show, and
+// holding a 96 DIP hole open for it would be worse than that. The ceiling covers the
+// contract's eight readings folded into four columns at the detailed shape.
+constexpr int kMonitorMaxWidthLogical = 440;
+// Between the two capsules. Wider than the 4 DIP rhythm's usual step because it has to read
+// as a break between two separate instruments, not as padding inside one.
+constexpr int kCapsuleGapLogical = 8;
 constexpr int kEntryMinHeightLogical = 32;
 constexpr int kEntryMaxHeightLogical = 40;
 constexpr int kStripMarginLogical = 4;
@@ -234,6 +241,27 @@ bool CheckPlacement(
         return false;
     }
 
+    if (placement.hasMonitorRect)
+    {
+        if (!IsValidRect(placement.monitorRect) ||
+            !IsRectWithin(placement.windowRect, placement.monitorRect))
+        {
+            failure = L"hardware capsule escapes the window rectangle";
+            return false;
+        }
+
+        if (placement.monitorRect.left < placement.hitRect.right)
+        {
+            failure = L"hardware capsule overlaps the main capsule";
+            return false;
+        }
+    }
+    else if (IsValidRect(placement.monitorRect))
+    {
+        failure = L"hardware capsule is present without being declared";
+        return false;
+    }
+
     return true;
 }
 }
@@ -308,20 +336,31 @@ bool DeriveTaskbarStrip(
     return true;
 }
 
+static int Quantise(const int width)
+{
+    const int remainder = width % kEntryWidthQuantumLogical;
+    return remainder == 0 ? width : width + kEntryWidthQuantumLogical - remainder;
+}
+
 int ResolveEntryWidthLogical(const int measuredContentWidthLogical)
 {
     int width = measuredContentWidthLogical <= 0
         ? kEntryMinWidthLogical
         : measuredContentWidthLogical;
     width = std::clamp(width, kEntryMinWidthLogical, kEntryMaxWidthLogical);
+    return std::min(Quantise(width), kEntryMaxWidthLogical);
+}
 
-    const int remainder = width % kEntryWidthQuantumLogical;
-    if (remainder != 0)
+int ResolveMonitorWidthLogical(const int measuredMonitorWidthLogical)
+{
+    if (measuredMonitorWidthLogical <= 0)
     {
-        width += kEntryWidthQuantumLogical - remainder;
+        return 0;
     }
 
-    return std::min(width, kEntryMaxWidthLogical);
+    return std::min(
+        Quantise(std::min(measuredMonitorWidthLogical, kMonitorMaxWidthLogical)),
+        kMonitorMaxWidthLogical);
 }
 
 TaskbarEdge InferTaskbarEdge(const RECT& monitorRect, const RECT& workArea)
@@ -447,6 +486,7 @@ static bool TryMakeEmbeddedPlacement(
     const MonitorSnapshot& snapshot,
     const LauncherEntryPlacementPreference alignment,
     const int measuredContentWidthLogical,
+    const int measuredMonitorWidthLogical,
     LauncherPlacement& placement)
 {
     if (!snapshot.hasTaskbarStrip ||
@@ -471,19 +511,44 @@ static bool TryMakeEmbeddedPlacement(
     const int width = ScaleLogicalPixels(
         ResolveEntryWidthLogical(measuredContentWidthLogical),
         placement.dpi);
-    if (RectWidth(strip) < width + gap * 2)
+
+    // The hardware capsule rides beside the main one inside a single window: two windows would
+    // mean two placements to keep in step, two z-order fights with the taskbar and two things
+    // to hide for a fullscreen app. Its own width is resolved separately so the main capsule's
+    // minimum never applies to it.
+    const int monitorLogical =
+        ResolveMonitorWidthLogical(measuredMonitorWidthLogical);
+    int capsuleGap = 0;
+    int monitorWidth = 0;
+    if (monitorLogical > 0)
     {
-        return false;
+        capsuleGap = ScaleLogicalPixels(kCapsuleGapLogical, placement.dpi);
+        monitorWidth = ScaleLogicalPixels(monitorLogical, placement.dpi);
     }
 
+    const int totalWidth = width + capsuleGap + monitorWidth;
+    if (RectWidth(strip) < totalWidth + gap * 2)
+    {
+        // The pair does not fit. Drop the hardware capsule rather than the entry itself: the
+        // launcher must still be reachable on a narrow strip.
+        if (monitorWidth == 0 || RectWidth(strip) < width + gap * 2)
+        {
+            return false;
+        }
+
+        capsuleGap = 0;
+        monitorWidth = 0;
+    }
+
+    const int blockWidth = width + capsuleGap + monitorWidth;
     int left = strip.left + gap;
     switch (alignment)
     {
     case LauncherEntryPlacementPreference::EmbeddedCenter:
-        left = strip.left + (RectWidth(strip) - width) / 2;
+        left = strip.left + (RectWidth(strip) - blockWidth) / 2;
         break;
     case LauncherEntryPlacementPreference::EmbeddedRight:
-        left = strip.right - gap - width;
+        left = strip.right - gap - blockWidth;
         break;
     case LauncherEntryPlacementPreference::EmbeddedLeft:
     case LauncherEntryPlacementPreference::Floating:
@@ -493,9 +558,20 @@ static bool TryMakeEmbeddedPlacement(
 
     const int top = strip.top + (RectHeight(strip) - height) / 2;
     placement.mode = LauncherPlacementMode::ExactWidgetReplacement;
-    placement.windowRect = RECT{left, top, left + width, top + height};
-    // The whole strip is the button; there is no inert padding to pass through.
-    placement.hitRect = placement.windowRect;
+    placement.windowRect = RECT{left, top, left + blockWidth, top + height};
+    // The main capsule is the button. The rest of the window - the gap, and the hardware
+    // capsule's own rounded corners - is shaped by per-pixel alpha and passes input through.
+    placement.hitRect = RECT{left, top, left + width, top + height};
+    if (monitorWidth > 0)
+    {
+        placement.monitorRect = RECT{
+            left + width + capsuleGap,
+            top,
+            left + width + capsuleGap + monitorWidth,
+            top + height};
+        placement.hasMonitorRect = true;
+    }
+
     return true;
 }
 
@@ -503,7 +579,8 @@ LauncherPlacement ResolveLauncherPlacement(
     const MonitorSnapshot& snapshot,
     const UINT dpi,
     const LauncherEntryPreferences& preferences,
-    const int measuredContentWidthLogical)
+    const int measuredContentWidthLogical,
+    const int measuredMonitorWidthLogical)
 {
     LauncherPlacement placement{};
     placement.dpi = dpi == 0 ? kDefaultDpi : dpi;
@@ -544,6 +621,7 @@ LauncherPlacement ResolveLauncherPlacement(
                 snapshot,
                 alignment,
                 measuredContentWidthLogical,
+                preferences.showSystemMonitor ? measuredMonitorWidthLogical : 0,
                 placement))
         {
             std::wstring failure;
@@ -782,6 +860,67 @@ static bool RunEmbeddedEntryContractSmokeTest(
         movedRight.windowRect.left != right.windowRect.left)
     {
         failure = L"left-align fallback did not honour the configured alignment";
+        return false;
+    }
+
+    // The hardware capsule rides beside the main one, never inside it, and only when it was
+    // asked for.
+    constexpr LauncherEntryPreferences withMonitor{
+        .placement = LauncherEntryPlacementPreference::EmbeddedLeft,
+        .showSystemMonitor = true,
+    };
+    const LauncherPlacement paired =
+        ResolveLauncherPlacement(bottomTaskbar, 96, withMonitor, 160, 200);
+    if (paired.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        !paired.hasMonitorRect ||
+        paired.monitorRect.left <= paired.hitRect.right ||
+        paired.monitorRect.right != paired.windowRect.right ||
+        paired.hitRect.left != paired.windowRect.left ||
+        RectWidth(paired.windowRect) <= RectWidth(left.windowRect) ||
+        !CheckPlacement(bottomTaskbar, paired, failure))
+    {
+        if (failure.empty())
+        {
+            failure = L"the hardware capsule is not placed beside the main one";
+        }
+        return false;
+    }
+
+    // Turning it off must leave the entry exactly as it was, and asking for it with nothing
+    // to show must not reserve a hole for it.
+    const LauncherPlacement unpaired =
+        ResolveLauncherPlacement(bottomTaskbar, 96, embeddedLeft, 160, 200);
+    const LauncherPlacement empty =
+        ResolveLauncherPlacement(bottomTaskbar, 96, withMonitor, 160, 0);
+    if (unpaired.hasMonitorRect ||
+        empty.hasMonitorRect ||
+        RectWidth(unpaired.windowRect) != RectWidth(left.windowRect) ||
+        RectWidth(empty.windowRect) != RectWidth(left.windowRect))
+    {
+        failure = L"the hardware capsule reserved room it was not asked for";
+        return false;
+    }
+
+    // A right-aligned pair ends at the strip edge: the block is aligned, not just the main
+    // capsule, or the hardware readings would hang off the end.
+    const LauncherPlacement pairedRight = ResolveLauncherPlacement(
+        bottomTaskbar,
+        96,
+        LauncherEntryPreferences{
+            .placement = LauncherEntryPlacementPreference::EmbeddedRight,
+            .showSystemMonitor = true,
+        },
+        160,
+        200);
+    if (pairedRight.mode != LauncherPlacementMode::ExactWidgetReplacement ||
+        pairedRight.windowRect.right !=
+            bottomTaskbar.taskbarStrip.right - kEdgeGapLogical ||
+        !CheckPlacement(bottomTaskbar, pairedRight, failure))
+    {
+        if (failure.empty())
+        {
+            failure = L"a right-aligned pair did not end at the strip edge";
+        }
         return false;
     }
 

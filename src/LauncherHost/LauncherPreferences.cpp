@@ -10,6 +10,13 @@ constexpr wchar_t kPreferencesKey[] = L"Software\\WinWidgetBoard\\Launcher";
 constexpr wchar_t kPlacementValue[] = L"Placement";
 constexpr wchar_t kLeftAlignFallbackValue[] = L"LeftAlignFallback";
 constexpr wchar_t kContentValue[] = L"Content";
+constexpr wchar_t kShowSystemMonitorValue[] = L"ShowSystemMonitor";
+
+// The value Content used to carry when the hardware monitor was a third content mode rather
+// than its own capsule. A profile written by that build is read once and split into the two
+// settings it became; nothing rewrites it until the user changes something, so downgrading
+// keeps working.
+constexpr DWORD kLegacySystemMonitorContent = 2u;
 
 bool TryReadDword(const wchar_t* name, DWORD& value)
 {
@@ -61,8 +68,6 @@ LauncherContentMode ToContent(const DWORD value)
     {
     case 1:
         return LauncherContentMode::Weather;
-    case 2:
-        return LauncherContentMode::SystemMonitor;
     case 0:
     default:
         return LauncherContentMode::DateTime;
@@ -105,8 +110,6 @@ DWORD FromContent(const LauncherContentMode content)
     {
     case LauncherContentMode::Weather:
         return 1u;
-    case LauncherContentMode::SystemMonitor:
-        return 2u;
     case LauncherContentMode::DateTime:
     default:
         return 0u;
@@ -141,6 +144,16 @@ LauncherEntryPreferences LoadLauncherPreferences()
     if (TryReadDword(kContentValue, value))
     {
         preferences.content = ToContent(value);
+        if (value == kLegacySystemMonitorContent)
+        {
+            // A profile from the three-way build: the user had asked for readings, so keep
+            // showing them, with the clock back in the capsule they used to replace.
+            preferences.showSystemMonitor = true;
+        }
+    }
+    if (TryReadDword(kShowSystemMonitorValue, value))
+    {
+        preferences.showSystemMonitor = value != 0u;
     }
 
     return preferences;
@@ -169,7 +182,11 @@ bool SaveLauncherPreferences(const LauncherEntryPreferences& preferences)
             key,
             kLeftAlignFallbackValue,
             FromLeftAlignFallback(preferences.leftAlignFallback)) &&
-        WriteDword(key, kContentValue, FromContent(preferences.content));
+        WriteDword(key, kContentValue, FromContent(preferences.content)) &&
+        WriteDword(
+            key,
+            kShowSystemMonitorValue,
+            preferences.showSystemMonitor ? 1u : 0u);
     RegCloseKey(key);
     return saved;
 }

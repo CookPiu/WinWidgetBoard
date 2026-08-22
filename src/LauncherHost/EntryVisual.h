@@ -25,17 +25,17 @@ inline constexpr int kEntryIconGapLogical = 8;
 inline constexpr int kEntryMotifWidthLogical = 26;
 // Hardware readings are packed two rows deep, the way TrafficMonitor stacks its upload over
 // its download. At the entry's normal 14 DIP type a single row runs out of width after four
-// readings and still leaves most of the capsule's height empty; halving the type and folding
-// the strip in two fits the whole configured set and reads as one dense instrument instead of
-// a sentence. Segments fill column by column - segment 0 above segment 1, segment 2 above
-// segment 3 - so a related pair such as up/down stays together in one column.
+// readings and still leaves most of the capsule's height empty; a smaller face folded into two
+// rows fits the whole configured set and reads as one dense instrument instead of a sentence.
+// Segments fill column by column - segment 0 above segment 1, segment 2 above segment 3 - so a
+// related pair such as up/down stays together in one column.
 inline constexpr int kEntrySegmentRowsPerColumn = 2;
-inline constexpr int kEntrySegmentFontSizeLogical = 7;
+inline constexpr int kEntrySegmentFontSizeLogical = 10;
 // One text row plus its leading. Two of these stack around the capsule's centre line.
-inline constexpr int kEntrySegmentRowHeightLogical = 11;
+inline constexpr int kEntrySegmentRowHeightLogical = 15;
 // The glyph shrinks with the type it labels, and its gap with it; at 18 DIP it would be
 // taller than the two rows it sits beside.
-inline constexpr int kEntrySegmentIconSizeLogical = 10;
+inline constexpr int kEntrySegmentIconSizeLogical = 12;
 inline constexpr int kEntrySegmentIconGapLogical = 4;
 // Each side of the divider. Tighter than the single-row strip's: with columns half as wide,
 // the old 10 DIP read as a hole rather than as breathing room.
@@ -43,7 +43,13 @@ inline constexpr int kEntrySegmentColumnGapLogical = 6;
 // The divider is a hairline rather than a gap alone: at four columns, spacing by itself stops
 // reading as separation. It spans both rows.
 inline constexpr int kEntryDividerWidthLogical = 1;
-inline constexpr int kEntryDividerHeightLogical = 22;
+inline constexpr int kEntryDividerHeightLogical = 26;
+// Each reading is drawn on top of its own recent history. The graph is a wash rather than a
+// line: at this size a stroked plot competes with the digits in front of it, while a filled
+// area reads as a shape even when it is barely there.
+inline constexpr double kEntrySparklineAlpha = 0.32;
+// Inset from the row so neighbouring rows' graphs do not touch.
+inline constexpr int kEntrySparklineInsetLogical = 1;
 
 // The condition glyphs the entry can draw. They are drawn from primitives rather than taken
 // from an icon font: the entry composites its own premultiplied bitmap, and a font would add
@@ -79,11 +85,16 @@ enum class EntryIcon : unsigned char
 // which draws a neutral mark rather than nothing at all.
 EntryIcon ParseEntryIcon(std::string_view iconId);
 
-// One piece of a multi-reading entry: a glyph and the text the broker already composed.
+// One piece of a multi-reading entry: a glyph, the text the broker already composed, and the
+// recent history it is plotted against.
 struct EntrySegment
 {
     EntryIcon icon{EntryIcon::None};
     std::wstring text;
+    // Oldest first, already normalised to 0..1 by the broker - the entry has no idea what a
+    // byte or a percent is, and no way to pick a scale. Empty draws no graph at all, which is
+    // how a reading this machine cannot take is distinguished from one that is simply idle.
+    std::vector<double> history;
 };
 
 // Everything the entry needs to paint itself in the user's current theme. The entry draws on
@@ -164,9 +175,14 @@ struct EntryRenderRequest
     // Drawn between the indicator and the text. None removes it and its spacing entirely.
     EntryIcon icon{EntryIcon::None};
     std::wstring text;
-    // When non-empty this replaces `icon` and `text`: the entry lays the segments out in a
-    // row with a hairline between them. Used by the hardware monitor, where one strip carries
-    // several readings at once.
+    // The hardware monitor's own capsule, to the right of the main one with a gap between.
+    // It is a second capsule rather than a second region of the first because it is a
+    // separate instrument: the main capsule carries the indicator and the panel's state, and
+    // mixing a clock and a bank of readings behind one outline read as one crowded control.
+    RECT monitorCapsule{};
+    bool hasMonitorCapsule{};
+    // Drawn inside `monitorCapsule`, never inside `capsule`. Empty leaves that capsule
+    // undrawn entirely rather than showing an empty shell.
     std::vector<EntrySegment> segments;
 };
 

@@ -42,11 +42,13 @@ enum class LauncherLeftAlignFallback : unsigned char
     EmbeddedRight,
 };
 
+// What the main capsule shows. The hardware monitor is deliberately not in here: it lives in
+// its own capsule beside this one, so it is a switch rather than a third choice, and a user
+// who wants weather and readings at the same time can have both.
 enum class LauncherContentMode : unsigned char
 {
     DateTime,
     Weather,
-    SystemMonitor,
 };
 
 struct LauncherEntryPreferences
@@ -55,6 +57,7 @@ struct LauncherEntryPreferences
         LauncherEntryPlacementPreference::EmbeddedLeft};
     LauncherLeftAlignFallback leftAlignFallback{LauncherLeftAlignFallback::Floating};
     LauncherContentMode content{LauncherContentMode::DateTime};
+    bool showSystemMonitor{};
 };
 
 struct MonitorSnapshot
@@ -79,8 +82,15 @@ struct LauncherPlacement
     LauncherPlacementMode mode{LauncherPlacementMode::Unavailable};
     TaskbarEdge edge{TaskbarEdge::Unknown};
     UINT dpi{96};
+    // The whole window, spanning both capsules and the gap between them.
     RECT windowRect{};
+    // The main capsule - the one that carries the indicator and toggles the panel.
     RECT hitRect{};
+    // The hardware capsule to its right. Empty and inert unless showSystemMonitor is on and
+    // the strip had room for it; the gap between the two is pass-through like any other
+    // point outside a capsule.
+    RECT monitorRect{};
+    bool hasMonitorRect{};
     std::wstring reason;
 };
 
@@ -100,6 +110,10 @@ bool DeriveTaskbarStrip(
 // rhythm the UI spec uses, so an adaptive width cannot jitter by single pixels.
 int ResolveEntryWidthLogical(int measuredContentWidthLogical);
 
+// The hardware capsule is measured, clamped and quantised on its own scale: it has no minimum
+// to hold open - it simply is not drawn when there is nothing to show - and its own ceiling.
+int ResolveMonitorWidthLogical(int measuredMonitorWidthLogical);
+
 bool QueryMonitorSnapshot(
     HMONITOR monitor,
     MonitorSnapshot& snapshot,
@@ -109,7 +123,8 @@ LauncherPlacement ResolveLauncherPlacement(
     const MonitorSnapshot& snapshot,
     UINT dpi,
     const LauncherEntryPreferences& preferences,
-    int measuredContentWidthLogical);
+    int measuredContentWidthLogical,
+    int measuredMonitorWidthLogical = 0);
 
 const wchar_t* ToString(TaskbarEdge edge);
 const wchar_t* ToString(LauncherPlacementMode mode);

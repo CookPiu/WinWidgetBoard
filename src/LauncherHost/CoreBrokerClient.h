@@ -58,6 +58,10 @@ public:
     {
         std::string iconId;
         std::wstring text;
+        // Recent samples, oldest first, already normalised to 0..1 by the broker. Empty when
+        // this machine cannot take the reading; the entry then draws the value with no graph
+        // behind it rather than a flat line that would claim a measurement.
+        std::vector<double> history;
     };
 
     // Turns the two-second hardware poll on or off. Asking for a summary is also what keeps
@@ -107,6 +111,10 @@ private:
     static bool HasJsonObject(
         std::string_view json,
         std::string_view field);
+    static bool FindJsonNumberArray(
+        std::string_view json,
+        std::string_view field,
+        std::vector<double>& values);
     void RunLoop();
     bool RefreshWeatherSummary();
     bool RefreshSystemMonitorSummary();

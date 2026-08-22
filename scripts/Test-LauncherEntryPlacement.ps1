@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Real-desktop regression for the taskbar entry: embedded placement, adaptive width,
     click-to-toggle and pass-through outside the entry.
@@ -88,9 +88,12 @@ try {
     if ($dpi -le 0) { $dpi = 96 }
     $widthLogical = [int][math]::Round($width * 96.0 / $dpi)
     $heightLogical = [int][math]::Round($height * 96.0 / $dpi)
-    # Mirrors kEntryMinWidthLogical/kEntryMaxWidthLogical in TaskbarGeometry.cpp.
-    if ($widthLogical -lt 96 -or $widthLogical -gt 520) {
-        throw "Entry width $widthLogical DIP is outside the supported 96..520 range."
+    # The window spans both capsules, so the ceiling is kEntryMaxWidthLogical plus
+    # kCapsuleGapLogical plus kMonitorMaxWidthLogical from TaskbarGeometry.cpp; the floor is
+    # kEntryMinWidthLogical. This run uses --no-broker, so in practice there are no readings
+    # and only the main capsule is drawn.
+    if ($widthLogical -lt 96 -or $widthLogical -gt 728) {
+        throw "Entry width $widthLogical DIP is outside the supported 96..728 range."
     }
     if ($heightLogical -lt 32) {
         throw "Entry height $heightLogical DIP is below the 32 DIP hit-target minimum."

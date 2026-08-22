@@ -37,7 +37,9 @@ enum ContextMenuCommand : UINT
     MenuExit = 1006,
     MenuContentDateTime = 1010,
     MenuContentWeather = 1011,
-    MenuContentSystemMonitor = 1012,
+    // The hardware readings are their own capsule, so this is a switch rather than a third
+    // content choice: weather and readings can be on at the same time.
+    MenuToggleSystemMonitor = 1012,
     MenuPlacementEmbeddedLeft = 1020,
     MenuPlacementEmbeddedCenter = 1021,
     MenuPlacementEmbeddedRight = 1022,
@@ -248,7 +250,8 @@ bool LauncherWindow::InitializePlacement(std::wstring& error)
         snapshot,
         _dpi,
         _preferences,
-        _contentWidthLogical);
+        _contentWidthLogical,
+        _monitorWidthLogical);
     if (_placement.mode == LauncherPlacementMode::Unavailable)
     {
         error = L"launcher placement unavailable: " + _placement.reason;
@@ -308,6 +311,15 @@ void LauncherWindow::ApplyPlacement()
         _placement.hitRect.right - _placement.windowRect.left,
         _placement.hitRect.bottom - _placement.windowRect.top,
     };
+    _hasLocalMonitorRect = _placement.hasMonitorRect;
+    _localMonitorRect = _hasLocalMonitorRect
+        ? RECT{
+            _placement.monitorRect.left - _placement.windowRect.left,
+            _placement.monitorRect.top - _placement.windowRect.top,
+            _placement.monitorRect.right - _placement.windowRect.left,
+            _placement.monitorRect.bottom - _placement.windowRect.top,
+        }
+        : RECT{};
 
     // No window region any more: the capsule is shaped by per-pixel alpha, and a region
     // would clip exactly the antialiased edge that alpha buys us.
@@ -336,11 +348,6 @@ bool LauncherWindow::IsEmbedded() const noexcept
 // place stops a caller from measuring a segmented strip as if it were a single label.
 int LauncherWindow::MeasureContentWidthLogical() const
 {
-    if (!_content.segments.empty())
-    {
-        return MeasureEntrySegmentsWidthLogical(_content.segments, _dpi);
-    }
-
     return MeasureEntryContentWidthLogical(
         _content.text,
         _dpi,
@@ -348,29 +355,40 @@ int LauncherWindow::MeasureContentWidthLogical() const
         _content.icon);
 }
 
-LauncherWindow::EntryContent LauncherWindow::ComposeContent() const
+int LauncherWindow::MeasureMonitorWidthLogical() const
 {
-    if (_preferences.content == LauncherContentMode::SystemMonitor)
+    return _monitorSegments.empty()
+        ? 0
+        : MeasureEntrySegmentsWidthLogical(_monitorSegments, _dpi);
+}
+
+std::vector<EntrySegment> LauncherWindow::ComposeMonitorSegments() const
+{
+    std::vector<EntrySegment> segments;
+    if (!_preferences.showSystemMonitor)
     {
-        const std::vector<CoreBrokerClient::MonitorSegment> readings =
-            _coreBroker.GetSystemMonitorSegments();
-        if (!readings.empty())
-        {
-            EntryContent content;
-            content.segments.reserve(readings.size());
-            for (const CoreBrokerClient::MonitorSegment& reading : readings)
-            {
-                content.segments.push_back(
-                    EntrySegment{ParseEntryIcon(reading.iconId), reading.text});
-            }
-
-            return content;
-        }
-
-        // Nothing sampled yet: fall through to the clock rather than showing an empty strip
-        // or a row of placeholders that look like readings.
+        return segments;
     }
 
+    // Nothing sampled yet leaves this empty, and an empty list leaves the capsule undrawn
+    // rather than showing a shell with placeholders that look like readings.
+    const std::vector<CoreBrokerClient::MonitorSegment> readings =
+        _coreBroker.GetSystemMonitorSegments();
+    segments.reserve(readings.size());
+    for (const CoreBrokerClient::MonitorSegment& reading : readings)
+    {
+        segments.push_back(
+            EntrySegment{
+                ParseEntryIcon(reading.iconId),
+                reading.text,
+                reading.history});
+    }
+
+    return segments;
+}
+
+LauncherWindow::EntryContent LauncherWindow::ComposeContent() const
+{
     if (_preferences.content == LauncherContentMode::Weather)
     {
         // Until the first successful refresh reaches the broker there is nothing to show;
@@ -419,18 +437,25 @@ LauncherWindow::EntryContent LauncherWindow::ComposeContent() const
 bool LauncherWindow::RefreshContent()
 {
     EntryContent content = ComposeContent();
+    std::vector<EntrySegment> segments = ComposeMonitorSegments();
+
     bool textChanged =
         content.text != _content.text || content.icon != _content.icon;
-    if (!textChanged && content.segments.size() != _content.segments.size())
+    if (!textChanged && segments.size() != _monitorSegments.size())
     {
         textChanged = true;
     }
     else if (!textChanged)
     {
-        for (size_t index = 0; index < content.segments.size(); ++index)
+        for (size_t index = 0; index < segments.size(); ++index)
         {
-            if (content.segments[index].text != _content.segments[index].text ||
-                content.segments[index].icon != _content.segments[index].icon)
+            const EntrySegment& next = segments[index];
+            const EntrySegment& previous = _monitorSegments[index];
+            // The history moves on every tick even when the rounded number does not, and the
+            // graph is drawn from it, so it counts as a change worth repainting for.
+            if (next.text != previous.text ||
+                next.icon != previous.icon ||
+                next.history != previous.history)
             {
                 textChanged = true;
                 break;
@@ -439,13 +464,23 @@ bool LauncherWindow::RefreshContent()
     }
 
     _content = std::move(content);
+    _monitorSegments = std::move(segments);
 
     const int measured = MeasureContentWidthLogical();
+    const int measuredMonitor = MeasureMonitorWidthLogical();
+    // The capsule appearing or disappearing is a layout change regardless of how small the
+    // width step is; only a capsule that stays present gets the hysteresis band.
+    const bool monitorPresenceChanged =
+        (measuredMonitor > 0) != (_monitorWidthLogical > 0);
     const bool widthChanged =
-        std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical;
+        std::abs(measured - _contentWidthLogical) >= kContentWidthHysteresisLogical ||
+        monitorPresenceChanged ||
+        std::abs(measuredMonitor - _monitorWidthLogical) >=
+            kContentWidthHysteresisLogical;
     if (widthChanged)
     {
         _contentWidthLogical = measured;
+        _monitorWidthLogical = measuredMonitor;
     }
 
     if (textChanged && !widthChanged)
@@ -475,8 +510,7 @@ void LauncherWindow::ApplyPreferences(const LauncherEntryPreferences& preference
 // the repaint cadence are turned on together and off together.
 void LauncherWindow::ApplyContentMode()
 {
-    const bool monitor =
-        _preferences.content == LauncherContentMode::SystemMonitor;
+    const bool monitor = _preferences.showSystemMonitor;
     _coreBroker.SetSystemMonitorEnabled(monitor);
     if (_window != nullptr)
     {
@@ -506,9 +540,11 @@ void LauncherWindow::Render()
     request.compact = !IsEmbedded();
     request.text = request.compact ? std::wstring(L"W") : _content.text;
     request.icon = request.compact ? EntryIcon::None : _content.icon;
-    if (!request.compact)
+    if (!request.compact && _hasLocalMonitorRect)
     {
-        request.segments = _content.segments;
+        request.monitorCapsule = _localMonitorRect;
+        request.hasMonitorCapsule = true;
+        request.segments = _monitorSegments;
     }
 
     std::wstring error;
@@ -616,17 +652,18 @@ void LauncherWindow::ShowContextMenu(const POINT screenPoint)
             MenuContentWeather,
             L"天气",
             _preferences.content == LauncherContentMode::Weather);
-        AppendRadioItem(
-            contentMenu,
-            MenuContentSystemMonitor,
-            L"硬件监控",
-            _preferences.content == LauncherContentMode::SystemMonitor);
         AppendMenuW(
             menu,
             MF_STRING | MF_POPUP,
             reinterpret_cast<UINT_PTR>(contentMenu),
             L"显示内容");
     }
+
+    AppendMenuW(
+        menu,
+        MF_STRING | (_preferences.showSystemMonitor ? MF_CHECKED : MF_UNCHECKED),
+        MenuToggleSystemMonitor,
+        L"显示硬件监控");
 
     HMENU placementMenu = CreatePopupMenu();
     if (placementMenu != nullptr)
@@ -730,14 +767,18 @@ void LauncherWindow::HandleMenuCommand(const UINT command)
         break;
     case MenuContentDateTime:
     case MenuContentWeather:
-    case MenuContentSystemMonitor:
     {
         LauncherEntryPreferences updated = _preferences;
         updated.content = command == MenuContentWeather
             ? LauncherContentMode::Weather
-            : command == MenuContentSystemMonitor
-                ? LauncherContentMode::SystemMonitor
-                : LauncherContentMode::DateTime;
+            : LauncherContentMode::DateTime;
+        ApplyPreferences(updated);
+        break;
+    }
+    case MenuToggleSystemMonitor:
+    {
+        LauncherEntryPreferences updated = _preferences;
+        updated.showSystemMonitor = !updated.showSystemMonitor;
         ApplyPreferences(updated);
         break;
     }
@@ -917,8 +958,13 @@ bool LauncherWindow::IsFullscreenForeground() const
 bool LauncherWindow::IsPointInHitRect(const POINT clientPoint) const noexcept
 {
     // The capsule itself, not its bounding box: without a window region the rounded
-    // corners are transparent, and transparent pixels must not swallow clicks.
-    return IsPointInCapsule(_localHitRect, clientPoint);
+    // corners are transparent, and transparent pixels must not swallow clicks. The gap
+    // between the two capsules is outside both, so it passes through like any other point
+    // off the entry.
+    return IsPointInCapsule(_localHitRect, clientPoint) ||
+        (_hasLocalMonitorRect &&
+            !_monitorSegments.empty() &&
+            IsPointInCapsule(_localMonitorRect, clientPoint));
 }
 
 void LauncherWindow::SetPressed(const bool pressed, const bool pointerInside)

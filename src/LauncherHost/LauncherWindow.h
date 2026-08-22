@@ -10,6 +10,7 @@
 #include <windows.h>
 
 #include <string>
+#include <vector>
 
 namespace winwidgetboard::launcher
 {
@@ -52,12 +53,13 @@ private:
     {
         std::wstring text;
         EntryIcon icon{EntryIcon::None};
-        // Populated only by the hardware monitor, which shows several readings at once. The
-        // other modes stay on the single text-and-glyph path.
-        std::vector<EntrySegment> segments;
     };
     [[nodiscard]] EntryContent ComposeContent() const;
+    // The hardware readings, for the second capsule. Independent of ComposeContent: the two
+    // capsules are separate, so weather and readings can both be on at once.
+    [[nodiscard]] std::vector<EntrySegment> ComposeMonitorSegments() const;
     [[nodiscard]] int MeasureContentWidthLogical() const;
+    [[nodiscard]] int MeasureMonitorWidthLogical() const;
     void ApplyContentMode();
     [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
@@ -95,8 +97,12 @@ private:
     LONGLONG _animationTick{};
     LONGLONG _performanceFrequency{};
     RECT _localHitRect{};
+    RECT _localMonitorRect{};
+    bool _hasLocalMonitorRect{};
     EntryContent _content;
+    std::vector<EntrySegment> _monitorSegments;
     int _contentWidthLogical{};
+    int _monitorWidthLogical{};
     EntryTheme _theme{};
     EntryVisualAnimator _animator;
     LauncherEntryPreferences _preferences{};

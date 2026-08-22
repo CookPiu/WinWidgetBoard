@@ -1,5 +1,7 @@
 #include "EntryVisual.h"
 
+#include "TaskbarGeometry.h"
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -420,6 +422,9 @@ struct SegmentLayout
 {
     RECT iconRect{};
     RECT textRect{};
+    // The band the reading's history is washed across. Spans the whole cell, text included:
+    // the number sits on its own graph the way a network monitor's does.
+    RECT graphRect{};
     int dividerCenterX{};
     bool hasDivider{};
 };
@@ -450,20 +455,20 @@ std::vector<SegmentLayout> ResolveSegmentLayout(
     const int columnGap = ScaleLogical(kEntrySegmentColumnGapLogical, request.dpi);
     const int dividerWidth = ScaleLogical(kEntryDividerWidthLogical, request.dpi);
     const int rowHeight = ScaleLogical(kEntrySegmentRowHeightLogical, request.dpi);
-    const int centerY = (request.capsule.top + request.capsule.bottom) / 2;
+    const int graphInset = ScaleLogical(kEntrySparklineInsetLogical, request.dpi);
+    // The readings live in their own capsule, which carries no indicator: that one belongs to
+    // the main capsule, where it reports the panel's state.
+    const RECT capsule = request.monitorCapsule;
+    const int centerY = (capsule.top + capsule.bottom) / 2;
 
-    int cursor = request.capsule.left +
-        ScaleLogical(
-            kEntryLeadingPaddingLogical +
-                kEntryIndicatorWidthLogical +
-                kEntryIndicatorGapLogical,
-            request.dpi);
+    int cursor = capsule.left +
+        ScaleLogical(kEntryLeadingPaddingLogical, request.dpi);
 
     // A column that will not fit whole is dropped rather than clipped. A strip that ends in
     // half a glyph reads as a rendering fault; one that simply ends does not, and the card
     // still shows every configured reading. Columns are dropped together so the surviving
     // strip never shows a top reading with an empty slot under it.
-    const int limit = request.capsule.right -
+    const int limit = capsule.right -
         ScaleLogical(kEntryTrailingPaddingLogical, request.dpi);
 
     const size_t count = request.segments.size();
@@ -516,6 +521,11 @@ std::vector<SegmentLayout> ResolveSegmentLayout(
                 rowTop,
                 cursor + columnWidth,
                 rowTop + rowHeight};
+            layout.graphRect = RECT{
+                cursor,
+                rowTop + graphInset,
+                cursor + columnWidth,
+                rowTop + rowHeight - graphInset};
             layouts.push_back(layout);
         }
 
@@ -644,19 +654,19 @@ struct CapsuleShape
 };
 
 CapsuleShape ResolveCapsuleShape(
-    const EntryRenderRequest& request,
+    const RECT& capsule,
     const EntryVisualState& state)
 {
     const double scale = 1.0 - (1.0 - kPressScale) * Clamp01(state.pressed);
     CapsuleShape shape{};
     shape.centerX =
-        (static_cast<double>(request.capsule.left) +
-            static_cast<double>(request.capsule.right)) / 2.0;
+        (static_cast<double>(capsule.left) +
+            static_cast<double>(capsule.right)) / 2.0;
     shape.centerY =
-        (static_cast<double>(request.capsule.top) +
-            static_cast<double>(request.capsule.bottom)) / 2.0;
-    shape.halfWidth = RectWidthOf(request.capsule) / 2.0 * scale;
-    shape.halfHeight = RectHeightOf(request.capsule) / 2.0 * scale;
+        (static_cast<double>(capsule.top) +
+            static_cast<double>(capsule.bottom)) / 2.0;
+    shape.halfWidth = RectWidthOf(capsule) / 2.0 * scale;
+    shape.halfHeight = RectHeightOf(capsule) / 2.0 * scale;
     shape.radius = std::min(shape.halfWidth, shape.halfHeight);
     return shape;
 }
@@ -664,10 +674,11 @@ CapsuleShape ResolveCapsuleShape(
 void ComposeCapsule(
     Canvas& canvas,
     const EntryRenderRequest& request,
+    const RECT& capsule,
     const EntryTheme& theme,
     const EntryVisualState& state)
 {
-    const CapsuleShape shape = ResolveCapsuleShape(request, state);
+    const CapsuleShape shape = ResolveCapsuleShape(capsule, state);
     const double centerY = shape.centerY;
     const double halfHeight = shape.halfHeight;
 
@@ -1241,6 +1252,64 @@ void ComposeIcon(
     ComposeGlyph(canvas, ResolveIconRect(request), request.icon, color, alpha);
 }
 
+// Washes one reading's recent history across its cell as a filled area, newest at the right.
+// The series is already 0..1 - the broker picked the scale, because only it has the raw
+// numbers - so this does nothing but map samples to columns and fill downwards.
+//
+// Sampled per pixel column with linear interpolation rather than drawn as a polygon: the cell
+// is a few dozen pixels wide against up to sixty samples, so most columns fall between two of
+// them, and interpolating is both simpler and steadier than deciding which sample "wins".
+void ComposeSparkline(
+    Canvas& canvas,
+    const RECT& graphRect,
+    const std::vector<double>& history,
+    const COLORREF color,
+    const double alpha)
+{
+    const int left = std::max(0, static_cast<int>(graphRect.left));
+    const int right = std::min(canvas.width, static_cast<int>(graphRect.right));
+    const int top = std::max(0, static_cast<int>(graphRect.top));
+    const int bottom = std::min(canvas.height, static_cast<int>(graphRect.bottom));
+    if (history.size() < 2 || right <= left || bottom <= top || alpha <= 0.0)
+    {
+        return;
+    }
+
+    const double height = static_cast<double>(bottom - top);
+    const double span = static_cast<double>(right - left - 1);
+    const double lastIndex = static_cast<double>(history.size() - 1);
+
+    for (int x = left; x < right; ++x)
+    {
+        const double position = span <= 0.0
+            ? lastIndex
+            : static_cast<double>(x - left) / span * lastIndex;
+        const size_t lower = static_cast<size_t>(position);
+        const size_t upper = std::min(lower + 1, history.size() - 1);
+        const double blend = position - static_cast<double>(lower);
+        const double value = Clamp01(
+            Lerp(Clamp01(history[lower]), Clamp01(history[upper]), blend));
+
+        // Zero still leaves the thinnest possible mark, so an idle reading reads as a
+        // baseline rather than as a graph that failed to draw.
+        const double filled = std::max(value * height, 1.0);
+        const double surfaceY = static_cast<double>(bottom) - filled;
+        for (int y = std::max(top, static_cast<int>(std::floor(surfaceY)));
+            y < bottom;
+            ++y)
+        {
+            // Partial coverage on the topmost row keeps the silhouette smooth without
+            // supersampling the whole band.
+            const double coverage = Clamp01(
+                static_cast<double>(y + 1) - std::max(surfaceY, static_cast<double>(y)));
+            if (coverage > 0.0)
+            {
+                canvas.Blend(x, y, color, alpha * coverage);
+            }
+        }
+    }
+}
+
 // The whole segmented strip: each glyph, each already-composed value, and a hairline between
 // neighbours. All the text goes through one scratch surface rather than one per segment.
 bool ComposeSegments(
@@ -1276,6 +1345,17 @@ bool ComposeSegments(
     if (font == nullptr)
     {
         return false;
+    }
+
+    // Graphs first: the readings sit on top of their own history, never the other way round.
+    for (size_t index = 0; index < layouts.size(); ++index)
+    {
+        ComposeSparkline(
+            canvas,
+            layouts[index].graphRect,
+            request.segments[index].history,
+            color,
+            alpha * kEntrySparklineAlpha);
     }
 
     HGDIOBJ previousFont = SelectObject(textMask.deviceContext, font);
@@ -1326,8 +1406,8 @@ bool ComposeSegments(
     const double dividerHeight = static_cast<double>(
         ScaleLogical(kEntryDividerHeightLogical, request.dpi));
     const double centerY =
-        (static_cast<double>(request.capsule.top) +
-            static_cast<double>(request.capsule.bottom)) / 2.0;
+        (static_cast<double>(request.monitorCapsule.top) +
+            static_cast<double>(request.monitorCapsule.bottom)) / 2.0;
 
     for (size_t index = 0; index < layouts.size(); ++index)
     {
@@ -1591,7 +1671,7 @@ void ComposeBackdrop(
         return;
     }
 
-    const CapsuleShape shape = ResolveCapsuleShape(request, state);
+    const CapsuleShape shape = ResolveCapsuleShape(request.capsule, state);
 
     for (int y = 0; y < canvas.height; ++y)
     {
@@ -1792,11 +1872,31 @@ bool ComposeEntryBitmap(
     bgra.assign(static_cast<size_t>(width) * static_cast<size_t>(height) * 4, 0);
     Canvas canvas{bgra.data(), width, height};
 
-    ComposeCapsule(canvas, request, theme, state);
-    // The illustration sits on the capsule, the way the card's sits on the card surface.
-    // Under the neutral fill both the sky and the motif came out diluted to a grey smudge.
-    ComposeBackdrop(canvas, request, theme, state);
-    ComposeIndicator(canvas, request, theme, state);
+    // An empty main capsule means "draw only the hardware capsule" - the preview sheet and the
+    // composition smoke both review that one on its own. Guarding here rather than in each
+    // pass keeps the indicator from landing at the window origin.
+    const bool hasMain = RectWidthOf(request.capsule) > 0.0 &&
+        RectHeightOf(request.capsule) > 0.0;
+    if (hasMain)
+    {
+        ComposeCapsule(canvas, request, request.capsule, theme, state);
+        // The illustration sits on the capsule, the way the card's sits on the card surface.
+        // Under the neutral fill both the sky and the motif came out diluted to a grey smudge.
+        ComposeBackdrop(canvas, request, theme, state);
+        ComposeIndicator(canvas, request, theme, state);
+    }
+
+    // The hardware capsule shares the interaction state rather than lighting independently:
+    // it is the same window and the same click target, and two capsules highlighting
+    // separately would suggest two controls that do two different things.
+    const bool hasMonitor = request.hasMonitorCapsule &&
+        !request.segments.empty() &&
+        RectWidthOf(request.monitorCapsule) > 0.0 &&
+        RectHeightOf(request.monitorCapsule) > 0.0;
+    if (hasMonitor)
+    {
+        ComposeCapsule(canvas, request, request.monitorCapsule, theme, state);
+    }
 
     const COLORREF textColor = theme.highContrast
         ? MixColor(
@@ -1807,13 +1907,17 @@ bool ComposeEntryBitmap(
     const double textAlpha = theme.highContrast
         ? 1.0
         : Lerp(theme.textAlpha, theme.activeTextAlpha, Clamp01(state.active));
-    if (!request.segments.empty())
+    if (hasMain)
     {
-        return ComposeSegments(canvas, request, textColor, textAlpha);
+        ComposeIcon(canvas, request, textColor, textAlpha);
+        if (!ComposeText(canvas, request, textColor, textAlpha))
+        {
+            return false;
+        }
     }
 
-    ComposeIcon(canvas, request, textColor, textAlpha);
-    return ComposeText(canvas, request, textColor, textAlpha);
+    return !hasMonitor ||
+        ComposeSegments(canvas, request, textColor, textAlpha);
 }
 }
 
@@ -2112,10 +2216,8 @@ int MeasureEntrySegmentsWidthLogical(
     const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, dpi);
     const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, dpi);
 
-    int width = kEntryLeadingPaddingLogical +
-        kEntryIndicatorWidthLogical +
-        kEntryIndicatorGapLogical +
-        kEntryTrailingPaddingLogical;
+    // No indicator allowance: that one lives in the main capsule.
+    int width = kEntryLeadingPaddingLogical + kEntryTrailingPaddingLogical;
 
     // Mirrors ResolveSegmentLayout's column packing: a column is as wide as its widest cell,
     // and only the columns pay for a divider. Measuring per segment instead would ask the
@@ -2382,19 +2484,31 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
     // uses and values in the shapes the broker composes. Eight readings is the cap the
     // contract allows and what the shipped default asks for once every metric this machine
     // can read is turned on.
-    const EntrySegment monitorSegments[] = {
-        EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
-        EntrySegment{EntryIcon::Memory, L"MEM 61%"},
-        EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
-        EntrySegment{EntryIcon::Gpu, L"VRAM 42%"},
-        EntrySegment{EntryIcon::Disk, L"DISK 12%"},
-        EntrySegment{EntryIcon::Disk, L"DISK 68%"},
-        EntrySegment{EntryIcon::NetworkDown, L"7.2 MB/s"},
-        EntrySegment{EntryIcon::NetworkUp, L"164 KB/s"},
+    // A plausible two-minute window per reading, so the sheet reviews the graph and the
+    // number together rather than the number on an empty band.
+    const auto previewHistory = [](const double base, const double swing)
+    {
+        std::vector<double> history;
+        history.reserve(48);
+        for (int index = 0; index < 48; ++index)
+        {
+            const double phase = static_cast<double>(index) / 6.0;
+            history.push_back(Clamp01(base + swing * std::sin(phase)));
+        }
+
+        return history;
     };
-    const std::vector<EntrySegment> monitorStrip(
-        std::begin(monitorSegments),
-        std::end(monitorSegments));
+
+    const std::vector<EntrySegment> monitorStrip = {
+        EntrySegment{EntryIcon::Cpu, L"CPU 24%", previewHistory(0.24, 0.18)},
+        EntrySegment{EntryIcon::Memory, L"MEM 61%", previewHistory(0.61, 0.04)},
+        EntrySegment{EntryIcon::Gpu, L"GPU 8%", previewHistory(0.08, 0.07)},
+        EntrySegment{EntryIcon::Gpu, L"VRAM 42%", previewHistory(0.42, 0.03)},
+        EntrySegment{EntryIcon::Disk, L"DISK 12%", previewHistory(0.12, 0.11)},
+        EntrySegment{EntryIcon::Disk, L"DISK 68%", previewHistory(0.68, 0.01)},
+        EntrySegment{EntryIcon::NetworkDown, L"7.2 MB/s", previewHistory(0.45, 0.45)},
+        EntrySegment{EntryIcon::NetworkUp, L"164 KB/s", previewHistory(0.2, 0.2)},
+    };
 
     // The hardware strip is far wider than a weather chip, so it gets its own two rows at the
     // bottom of the sheet rather than being squeezed into the glyph column. Its width comes
@@ -2404,11 +2518,20 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
         MeasureEntrySegmentsWidthLogical(monitorStrip, kDpi),
         static_cast<int>(kDpi),
         96);
+    // The pair as the taskbar actually shows it: the main capsule with a clock, the gap, and
+    // the hardware capsule. Reviewing the readings alone hides the one thing this layout was
+    // changed for - that they read as a separate instrument beside the entry, not inside it.
+    const int mainWidth = MulDiv(
+        MeasureEntryContentWidthLogical(L"9:41  2026/8/22", kDpi, false, EntryIcon::None),
+        static_cast<int>(kDpi),
+        96);
+    const int capsuleGap = MulDiv(8, static_cast<int>(kDpi), 96);
+    const int pairWidth = mainWidth + capsuleGap + stripWidth;
     const int sheetWidth = std::max(
         gap + (tileWidth + gap) * 2,
-        gap + stripWidth + gap);
+        gap + pairWidth + gap);
     const int sheetHeight =
-        gap + (tileHeight + gap) * kIconCount + (tileHeight + gap) * 2;
+        gap + (tileHeight + gap) * kIconCount + (tileHeight + gap) * 4;
 
     const COLORREF darkStrip1 = RGB(32, 34, 38);
     const COLORREF lightStrip = RGB(214, 224, 222);
@@ -2516,14 +2639,18 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
             theme.activeTextAlpha = 1.0;
         }
 
-        EntryRenderRequest request{};
-        request.windowSize = SIZE{stripWidth, tileHeight};
-        request.capsule = RECT{0, 0, stripWidth, tileHeight};
-        request.dpi = kDpi;
-        request.segments = monitorStrip;
+        // Two rows per theme: the hardware capsule on its own, so the readings can be judged
+        // at full width, and then the pair exactly as the taskbar shows it.
+        EntryRenderRequest strip{};
+        strip.windowSize = SIZE{stripWidth, tileHeight};
+        strip.capsule = RECT{};
+        strip.monitorCapsule = RECT{0, 0, stripWidth, tileHeight};
+        strip.hasMonitorCapsule = true;
+        strip.dpi = kDpi;
+        strip.segments = monitorStrip;
 
         std::vector<BYTE> tile;
-        if (!ComposeEntryBitmap(request, theme, EntryVisualState{}, tile))
+        if (!ComposeEntryBitmap(strip, theme, EntryVisualState{}, tile))
         {
             failure = L"monitor strip composition failed";
             return false;
@@ -2536,6 +2663,32 @@ bool WriteEntryPreviewSheet(const std::wstring& path, std::wstring& failure)
             gap + (tileHeight + gap) * (kIconCount + row),
             tile,
             stripWidth,
+            tileHeight,
+            darkStrip ? darkStrip1 : lightStrip);
+
+        EntryRenderRequest pair{};
+        pair.windowSize = SIZE{pairWidth, tileHeight};
+        pair.capsule = RECT{0, 0, mainWidth, tileHeight};
+        pair.monitorCapsule = RECT{mainWidth + capsuleGap, 0, pairWidth, tileHeight};
+        pair.hasMonitorCapsule = true;
+        pair.dpi = kDpi;
+        pair.text = L"9:41  2026/8/22";
+        pair.segments = monitorStrip;
+
+        std::vector<BYTE> pairTile;
+        if (!ComposeEntryBitmap(pair, theme, EntryVisualState{}, pairTile))
+        {
+            failure = L"paired capsule composition failed";
+            return false;
+        }
+
+        BlitTile(
+            sheet,
+            sheetWidth,
+            gap,
+            gap + (tileHeight + gap) * (kIconCount + 2 + row),
+            pairTile,
+            pairWidth,
             tileHeight,
             darkStrip ? darkStrip1 : lightStrip);
     }
@@ -3046,7 +3199,9 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
         {
             EntryRenderRequest request{};
             request.windowSize = SIZE{kWidth, kHeight};
-            request.capsule = RECT{0, 0, kWidth, kHeight};
+            request.capsule = RECT{};
+            request.monitorCapsule = RECT{0, 0, kWidth, kHeight};
+            request.hasMonitorCapsule = true;
             request.dpi = 96;
             request.segments = segments;
             return ComposeEntryBitmap(request, theme, EntryVisualState{}, pixels);
@@ -3102,6 +3257,7 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
         const int contentRight =
             MeasureEntrySegmentsWidthLogical(three, 96) - kEntryTrailingPaddingLogical;
         const int centerY = kHeight / 2;
+
         if (!hasInkInBand(strip, contentLeft, contentRight, 0, centerY) ||
             !hasInkInBand(strip, contentLeft, contentRight, centerY, kHeight))
         {
@@ -3109,11 +3265,14 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             return false;
         }
 
-        // Nothing may be drawn past the width the strip asked the taskbar for; a measurement
-        // that undercounts would show up here as ink beyond the reserved room.
-        if (hasInkInBand(strip, contentRight, kWidth, 0, kHeight))
+        // Nothing may be drawn past the room the taskbar actually reserves - the measured
+        // width rounded up to the 4 DIP quantum. A measurement that undercounts by more than
+        // a glyph's antialiasing shows up here as ink beyond that.
+        const int reserved =
+            ResolveMonitorWidthLogical(MeasureEntrySegmentsWidthLogical(three, 96));
+        if (hasInkInBand(strip, reserved, kWidth, 0, kHeight))
         {
-            failure = L"the segmented strip drew past its measured width";
+            failure = L"the segmented strip drew past its reserved width";
             return false;
         }
 
@@ -3205,6 +3364,51 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
                 96))
         {
             failure = L"the segmented measurement does not grow with the segments";
+            return false;
+        }
+
+        // The history has to reach the bitmap. Comparing the same readings with and without a
+        // series is what separates "the graph drew" from "the text happened to be tall".
+        std::vector<EntrySegment> plotted = three;
+        for (EntrySegment& segment : plotted)
+        {
+            segment.history.assign(32, 1.0);
+        }
+
+        std::vector<BYTE> graphed;
+        if (!compose(plotted, graphed))
+        {
+            failure = L"the plotted strip failed to compose";
+            return false;
+        }
+
+        const auto inkWeight = [&](const std::vector<BYTE>& pixels)
+        {
+            long long total = 0;
+            for (int y = 0; y < kHeight; ++y)
+            {
+                for (int x = 0; x < kWidth; ++x)
+                {
+                    total += alphaAt(pixels, x, y);
+                }
+            }
+
+            return total;
+        };
+
+        if (inkWeight(graphed) <= inkWeight(strip))
+        {
+            failure = L"the history series left no mark behind its reading";
+            return false;
+        }
+
+        // An empty series must draw nothing at all, so an unreadable metric is visibly
+        // different from one sitting at zero.
+        std::vector<EntrySegment> unplotted = three;
+        std::vector<BYTE> bare;
+        if (!compose(unplotted, bare) || inkWeight(bare) != inkWeight(strip))
+        {
+            failure = L"an absent history series still painted something";
             return false;
         }
 

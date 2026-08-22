@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cwctype>
+#include <exception>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -319,6 +320,9 @@ bool CoreBrokerClient::ParseMonitorSegments(
             MonitorSegment segment;
             segment.iconId = std::move(iconId);
             segment.text = WideFromUtf8(UnescapeJson(text));
+            // Absent or malformed history is not an error: the reading still displays, just
+            // without a graph behind it.
+            FindJsonNumberArray(object, "history", segment.history);
             segments.push_back(std::move(segment));
         }
 
@@ -980,6 +984,61 @@ bool CoreBrokerClient::HasJsonNull(
         return false;
     }
     return json.substr(position, 4) == "null";
+}
+
+// Reads a flat array of JSON numbers. Deliberately minimal, like the rest of this reader: the
+// launcher links no JSON library on purpose (ADR-0008), and the one array it needs contains
+// nothing but plain decimals the broker produced itself.
+bool CoreBrokerClient::FindJsonNumberArray(
+    const std::string_view json,
+    const std::string_view field,
+    std::vector<double>& values)
+{
+    values.clear();
+    size_t position = 0;
+    if (!HasFieldPrefix(json, field, position) || json[position] != '[')
+    {
+        return false;
+    }
+
+    ++position;
+    while (position < json.size() && json[position] != ']')
+    {
+        if (json[position] == ',' || json[position] == ' ')
+        {
+            ++position;
+            continue;
+        }
+
+        const size_t numberStart = position;
+        while (position < json.size() &&
+            json[position] != ',' &&
+            json[position] != ']')
+        {
+            ++position;
+        }
+
+        const std::string number(json.substr(numberStart, position - numberStart));
+        try
+        {
+            size_t consumed = 0;
+            const double value = std::stod(number, &consumed);
+            if (consumed != number.size())
+            {
+                values.clear();
+                return false;
+            }
+
+            values.push_back(value);
+        }
+        catch (const std::exception&)
+        {
+            values.clear();
+            return false;
+        }
+    }
+
+    return position < json.size();
 }
 
 bool CoreBrokerClient::HasJsonObject(
