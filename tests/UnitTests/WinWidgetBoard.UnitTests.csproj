@@ -26,6 +26,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Interaction\CardDragController.cs" Link="WorkspacePanel\Interaction\CardDragController.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Motion\CriticallyDampedSpring.cs" Link="WorkspacePanel\Motion\CriticallyDampedSpring.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Motion\PanelMotionController.cs" Link="WorkspacePanel\Motion\PanelMotionController.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Motion\PanelMotionAxisResolver.cs" Link="WorkspacePanel\Motion\PanelMotionAxisResolver.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Motion\CardReturnMotionController.cs" Link="WorkspacePanel\Motion\CardReturnMotionController.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Ipc\CoreBrokerSession.cs" Link="WorkspacePanel\Ipc\CoreBrokerSession.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Ipc\CardSnapshotSubscriptionCoordinator.cs" Link="WorkspacePanel\Ipc\CardSnapshotSubscriptionCoordinator.cs" />

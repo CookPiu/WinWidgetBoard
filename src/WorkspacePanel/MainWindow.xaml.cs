@@ -209,10 +209,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         Windows.Foundation.Point transformOrigin = CalculateTransformOrigin(
             context,
             _placement);
+        PanelMotionAxis primaryMotionAxis = PanelMotionAxisResolver.Resolve(
+            context,
+            _placement);
         RootGrid.RenderTransformOrigin = transformOrigin;
         _motion = new PanelMotionCoordinator(
-            transformOrigin.X < 0.5 ? -10 : 10,
-            transformOrigin.Y < 0.5 ? -10 : 10,
+            GetClosedMotionOffset(
+                transformOrigin.X,
+                primaryMotionAxis == PanelMotionAxis.Horizontal),
+            GetClosedMotionOffset(
+                transformOrigin.Y,
+                primaryMotionAxis == PanelMotionAxis.Vertical),
+            primaryMotionAxis,
             _reducedMotion,
             _uiDispatcherQueue,
             ApplyPanelMotion,
@@ -1812,12 +1820,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         PanelLaunchContext context,
         PanelPlacement placement)
     {
-        bool hasAnchor = context.LauncherRect.IsValid;
+        bool hasAnchor = context.LauncherRect.IsValid &&
+            context.MonitorRect.IsValid &&
+            context.MonitorRect.Contains(context.LauncherRect);
         bool fromLeft = !hasAnchor ||
             context.LauncherRect.CenterX <= placement.WindowRect.CenterX;
         bool fromTop = hasAnchor &&
             context.LauncherRect.CenterY <= placement.WindowRect.CenterY;
         return new Windows.Foundation.Point(fromLeft ? 0 : 1, fromTop ? 0 : 1);
+    }
+
+    private static double GetClosedMotionOffset(
+        double transformOriginCoordinate,
+        bool isPrimaryAxis)
+    {
+        double magnitude = isPrimaryAxis ? 36 : 8;
+        return transformOriginCoordinate < 0.5 ? -magnitude : magnitude;
     }
 
     private void ApplyPanelMotion(PanelMotionValue value)
@@ -1830,8 +1848,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _placement.WindowRect.Top + ToPhysicalPixels(value.OffsetY));
         PanelMotionTransform.TranslateX = 0;
         PanelMotionTransform.TranslateY = 0;
-        PanelMotionTransform.ScaleX = value.Scale;
-        PanelMotionTransform.ScaleY = value.Scale;
+        PanelMotionTransform.ScaleX = value.ScaleX;
+        PanelMotionTransform.ScaleY = value.ScaleY;
 
         if (_nativeOpacitySupported)
         {
