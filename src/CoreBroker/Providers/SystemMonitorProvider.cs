@@ -27,6 +27,10 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
     private readonly Func<DateTimeOffset> _utcNow;
     private readonly Func<IReadOnlyList<SystemMonitorItemDto>> _cardItemsProvider;
     private readonly object _sampleGate = new();
+    // The recent window the taskbar sparkline is drawn from, oldest first. Bounded by the
+    // contract's own cap, so the memory this costs is a fixed handful of small records rather
+    // than something that grows with uptime.
+    private readonly Queue<SystemMetricSample> _recentSamples = new();
     private SystemMetricSample? _lastSample;
     private bool _disposed;
 
@@ -76,6 +80,21 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
         }
     }
 
+    /// <summary>
+    /// The recent samples, oldest first. A copy: the caller formats at its own pace and must
+    /// not see the window shift underneath it.
+    /// </summary>
+    public IReadOnlyList<SystemMetricSample> RecentSamples
+    {
+        get
+        {
+            lock (_sampleGate)
+            {
+                return _recentSamples.ToArray();
+            }
+        }
+    }
+
     public static JsonElement CreateArguments() =>
         JsonSerializer.SerializeToElement(
             new { source = DataSourceKey },
@@ -96,6 +115,9 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
             if (!_disposed)
             {
                 _sampler.ResetBaseline();
+                // The window would otherwise splice a fresh measurement onto samples from
+                // before the idle gap, drawing a continuous line across a hole in time.
+                _recentSamples.Clear();
             }
         }
     }
@@ -124,6 +146,11 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
 
             sample = _sampler.Sample(producedAtUtc);
             _lastSample = sample;
+            _recentSamples.Enqueue(sample);
+            while (_recentSamples.Count > SystemMonitorContract.MaxHistorySamples)
+            {
+                _recentSamples.Dequeue();
+            }
         }
 
         JsonElement payload = CreatePayload(sample, producedAtUtc);

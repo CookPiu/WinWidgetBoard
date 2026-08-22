@@ -360,13 +360,29 @@ provider 的请求键从不变化。
   "summary": {
     "instanceId": "demo.sysmon",
     "segments": [
-      { "metricId": "cpu.usage", "iconId": "cpu", "text": "CPU 6%" },
-      { "metricId": "net.down", "iconId": "net-down", "text": "7.2 MB/s" }
+      {
+        "metricId": "cpu.usage",
+        "iconId": "cpu",
+        "text": "CPU 6%",
+        "history": [0.04, 0.11, 0.06]
+      },
+      {
+        "metricId": "net.down",
+        "iconId": "net-down",
+        "text": "7.2 MB/s",
+        "history": [0.0, 0.62, 1.0]
+      }
     ],
     "sampledAtUtc": "2026-08-21T06:27:20.4398792+00:00"
   }
 }
 ```
+
+`history` 是入口画迷你走势图用的最近采样，**由旧到新、已归一化到 0..1**，最多 60 个点
+（2 秒节奏 ≈ 2 分钟）。归一化留在 Broker，理由与排版相同：百分比类指标有 0..100 的固定刻度、
+用量类有自己的上限，而速率类没有任何上限、只能按窗口内峰值相对绘制——这个选择需要入口从来看不到的
+原始数值。本机读不到的指标（温度、风扇、CPU 频率）返回空数组；空闲网卡返回真实的一串 0，
+两者由入口区别对待。
 
 首次采样之前 `summary` 为 `null`——调用方显示自己的不可用状态，不展示占位读数。
 

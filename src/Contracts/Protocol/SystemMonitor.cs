@@ -29,6 +29,13 @@ public static class SystemMonitorContract
 
     public const int MaxSegmentTextLength = 32;
 
+    /// <summary>
+    /// How many recent samples travel with each taskbar segment for its sparkline. At the
+    /// two-second cadence this is two minutes of history - long enough to show a spike you
+    /// just missed, short enough that the summary stays a small message.
+    /// </summary>
+    public const int MaxHistorySamples = 60;
+
     // --- metric identifiers ---------------------------------------------------------------
 
     public const string CpuUsage = "cpu.usage";
@@ -286,4 +293,14 @@ public sealed record SystemMonitorSegmentDto
     public string IconId { get; init; } = string.Empty;
 
     public string Text { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Recent samples for this reading, oldest first, already normalised to 0..1 and capped at
+    /// <see cref="SystemMonitorContract.MaxHistorySamples"/>. The broker normalises for the
+    /// same reason it formats the text: a percentage has a fixed 0..100 scale while a network
+    /// rate has none and can only be drawn against the window's own peak, and that choice
+    /// needs the raw numbers the entry never sees. Empty when the reading is unavailable or
+    /// has not been sampled twice yet.
+    /// </summary>
+    public IReadOnlyList<double> History { get; init; } = Array.Empty<double>();
 }

@@ -4,6 +4,13 @@ using WinWidgetBoard.Contracts.Protocol;
 namespace WinWidgetBoard.CoreBroker.Providers;
 
 /// <summary>
+/// A reading as a number rather than as text. <see cref="FullScale"/> is the value that means
+/// "100% of this metric", or null when the metric has no ceiling at all - a network rate can
+/// only be judged against the other rates around it.
+/// </summary>
+public readonly record struct SystemMonitorMagnitude(double Value, double? FullScale);
+
+/// <summary>
 /// Turns raw readings into the exact strings the card and the taskbar entry display. The broker
 /// owns units and rounding on purpose: the entry is a layered Win32 window with no formatting or
 /// localization of its own, and the card should bind text rather than re-derive numbers.
@@ -67,6 +74,43 @@ public static class SystemMonitorFormatter
         _ => string.Empty,
     };
 
+    /// <summary>
+    /// One reading's raw magnitude and the full scale it should be drawn against, or null when
+    /// this machine cannot supply it. A percentage has a fixed 0..100 scale and a used-of-total
+    /// reading has its own ceiling; a rate has neither, and reports a null scale so the caller
+    /// knows it can only be drawn relative to the other samples around it.
+    ///
+    /// This exists for the sparkline. The formatted strings above cannot be plotted, and the
+    /// entry never sees the numbers, so the broker is the only place that can make the choice.
+    /// </summary>
+    public static SystemMonitorMagnitude? TryGetMagnitude(
+        SystemMetricSample sample,
+        string metricId)
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+        ArgumentNullException.ThrowIfNull(metricId);
+
+        return metricId switch
+        {
+            SystemMonitorContract.CpuUsage => Percent(sample.CpuUsagePercent),
+            SystemMonitorContract.MemoryUsage =>
+                OfTotal(sample.MemoryUsedBytes, sample.MemoryTotalBytes),
+            SystemMonitorContract.GpuUsage => Percent(sample.GpuUsagePercent),
+            SystemMonitorContract.GpuMemory =>
+                OfTotal(sample.GpuMemoryUsedBytes, sample.GpuMemoryTotalBytes),
+            SystemMonitorContract.DiskActivity => Percent(sample.DiskBusyPercent),
+            SystemMonitorContract.DiskUsage =>
+                OfTotal(sample.DiskUsedBytes, sample.DiskTotalBytes),
+            SystemMonitorContract.NetworkUp =>
+                Unbounded(sample.NetworkUpBytesPerSecond),
+            SystemMonitorContract.NetworkDown =>
+                Unbounded(sample.NetworkDownBytesPerSecond),
+            // Clock, temperature and fan are unavailable on every machine this ships to, and a
+            // temperature has no honest zero to plot from anyway.
+            _ => null,
+        };
+    }
+
     public static SystemMonitorMetricDto FormatMetric(
         SystemMetricSample sample,
         string metricId,
@@ -126,6 +170,28 @@ public static class SystemMonitorFormatter
             Text = text,
         };
     }
+
+    private static SystemMonitorMagnitude? Percent(double? percent) =>
+        percent is { } value && double.IsFinite(value)
+            ? new SystemMonitorMagnitude(Math.Clamp(value, 0d, 100d), 100d)
+            : null;
+
+    private static SystemMonitorMagnitude? OfTotal(double? used, double? total)
+    {
+        if (used is not { } value || !double.IsFinite(value) || value < 0d)
+        {
+            return null;
+        }
+
+        return total is { } ceiling && double.IsFinite(ceiling) && ceiling > 0d
+            ? new SystemMonitorMagnitude(Math.Min(value, ceiling), ceiling)
+            : new SystemMonitorMagnitude(value, null);
+    }
+
+    private static SystemMonitorMagnitude? Unbounded(double? value) =>
+        value is { } rate && double.IsFinite(rate) && rate >= 0d
+            ? new SystemMonitorMagnitude(rate, null)
+            : null;
 
     private static string Join(params string[] parts) =>
         string.Join(' ', parts.Where(part => part.Length > 0));

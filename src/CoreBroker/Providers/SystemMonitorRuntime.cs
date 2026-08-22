@@ -174,6 +174,7 @@ public sealed class SystemMonitorRuntime : IDisposable
             return null;
         }
 
+        IReadOnlyList<SystemMetricSample> recent = _provider.RecentSamples;
         var segments = new List<SystemMonitorSegmentDto>(settings.EntryItems.Count);
         foreach (SystemMonitorItemDto item in settings.EntryItems)
         {
@@ -182,8 +183,12 @@ public sealed class SystemMonitorRuntime : IDisposable
                 continue;
             }
 
-            segments.Add(
-                SystemMonitorFormatter.FormatSegment(sample, item.MetricId, item.Detail));
+            SystemMonitorSegmentDto segment =
+                SystemMonitorFormatter.FormatSegment(sample, item.MetricId, item.Detail);
+            segments.Add(segment with
+            {
+                History = SystemMonitorHistory.Normalize(recent, item.MetricId),
+            });
         }
 
         return new SystemMonitorSummaryDto
