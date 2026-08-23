@@ -14,8 +14,9 @@ constexpr wchar_t kWindowClassName[] = L"WinWidgetBoard.LauncherHost.EntryWindow
 constexpr UINT kRepositionMessage = WM_APP + 1;
 // Posted from the foreground WinEvent hook. The hook runs on this thread's message queue, but
 // it must not do work inline: a hook callback that blocks delays every window activation on
-// the desktop.
-constexpr UINT kEnsureTopmostMessage = WM_APP + 2;
+// the desktop. Visibility is resolved before z-order because a full-screen foreground must
+// hide the entry rather than cause another topmost re-assertion.
+constexpr UINT kForegroundChangedMessage = WM_APP + 2;
 constexpr UINT_PTR kVisibilityTimerId = 1;
 constexpr UINT kVisibilityPollMilliseconds = 500;
 // Explorer re-stacks Shell_TrayWnd while it handles a window activation, and it can do so
@@ -146,7 +147,7 @@ void CALLBACK ForegroundEventProc(
 
     if (g_entryWindowForHook != nullptr)
     {
-        PostMessageW(g_entryWindowForHook, kEnsureTopmostMessage, 0, 0);
+        PostMessageW(g_entryWindowForHook, kForegroundChangedMessage, 0, 0);
     }
 }
 }
@@ -247,6 +248,10 @@ bool LauncherWindow::Create(
 
     SyncVisualTarget();
     _animator.SnapToTarget();
+    // CreateWindowEx leaves the entry hidden. Resolve the foreground before the first
+    // placement so starting LauncherHost while an app is already full-screen never exposes
+    // the capsule even for one visibility-poll interval.
+    UpdateFullscreenVisibility();
     ApplyPlacement();
     SetTimer(_window, kVisibilityTimerId, kVisibilityPollMilliseconds, nullptr);
 
@@ -360,8 +365,8 @@ void LauncherWindow::Reposition()
         return;
     }
 
-    ApplyPlacement();
     UpdateFullscreenVisibility();
+    ApplyPlacement();
 }
 
 void LauncherWindow::ApplyPlacement()
@@ -389,6 +394,12 @@ void LauncherWindow::ApplyPlacement()
 
     // No window region any more: the capsule is shaped by per-pixel alpha, and a region
     // would clip exactly the antialiased edge that alpha buys us.
+    // Repositioning and content-width refits are allowed while another app is full-screen.
+    // Preserve that hidden state instead of letting SWP_SHOWWINDOW expose the capsule and
+    // leave _hiddenForFullscreen out of sync with the actual HWND visibility.
+    const UINT visibilityFlag = _hiddenForFullscreen
+        ? SWP_HIDEWINDOW
+        : SWP_SHOWWINDOW;
     if (SetWindowPos(
         _window,
         HWND_TOPMOST,
@@ -396,7 +407,7 @@ void LauncherWindow::ApplyPlacement()
         _placement.windowRect.top,
         _placement.windowRect.right - _placement.windowRect.left,
         _placement.windowRect.bottom - _placement.windowRect.top,
-        SWP_NOACTIVATE | SWP_SHOWWINDOW) == FALSE)
+        SWP_NOACTIVATE | visibilityFlag) == FALSE)
     {
         Log(L"SetWindowPos(HWND_TOPMOST) failed: " +
             std::to_wstring(GetLastError()));
@@ -980,7 +991,17 @@ void LauncherWindow::UpdateFullscreenVisibility()
     }
 
     _hiddenForFullscreen = shouldHide;
-    ShowWindow(_window, shouldHide ? SW_HIDE : SW_SHOWNOACTIVATE);
+    if (shouldHide)
+    {
+        KillTimer(_window, kTopmostTimerId);
+        _topmostSettleTicksLeft = 0;
+        ShowWindow(_window, SW_HIDE);
+    }
+    else
+    {
+        ShowWindow(_window, SW_SHOWNOACTIVATE);
+        EnsureTopmost();
+    }
     Log(shouldHide
         ? L"full-screen foreground detected; launcher entry hidden"
         : L"full-screen foreground cleared; launcher entry shown");
@@ -1221,13 +1242,20 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         }
         else if (wParam == kTopmostTimerId)
         {
-            self->EnsureTopmost();
-            if (--self->_topmostSettleTicksLeft <= 0)
+            // A newly activated window can finish its borderless/full-screen resize after
+            // EVENT_SYSTEM_FOREGROUND. Re-check on each short settle tick so the entry hides
+            // as soon as that monitor-covering geometry becomes observable.
+            self->UpdateFullscreenVisibility();
+            if (!self->_hiddenForFullscreen)
             {
-                // The timer exists only for the length of one activation; a resting entry
-                // keeps the visibility poll as its only wake-up.
-                KillTimer(window, kTopmostTimerId);
-                self->_topmostSettleTicksLeft = 0;
+                self->EnsureTopmost();
+                if (--self->_topmostSettleTicksLeft <= 0)
+                {
+                    // The timer exists only for the length of one activation; a resting entry
+                    // keeps the visibility poll as its only wake-up.
+                    KillTimer(window, kTopmostTimerId);
+                    self->_topmostSettleTicksLeft = 0;
+                }
             }
         }
         return 0;
@@ -1251,8 +1279,14 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
             self->ScheduleReposition();
             return 0;
         }
-        if (message == kEnsureTopmostMessage)
+        if (message == kForegroundChangedMessage)
         {
+            self->UpdateFullscreenVisibility();
+            if (self->_hiddenForFullscreen)
+            {
+                return 0;
+            }
+
             self->EnsureTopmost();
             self->_topmostSettleTicksLeft = kTopmostSettleTicks;
             SetTimer(

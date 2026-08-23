@@ -82,8 +82,8 @@ private:
 
     HINSTANCE _instance{};
     HWND _window{};
-    // Re-asserts the entry's topmost position the moment Explorer re-stacks the taskbar,
-    // instead of waiting out the visibility poll.
+    // Re-checks full-screen visibility and, only when visible, re-asserts the entry's
+    // topmost position the moment Explorer re-stacks the taskbar.
     HWINEVENTHOOK _foregroundHook{};
     // Short re-asserts still owed after the current activation. Zero when none is in flight,
     // which is also when the settle timer is not running at all.

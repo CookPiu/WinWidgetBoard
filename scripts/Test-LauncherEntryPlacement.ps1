@@ -1,13 +1,14 @@
 ﻿<#
 .SYNOPSIS
     Real-desktop regression for the taskbar entry: embedded placement, adaptive width,
-    click-to-toggle and pass-through outside the entry.
+    full-screen hiding, click-to-toggle and pass-through outside the entry.
 
 .DESCRIPTION
     Starts the real Release x64 LauncherHost and asserts that the entry window lands inside
     the taskbar strip derived from the monitor and work area, honours the configured
-    alignment, keeps its width inside the supported range, toggles the panel on click, and
-    lets pointer input through outside its own rounded shape.
+    alignment, keeps its width inside the supported range, stays hidden through a placement
+    refresh while a foreground window covers the monitor, restores after full-screen exits,
+    toggles the panel on click, and lets pointer input through outside its own rounded shape.
 
     LauncherHost runs with --no-broker, so it does not auto-start CoreBroker: the panel this
     test opens has nothing to persist to and the production database is never touched. Only
@@ -22,13 +23,69 @@ param(
     [string]$Configuration = 'Release',
 
     [ValidateSet('x64')]
-    [string]$Platform = 'x64'
+    [string]$Platform = 'x64',
+
+    [string]$EvidenceDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 
+if (-not ('WinWidgetBoardLauncherEntryTestNative' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class WinWidgetBoardLauncherEntryTestNative
+{
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetThreadDpiAwarenessContext();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr window);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessage(
+        IntPtr window,
+        uint message,
+        UIntPtr wParam,
+        IntPtr lParam);
+}
+'@
+}
+
+$perMonitorV2 = [IntPtr](-4)
+if (-not [WinWidgetBoardLauncherEntryTestNative]::SetProcessDpiAwarenessContext(
+        $perMonitorV2)) {
+    $dpiError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    $currentDpiContext =
+        [WinWidgetBoardLauncherEntryTestNative]::GetThreadDpiAwarenessContext()
+    $alreadyPerMonitor =
+        [WinWidgetBoardLauncherEntryTestNative]::AreDpiAwarenessContextsEqual(
+            $currentDpiContext,
+            $perMonitorV2) -or
+        [WinWidgetBoardLauncherEntryTestNative]::AreDpiAwarenessContextsEqual(
+            $currentDpiContext,
+            [IntPtr](-3))
+    if (-not $alreadyPerMonitor) {
+        throw "Could not enable per-monitor DPI awareness (Win32 error $dpiError)."
+    }
+}
+
 Import-Module -Name (Join-Path $PSScriptRoot 'WinWidgetBoard.UiAutomation.psm1') `
     -DisableNameChecking -Force
+Add-Type -AssemblyName System.Windows.Forms
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $launcherClassName = 'WinWidgetBoard.LauncherHost.EntryWindow'
@@ -40,6 +97,7 @@ $panelPath = Join-Path $repoRoot (
     'net10.0-windows10.0.26100.0\win-x64\WinWidgetBoard.WorkspacePanel.exe')
 
 $launcherProcess = $null
+$fullscreenForm = $null
 $failure = $null
 
 try {
@@ -59,7 +117,6 @@ try {
         throw "Existing WinWidgetBoard processes detected: $runningText"
     }
 
-    Add-Type -AssemblyName System.Windows.Forms
     $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     $work = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     $stripTop = $work.Bottom
@@ -83,9 +140,8 @@ try {
 
     $width = $entry.Right - $entry.Left
     $height = $entry.Bottom - $entry.Top
-    $dpi = [int]((Get-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' `
-        -Name AppliedDPI -ErrorAction SilentlyContinue).AppliedDPI)
-    if ($dpi -le 0) { $dpi = 96 }
+    $dpi = [int][WinWidgetBoardLauncherEntryTestNative]::GetDpiForWindow($entry.Handle)
+    if ($dpi -le 0) { throw 'GetDpiForWindow returned an invalid DPI.' }
     $widthLogical = [int][math]::Round($width * 96.0 / $dpi)
     $heightLogical = [int][math]::Round($height * 96.0 / $dpi)
     # The window spans both capsules, so the ceiling is kEntryMaxWidthLogical plus
@@ -127,6 +183,111 @@ try {
             "($($entry.CenterX),$($entry.CenterY)); owner pid $centerOwner covers it.")
     }
 
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+        $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
+        [void](New-Item -ItemType Directory -Path $EvidenceDirectory -Force)
+        $beforeCapture = Join-Path $EvidenceDirectory 'launcher-entry-visible.png'
+        [void](Save-ScreenRegionCapture `
+            -Left $bounds.Left `
+            -Top $stripTop `
+            -Width $bounds.Width `
+            -Height ($stripBottom - $stripTop) `
+            -Path $beforeCapture)
+        Write-Output "ENTRY-BEFORE-CAPTURE $beforeCapture"
+    }
+
+    # Use a real borderless foreground window that exactly covers the primary monitor. After
+    # the launcher hides, WM_DISPLAYCHANGE forces the same placement-refresh path used by
+    # display changes and content-width refits; the entry must remain hidden through it.
+    $fullscreenForm = New-Object System.Windows.Forms.Form
+    $fullscreenForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+    $fullscreenForm.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+    $fullscreenForm.Bounds = $bounds
+    $fullscreenForm.ShowInTaskbar = $false
+    $fullscreenForm.BackColor = [System.Drawing.Color]::FromArgb(28, 31, 36)
+    $fullscreenForm.Show()
+    $fullscreenForm.Activate()
+    [void][WinWidgetBoardUiAutomationInput]::SetForegroundWindow($fullscreenForm.Handle)
+    Invoke-LeftClickAtPoint `
+        -X ([int]($bounds.Left + $bounds.Width / 2)) `
+        -Y ([int]($bounds.Top + $bounds.Height / 2))
+
+    $fullscreenDeadline = [DateTime]::UtcNow.AddSeconds(5)
+    do {
+        [System.Windows.Forms.Application]::DoEvents()
+        $foregroundMatches =
+            [WinWidgetBoardLauncherEntryTestNative]::GetForegroundWindow() -eq
+            $fullscreenForm.Handle
+        $entryHidden =
+            -not [WinWidgetBoardUiAutomationInput]::IsWindowVisible($entry.Handle)
+        if ($foregroundMatches -and $entryHidden) { break }
+        Start-Sleep -Milliseconds 25
+    } while ([DateTime]::UtcNow -lt $fullscreenDeadline)
+    if (-not $foregroundMatches) {
+        throw 'The borderless monitor-covering test window did not become foreground.'
+    }
+    if (-not $entryHidden) {
+        throw 'The launcher entry stayed visible over a full-screen foreground window.'
+    }
+
+    if (-not [WinWidgetBoardLauncherEntryTestNative]::PostMessage(
+            $entry.Handle,
+            0x007E,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero)) {
+        throw 'PostMessage(WM_DISPLAYCHANGE) failed for the launcher entry.'
+    }
+    $refreshDeadline = [DateTime]::UtcNow.AddSeconds(1)
+    do {
+        [System.Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 25
+    } while ([DateTime]::UtcNow -lt $refreshDeadline)
+    if ([WinWidgetBoardUiAutomationInput]::IsWindowVisible($entry.Handle)) {
+        throw 'A placement refresh exposed the launcher entry while full-screen remained active.'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+        $fullscreenCapture = Join-Path $EvidenceDirectory 'launcher-fullscreen-hidden.png'
+        [void](Save-ScreenRegionCapture `
+            -Left $bounds.Left `
+            -Top $stripTop `
+            -Width $bounds.Width `
+            -Height ($stripBottom - $stripTop) `
+            -Path $fullscreenCapture)
+        Write-Output "ENTRY-FULLSCREEN-CAPTURE $fullscreenCapture"
+    }
+    Write-Output 'ENTRY-FULLSCREEN-HIDE-PASS activation+placement-refresh'
+
+    $fullscreenForm.Close()
+    $fullscreenForm.Dispose()
+    $fullscreenForm = $null
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $restoreDeadline = [DateTime]::UtcNow.AddSeconds(5)
+    do {
+        $entryRestored =
+            [WinWidgetBoardUiAutomationInput]::IsWindowVisible($entry.Handle)
+        if ($entryRestored) { break }
+        Start-Sleep -Milliseconds 25
+    } while ([DateTime]::UtcNow -lt $restoreDeadline)
+    if (-not $entryRestored) {
+        throw 'The launcher entry did not return after the full-screen window closed.'
+    }
+    Write-Output 'ENTRY-FULLSCREEN-RESTORE-PASS'
+
+    # Closing the full-screen window can give Explorer one more opportunity to re-stack the
+    # taskbar. Wait again before sending the real click to the restored entry.
+    $ownerDeadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $centerOwner = Get-WindowOwnerProcessAtPoint -X $entry.CenterX -Y $entry.CenterY
+        if ($centerOwner -eq $launcherProcess.Id) { break }
+        Start-Sleep -Milliseconds 250
+    } while ([DateTime]::UtcNow -lt $ownerDeadline)
+    if ($centerOwner -ne $launcherProcess.Id) {
+        throw ("The restored entry never reached the top of the z-order at " +
+            "($($entry.CenterX),$($entry.CenterY)); owner pid $centerOwner covers it.")
+    }
+
     Invoke-LeftClickAtPoint -X $entry.CenterX -Y $entry.CenterY
     $panel = $null
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -142,12 +303,17 @@ try {
 
     Write-Output "ENTRY-CLICK-PASS panelPid=$($panel.Id)"
     Stop-WinWidgetBoardProcess -Process $panel
-    Write-Output 'REAL-LAUNCHER-ENTRY-PASS placement+passthrough+click'
+    Write-Output 'REAL-LAUNCHER-ENTRY-PASS placement+passthrough+fullscreen+click'
 }
 catch {
     $failure = $_
 }
 finally {
+    if ($null -ne $fullscreenForm) {
+        $fullscreenForm.Close()
+        $fullscreenForm.Dispose()
+    }
+
     foreach ($stray in @(Get-Process -Name 'WinWidgetBoard.WorkspacePanel' -ErrorAction SilentlyContinue)) {
         if ($stray.Path -eq $panelPath) {
             Stop-WinWidgetBoardProcess -Process $stray
