@@ -276,8 +276,13 @@ function Test-TransientUiaFault {
             return $true
         }
 
-        $hresult = [uint32]($exception.HResult -band 0xFFFFFFFF)
-        if ($script:TransientUiaHResults -contains $hresult) {
+        # Compare the HResult as-is. PowerShell parses an 8-digit hex literal such as
+        # 0x80040201 as a signed Int32, which is exactly what Exception.HResult holds,
+        # so the table above already matches. The previous [uint32] normalisation threw
+        # InvalidArgument on every negative HResult and replaced the real UI Automation
+        # failure with a type-conversion error; normalising the other way (0xFFFFFFFFL)
+        # would instead silently stop matching and drop every retry.
+        if ($script:TransientUiaHResults -contains $exception.HResult) {
             return $true
         }
 
