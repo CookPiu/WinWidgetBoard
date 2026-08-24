@@ -54,6 +54,32 @@ public readonly record struct CardFoldPath(
 
 public static class CardFoldPathResolver
 {
+    /// <summary>
+    /// Longest distance, in DIP, a card travels toward the launcher entry.
+    /// </summary>
+    public const double MaximumTravel = 110;
+
+    /// <summary>
+    /// Splits the uniform scale into the axis-aligned pair that approximates a
+    /// fold about the in-plane radial axis: the extent perpendicular to the axis
+    /// foreshortens by cos(angle), the extent along it does not.
+    /// </summary>
+    public static (double X, double Y) ResolveFoldScale(
+        CardFoldPresentation presentation)
+    {
+        // Weight by the squared components. The axis is a unit vector, so these sum
+        // to exactly one and the pair collapses to the uniform scale when the fold
+        // angle reaches zero. Weighting by the absolute components instead summed to
+        // 1.414 on a diagonal axis, which left every card 41% oversized for the whole
+        // animation and snapped back on the final frame.
+        double foreshorten = Math.Cos(presentation.FoldAngle * Math.PI / 180);
+        double alongX = presentation.AxisX * presentation.AxisX;
+        double alongY = presentation.AxisY * presentation.AxisY;
+        return (
+            presentation.Scale * (alongX + alongY * foreshorten),
+            presentation.Scale * (alongY + alongX * foreshorten));
+    }
+
     public static CardFoldPath Resolve(
         MotionPoint anchor,
         MotionRect bounds,
@@ -83,8 +109,20 @@ public static class CardFoldPathResolver
             bounds,
             axisX,
             axisY);
-        double startX = anchor.X - (bounds.X + pivotX);
-        double startY = anchor.Y - (bounds.Y + pivotY);
+        // Keep the entry's direction but bound the distance. The anchor is the
+        // taskbar entry, which sits outside the panel; the cards are clipped by the
+        // content ScrollViewer, so a full flight from there spends most of the
+        // animation invisible and reads as the card leaving the panel and jumping
+        // back. A short offset along the same bearing keeps the spatial story and
+        // stays inside the card's own slot.
+        double reachX = anchor.X - (bounds.X + pivotX);
+        double reachY = anchor.Y - (bounds.Y + pivotY);
+        double reach = Math.Sqrt(reachX * reachX + reachY * reachY);
+        double travelScale = reach > 0.0001
+            ? Math.Min(reach, MaximumTravel) / reach
+            : 0;
+        double startX = reachX * travelScale;
+        double startY = reachY * travelScale;
         return new(
             startX,
             startY,

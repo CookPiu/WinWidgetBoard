@@ -6,20 +6,26 @@ namespace WinWidgetBoard.UnitTests;
 [TestClass]
 public sealed class CardFoldPathResolverTests
 {
-    [TestMethod(DisplayName = "UT-CARD-FOLD-PATH-001 [PNL-003] Closed hinge resolves to the launcher anchor")]
-    public void ClosedHingeResolvesToLauncherAnchor()
+    [TestMethod(DisplayName = "UT-CARD-FOLD-PATH-001 [PNL-003] Closed hinge travels toward the launcher anchor within budget")]
+    public void ClosedHingeTravelsTowardLauncherAnchorWithinBudget()
     {
         var anchor = new MotionPoint(24, 700);
         var bounds = new MotionRect(40, 80, 300, 500);
         CardFoldPath path = CardFoldPathResolver.Resolve(anchor, bounds, 0, 3);
-        Assert.AreEqual(
-            anchor.X,
-            bounds.X + path.PivotX + path.StartX,
-            0.0001);
-        Assert.AreEqual(
-            anchor.Y,
-            bounds.Y + path.PivotY + path.StartY,
-            0.0001);
+
+        // The card keeps the entry's bearing but must not fly out of the panel: the
+        // content ScrollViewer clips it, so a full flight to the anchor spends most
+        // of the animation invisible and reads as a jump back on the last frame.
+        double reachX = anchor.X - (bounds.X + path.PivotX);
+        double reachY = anchor.Y - (bounds.Y + path.PivotY);
+        double reach = Math.Sqrt(reachX * reachX + reachY * reachY);
+        double travel = Math.Sqrt(
+            path.StartX * path.StartX + path.StartY * path.StartY);
+
+        Assert.IsGreaterThan(CardFoldPathResolver.MaximumTravel, reach);
+        Assert.AreEqual(CardFoldPathResolver.MaximumTravel, travel, 0.0001);
+        Assert.AreEqual(reachX / reach, path.StartX / travel, 0.0001);
+        Assert.AreEqual(reachY / reach, path.StartY / travel, 0.0001);
     }
 
     [TestMethod(DisplayName = "UT-CARD-FOLD-PATH-002 [PNL-003] Open presentation is exact identity")]
@@ -103,6 +109,49 @@ public sealed class CardFoldPathResolverTests
                 .Count());
     }
 
+    [TestMethod(DisplayName = "UT-CARD-FOLD-PATH-007 [PNL-003] Fold scale collapses to the uniform scale when the fold ends")]
+    public void FoldScaleCollapsesToUniformScaleWhenFoldEnds()
+    {
+        // Weighting the split by the absolute axis components summed to 1.414 on a
+        // diagonal axis, so every card stayed 41% oversized for the whole animation
+        // and snapped back on the final frame. The pair must land on the uniform
+        // scale for every axis once the fold angle reaches zero.
+        foreach (int index in new[] { 0, 1, 2, 3, 4, 5 })
+        {
+            CardFoldPath path = CardFoldPathResolver.Resolve(
+                new MotionPoint(20, 900),
+                new MotionRect(40 + index % 2 * 380, 60 + index / 2 * 240, 350, 220),
+                index,
+                6);
+            CardFoldPresentation landed = path.Evaluate(1);
+            (double x, double y) = CardFoldPathResolver.ResolveFoldScale(landed);
+
+            Assert.AreEqual(1, landed.Scale, 0.0001);
+            Assert.AreEqual(1, x, 0.0001, $"card {index} horizontal scale");
+            Assert.AreEqual(1, y, 0.0001, $"card {index} vertical scale");
+        }
+    }
+
+    [TestMethod(DisplayName = "UT-CARD-FOLD-PATH-008 [PNL-003] Fold scale never exceeds the uniform scale")]
+    public void FoldScaleNeverExceedsUniformScale()
+    {
+        CardFoldPath path = CardFoldPathResolver.Resolve(
+            new MotionPoint(20, 900),
+            new MotionRect(240, 80, 350, 220),
+            1,
+            4);
+
+        for (int step = 0; step <= 20; step++)
+        {
+            CardFoldPresentation presentation = path.Evaluate(step / 20.0);
+            (double x, double y) = CardFoldPathResolver.ResolveFoldScale(presentation);
+
+            Assert.IsLessThan(presentation.Scale + 0.0001, x);
+            Assert.IsLessThan(presentation.Scale + 0.0001, y);
+            Assert.IsGreaterThan(0, x);
+            Assert.IsGreaterThan(0, y);
+        }
+    }
     [TestMethod(DisplayName = "UT-CARD-FOLD-PATH-006 [PNL-003] Fold depth recedes at the hinge and eases forward mid flight")]
     public void FoldDepthRecedesAtHingeAndEasesForwardMidFlight()
     {
