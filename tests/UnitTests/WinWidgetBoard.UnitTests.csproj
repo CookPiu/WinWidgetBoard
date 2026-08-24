@@ -55,6 +55,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\SystemMonitorMetricViewModel.cs" Link="WorkspacePanel\Runtime\SystemMonitorMetricViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherSettingsViewModel.cs" Link="WorkspacePanel\Settings\WeatherSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherLocationOption.cs" Link="WorkspacePanel\Settings\WeatherLocationOption.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Settings\CommonWeatherLocations.cs" Link="WorkspacePanel\Settings\CommonWeatherLocations.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\SystemMonitorSettingsViewModel.cs" Link="WorkspacePanel\Settings\SystemMonitorSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\SystemMonitorMetricOption.cs" Link="WorkspacePanel\Settings\SystemMonitorMetricOption.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\AddCardViewModel.cs" Link="WorkspacePanel\Settings\AddCardViewModel.cs" />

@@ -56,16 +56,22 @@ public sealed partial class SettingsDialog : ContentDialog
         // dialog is being torn down. Leave whatever is on screen rather than blanking both.
         // The null check is not defensive padding: SelectionChanged fires while the rail is
         // still being parsed, before the sections further down the tree exist.
-        if (index < 0 || WeatherSection is null || SystemMonitorSection is null)
+        if (index < 0 ||
+            WeatherSection is null ||
+            SystemMonitorSection is null ||
+            WeatherFooter is null ||
+            SystemMonitorFooter is null)
         {
             return;
         }
 
         bool weather = index == (int)SettingsCategory.Weather;
-        WeatherSection.Visibility = weather ? Visibility.Visible : Visibility.Collapsed;
-        SystemMonitorSection.Visibility = weather
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        Visibility forWeather = weather ? Visibility.Visible : Visibility.Collapsed;
+        Visibility forSystemMonitor = weather ? Visibility.Collapsed : Visibility.Visible;
+        WeatherSection.Visibility = forWeather;
+        WeatherFooter.Visibility = forWeather;
+        SystemMonitorSection.Visibility = forSystemMonitor;
+        SystemMonitorFooter.Visibility = forSystemMonitor;
     }
 
     private async void WeatherSettingsSaveButton_Click(object sender, RoutedEventArgs args)

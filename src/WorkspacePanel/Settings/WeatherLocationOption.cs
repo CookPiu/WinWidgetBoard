@@ -30,6 +30,12 @@ public sealed record WeatherLocationOption
     /// <summary>Region and country, shown under the name to disambiguate.</summary>
     public string Description { get; }
 
+    /// <summary>
+    /// False for a place whose name needs no second line. The row then shows one line rather
+    /// than reserving an empty one, so a list of mixed entries keeps an even rhythm.
+    /// </summary>
+    public bool HasDescription => Description.Length > 0;
+
     public double Latitude { get; }
 
     public double Longitude { get; }

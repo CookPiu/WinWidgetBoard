@@ -490,6 +490,35 @@
             Value="{ThemeResource SystemFillColorCriticalBrush}" />
     </Style>
 
+    <!--
+        Text buttons for dialog surfaces. Kept separate from the toolbar pair on purpose: those
+        set Segoe Fluent Icons and zero padding because their content is a single glyph, and a
+        word rendered in an icon font comes out as tofu. A settings dialog commits with words.
+    -->
+    <Style
+        x:Key="WwbDialogButtonStyle"
+        TargetType="Button"
+        BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="12,4" />
+        <Setter
+            Property="CornerRadius"
+            Value="{StaticResource WwbControlCornerRadius}" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style
+        x:Key="WwbPrimaryDialogButtonStyle"
+        TargetType="Button"
+        BasedOn="{StaticResource AccentButtonStyle}">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="12,4" />
+        <Setter
+            Property="CornerRadius"
+            Value="{StaticResource WwbControlCornerRadius}" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
     <Style
         x:Key="WwbSearchResultButtonStyle"
         TargetType="Button"

@@ -853,4 +853,13 @@
   <data name="SettingsCategorySystemMonitor.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Hardware monitor settings</value>
   </data>
+  <data name="WeatherSettingsCommonHeader.Text" xml:space="preserve">
+    <value>Common places</value>
+  </data>
+  <data name="WeatherSettingsResultsHeader.Text" xml:space="preserve">
+    <value>Search results</value>
+  </data>
+  <data name="WeatherSettingsCommonList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Common places</value>
+  </data>
 </root>

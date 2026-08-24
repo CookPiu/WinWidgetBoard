@@ -69,6 +69,10 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     {
         _client = client;
         _text = textResolver ?? (static key => key);
+        // Subscribed rather than republished at each call site: SearchResults is cleared and
+        // refilled from five places, and one missed site would leave both lists on screen at
+        // once or neither.
+        SearchResults.CollectionChanged += (_, _) => OnSearchResultsChanged();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -115,10 +119,23 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         private set => SetField(ref _statusText, value);
     }
 
+    /// <summary>
+    /// False while there is nothing to report. The line is collapsed rather than left blank:
+    /// an empty row still takes its spacing, which opens a gap under the commit button that
+    /// reads as a layout mistake.
+    /// </summary>
+    public bool HasValidationText => ValidationText.Length > 0;
+
     public string ValidationText
     {
         get => _validationText;
-        private set => SetField(ref _validationText, value);
+        private set
+        {
+            if (SetField(ref _validationText, value))
+            {
+                OnPropertyChanged(nameof(HasValidationText));
+            }
+        }
     }
 
     public int Revision
@@ -164,6 +181,28 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<WeatherLocationOption> SearchResults { get; } = [];
+
+    /// <summary>
+    /// The places offered before anything has been searched for. Picking one is the same
+    /// action as picking a search result, so nothing downstream has to tell them apart.
+    /// </summary>
+    public IReadOnlyList<WeatherLocationOption> CommonLocations { get; } =
+        CommonWeatherLocations.All;
+
+    /// <summary>
+    /// The two lists never show at once: results answer a question the user just asked, and
+    /// leaving the common list under them would put a second, unrelated set of places one
+    /// scroll below the answer.
+    /// </summary>
+    public bool ShowCommonLocations => SearchResults.Count == 0;
+
+    public bool ShowSearchResults => SearchResults.Count > 0;
+
+    private void OnSearchResultsChanged()
+    {
+        OnPropertyChanged(nameof(ShowCommonLocations));
+        OnPropertyChanged(nameof(ShowSearchResults));
+    }
 
     public bool IsSearching
     {
