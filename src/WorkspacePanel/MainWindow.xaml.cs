@@ -1970,10 +1970,16 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         Visual visual = ElementCompositionPreview.GetElementVisual(HeaderBar);
         if (_reducedMotion ||
+            progress >= 1 ||
             HeaderBar.ActualWidth <= 0 ||
             HeaderBar.ActualHeight <= 0)
         {
+            // The clip must not outlive the reveal. HeaderBar hosts the note search
+            // results, which grow it after the motion has settled; a clip still
+            // sized to the collapsed header would cut them off, and UIA cannot see
+            // that a composition clip is hiding them.
             visual.Clip = null;
+            _headerRevealClip = null;
             return;
         }
         float width = (float)HeaderBar.ActualWidth;

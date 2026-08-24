@@ -767,6 +767,39 @@ public sealed class WorkspaceVisualFoundationContractTests
                     StringComparison.Ordinal));
     }
 
+    [TestMethod(DisplayName = "UT-UI-009 [PNL-003] Header reveal clip is released once the panel settles")]
+    public void HeaderRevealClipIsReleasedOncePanelSettles()
+    {
+        // HeaderBar hosts NoteSearchResultsBorder, so a reveal clip left attached
+        // after the motion settled cuts the note results off when that row grows.
+        // UIA still reports them, which is why this is a source contract.
+        string source = File.ReadAllText(GetAssetPath("MainWindow.xaml.cs"));
+        XDocument document = LoadAsset("MainWindow.xaml");
+        XElement header = GetNamedElement(document, "Border", "HeaderBar");
+        XElement results = GetNamedElement(
+            document,
+            "Border",
+            "NoteSearchResultsBorder");
+        Assert.IsTrue(
+            results.Ancestors().Contains(header),
+            "The clip contract only matters while the results live inside HeaderBar.");
+
+        int start = source.IndexOf(
+            "private void ApplyHeaderReveal(",
+            StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start);
+        string body = source[start..];
+        int end = body.IndexOf("\n    private ", StringComparison.Ordinal);
+        if (end > 0)
+        {
+            body = body[..end];
+        }
+
+        StringAssert.Contains(body, "progress >= 1");
+        StringAssert.Contains(body, "visual.Clip = null;");
+        StringAssert.Contains(body, "_headerRevealClip = null;");
+    }
+
     private static XElement GetNamedElement(
         XDocument document,
         string elementName,
