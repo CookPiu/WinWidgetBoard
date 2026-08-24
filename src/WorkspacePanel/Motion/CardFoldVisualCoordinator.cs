@@ -135,7 +135,6 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             var motionRoot = compositor.CreateContainerVisual();
             motionRoot.Offset = blocker.Offset;
             motionRoot.Size = blocker.Size;
-            motionRoot.CenterPoint = new Vector3(0, (float)rect.Height, 0);
             motionRoot.Clip = CreateRoundedClip(
                 compositor,
                 (float)rect.Width,
@@ -165,12 +164,17 @@ public sealed class CardFoldVisualCoordinator : IDisposable
 
             _overlayRoot.Children.InsertAtTop(blocker);
             _overlayRoot.Children.InsertAtTop(motionRoot);
+            CardFoldPath path = CardFoldPathResolver.Resolve(
+                launcherAnchor,
+                bounds,
+                index,
+                available.Length);
+            motionRoot.CenterPoint = new Vector3(
+                (float)path.PivotX,
+                (float)path.PivotY,
+                0);
             _session[id] = new SessionEntry(
-                CardFoldPathResolver.Resolve(
-                    launcherAnchor,
-                    bounds,
-                    index,
-                    available.Length),
+                path,
                 blocker,
                 motionRoot,
                 redirect,
@@ -205,10 +209,17 @@ public sealed class CardFoldVisualCoordinator : IDisposable
                 (float)p.Scale,
                 (float)p.Scale,
                 1);
-            entry.MotionRoot.Orientation = Quaternion.CreateFromYawPitchRoll(
-                DegreesToRadians(p.RotationY),
-                DegreesToRadians(p.RotationX),
+            var radialAxis = Vector3.Normalize(new Vector3(
+                (float)p.AxisX,
+                (float)p.AxisY,
+                0));
+            Quaternion fold = Quaternion.CreateFromAxisAngle(
+                radialAxis,
+                DegreesToRadians(p.FoldAngle));
+            Quaternion twist = Quaternion.CreateFromAxisAngle(
+                Vector3.UnitZ,
                 DegreesToRadians(p.RotationZ));
+            entry.MotionRoot.Orientation = Quaternion.Normalize(twist * fold);
             entry.MotionRoot.Opacity = (float)p.Opacity;
             ApplyStripe(entry.Crease, p, 0.14f, -10);
             ApplyStripe(entry.Specular, p, 0.24f, 12);

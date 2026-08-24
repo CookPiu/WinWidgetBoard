@@ -565,6 +565,13 @@ public sealed class WorkspaceVisualFoundationContractTests
             "CreateRectangleClip(\n            0,\n            0,\n            0,\n            0,",
             StringComparison.Ordinal));
         StringAssert.Contains(source, "CreateRedirectVisual(source)");
+        StringAssert.Contains(
+            source,
+            "(float)path.PivotX,\n                (float)path.PivotY,");
+        StringAssert.Contains(source, "Quaternion.CreateFromAxisAngle(");
+        Assert.IsFalse(source.Contains(
+            "motionRoot.CenterPoint = new Vector3(0, (float)rect.Height, 0);",
+            StringComparison.Ordinal));
 
         int prepare = source.IndexOf(
             "public IReadOnlyList<string> Prepare(",

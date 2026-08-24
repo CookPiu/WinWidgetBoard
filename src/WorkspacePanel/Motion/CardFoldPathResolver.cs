@@ -12,12 +12,13 @@ public readonly record struct MotionRect(double X, double Y, double Width, doubl
 
 public readonly record struct CardFoldPresentation(
     double OffsetX, double OffsetY, double OffsetZ, double Scale,
-    double RotationX, double RotationY, double RotationZ,
+    double AxisX, double AxisY, double FoldAngle, double RotationZ,
     double Opacity, double FoldEnergy);
 
 public readonly record struct CardFoldPath(
     double StartX, double StartY, double ControlX, double ControlY,
-    double RotationX, double RotationY, double RotationZ, double Lift)
+    double PivotX, double PivotY, double AxisX, double AxisY,
+    double FoldAngle, double RotationZ, double Lift)
 {
     public CardFoldPresentation Evaluate(double rawProgress)
     {
@@ -30,8 +31,9 @@ public readonly record struct CardFoldPath(
             Quadratic(progress, StartY, ControlY),
             -175 * inverse + energy * Lift,
             0.27 + 0.73 * (1 - Math.Pow(inverse, 1.35)),
-            inverse * RotationX,
-            inverse * RotationY,
+            AxisX,
+            AxisY,
+            inverse * FoldAngle,
             inverse * RotationZ,
             Math.Min(1, raw * 1.8),
             energy);
@@ -63,16 +65,81 @@ public static class CardFoldPathResolver
 
         double position = count <= 1 ? 0 : index / (double)(count - 1);
         double side = index % 3 == 0 ? -1 : 1;
-        double startX = anchor.X - bounds.X;
-        double startY = anchor.Y - bounds.Bottom;
+        double centerX = bounds.X + bounds.Width / 2;
+        double centerY = bounds.Y + bounds.Height / 2;
+        (double axisX, double axisY) = ResolveRadialAxis(
+            anchor,
+            centerX,
+            centerY,
+            index,
+            count);
+        (double pivotX, double pivotY) = ResolveFacingEdgePivot(
+            bounds,
+            axisX,
+            axisY);
+        double startX = anchor.X - (bounds.X + pivotX);
+        double startY = anchor.Y - (bounds.Y + pivotY);
         return new(
             startX,
             startY,
             startX * (0.84 - 0.22 * position) + side * 24,
             startY * (0.44 + 0.10 * position) + (position - 0.5) * 96,
-            78 - position * 8,
-            side * (28 + position * 14),
+            pivotX,
+            pivotY,
+            axisX,
+            axisY,
+            82 - position * 7,
             side * (5 + position * 3),
             28 + position * 8);
+    }
+
+    private static (double X, double Y) ResolveRadialAxis(
+        MotionPoint anchor,
+        double centerX,
+        double centerY,
+        int index,
+        int count)
+    {
+        double deltaX = centerX - anchor.X;
+        double deltaY = centerY - anchor.Y;
+        double length = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
+        if (length > 0.0001)
+        {
+            return (deltaX / length, deltaY / length);
+        }
+
+        // This only applies when an anchor lands exactly on a card center.
+        // Spread coincident cards deterministically instead of reintroducing
+        // a shared fallback axis.
+        double angle = -Math.PI / 2 +
+            2 * Math.PI * (index + 0.5) / Math.Max(1, count);
+        return (Math.Cos(angle), Math.Sin(angle));
+    }
+
+    private static (double X, double Y) ResolveFacingEdgePivot(
+        MotionRect bounds,
+        double axisX,
+        double axisY)
+    {
+        double halfWidth = bounds.Width / 2;
+        double halfHeight = bounds.Height / 2;
+        double towardAnchorX = -axisX;
+        double towardAnchorY = -axisY;
+        double horizontalDistance = Math.Abs(towardAnchorX) > 0.0001
+            ? halfWidth / Math.Abs(towardAnchorX)
+            : double.PositiveInfinity;
+        double verticalDistance = Math.Abs(towardAnchorY) > 0.0001
+            ? halfHeight / Math.Abs(towardAnchorY)
+            : double.PositiveInfinity;
+        double edgeDistance = Math.Min(horizontalDistance, verticalDistance);
+        return (
+            Math.Clamp(
+                halfWidth + towardAnchorX * edgeDistance,
+                0,
+                bounds.Width),
+            Math.Clamp(
+                halfHeight + towardAnchorY * edgeDistance,
+                0,
+                bounds.Height));
     }
 }
