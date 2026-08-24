@@ -4,192 +4,164 @@ using WinWidgetBoard.WorkspacePanel.Interaction;
 
 namespace WinWidgetBoard.WorkspacePanel.Motion;
 
-/// <summary>
-/// Coordinates panel and demo-card motion on one UI timer.
-/// Rendering and native-window effects remain callback-owned by MainWindow.
-/// </summary>
 public sealed class PanelMotionCoordinator : IDisposable
 {
-    private readonly PanelMotionController _panelMotion;
-    private readonly CardReturnMotionController _cardReturnMotion;
+    private readonly PanelMotionController _panel = new(false);
+    private readonly CardFoldMotionController _folds;
+    private readonly CardReturnMotionController _cardReturn;
     private readonly DispatcherQueueTimer _timer;
-    private readonly Action<PanelMotionValue> _applyPanelMotion;
-    private readonly Action<DragOffset> _applyCardReturn;
-    private readonly Func<bool> _isCardDragActive;
-    private readonly Action<DragOffset> _setCardDragOffset;
+    private readonly Action<PanelMotionValue> _applyPanel;
+    private readonly Action<IReadOnlyList<CardFoldMotionValue>> _applyFolds;
+    private readonly Action _completeFolds;
+    private readonly Action<DragOffset> _applyReturn;
+    private readonly Func<bool> _isDragActive;
+    private readonly Action<DragOffset> _setDragOffset;
     private readonly Action _closeAfterMotion;
-    private int _disposed;
     private bool _closeWhenSettles;
-    private long _lastMotionTimestamp;
+    private long _lastTimestamp;
+    private int _disposed;
 
     public PanelMotionCoordinator(
-        double closedOffsetX,
-        double closedOffsetY,
         bool reducedMotion,
-        DispatcherQueue uiDispatcherQueue,
-        Action<PanelMotionValue> applyPanelMotion,
-        Action<DragOffset> applyCardReturn,
-        Func<bool> isCardDragActive,
-        Action<DragOffset> setCardDragOffset,
+        DispatcherQueue dispatcher,
+        Action<PanelMotionValue> applyPanel,
+        Action<IReadOnlyList<CardFoldMotionValue>> applyFolds,
+        Action completeFolds,
+        Action<DragOffset> applyReturn,
+        Func<bool> isDragActive,
+        Action<DragOffset> setDragOffset,
         Action closeAfterMotion)
     {
-        ArgumentNullException.ThrowIfNull(uiDispatcherQueue);
-        _applyPanelMotion = applyPanelMotion ??
-            throw new ArgumentNullException(nameof(applyPanelMotion));
-        _applyCardReturn = applyCardReturn ??
-            throw new ArgumentNullException(nameof(applyCardReturn));
-        _isCardDragActive = isCardDragActive ??
-            throw new ArgumentNullException(nameof(isCardDragActive));
-        _setCardDragOffset = setCardDragOffset ??
-            throw new ArgumentNullException(nameof(setCardDragOffset));
-        _closeAfterMotion = closeAfterMotion ??
-            throw new ArgumentNullException(nameof(closeAfterMotion));
-        _panelMotion = new PanelMotionController(
-            closedOffsetX,
-            closedOffsetY,
-            reducedMotion);
-        _cardReturnMotion = new CardReturnMotionController(reducedMotion);
-        _timer = uiDispatcherQueue.CreateTimer();
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        _panel = new PanelMotionController(reducedMotion);
+        _folds = new CardFoldMotionController(reducedMotion);
+        _cardReturn = new CardReturnMotionController(reducedMotion);
+        _applyPanel = applyPanel ?? throw new ArgumentNullException(nameof(applyPanel));
+        _applyFolds = applyFolds ?? throw new ArgumentNullException(nameof(applyFolds));
+        _completeFolds = completeFolds ?? throw new ArgumentNullException(nameof(completeFolds));
+        _applyReturn = applyReturn ?? throw new ArgumentNullException(nameof(applyReturn));
+        _isDragActive = isDragActive ?? throw new ArgumentNullException(nameof(isDragActive));
+        _setDragOffset = setDragOffset ?? throw new ArgumentNullException(nameof(setDragOffset));
+        _closeAfterMotion = closeAfterMotion ?? throw new ArgumentNullException(nameof(closeAfterMotion));
+        _timer = dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(16);
-        _timer.Tick += MotionTimer_Tick;
+        _timer.Tick += Tick;
     }
 
-    public PanelMotionValue PanelValue => _panelMotion.Value;
+    public PanelMotionValue PanelValue => _panel.Value;
+    public bool IsClosing => _panel.State == PanelMotionState.Closing;
+    public bool IsCardReturnAnimating => _cardReturn.IsAnimating;
+    public bool IsCardFoldAnimating => _folds.IsAnimating;
 
-    public bool IsClosing => _panelMotion.State == PanelMotionState.Closing;
-
-    public bool IsCardReturnAnimating => _cardReturnMotion.IsAnimating;
+    public void ConfigureCardFolds(IReadOnlyList<string> ids) => _folds.Configure(ids);
 
     public void RequestOpen()
     {
         _closeWhenSettles = false;
-        _panelMotion.RequestOpen();
-        _applyPanelMotion(_panelMotion.Value);
+        _panel.RequestOpen();
+        _folds.RequestOpen();
+        ApplyCurrent();
         StartTimerIfNeeded();
     }
 
     public void RequestClose()
     {
         _closeWhenSettles = true;
-        _panelMotion.RequestClose();
-        _applyPanelMotion(_panelMotion.Value);
-        if (_panelMotion.State == PanelMotionState.Closed)
+        _panel.RequestClose();
+        _folds.RequestClose();
+        ApplyCurrent();
+        if (_panel.State == PanelMotionState.Closed && !_folds.IsAnimating)
         {
             CloseAfterMotion();
             return;
         }
-
         StartTimerIfNeeded();
     }
 
-    public void BeginCardReturn(
-        DragOffset currentOffset,
-        DragOffset targetOffset)
+    public void BeginCardReturn(DragOffset current, DragOffset target)
     {
-        _cardReturnMotion.Start(currentOffset, targetOffset);
-        _applyCardReturn(_cardReturnMotion.Value);
-        SyncCardDragOffsetIfSettled(_cardReturnMotion.Value);
+        _cardReturn.Start(current, target);
+        _applyReturn(_cardReturn.Value);
+        SyncReturnIfSettled(_cardReturn.Value);
         StartTimerIfNeeded();
     }
 
     public void ResetCardReturn()
     {
-        if (_cardReturnMotion.IsAnimating)
-        {
-            _cardReturnMotion.StopAt(DragOffset.Zero);
-        }
+        if (_cardReturn.IsAnimating) _cardReturn.StopAt(DragOffset.Zero);
     }
 
     public void InterruptCardReturn()
     {
-        if (!_cardReturnMotion.IsAnimating)
-        {
-            return;
-        }
-
-        DragOffset currentOffset = _cardReturnMotion.Value;
-        _cardReturnMotion.StopAt(currentOffset);
-        _setCardDragOffset(currentOffset);
-        _applyCardReturn(currentOffset);
+        if (!_cardReturn.IsAnimating) return;
+        DragOffset current = _cardReturn.Value;
+        _cardReturn.StopAt(current);
+        _setDragOffset(current);
+        _applyReturn(current);
     }
 
-    public void Stop()
-    {
-        _timer.Stop();
-    }
+    public void Stop() => _timer.Stop();
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
-        {
-            return;
-        }
-
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _timer.Stop();
-        _timer.Tick -= MotionTimer_Tick;
+        _timer.Tick -= Tick;
+    }
+
+    private void ApplyCurrent()
+    {
+        _applyPanel(_panel.Value);
+        _applyFolds(_folds.Values);
+        if (!_folds.IsAnimating) _completeFolds();
     }
 
     private void StartTimerIfNeeded()
     {
-        if (!_panelMotion.IsAnimating && !_cardReturnMotion.IsAnimating)
-        {
-            return;
-        }
-
-        _lastMotionTimestamp = Stopwatch.GetTimestamp();
+        if (!_panel.IsAnimating && !_folds.IsAnimating && !_cardReturn.IsAnimating) return;
+        _lastTimestamp = Stopwatch.GetTimestamp();
         _timer.Start();
     }
 
-    private void MotionTimer_Tick(
-        DispatcherQueueTimer sender,
-        object args)
+    private void Tick(DispatcherQueueTimer sender, object args)
     {
-        long timestamp = Stopwatch.GetTimestamp();
-        double seconds = (timestamp - _lastMotionTimestamp) /
-            (double)Stopwatch.Frequency;
-        _lastMotionTimestamp = timestamp;
-
-        TimeSpan elapsed = TimeSpan.FromSeconds(seconds);
-        if (_panelMotion.IsAnimating)
+        long now = Stopwatch.GetTimestamp();
+        TimeSpan elapsed = TimeSpan.FromSeconds(
+            (now - _lastTimestamp) / (double)Stopwatch.Frequency);
+        _lastTimestamp = now;
+        if (_panel.IsAnimating) _applyPanel(_panel.Step(elapsed));
+        if (_folds.IsAnimating)
         {
-            _applyPanelMotion(_panelMotion.Step(elapsed));
+            _applyFolds(_folds.Step(elapsed));
+            if (!_folds.IsAnimating) _completeFolds();
         }
-
-        if (_cardReturnMotion.IsAnimating)
+        if (_cardReturn.IsAnimating)
         {
-            DragOffset returnOffset = _cardReturnMotion.Step(elapsed);
-            _applyCardReturn(returnOffset);
-            SyncCardDragOffsetIfSettled(returnOffset);
+            DragOffset offset = _cardReturn.Step(elapsed);
+            _applyReturn(offset);
+            SyncReturnIfSettled(offset);
         }
-
-        if (_closeWhenSettles &&
-            !_panelMotion.IsAnimating &&
-            _panelMotion.State == PanelMotionState.Closed)
+        if (_closeWhenSettles && !_panel.IsAnimating && !_folds.IsAnimating &&
+            _panel.State == PanelMotionState.Closed)
         {
             _timer.Stop();
             CloseAfterMotion();
-            return;
         }
-
-        if (_panelMotion.IsAnimating || _cardReturnMotion.IsAnimating)
+        else if (!_panel.IsAnimating && !_folds.IsAnimating && !_cardReturn.IsAnimating)
         {
-            return;
+            _timer.Stop();
         }
-
-        _timer.Stop();
     }
 
-    private void SyncCardDragOffsetIfSettled(DragOffset offset)
+    private void SyncReturnIfSettled(DragOffset offset)
     {
-        if (!_cardReturnMotion.IsAnimating && !_isCardDragActive())
-        {
-            _setCardDragOffset(offset);
-        }
+        if (!_cardReturn.IsAnimating && !_isDragActive()) _setDragOffset(offset);
     }
 
     private void CloseAfterMotion()
     {
         _closeWhenSettles = false;
+        _completeFolds();
         _closeAfterMotion();
     }
 }

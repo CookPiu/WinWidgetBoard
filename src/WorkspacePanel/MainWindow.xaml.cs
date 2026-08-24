@@ -1,10 +1,12 @@
 using Microsoft.UI;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Windows.ApplicationModel.Resources;
@@ -65,6 +67,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly ResourceLoader _resources = new();
     private readonly CardDragController _demoNotesCardDrag = new();
     private readonly PanelMotionCoordinator _motion;
+    private readonly CardFoldVisualCoordinator _cardFoldVisuals;
     private readonly UiDispatcherQueue _uiDispatcherQueue;
     private readonly CardGridLayout _cardGridLayout;
     private readonly CardLayoutViewModel _cardLayout;
@@ -73,6 +76,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
     private readonly SurfaceMotionCoordinator _surfaceMotion;
+    private readonly ScreenRect _launcherRect;
     private readonly bool _reducedMotion;
     private readonly bool _highContrast;
     private readonly Dictionary<UIElement, CardRuntimeInstance>
@@ -93,6 +97,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _isSavingLayout;
     private bool _suppressNoteSearchTextChanged;
     private int _disposed;
+    private RectangleClip? _headerRevealClip;
 
     public MainWindow(
         INoteClient? noteClient = null,
@@ -199,6 +204,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         ConfigureToolWindow();
         PanelLaunchContext context = ResolveLaunchContext(windowId);
+        _launcherRect = context.LauncherRect;
         _placement = PanelGeometry.Calculate(context);
         if (!_placement.IsValid)
         {
@@ -206,16 +212,16 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 $"WorkspacePanel geometry rejected: {_placement.Reason}");
         }
 
-        Windows.Foundation.Point transformOrigin = CalculateTransformOrigin(
-            context,
-            _placement);
-        RootGrid.RenderTransformOrigin = transformOrigin;
+        _cardFoldVisuals = new CardFoldVisualCoordinator(
+            CardMotionOverlay,
+            _reducedMotion,
+            _highContrast);
         _motion = new PanelMotionCoordinator(
-            transformOrigin.X < 0.5 ? -10 : 10,
-            transformOrigin.Y < 0.5 ? -10 : 10,
             _reducedMotion,
             _uiDispatcherQueue,
             ApplyPanelMotion,
+            ApplyCardFoldMotion,
+            _cardFoldVisuals.Complete,
             ApplyDemoNotesCardReturn,
             () => _demoNotesCardDrag.IsActive,
             offset => _demoNotesCardDrag.SetOffset(offset),
@@ -236,6 +242,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         UpdateEditLayoutButton();
 
         StartupTrace.Mark("ctor-tooltips");
+        EnsureCardItemsBound();
         SynchronizeCardSnapshotRuntimes();
         StartupTrace.Mark("mainwindow-ctor-done");
     }
@@ -383,6 +390,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _motion.Stop();
         _cardSubscription?.OnWindowClosed();
         _motion.Dispose();
+        _cardFoldVisuals.Dispose();
         _surfaceMotion.Dispose();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
@@ -402,6 +410,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         _motion.Dispose();
+        _cardFoldVisuals.Dispose();
         _surfaceMotion.Dispose();
         _cardSubscription?.OnWindowClosed();
         _cardSurface.SetPanelVisibility(false);
@@ -1582,6 +1591,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             // different card identity. Rebind so the selector chooses the
             // correct template. Placement and order-only changes stay in place.
             ClearDemoNotesCardVisual();
+            _cardFoldVisuals.Clear();
             _realizedCardRuntimes.Clear();
             _cardSurface.ClearViewportVisibility();
             CardItemsRepeater.ItemsSource = null;
@@ -1611,6 +1621,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         PrepareCardSurfaceDepth(args.Element);
+        _cardFoldVisuals.Register(item.InstanceId, args.Element);
         _realizedCardRuntimes[args.Element] = item.Runtime;
         _cardSurface.SetViewportVisibility(item.Runtime, true);
         RequestCardSubscriptionRefresh();
@@ -1631,6 +1642,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         ItemsRepeater sender,
         ItemsRepeaterElementClearingEventArgs args)
     {
+        _cardFoldVisuals.Unregister(args.Element);
         if (_realizedCardRuntimes.Remove(
                 args.Element,
                 out CardRuntimeInstance? runtime))
@@ -1745,6 +1757,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         _cardSurface.SetPanelVisibility(true);
         RequestCardSubscriptionRefresh();
+        PrepareCardFoldMotion();
         _motion.RequestOpen();
     }
 
@@ -1759,6 +1772,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _deferredCloseRequest = false;
         _cardSurface.SetPanelVisibility(false);
         RequestCardSubscriptionRefresh();
+        PrepareCardFoldMotion();
         _motion.RequestClose();
     }
 
@@ -1820,18 +1834,51 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         return new Windows.Foundation.Point(fromLeft ? 0 : 1, fromTop ? 0 : 1);
     }
 
+    private void PrepareCardFoldMotion()
+    {
+        if (!_cardFoldVisuals.IsPrepared)
+        {
+            RootGrid.UpdateLayout();
+            CardItemsRepeater.UpdateLayout();
+        }
+        IReadOnlyList<string> ids = _cardFoldVisuals.Prepare(
+            RootGrid,
+            CalculateLauncherAnchor(),
+            _cardSurface.Items.Select(item => item.InstanceId).ToArray());
+        _motion.ConfigureCardFolds(ids);
+    }
+
+    private MotionPoint CalculateLauncherAnchor()
+    {
+        if (!_launcherRect.IsValid)
+        {
+            return new MotionPoint(0, RootGrid.ActualHeight);
+        }
+        double toLogical = 96.0 / _placement.Dpi;
+        return new MotionPoint(
+            (_launcherRect.CenterX - _placement.WindowRect.Left) * toLogical,
+            (_launcherRect.CenterY - _placement.WindowRect.Top) * toLogical);
+    }
+
+    private void ApplyCardFoldMotion(
+        IReadOnlyList<CardFoldMotionValue> values) =>
+        _cardFoldVisuals.Apply(values);
+
     private void ApplyPanelMotion(PanelMotionValue value)
     {
-        // The panel surface is a native top-level window. Move that surface itself
-        // so its background follows the same anchored path as the content.
         NativeWindowStyles.Move(
             _windowHandle,
-            _placement.WindowRect.Left + ToPhysicalPixels(value.OffsetX),
-            _placement.WindowRect.Top + ToPhysicalPixels(value.OffsetY));
+            _placement.WindowRect.Left,
+            _placement.WindowRect.Top);
         PanelMotionTransform.TranslateX = 0;
         PanelMotionTransform.TranslateY = 0;
-        PanelMotionTransform.ScaleX = value.Scale;
-        PanelMotionTransform.ScaleY = value.Scale;
+        PanelMotionTransform.ScaleX = 1;
+        PanelMotionTransform.ScaleY = 1;
+        HeaderBar.Translation = Vector3.Zero;
+        HeaderBar.Opacity = 1;
+        ContentScrollViewer.Translation = Vector3.Zero;
+        ContentScrollViewer.Opacity = 1;
+        ApplyHeaderReveal(value.Opacity);
 
         if (_nativeOpacitySupported)
         {
@@ -1841,18 +1888,29 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 byte.MaxValue);
             if (NativeWindowStyles.TrySetOpacity(_windowHandle, alpha))
             {
-                // The native window alpha now includes the complete surface. Keeping
-                // the XAML tree opaque avoids fading its content a second time.
                 RootGrid.Opacity = 1;
                 return;
             }
-
             NativeWindowStyles.DisableLayeredOpacity(_windowHandle);
             _nativeOpacitySupported = false;
-            Debug.WriteLine("WorkspacePanel native window opacity became unavailable; using XAML opacity fallback.");
+            Debug.WriteLine(
+                "WorkspacePanel native opacity unavailable; using XAML fallback.");
         }
-
         RootGrid.Opacity = value.Opacity;
+    }
+
+    private void ApplyHeaderReveal(double progress)
+    {
+        Visual visual = ElementCompositionPreview.GetElementVisual(HeaderBar);
+        if (_reducedMotion || HeaderBar.ActualWidth <= 0)
+        {
+            visual.Clip = null;
+            return;
+        }
+        _headerRevealClip ??= visual.Compositor.CreateRectangleClip();
+        _headerRevealClip.Right =
+            (float)(HeaderBar.ActualWidth * (1 - Math.Clamp(progress, 0, 1)));
+        visual.Clip = _headerRevealClip;
     }
 
     private int ToPhysicalPixels(double logicalPixels) =>

@@ -8,7 +8,7 @@
 
 入口、面板、基础布局、便签和天气已经形成可运行链路。项目停止扩展新卡片和平台能力，当前优先修复核心工作台的可用性、视觉密度和维护债务。
 
-WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和外围留白，把标题、日期、搜索与全局操作合并为单行头部，并统一缩小字号、间距、控件和网格尺度。面板使用系统 Desktop Acrylic、强调色微光和圆角，卡片使用更实的系统语义表面与轻量阴影；便签默认只保留标题、正文、新建和更多操作，Markdown、复制、删除及恢复命令按状态渐进呈现。面板、拖动回弹及渐进浮层采用克制且可反向的动效，不改变布局、便签、天气或 IPC 数据合同。
+WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和外围留白，把标题、日期、搜索与全局操作合并为单行头部，并统一缩小字号、间距、控件和网格尺度。面板使用系统 Desktop Acrylic、强调色微光和圆角，卡片使用更实的系统语义表面与轻量阴影；便签默认只保留标题、正文、新建和更多操作，Markdown、复制、删除及恢复命令按状态渐进呈现。面板底板固定在最终位置，当前已实现卡片通过顶层 Composition 镜像从任务栏胶囊真实锚点沿独立曲线进行 3D 折页归位；反向保留当前速度，落地后原子切回稳定 CardSurfaceItem。全部动效只改合成层属性，不改变布局、便签、天气或 IPC 数据合同。
 
 ## 2. 核心五项
 
@@ -36,9 +36,10 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- Release UnitTests：382/382；
+- Release UnitTests：387/387；
 - CoreBroker 与 WorkspacePanel Release x64 构建：0 警告、0 错误；
 - `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test`、`WinWidgetBoard.WorkspacePanel.exe --smoke-test` 与 `--broker-smoke-test`（配真实 Broker）退出码均为 0；
+- 真实桌面 `WinWidgetBoard.LauncherHost.exe --smoke-test` / `--panel-launch-smoke-test` / `--panel-lifecycle-smoke-test`（均配 `--no-broker`，指向新构建的 Release x64 面板）退出码均为 0：分层弹簧改造后，面板仍能展开、收起后在阀值内隐藏并保持常驻、再次展开为同一进程；
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
 - 真实桌面 `Test-WeatherSettingsInteraction.ps1` 在移除脚本侧等待、直接把「取消对话框后立即点关闭」作为回归的前提下连续 3 次完整通过：`REAL-WEATHER-SETTINGS-PASS`（保存经真实面板写入 SQLite 并触发 provider 运行时重载）、`REAL-WEATHER-SETTINGS-RESTART-PASS`（重启后 `weather.settings.get` 读回 Tokyo / 35.6762 / 139.6503）和 `WINDOW-EXIT-PASS exitCode=0`；
 - CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
