@@ -82,6 +82,44 @@ public sealed class CardVisibilityUiContractTests
         Assert.IsGreaterThanOrEqualTo(closeMethod, closeVisibility);
     }
 
+    [TestMethod(DisplayName = "UT-CARD-027 [CRD-003/PNL-006] Initial fold waits for realized card visuals")]
+    public void InitialFoldWaitsForRealizedCardVisuals()
+    {
+        string source = File.ReadAllText(GetAssetPath("MainWindow.xaml.cs"));
+        int beginMethod = source.IndexOf(
+            "public void BeginOpeningMotion()",
+            StringComparison.Ordinal);
+        int queueMethod = source.IndexOf(
+            "private void TryQueueInitialOpenMotion()",
+            StringComparison.Ordinal);
+        int startMethod = source.IndexOf(
+            "private void StartInitialOpenMotion()",
+            StringComparison.Ordinal);
+        int requestMethod = source.IndexOf(
+            "private void RequestOpenMotion()",
+            startMethod,
+            StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, beginMethod);
+        Assert.IsGreaterThan(beginMethod, queueMethod);
+        Assert.IsGreaterThan(queueMethod, startMethod);
+        Assert.IsGreaterThan(startMethod, requestMethod);
+
+        string initialStart = source[startMethod..requestMethod];
+        StringAssert.Contains(
+            source[beginMethod..queueMethod],
+            "TryQueueInitialOpenMotion();");
+        StringAssert.Contains(
+            source[queueMethod..startMethod],
+            "DispatcherQueuePriority.Low");
+        StringAssert.Contains(initialStart, "RootGrid.UpdateLayout();");
+        StringAssert.Contains(initialStart, "CardItemsRepeater.UpdateLayout();");
+        StringAssert.Contains(
+            initialStart,
+            "_cardFoldVisuals.RegisteredCount == 0");
+        StringAssert.Contains(initialStart, "RequestOpenMotion();");
+    }
+
     private static string GetAssetPath(params string[] segments) =>
         Path.Combine([AppContext.BaseDirectory, "TestAssets", .. segments]);
 }

@@ -47,6 +47,7 @@ public sealed class CardFoldVisualCoordinator : IDisposable
     }
 
     public bool IsPrepared => _prepared;
+    public int RegisteredCount => _registered.Count;
 
     public void Register(string instanceId, UIElement element)
     {
@@ -96,6 +97,9 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             return available;
         }
 
+        ElementCompositionPreview.SetElementChildVisual(
+            _overlayElement,
+            _overlayRoot);
         _overlayElement.UpdateLayout();
         Compositor compositor = _overlayRoot.Compositor;
         for (int index = 0; index < available.Length; index++)
@@ -282,11 +286,13 @@ public sealed class CardFoldVisualCoordinator : IDisposable
         float height)
     {
         var radius = new Vector2(CornerRadius);
+        // Right and bottom are absolute clip edges, not insets. Passing zero
+        // for either edge clips the entire mirror to a zero-area rectangle.
         return compositor.CreateRectangleClip(
             0,
             0,
-            0,
-            0,
+            width,
+            height,
             radius,
             radius,
             radius,

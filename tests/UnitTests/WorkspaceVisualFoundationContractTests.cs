@@ -539,6 +539,43 @@ public sealed class WorkspaceVisualFoundationContractTests
                 StringComparison.Ordinal));
     }
 
+    [TestMethod(DisplayName = "UT-UI-007 [PNL-006] Card fold mirrors keep a non-zero rounded clip")]
+    public void CardFoldMirrorsKeepANonZeroRoundedClip()
+    {
+        string source = File.ReadAllText(GetSourcePath(
+            "src",
+            "WorkspacePanel",
+            "Motion",
+            "CardFoldVisualCoordinator.cs")).Replace("\r\n", "\n");
+        int clipStart = source.IndexOf(
+            "private static RectangleClip CreateRoundedClip(",
+            StringComparison.Ordinal);
+        int clipEnd = source.IndexOf(
+            "private static Color ResolveCardColor(",
+            clipStart,
+            StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, clipStart);
+        Assert.IsGreaterThan(clipStart, clipEnd);
+
+        string clip = source[clipStart..clipEnd];
+        StringAssert.Contains(
+            clip,
+            "0,\n            0,\n            width,\n            height,");
+        Assert.IsFalse(clip.Contains(
+            "CreateRectangleClip(\n            0,\n            0,\n            0,\n            0,",
+            StringComparison.Ordinal));
+        StringAssert.Contains(source, "CreateRedirectVisual(source)");
+
+        int prepare = source.IndexOf(
+            "public IReadOnlyList<string> Prepare(",
+            StringComparison.Ordinal);
+        int attach = source.IndexOf(
+            "SetElementChildVisual(",
+            prepare,
+            StringComparison.Ordinal);
+        Assert.IsGreaterThan(prepare, attach);
+    }
+
     /// <summary>
     /// Literal colour is banned everywhere in the shared dictionary except the weather
     /// illustration, which has no semantic equivalent - no Windows brush means "overcast

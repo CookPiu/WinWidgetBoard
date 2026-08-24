@@ -88,6 +88,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private bool _deferredCloseRequest;
     private bool _isHiddenForResidency;
     private bool _hasBeenActivated;
+    private bool _initialOpenMotionPending;
+    private bool _initialOpenMotionQueued;
+    private int _initialOpenMotionDeferrals;
     private bool _allowNativeClose;
     private uint? _demoNotesCardPointerId;
     private CompositeTransform? _demoNotesCardTransform;
@@ -201,6 +204,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         Title = _resources.GetString("WindowTitle");
         Activated += MainWindow_Activated;
         Closed += MainWindow_Closed;
+        RootGrid.Loaded += RootGrid_Loaded;
 
         ConfigureToolWindow();
         PanelLaunchContext context = ResolveLaunchContext(windowId);
@@ -264,7 +268,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     public void BeginOpeningMotion()
     {
-        RequestOpenMotion();
+        _initialOpenMotionPending = true;
+        TryQueueInitialOpenMotion();
     }
 
     public IDisposable EnterModalScope()
@@ -398,6 +403,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _appWindow.Changed -= AppWindow_Changed;
         Activated -= MainWindow_Activated;
         Closed -= MainWindow_Closed;
+        RootGrid.Loaded -= RootGrid_Loaded;
         CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
         CardItemsRepeater.ElementClearing -= CardItemsRepeater_ElementClearing;
     }
@@ -419,6 +425,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSurface.PropertyChanged -= CardSurface_PropertyChanged;
         _cardEdit.PropertyChanged -= CardEdit_PropertyChanged;
         NoteEditor.PropertyChanged -= NoteEditor_PropertyChanged;
+        RootGrid.Loaded -= RootGrid_Loaded;
         CardItemsRepeater.ElementPrepared -= CardItemsRepeater_ElementPrepared;
         CardItemsRepeater.ElementClearing -= CardItemsRepeater_ElementClearing;
         if (_cardSubscription is not null)
@@ -1622,6 +1629,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         PrepareCardSurfaceDepth(args.Element);
         _cardFoldVisuals.Register(item.InstanceId, args.Element);
+        TryQueueInitialOpenMotion();
         _realizedCardRuntimes[args.Element] = item.Runtime;
         _cardSurface.SetViewportVisibility(item.Runtime, true);
         RequestCardSubscriptionRefresh();
@@ -1753,12 +1761,65 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         RequestCloseMotion();
     }
 
+    private void RootGrid_Loaded(object sender, RoutedEventArgs e)
+    {
+        TryQueueInitialOpenMotion();
+    }
+
+    private void TryQueueInitialOpenMotion()
+    {
+        if (!_initialOpenMotionPending ||
+            _initialOpenMotionQueued ||
+            !RootGrid.IsLoaded)
+        {
+            return;
+        }
+
+        _initialOpenMotionQueued = true;
+        if (_uiDispatcherQueue.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                StartInitialOpenMotion))
+        {
+            return;
+        }
+
+        _initialOpenMotionQueued = false;
+        _initialOpenMotionPending = false;
+        RequestOpenMotion();
+    }
+
+    private void StartInitialOpenMotion()
+    {
+        _initialOpenMotionQueued = false;
+        if (!_initialOpenMotionPending)
+        {
+            return;
+        }
+
+        RootGrid.UpdateLayout();
+        CardItemsRepeater.UpdateLayout();
+        if (_cardSurface.Items.Count > 0 &&
+            _cardFoldVisuals.RegisteredCount == 0 &&
+            _initialOpenMotionDeferrals++ < 2)
+        {
+            TryQueueInitialOpenMotion();
+            return;
+        }
+
+        _initialOpenMotionPending = false;
+        StartupTrace.Mark(
+            $"card-fold-initial-ready-{_cardFoldVisuals.RegisteredCount}");
+        RequestOpenMotion();
+    }
+
     private void RequestOpenMotion()
     {
         _cardSurface.SetPanelVisibility(true);
         RequestCardSubscriptionRefresh();
         PrepareCardFoldMotion();
         _motion.RequestOpen();
+        StartupTrace.Mark(
+            $"card-fold-open-animating-{_motion.IsCardFoldAnimating}");
     }
 
     private void RequestCloseMotion()
@@ -1841,11 +1902,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             RootGrid.UpdateLayout();
             CardItemsRepeater.UpdateLayout();
         }
+
         IReadOnlyList<string> ids = _cardFoldVisuals.Prepare(
             RootGrid,
             CalculateLauncherAnchor(),
             _cardSurface.Items.Select(item => item.InstanceId).ToArray());
         _motion.ConfigureCardFolds(ids);
+        StartupTrace.Mark($"card-fold-prepared-{ids.Count}");
     }
 
     private MotionPoint CalculateLauncherAnchor()
