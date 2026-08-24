@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using System.Numerics;
 using Windows.Foundation;
 using Windows.UI;
+using Windows.UI.ViewManagement;
 
 namespace WinWidgetBoard.WorkspacePanel.Motion;
 
@@ -15,11 +16,20 @@ namespace WinWidgetBoard.WorkspacePanel.Motion;
 /// </summary>
 public sealed class CardFoldVisualCoordinator : IDisposable
 {
-    private const float CornerRadius = 12;
+    // Composition projects orthographically by default: a fold rotation about an
+    // in-plane axis and an Offset.Z both render with no foreshortening until an
+    // ancestor carries a perspective matrix. One camera for the whole overlay puts
+    // every card on a single vanishing point instead of giving each mirror its own.
+    private const float MinimumPerspectiveDistance = 640;
+    private const float PerspectiveDistanceFactor = 1.15f;
+
     private readonly FrameworkElement _overlayElement;
     private readonly bool _reducedMotion;
     private readonly bool _highContrast;
     private readonly ContainerVisual _overlayRoot;
+    private readonly Color _themeBackground;
+    private readonly Color _creaseShade;
+    private readonly Color _specularShade;
     private readonly Dictionary<string, FrameworkElement> _registered =
         new(StringComparer.Ordinal);
     private readonly Dictionary<UIElement, string> _elementIds = [];
@@ -37,6 +47,18 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             throw new ArgumentNullException(nameof(overlayElement));
         _reducedMotion = reducedMotion;
         _highContrast = highContrast;
+
+        // The crease and the specular are the darker and the lighter end of the
+        // current theme rather than fixed RGB: a hard-coded near-white seam reads
+        // as a defect on a dark card, and the reverse on a light one.
+        var settings = new UISettings();
+        _themeBackground = Opaque(settings.GetColorValue(UIColorType.Background));
+        Color foreground = Opaque(settings.GetColorValue(UIColorType.Foreground));
+        bool backgroundIsDarker =
+            Luminance(_themeBackground) <= Luminance(foreground);
+        _creaseShade = backgroundIsDarker ? _themeBackground : foreground;
+        _specularShade = backgroundIsDarker ? foreground : _themeBackground;
+
         Visual overlayVisual =
             ElementCompositionPreview.GetElementVisual(overlayElement);
         _overlayRoot = overlayVisual.Compositor.CreateContainerVisual();
@@ -81,13 +103,19 @@ public sealed class CardFoldVisualCoordinator : IDisposable
         MotionPoint launcherAnchor,
         IReadOnlyList<string> orderedIds)
     {
-        if (_prepared)
-        {
-            return _session.Keys.ToArray();
-        }
-
         ArgumentNullException.ThrowIfNull(coordinateRoot);
         ArgumentNullException.ThrowIfNull(orderedIds);
+        if (_prepared)
+        {
+            // Preserve the caller's order. Returning _session.Keys handed the fold
+            // controller an arbitrary dictionary order, which scrambled the
+            // per-card stagger whenever a toggle re-prepared a live session.
+            return orderedIds
+                .Where(_session.ContainsKey)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+
         var available = orderedIds
             .Where(id => _registered.ContainsKey(id))
             .Distinct(StringComparer.Ordinal)
@@ -101,6 +129,9 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             _overlayElement,
             _overlayRoot);
         _overlayElement.UpdateLayout();
+        ApplyPerspective(
+            (float)_overlayElement.ActualWidth,
+            (float)_overlayElement.ActualHeight);
         Compositor compositor = _overlayRoot.Compositor;
         for (int index = 0; index < available.Length; index++)
         {
@@ -120,17 +151,22 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             }
 
             Visual source = ElementCompositionPreview.GetElementVisual(element);
+            float cornerRadius = ResolveCornerRadius(element);
             var blocker = compositor.CreateSpriteVisual();
             blocker.Offset = new Vector3((float)rect.X, (float)rect.Y, 0);
             blocker.Size = new Vector2((float)rect.Width, (float)rect.Height);
-            blocker.Brush = compositor.CreateColorBrush(ResolveCardColor(element));
+            blocker.Brush = compositor.CreateColorBrush(
+                ResolveCardColor(element, _themeBackground));
             // The blocker masks the stable ItemsRepeater card for the entire
-            // redirect session. It is static, so set it once rather than every frame.
-            blocker.Opacity = 0.96f;
+            // redirect session. It is static, so set it once rather than every
+            // frame, and it has to be fully opaque: at 0.96 the real card's
+            // content bled through behind the travelling mirror.
+            blocker.Opacity = 1;
             blocker.Clip = CreateRoundedClip(
                 compositor,
                 (float)rect.Width,
-                (float)rect.Height);
+                (float)rect.Height,
+                cornerRadius);
 
             var motionRoot = compositor.CreateContainerVisual();
             motionRoot.Offset = blocker.Offset;
@@ -138,7 +174,8 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             motionRoot.Clip = CreateRoundedClip(
                 compositor,
                 (float)rect.Width,
-                (float)rect.Height);
+                (float)rect.Height,
+                cornerRadius);
 
             RedirectVisual redirect = compositor.CreateRedirectVisual(source);
             redirect.Size = motionRoot.Size;
@@ -150,12 +187,12 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             {
                 crease = CreateStripe(
                     compositor,
-                    Color.FromArgb(255, 38, 73, 108),
+                    _creaseShade,
                     16,
                     (float)rect.Height * 1.35f);
                 specular = CreateStripe(
                     compositor,
-                    Color.FromArgb(255, 255, 255, 255),
+                    _specularShade,
                     30,
                     (float)rect.Height * 1.35f);
                 motionRoot.Children.InsertAtTop(crease);
@@ -249,6 +286,7 @@ public sealed class CardFoldVisualCoordinator : IDisposable
     private void ClearSession()
     {
         _overlayRoot.Children.RemoveAll();
+        _overlayRoot.TransformMatrix = Matrix4x4.Identity;
         foreach (SessionEntry entry in _session.Values)
         {
             entry.Redirect.Source = null;
@@ -257,6 +295,29 @@ public sealed class CardFoldVisualCoordinator : IDisposable
         }
         _session.Clear();
         _prepared = false;
+    }
+
+    private void ApplyPerspective(float width, float height)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            _overlayRoot.TransformMatrix = Matrix4x4.Identity;
+            return;
+        }
+
+        float distance = Math.Max(
+            MinimumPerspectiveDistance,
+            Math.Max(width, height) * PerspectiveDistanceFactor);
+        Matrix4x4 perspective = Matrix4x4.Identity;
+        perspective.M34 = -1 / distance;
+
+        // Project about the overlay centre. Anything at Z = 0 -- the blockers and
+        // every settled mirror -- passes through this matrix unchanged, so the
+        // camera cannot shift a card that has already landed.
+        _overlayRoot.TransformMatrix =
+            Matrix4x4.CreateTranslation(-width / 2, -height / 2, 0) *
+            perspective *
+            Matrix4x4.CreateTranslation(width / 2, height / 2, 0);
     }
 
     private static SpriteVisual CreateStripe(
@@ -284,7 +345,8 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             return;
         }
         stripe.Offset = new Vector3(
-            phaseOffset + (float)((p.Scale - 0.27) / 0.73) *
+            phaseOffset + (float)((p.Scale - CardFoldPath.ClosedScale) /
+                (1 - CardFoldPath.ClosedScale)) *
                 Math.Max(1, stripe.Parent.Size.X),
             -stripe.Size.Y * 0.16f,
             2);
@@ -294,9 +356,10 @@ public sealed class CardFoldVisualCoordinator : IDisposable
     private static RectangleClip CreateRoundedClip(
         Compositor compositor,
         float width,
-        float height)
+        float height,
+        float cornerRadius)
     {
-        var radius = new Vector2(CornerRadius);
+        var radius = new Vector2(cornerRadius);
         // Right and bottom are absolute clip edges, not insets. Passing zero
         // for either edge clips the entire mirror to a zero-area rectangle.
         return compositor.CreateRectangleClip(
@@ -310,16 +373,52 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             radius);
     }
 
-    private static Color ResolveCardColor(FrameworkElement element)
+    private static Color ResolveCardColor(
+        FrameworkElement element,
+        Color themeBackground)
     {
         if (element is Border border &&
             border.Background is SolidColorBrush brush)
         {
-            Color color = brush.Color;
-            color.A = 245;
-            return color;
+            // Card surfaces are translucent over the panel material. Compositing
+            // the card's own colour onto the theme background reproduces what is
+            // on screen without inventing a second palette.
+            return Composite(brush.Color, themeBackground);
         }
-        return Color.FromArgb(245, 247, 250, 253);
+        return themeBackground;
+    }
+
+    private static float ResolveCornerRadius(FrameworkElement element)
+    {
+        if (element is Border border)
+        {
+            return (float)border.CornerRadius.TopLeft;
+        }
+
+        if (Application.Current?.Resources is { } resources &&
+            resources.ContainsKey("WwbCardCornerRadius") &&
+            resources["WwbCardCornerRadius"] is CornerRadius radius)
+        {
+            return (float)radius.TopLeft;
+        }
+
+        return 0;
+    }
+
+    private static Color Opaque(Color color) =>
+        Color.FromArgb(255, color.R, color.G, color.B);
+
+    private static double Luminance(Color color) =>
+        0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B;
+
+    private static Color Composite(Color source, Color over)
+    {
+        double alpha = source.A / 255.0;
+        return Color.FromArgb(
+            255,
+            (byte)Math.Round(source.R * alpha + over.R * (1 - alpha)),
+            (byte)Math.Round(source.G * alpha + over.G * (1 - alpha)),
+            (byte)Math.Round(source.B * alpha + over.B * (1 - alpha)));
     }
 
     private static float DegreesToRadians(double degrees) =>

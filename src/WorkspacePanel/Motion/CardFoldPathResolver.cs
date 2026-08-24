@@ -20,6 +20,12 @@ public readonly record struct CardFoldPath(
     double PivotX, double PivotY, double AxisX, double AxisY,
     double FoldAngle, double RotationZ, double Lift)
 {
+    // The scale the mirror starts at. The overlay camera adds its own recession on
+    // top of this (see CardFoldVisualCoordinator), so the two together set how
+    // small a card reads at the hinge. Exposed because the crease and specular
+    // phase is driven off the same range.
+    public const double ClosedScale = 0.30;
+
     public CardFoldPresentation Evaluate(double rawProgress)
     {
         double raw = Math.Clamp(rawProgress, 0, 1);
@@ -30,7 +36,7 @@ public readonly record struct CardFoldPath(
             Quadratic(progress, StartX, ControlX),
             Quadratic(progress, StartY, ControlY),
             -175 * inverse + energy * Lift,
-            0.27 + 0.73 * (1 - Math.Pow(inverse, 1.35)),
+            ClosedScale + (1 - ClosedScale) * (1 - Math.Pow(inverse, 1.35)),
             AxisX,
             AxisY,
             inverse * FoldAngle,
