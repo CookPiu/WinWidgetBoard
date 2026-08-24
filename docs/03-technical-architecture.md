@@ -45,6 +45,9 @@ flowchart LR
 - 不引用 WinUI、SQLite、HTTP 或托管 UI 运行时；
 - 不包含卡片业务；
 - 不注入、Hook 或读取 Explorer 私有 XAML；只读取用户级任务栏对齐设置与系统主题设置；
+- 入口以任务栏顶层窗口为 owner（`GWLP_HWNDPARENT`），使其恒在任务栏之上；只按类名取
+  `Shell_TrayWnd` / `Shell_SecondaryTrayWnd` 这一层，不进入 Explorer 的子控件或 XAML 元素，
+  解析不到时降级为普通 topmost 窗口并靠重置维持层级；
 - 入口偏好（对齐、左对齐回退、显示内容）存放在 `HKCU\Software\WinWidgetBoard\Launcher`，
   因为入口必须先于 Broker 连接完成定位；用户数据仍只由 CoreBroker 持有；
 - **创建**面板与 CoreBroker 进程并持有其生命周期，但不承担二者的任何职责（ADR-0026）；

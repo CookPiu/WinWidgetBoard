@@ -128,13 +128,20 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 6. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。
 7. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
 8. 完整显示、无障碍、性能和发布矩阵尚未执行。
-9. 入口与任务栏、以及其他 topmost 第三方任务栏扩展共享层级。**Explorer 在处理窗口激活时会把
-   `Shell_TrayWnd` 重新提到 topmost**，从而短暂盖住入口——这就是「遇到最大化窗口时胶囊会闪一下」
-   的成因（不是可见性，也不是重定位：实测窗口始终 `vis=True`、矩形不变，只是 z-order 被压下去）。
-   现已改为在 `EVENT_SYSTEM_FOREGROUND` 上立即重置 topmost，并在其后 40 ms 三连补刀，覆盖
-   Explorer 先于或后于我们重排的两种次序；500 ms 可见性轮询保留为兜底。
-   参考机实测（11 次「新建窗口 → 激活 → 最大化」）：仅轮询时出现 1 次覆盖、持续 338 ms；
-   加入 hook 后连续 3 轮均为 **0 次**。真实回归仍须先等待入口占据自身中心点再点击。
+9. **入口已改为任务栏窗口的 owned window**（`GWLP_HWNDPARENT`），不再与任务栏争 topmost。
+   成因：Explorer 在处理窗口激活时会把 `Shell_TrayWnd` 重新提到 topmost 顶端，短暂盖住入口，
+   表现为「从任务栏打开最大化窗口时胶囊闪一下」；不是可见性也不是重定位，实测入口始终
+   `IsWindowVisible=True`、矩形不变，只是 z-order 被压下去。
+   `EVENT_SYSTEM_FOREGROUND` 上重置 topmost 加 40 ms 三连补刀不足以消除：参考机实测单次覆盖
+   47–393 ms，Explorer 在 120 ms 补刀窗口之后重排时只能等 500 ms 轮询兜底。owned 窗口恒在 owner
+   之上，从结构上退出这场竞争；只按类名取任务栏顶层窗口，解析不到时降级回原重置路径，
+   `EVENT_SYSTEM_FOREGROUND` hook 与 500 ms 轮询都保留。
+   参考机实测（单显示器，200% 缩放，按 Explorer 的方式重排任务栏 5 次）：改动前 5/5 被盖住，
+   改动后 **0/5**；`Test-LauncherEntryPlacement.ps1` 连续 5 轮全绿（新增 `ENTRY-ZORDER-PASS`）。
+   Explorer 重启：跨进程 owner 被销毁只会把 owner 清零而不销毁 owned 窗口，入口窗口存活，
+   `TaskbarCreated` 上重新挂到新任务栏——实测 owner 由 `65934` 更新为 `6557024`，重排后仍 0/5。
+   多显示器（`Shell_SecondaryTrayWnd`，按入口所在监视器匹配）已实现但本机只有单显示器，未实测。
+   其他 topmost 第三方任务栏扩展仍与入口共享层级，真实回归仍须先等待入口占据自身中心点再点击。
 10. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
 
 ## 6. 当前工作

@@ -253,13 +253,13 @@ bool LauncherWindow::Create(
     // the capsule even for one visibility-poll interval.
     UpdateFullscreenVisibility();
     ApplyPlacement();
+    EnsureTaskbarOwner();
     SetTimer(_window, kVisibilityTimerId, kVisibilityPollMilliseconds, nullptr);
 
-    // The taskbar and this entry share the topmost band, and Explorer raises Shell_TrayWnd
-    // whenever it handles a window activation. Waiting for the next visibility poll left the
-    // capsule covered for up to half a second every time - the blink this hook removes.
-    // Out-of-context so the callback is delivered to this message queue rather than injected
-    // into every process on the desktop.
+    // Full-screen visibility has to react to activations, and the topmost re-assertion the
+    // same handler performs is what carries the z-order when the entry has no taskbar owner
+    // to hang from. Out-of-context so the callback is delivered to this message queue rather
+    // than injected into every process on the desktop.
     g_entryWindowForHook = _window;
     _foregroundHook = SetWinEventHook(
         EVENT_SYSTEM_FOREGROUND,
@@ -300,6 +300,7 @@ void LauncherWindow::Destroy()
         KillTimer(_window, kTopmostTimerId);
         DestroyWindow(_window);
         _window = nullptr;
+        _taskbarOwner = nullptr;
     }
 
     if (_classRegistered && _instance != nullptr)
@@ -367,6 +368,9 @@ void LauncherWindow::Reposition()
 
     UpdateFullscreenVisibility();
     ApplyPlacement();
+    // The entry may have just moved to another monitor, and every monitor with a taskbar
+    // has its own strip; the one it hung from before is not above it any more.
+    EnsureTaskbarOwner();
 }
 
 void LauncherWindow::ApplyPlacement()
@@ -407,7 +411,7 @@ void LauncherWindow::ApplyPlacement()
         _placement.windowRect.top,
         _placement.windowRect.right - _placement.windowRect.left,
         _placement.windowRect.bottom - _placement.windowRect.top,
-        SWP_NOACTIVATE | visibilityFlag) == FALSE)
+        SWP_NOACTIVATE | SWP_NOOWNERZORDER | visibilityFlag) == FALSE)
     {
         Log(L"SetWindowPos(HWND_TOPMOST) failed: " +
             std::to_wstring(GetLastError()));
@@ -977,6 +981,88 @@ void LauncherWindow::EnsureTopmost()
     }
 }
 
+HWND LauncherWindow::ResolveTaskbarWindow() const
+{
+    // Only the taskbar's own top-level window class, and only to name it as an owner. This
+    // does not walk into Explorer's child controls or XAML element names: that hierarchy is
+    // private, Explorer rewrites it between releases, and reaching into it is what makes the
+    // shell add-ons that do so break on every taskbar revision.
+    const HWND primary = FindWindowW(L"Shell_TrayWnd", nullptr);
+    if (primary != nullptr &&
+        MonitorFromWindow(primary, MONITOR_DEFAULTTONULL) == _monitor)
+    {
+        return primary;
+    }
+
+    // "Show taskbar on all displays" gives every other monitor its own strip. The entry must
+    // hang from the one on its own monitor - the primary one is not above it.
+    HWND secondary = nullptr;
+    while ((secondary = FindWindowExW(
+                nullptr,
+                secondary,
+                L"Shell_SecondaryTrayWnd",
+                nullptr)) != nullptr)
+    {
+        if (MonitorFromWindow(secondary, MONITOR_DEFAULTTONULL) == _monitor)
+        {
+            return secondary;
+        }
+    }
+    return nullptr;
+}
+
+void LauncherWindow::EnsureTaskbarOwner()
+{
+    if (_window == nullptr)
+    {
+        return;
+    }
+
+    // An owned window is always above its owner, so this is what keeps the entry out of the
+    // race for the shared topmost band. Explorer re-stacks the taskbar whenever it handles an
+    // activation - clicking the taskbar or raising a window that covers the work area both do
+    // it - and the entry, being just another topmost window, went under for the length of one
+    // re-assert. Measured before this: the taskbar sat above the entry for 47-393 ms per
+    // activation, which reads as the capsule blinking.
+    if (_taskbarOwner != nullptr &&
+        IsWindow(_taskbarOwner) != FALSE &&
+        MonitorFromWindow(_taskbarOwner, MONITOR_DEFAULTTONULL) == _monitor &&
+        reinterpret_cast<HWND>(GetWindowLongPtrW(_window, GWLP_HWNDPARENT)) ==
+            _taskbarOwner)
+    {
+        return;
+    }
+
+    const HWND taskbar = ResolveTaskbarWindow();
+    if (taskbar == nullptr)
+    {
+        // No taskbar on this monitor, or a Windows release that no longer answers to that
+        // class. Neither is fatal: the entry stays an ordinary topmost window and
+        // EnsureTopmost carries the z-order exactly as it did before.
+        _taskbarOwner = nullptr;
+        return;
+    }
+
+    SetLastError(0);
+    SetWindowLongPtrW(
+        _window,
+        GWLP_HWNDPARENT,
+        reinterpret_cast<LONG_PTR>(taskbar));
+    if (reinterpret_cast<HWND>(GetWindowLongPtrW(_window, GWLP_HWNDPARENT)) != taskbar)
+    {
+        _taskbarOwner = nullptr;
+        Log(L"SetWindowLongPtr(GWLP_HWNDPARENT) failed: " +
+            std::to_wstring(GetLastError()));
+        return;
+    }
+
+    _taskbarOwner = taskbar;
+    // Changing the owner does not restack the window on its own; the new relationship is
+    // applied the next time the window is positioned.
+    EnsureTopmost();
+    Log(L"launcher entry owned by the taskbar window");
+}
+
 void LauncherWindow::UpdateFullscreenVisibility()
 {
     if (_window == nullptr)
@@ -1227,6 +1313,7 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
             self->_coreBroker.Poll();
             self->PollPanelProcess();
             self->UpdateFullscreenVisibility();
+            self->EnsureTaskbarOwner();
             self->EnsureTopmost();
         }
         else if (wParam == kContentTimerId)
@@ -1276,6 +1363,10 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         if (message == self->_taskbarCreatedMessage &&
             self->_taskbarCreatedMessage != 0)
         {
+            // Explorer restarted. Killing its process leaves this window alive with a null
+            // owner rather than destroying it, so the entry survives - but it has to be
+            // hung off the new taskbar before it can be covered by it again.
+            self->EnsureTaskbarOwner();
             self->ScheduleReposition();
             return 0;
         }

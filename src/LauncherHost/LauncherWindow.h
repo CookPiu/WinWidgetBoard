@@ -68,6 +68,11 @@ private:
     void LogPlacement(const MonitorSnapshot& snapshot) const;
     void Log(const std::wstring& message) const;
     void EnsureTopmost();
+    // Hangs the entry off the taskbar as an owned window, so Explorer raising the taskbar
+    // can no longer cover it. Degrades to the topmost re-assertion when no taskbar window
+    // resolves.
+    void EnsureTaskbarOwner();
+    [[nodiscard]] HWND ResolveTaskbarWindow() const;
     void UpdateFullscreenVisibility();
     void PollPanelProcess();
     [[nodiscard]] bool IsFullscreenForeground() const;
@@ -88,6 +93,10 @@ private:
     // Short re-asserts still owed after the current activation. Zero when none is in flight,
     // which is also when the settle timer is not running at all.
     int _topmostSettleTicksLeft{};
+    // The taskbar the entry currently hangs from, or null when none resolved. Explorer
+    // restarts replace that window, so this is re-resolved rather than cached for the
+    // process lifetime.
+    HWND _taskbarOwner{};
     HMONITOR _monitor{};
     UINT _taskbarCreatedMessage{};
     UINT _dpi{96};

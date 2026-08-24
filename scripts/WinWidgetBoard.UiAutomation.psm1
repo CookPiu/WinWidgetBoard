@@ -1,4 +1,4 @@
-# Shared UI Automation and acceptance-process helpers for WinWidgetBoard scripts.
+﻿# Shared UI Automation and acceptance-process helpers for WinWidgetBoard scripts.
 # Keep product-specific assertions and input injection in the calling script.
 
 Add-Type -AssemblyName UIAutomationClient
@@ -143,6 +143,75 @@ public static class WinWidgetBoardUiAutomationInput
             return false;
         }, IntPtr.Zero);
         return found;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr FindWindowW(string className, string windowName);
+
+    // Wrapped because PowerShell binds $null to a string parameter as the empty string,
+    // which asks FindWindow for a window whose title is empty rather than for any title.
+    public static IntPtr FindWindowByClass(string className)
+    {
+        return FindWindowW(className, null);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetTopWindow(IntPtr window);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr window, uint command);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr window,
+        IntPtr insertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
+
+    private const uint GwHwndNext = 2;
+    private static readonly IntPtr HwndTopmost = new IntPtr(-1);
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+
+    // Which of two windows is nearer the front. Returns 1 when `first` is above `second`,
+    // -1 when `second` is above `first`, and 0 when neither is in the top-level z-order.
+    // Walking the order is the only reliable comparison: both windows are topmost, so
+    // neither style bits nor a hit test at a point can say which one wins.
+    public static int CompareZOrder(IntPtr first, IntPtr second)
+    {
+        IntPtr current = GetTopWindow(IntPtr.Zero);
+        while (current != IntPtr.Zero)
+        {
+            if (current == first)
+            {
+                return 1;
+            }
+            if (current == second)
+            {
+                return -1;
+            }
+            current = GetWindow(current, GwHwndNext);
+        }
+        return 0;
+    }
+
+    // Exactly what Explorer does to the taskbar while it handles an activation: re-inserts
+    // it at the top of the topmost band without moving, resizing or activating it.
+    public static bool RaiseToTopmost(IntPtr window)
+    {
+        return SetWindowPos(
+            window,
+            HwndTopmost,
+            0,
+            0,
+            0,
+            0,
+            SwpNoSize | SwpNoMove | SwpNoActivate);
     }
 
     [DllImport("user32.dll")]
@@ -773,6 +842,52 @@ function Get-WindowRectByClass {
     throw "Window class '$ClassName' did not become visible within $($Timeout.TotalSeconds) seconds."
 }
 
+function Get-TaskbarWindowHandle {
+    $handle = [WinWidgetBoardUiAutomationInput]::FindWindowByClass('Shell_TrayWnd')
+    if ($handle -eq [IntPtr]::Zero) {
+        throw 'The primary taskbar window (Shell_TrayWnd) was not found.'
+    }
+
+    return $handle
+}
+
+# Re-stacks the taskbar the way Explorer does on activation, then reports whether the given
+# window is still in front of it.
+function Test-WindowStaysAboveTaskbar {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle,
+
+        [int]$Attempts = 5,
+
+        [int]$SettleMilliseconds = 150
+    )
+
+    $taskbar = Get-TaskbarWindowHandle
+    $covered = 0
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        if (-not [WinWidgetBoardUiAutomationInput]::RaiseToTopmost($taskbar)) {
+            $raiseError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            throw "SetWindowPos(HWND_TOPMOST) on the taskbar failed (Win32 error $raiseError)."
+        }
+
+        Start-Sleep -Milliseconds $SettleMilliseconds
+        $relation = [WinWidgetBoardUiAutomationInput]::CompareZOrder($Handle, $taskbar)
+        if ($relation -eq 0) {
+            throw 'Neither the window nor the taskbar is in the top-level z-order.'
+        }
+        if ($relation -lt 0) {
+            $covered++
+        }
+    }
+
+    return [pscustomobject]@{
+        Attempts = $Attempts
+        Covered = $covered
+        Taskbar = $taskbar
+    }
+}
+
 function Get-WindowOwnerProcessAtPoint {
     param(
         [int]$X,
@@ -1048,6 +1163,8 @@ Export-ModuleMember -Function @(
     'Focus-PanelWindow',
     'Get-WindowRectByClass',
     'Get-WindowOwnerProcessAtPoint',
+    'Get-TaskbarWindowHandle',
+    'Test-WindowStaysAboveTaskbar',
     'Invoke-LeftClickAtPoint',
     'Move-PointerToPoint',
     'Save-ScreenRegionCapture',

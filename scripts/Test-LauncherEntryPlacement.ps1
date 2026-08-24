@@ -1,14 +1,16 @@
 ﻿<#
 .SYNOPSIS
     Real-desktop regression for the taskbar entry: embedded placement, adaptive width,
-    full-screen hiding, click-to-toggle and pass-through outside the entry.
+    z-order against the taskbar, full-screen hiding, click-to-toggle and pass-through
+    outside the entry.
 
 .DESCRIPTION
     Starts the real Release x64 LauncherHost and asserts that the entry window lands inside
     the taskbar strip derived from the monitor and work area, honours the configured
-    alignment, keeps its width inside the supported range, stays hidden through a placement
-    refresh while a foreground window covers the monitor, restores after full-screen exits,
-    toggles the panel on click, and lets pointer input through outside its own rounded shape.
+    alignment, keeps its width inside the supported range, stays in front of the taskbar
+    after Explorer re-stacks it, stays hidden through a placement refresh while a foreground
+    window covers the monitor, restores after full-screen exits, toggles the panel on click,
+    and lets pointer input through outside its own rounded shape.
 
     LauncherHost runs with --no-broker, so it does not auto-start CoreBroker: the panel this
     test opens has nothing to persist to and the production database is never touched. Only
@@ -169,9 +171,10 @@ try {
     }
     Write-Output "ENTRY-PASSTHROUGH-PASS point=($outsideX,$outsideY) ownerPid=$outside"
 
-    # Topmost z-order is shared, not owned: another topmost shell add-on can sit above the
-    # entry until the launcher re-asserts it. Wait for the entry to actually own its own
-    # centre, otherwise the click lands in whatever is covering it.
+    # Owning the taskbar settles the entry against the taskbar only; the topmost band is
+    # still shared with any other shell add-on, which can sit above the entry until the
+    # launcher re-asserts it. Wait for the entry to actually own its own centre, otherwise
+    # the click lands in whatever is covering it.
     $ownerDeadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
         $centerOwner = Get-WindowOwnerProcessAtPoint -X $entry.CenterX -Y $entry.CenterY
@@ -182,6 +185,19 @@ try {
         throw ("The entry never reached the top of the z-order at " +
             "($($entry.CenterX),$($entry.CenterY)); owner pid $centerOwner covers it.")
     }
+
+    # The entry is an owned window of the taskbar, which is what keeps it out of the race
+    # for the shared topmost band. Re-stack the taskbar exactly as Explorer does while it
+    # handles an activation: an owned window must stay in front of its owner every time.
+    # Without the owner this covered the entry on every raise, and the capsule blinked until
+    # the launcher re-asserted topmost 47-393 ms later.
+    $zOrder = Test-WindowStaysAboveTaskbar -Handle $entry.Handle
+    if ($zOrder.Covered -ne 0) {
+        throw ("The taskbar covered the entry on $($zOrder.Covered) of " +
+            "$($zOrder.Attempts) re-stacks; the entry is not owned by the taskbar.")
+    }
+    Write-Output ("ENTRY-ZORDER-PASS taskbar=$($zOrder.Taskbar) " +
+        "raises=$($zOrder.Attempts) covered=$($zOrder.Covered)")
 
     if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
         $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
@@ -275,8 +291,8 @@ try {
     }
     Write-Output 'ENTRY-FULLSCREEN-RESTORE-PASS'
 
-    # Closing the full-screen window can give Explorer one more opportunity to re-stack the
-    # taskbar. Wait again before sending the real click to the restored entry.
+    # Closing the full-screen window can give another topmost add-on one more opportunity to
+    # take the front. Wait again before sending the real click to the restored entry.
     $ownerDeadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
         $centerOwner = Get-WindowOwnerProcessAtPoint -X $entry.CenterX -Y $entry.CenterY
@@ -303,7 +319,8 @@ try {
 
     Write-Output "ENTRY-CLICK-PASS panelPid=$($panel.Id)"
     Stop-WinWidgetBoardProcess -Process $panel
-    Write-Output 'REAL-LAUNCHER-ENTRY-PASS placement+passthrough+fullscreen+click'
+    Write-Output ('REAL-LAUNCHER-ENTRY-PASS ' +
+        'placement+passthrough+zorder+fullscreen+click')
 }
 catch {
     $failure = $_
