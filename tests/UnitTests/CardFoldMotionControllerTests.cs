@@ -6,7 +6,7 @@ namespace WinWidgetBoard.UnitTests;
 [TestClass]
 public sealed class CardFoldMotionControllerTests
 {
-    [TestMethod]
+    [TestMethod(DisplayName = "UT-CARD-FOLD-001 [PNL-003] Arbitrary card set opens in stable order")]
     public void ArbitraryCardSetOpensInStableOrder()
     {
         var controller = new CardFoldMotionController(false);
@@ -19,7 +19,7 @@ public sealed class CardFoldMotionControllerTests
         Assert.IsTrue(controller.Values.All(v => Math.Abs(v.Progress - 1) < 0.0001));
     }
 
-    [TestMethod]
+    [TestMethod(DisplayName = "UT-CARD-FOLD-002 [CRD-003] Reorder preserves presentation by instance identity")]
     public void ReorderPreservesPresentationByInstanceIdentity()
     {
         var controller = new CardFoldMotionController(false);
@@ -33,7 +33,7 @@ public sealed class CardFoldMotionControllerTests
             Assert.AreEqual(before[value.InstanceId], value.Progress, 0.000001);
     }
 
-    [TestMethod]
+    [TestMethod(DisplayName = "UT-CARD-FOLD-003 [PNL-004] Close to open retarget keeps continuous progress")]
     public void CloseToOpenRetargetKeepsContinuousProgress()
     {
         var controller = new CardFoldMotionController(false);
@@ -49,7 +49,7 @@ public sealed class CardFoldMotionControllerTests
         Assert.IsTrue(Math.Abs(after - before) < 0.2);
     }
 
-    [TestMethod]
+    [TestMethod(DisplayName = "UT-CARD-FOLD-004 [NFR-A11Y-001] Reduced motion keeps cards flat")]
     public void ReducedMotionKeepsCardsFlat()
     {
         var controller = new CardFoldMotionController(true);
@@ -60,7 +60,7 @@ public sealed class CardFoldMotionControllerTests
         Assert.IsTrue(controller.Values.All(v => v.Progress == 1));
     }
 
-    [TestMethod]
+    [TestMethod(DisplayName = "UT-CARD-FOLD-005 [CRD-003] Duplicate identity is rejected")]
     public void DuplicateIdentityIsRejected()
     {
         var controller = new CardFoldMotionController(false);
