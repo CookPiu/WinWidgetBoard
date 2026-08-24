@@ -539,48 +539,59 @@ public sealed class WorkspaceVisualFoundationContractTests
                 StringComparison.Ordinal));
     }
 
-    [TestMethod(DisplayName = "UT-UI-007 [PNL-006] Card fold mirrors keep a non-zero rounded clip")]
-    public void CardFoldMirrorsKeepANonZeroRoundedClip()
+    [TestMethod(DisplayName = "UT-UI-007 [PNL-006] Card fold never samples a live element visual")]
+    public void CardFoldNeverSamplesALiveElementVisual()
     {
         string source = File.ReadAllText(GetSourcePath(
             "src",
             "WorkspacePanel",
             "Motion",
-            "CardFoldVisualCoordinator.cs")).Replace("\r\n", "\n");
-        int clipStart = source.IndexOf(
-            "private static RectangleClip CreateRoundedClip(",
-            StringComparison.Ordinal);
-        int clipEnd = source.IndexOf(
-            "private static Color ResolveCardColor(",
-            clipStart,
-            StringComparison.Ordinal);
-        Assert.IsGreaterThanOrEqualTo(0, clipStart);
-        Assert.IsGreaterThan(clipStart, clipEnd);
+            "CardFoldVisualCoordinator.cs"));
 
-        string clip = source[clipStart..clipEnd];
-        StringAssert.Contains(
-            clip,
-            "0,\n            0,\n            width,\n            height,");
-        Assert.IsFalse(clip.Contains(
-            "CreateRectangleClip(\n            0,\n            0,\n            0,\n            0,",
-            StringComparison.Ordinal));
-        StringAssert.Contains(source, "CreateRedirectVisual(source)");
-        StringAssert.Contains(
-            source,
-            "(float)path.PivotX,\n                (float)path.PivotY,");
-        StringAssert.Contains(source, "Quaternion.CreateFromAxisAngle(");
-        Assert.IsFalse(source.Contains(
-            "motionRoot.CenterPoint = new Vector3(0, (float)rect.Height, 0);",
-            StringComparison.Ordinal));
+        // Handing a live card's visual to the compositor as a source displaced that
+        // subtree's XAML hit-test geometry by a full grid row and never restored it:
+        // the panel arranged and painted correctly while pointer input landed a row
+        // lower. Measured for both APIs, so neither may come back.
+        foreach (string banned in new[]
+                 {
+                     "CreateRedirectVisual",
+                     "CreateVisualSurface",
+                     "SourceVisual",
+                     "SetElementChildVisual",
+                     "GetElementVisual",
+                 })
+        {
+            Assert.IsFalse(
+                source.Contains(banned, StringComparison.Ordinal),
+                $"{banned} re-hosts a live card visual and breaks hit testing.");
+        }
 
-        int prepare = source.IndexOf(
-            "public IReadOnlyList<string> Prepare(",
+        // The fold runs on the card's own RenderTransform, which XAML hit-testing
+        // follows, so pointer input tracks the picture even mid-fold. The element
+        // level composition transforms are not an option here anyway: they throw
+        // UnauthorizedAccessException on an element that already has one.
+        StringAssert.Contains(source, "element.RenderTransform as CompositeTransform");
+        StringAssert.Contains(source, "CardFoldPathResolver.ResolveFoldScale(presentation)");
+
+        // It has to land on exact identity, or a card stays painted off its arranged
+        // position for the rest of that element's life.
+        StringAssert.Contains(source, "transform.ScaleX = 1;");
+        StringAssert.Contains(source, "transform.TranslateY = 0;");
+        StringAssert.Contains(source, "element.Opacity = 1;");
+
+        // Reset has to run when a recycled element is cleared, not only on Complete.
+        int unregister = source.IndexOf(
+            "public void Unregister(",
             StringComparison.Ordinal);
-        int attach = source.IndexOf(
-            "SetElementChildVisual(",
-            prepare,
+        Assert.IsGreaterThanOrEqualTo(0, unregister);
+        int unregisterEnd = source.IndexOf(
+            "    public IReadOnlyList<string> Prepare(",
+            unregister,
             StringComparison.Ordinal);
-        Assert.IsGreaterThan(prepare, attach);
+        Assert.IsGreaterThan(unregister, unregisterEnd);
+        StringAssert.Contains(
+            source[unregister..unregisterEnd],
+            "ResetElement(");
     }
 
     [TestMethod(DisplayName = "UT-UI-008 [PNL-006] Panel motion follows composition render cadence")]

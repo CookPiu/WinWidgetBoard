@@ -1567,11 +1567,6 @@
                 </Grid>
             </ScrollViewer>
 
-            <Grid
-                x:Name="CardMotionOverlay"
-                Canvas.ZIndex="100"
-                Grid.RowSpan="2"
-                IsHitTestVisible="False" />
         </Grid>
     </Grid>
 </Window>

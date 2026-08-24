@@ -217,10 +217,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 $"WorkspacePanel geometry rejected: {_placement.Reason}");
         }
 
-        _cardFoldVisuals = new CardFoldVisualCoordinator(
-            CardMotionOverlay,
-            _reducedMotion,
-            _highContrast);
+        _cardFoldVisuals = new CardFoldVisualCoordinator(_reducedMotion);
         _motion = new PanelMotionCoordinator(
             _reducedMotion,
             ApplyPanelMotion,
