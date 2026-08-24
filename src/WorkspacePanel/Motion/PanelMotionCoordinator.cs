@@ -11,7 +11,7 @@ public readonly record struct MotionFrameTiming(
 
 public sealed class PanelMotionCoordinator : IDisposable
 {
-    private readonly PanelMotionController _panel = new(false);
+    private readonly PanelMotionController _panel;
     private readonly CardFoldMotionController _folds;
     private readonly CardReturnMotionController _cardReturn;
     private readonly Action<PanelMotionValue> _applyPanel;

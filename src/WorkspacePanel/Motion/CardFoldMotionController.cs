@@ -14,8 +14,11 @@ public sealed class CardFoldMotionController
     private const double LastOpen = 13.2;
     private const double FirstClose = 17.2;
     private const double LastClose = 21.6;
-    private const double ValueEpsilon = 0.001;
-    private const double VelocityEpsilon = 0.025;
+    // Progress drives opacity, so one 8-bit alpha step is the smallest change that
+    // can still be seen. A tighter bound only kept the render loop and the close
+    // handoff alive after the fold stopped moving on screen.
+    private const double ValueEpsilon = 0.004;
+    private const double VelocityEpsilon = 0.05;
     private readonly bool _reducedMotion;
     private List<Channel> _channels = [];
     private CardFoldMotionValue[] _values = [];
@@ -72,6 +75,9 @@ public sealed class CardFoldMotionController
         _targetOpen = false;
         if (_reducedMotion)
         {
+            // Reduced motion has no fold, so the cards stay at their landed
+            // presentation and the panel material alone carries the transition.
+            // Snapping to 0 here would fold them away with no animation.
             Snap(1);
             return;
         }
