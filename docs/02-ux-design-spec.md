@@ -488,6 +488,8 @@ CardSurface (WwbCardSurfaceStyle, MinHeight=160)
 - 进入使用 ease-out，屏幕内移动使用 ease-in-out，颜色和悬停使用短 ease；不使用让操作初段迟钝的 ease-in；
 - 优先只动画 `Opacity`、`Scale`、`Translation` 等合成层属性；
 - 不动画 `Width`、`Height`、`Margin` 等会持续触发布局的属性；
+- 面板开合、卡片折页和拖动回弹使用 `CompositionTarget.Rendering` 跟随当前 XAML 合成目标；
+  不用固定 `16 ms` 定时器模拟 60 Hz，弹簧按 `Stopwatch` 实际帧间隔推进；
 - 不使用 `transition all`、无因弹跳、长弹簧尾巴或无法中断的故事板；
 - 反向操作必须从当前显示值继续，不能先跳回起点。
 
@@ -505,6 +507,9 @@ CardSurface (WwbCardSurfaceStyle, MinHeight=160)
 卡片通道以稳定 `InstanceId` 为身份，数量、顺序和尺寸均由当前已实现元素实时解析；新增或重排卡片不需要新增动效分支。第一张到最后一张的展开角频率在 `17.6 → 13.2` 之间按当前卡片数量归一化，较确认预览整体略慢；关闭使用反向排序的 `17.2 → 21.6`，后到卡片先折回。
 
 首次展开必须等待 `RootGrid` Loaded 且当前可见卡片完成实现后再创建镜像。每个镜像的 `RectangleClip` 使用 `(0, 0, width, height)` 真实边界；`right` / `bottom` 不得置零，否则镜像会被裁成零面积，只剩整体淡化。
+
+帧源由当前窗口所在显示器的 XAML 合成目标决定，自动适配 60 / 120 / 144 / 165 Hz 等刷新率；
+切换显示器不缓存或硬编码刷新率。窗口位置只在几何应用时设置，不在每个动效帧重复调用 `SetWindowPos`。
 
 每张卡片的源点是胶囊中心，折页包含独立 X/Y/Z 旋转、透视深度、比例、折痕高光和目标槽。运动中反向只改变弹簧目标，保留当前进度与速度；落地时位移、三轴旋转和比例精确回到恒等值，再原子切回真实卡片，不替换 `CardSurfaceItem`，不影响拖动、缩放、命中测试或 UIA 身份。
 

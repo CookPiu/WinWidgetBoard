@@ -84,6 +84,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly bool _keepOpenForAcceptance;
     private bool _cardItemsBound;
     private bool _nativeOpacitySupported;
+    private byte? _lastNativeOpacityAlpha;
     private int _modalScopeDepth;
     private bool _deferredCloseRequest;
     private bool _isHiddenForResidency;
@@ -222,14 +223,14 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _highContrast);
         _motion = new PanelMotionCoordinator(
             _reducedMotion,
-            _uiDispatcherQueue,
             ApplyPanelMotion,
             ApplyCardFoldMotion,
             _cardFoldVisuals.Complete,
             ApplyDemoNotesCardReturn,
             () => _demoNotesCardDrag.IsActive,
             offset => _demoNotesCardDrag.SetOffset(offset),
-            CloseAfterMotion);
+            CloseAfterMotion,
+            ReportMotionFrameTiming);
         _appWindow.Closing += AppWindow_Closing;
         // SetForegroundWindow from the launcher does not reliably raise Activated, so the
         // re-show hook hangs off the window's own visibility change instead.
@@ -1927,20 +1928,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         IReadOnlyList<CardFoldMotionValue> values) =>
         _cardFoldVisuals.Apply(values);
 
+    private static void ReportMotionFrameTiming(MotionFrameTiming timing)
+    {
+        StartupTrace.Mark(string.Format(
+            CultureInfo.InvariantCulture,
+            "motion-frame-cadence count={0} averageMs={1:F2} maximumMs={2:F2}",
+            timing.FrameCount,
+            timing.AverageMilliseconds,
+            timing.MaximumMilliseconds));
+    }
+
     private void ApplyPanelMotion(PanelMotionValue value)
     {
-        NativeWindowStyles.Move(
-            _windowHandle,
-            _placement.WindowRect.Left,
-            _placement.WindowRect.Top);
-        PanelMotionTransform.TranslateX = 0;
-        PanelMotionTransform.TranslateY = 0;
-        PanelMotionTransform.ScaleX = 1;
-        PanelMotionTransform.ScaleY = 1;
-        HeaderBar.Translation = Vector3.Zero;
-        HeaderBar.Opacity = 1;
-        ContentScrollViewer.Translation = Vector3.Zero;
-        ContentScrollViewer.Opacity = 1;
         ApplyHeaderReveal(value.Opacity);
 
         if (_nativeOpacitySupported)
@@ -1949,13 +1948,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 (int)Math.Round(value.Opacity * byte.MaxValue),
                 0,
                 byte.MaxValue);
+            if (_lastNativeOpacityAlpha == alpha)
+            {
+                return;
+            }
             if (NativeWindowStyles.TrySetOpacity(_windowHandle, alpha))
             {
-                RootGrid.Opacity = 1;
+                _lastNativeOpacityAlpha = alpha;
                 return;
             }
             NativeWindowStyles.DisableLayeredOpacity(_windowHandle);
             _nativeOpacitySupported = false;
+            _lastNativeOpacityAlpha = null;
             Debug.WriteLine(
                 "WorkspacePanel native opacity unavailable; using XAML fallback.");
         }
@@ -1965,14 +1969,23 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void ApplyHeaderReveal(double progress)
     {
         Visual visual = ElementCompositionPreview.GetElementVisual(HeaderBar);
-        if (_reducedMotion || HeaderBar.ActualWidth <= 0)
+        if (_reducedMotion ||
+            HeaderBar.ActualWidth <= 0 ||
+            HeaderBar.ActualHeight <= 0)
         {
             visual.Clip = null;
             return;
         }
-        _headerRevealClip ??= visual.Compositor.CreateRectangleClip();
+        float width = (float)HeaderBar.ActualWidth;
+        float height = (float)HeaderBar.ActualHeight;
+        _headerRevealClip ??= visual.Compositor.CreateRectangleClip(
+            0,
+            0,
+            width,
+            height);
         _headerRevealClip.Right =
-            (float)(HeaderBar.ActualWidth * (1 - Math.Clamp(progress, 0, 1)));
+            width * (float)Math.Clamp(progress, 0, 1);
+        _headerRevealClip.Bottom = height;
         visual.Clip = _headerRevealClip;
     }
 
@@ -2437,18 +2450,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         public static bool TrySetOpacity(IntPtr window, byte alpha) =>
             SetLayeredWindowAttributes(window, 0, alpha, LwaAlpha);
-
-        public static void Move(IntPtr window, int x, int y)
-        {
-            SetWindowPos(
-                window,
-                IntPtr.Zero,
-                x,
-                y,
-                0,
-                0,
-                SwpNoSize | SwpNoActivate | SwpNoZOrder);
-        }
 
         public static void DisableLayeredOpacity(IntPtr window)
         {

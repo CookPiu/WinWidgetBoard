@@ -1371,11 +1371,7 @@
             x:Name="RootGrid"
             Style="{StaticResource WwbPanelRootStyle}"
             IsTabStop="True"
-            KeyDown="RootGrid_KeyDown"
-            RenderTransformOrigin="0.5,0.5">
-            <Grid.RenderTransform>
-                <CompositeTransform x:Name="PanelMotionTransform" />
-            </Grid.RenderTransform>
+            KeyDown="RootGrid_KeyDown">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

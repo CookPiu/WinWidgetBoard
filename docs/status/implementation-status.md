@@ -8,7 +8,7 @@
 
 入口、面板、基础布局、便签和天气已经形成可运行链路。项目停止扩展新卡片和平台能力，当前优先修复核心工作台的可用性、视觉密度和维护债务。
 
-WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和外围留白，把标题、日期、搜索与全局操作合并为单行头部，并统一缩小字号、间距、控件和网格尺度。面板使用系统 Desktop Acrylic、强调色微光和圆角，卡片使用更实的系统语义表面与轻量阴影；便签默认只保留标题、正文、新建和更多操作，Markdown、复制、删除及恢复命令按状态渐进呈现。面板底板固定在最终位置，当前已实现卡片通过顶层 Composition 镜像从任务栏胶囊真实锚点沿独立曲线进行 3D 折页归位；首次打开等待可见卡片完成实现，镜像按真实卡片边界做圆角裁剪，反向保留当前速度，落地后原子切回稳定 CardSurfaceItem。全部动效只改合成层属性，不改变布局、便签、天气或 IPC 数据合同。
+WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和外围留白，把标题、日期、搜索与全局操作合并为单行头部，并统一缩小字号、间距、控件和网格尺度。面板使用系统 Desktop Acrylic、强调色微光和圆角，卡片使用更实的系统语义表面与轻量阴影；便签默认只保留标题、正文、新建和更多操作，Markdown、复制、删除及恢复命令按状态渐进呈现。面板底板固定在最终位置，当前已实现卡片通过顶层 Composition 镜像从任务栏胶囊真实锚点沿独立曲线进行 3D 折页归位；首次打开等待可见卡片完成实现，镜像按真实卡片边界做圆角裁剪，反向保留当前速度，落地后原子切回稳定 CardSurfaceItem。动效帧源跟随当前 XAML 合成目标而非固定 16 ms 定时器，可自动适配窗口所在显示器的刷新率；卡片动效只改合成层属性，不改变布局、便签、天气或 IPC 数据合同。
 
 ## 2. 核心五项
 
@@ -36,7 +36,10 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- Release UnitTests：389/389；
+- Release UnitTests：390/390；
+- 参考机 `3200×2000 @ 165 Hz`、200% DPI：冷开 / 关闭 / 驻留重开的合成帧平均间隔分别为
+  `6.02 / 5.97 / 5.99 ms`，最大间隔为 `8.25 / 6.51 / 7.22 ms`；120 ms 中途反向后保持可见，
+  整段平均 `6.02 ms`、最大 `10.48 ms`。真实胶囊点击、关闭按钮点击和同 PID / 同 HWND 重开通过；
 - CoreBroker 与 WorkspacePanel Release x64 构建：0 警告、0 错误；
 - `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test`、`WinWidgetBoard.WorkspacePanel.exe --smoke-test` 与 `--broker-smoke-test`（配真实 Broker）退出码均为 0；
 - 真实桌面 `WinWidgetBoard.LauncherHost.exe --smoke-test` / `--panel-launch-smoke-test` / `--panel-lifecycle-smoke-test`（均配 `--no-broker`，指向新构建的 Release x64 面板）退出码均为 0：分层弹簧改造后，面板仍能展开、收起后在阀值内隐藏并保持常驻、再次展开为同一进程；

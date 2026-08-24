@@ -1,15 +1,19 @@
-using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Media;
 using System.Diagnostics;
 using WinWidgetBoard.WorkspacePanel.Interaction;
 
 namespace WinWidgetBoard.WorkspacePanel.Motion;
+
+public readonly record struct MotionFrameTiming(
+    int FrameCount,
+    double AverageMilliseconds,
+    double MaximumMilliseconds);
 
 public sealed class PanelMotionCoordinator : IDisposable
 {
     private readonly PanelMotionController _panel = new(false);
     private readonly CardFoldMotionController _folds;
     private readonly CardReturnMotionController _cardReturn;
-    private readonly DispatcherQueueTimer _timer;
     private readonly Action<PanelMotionValue> _applyPanel;
     private readonly Action<IReadOnlyList<CardFoldMotionValue>> _applyFolds;
     private readonly Action _completeFolds;
@@ -17,22 +21,26 @@ public sealed class PanelMotionCoordinator : IDisposable
     private readonly Func<bool> _isDragActive;
     private readonly Action<DragOffset> _setDragOffset;
     private readonly Action _closeAfterMotion;
+    private readonly Action<MotionFrameTiming>? _reportFrameTiming;
     private bool _closeWhenSettles;
+    private bool _isRendering;
     private long _lastTimestamp;
+    private int _frameCount;
+    private double _totalFrameMilliseconds;
+    private double _maximumFrameMilliseconds;
     private int _disposed;
 
     public PanelMotionCoordinator(
         bool reducedMotion,
-        DispatcherQueue dispatcher,
         Action<PanelMotionValue> applyPanel,
         Action<IReadOnlyList<CardFoldMotionValue>> applyFolds,
         Action completeFolds,
         Action<DragOffset> applyReturn,
         Func<bool> isDragActive,
         Action<DragOffset> setDragOffset,
-        Action closeAfterMotion)
+        Action closeAfterMotion,
+        Action<MotionFrameTiming>? reportFrameTiming = null)
     {
-        ArgumentNullException.ThrowIfNull(dispatcher);
         _panel = new PanelMotionController(reducedMotion);
         _folds = new CardFoldMotionController(reducedMotion);
         _cardReturn = new CardReturnMotionController(reducedMotion);
@@ -43,9 +51,7 @@ public sealed class PanelMotionCoordinator : IDisposable
         _isDragActive = isDragActive ?? throw new ArgumentNullException(nameof(isDragActive));
         _setDragOffset = setDragOffset ?? throw new ArgumentNullException(nameof(setDragOffset));
         _closeAfterMotion = closeAfterMotion ?? throw new ArgumentNullException(nameof(closeAfterMotion));
-        _timer = dispatcher.CreateTimer();
-        _timer.Interval = TimeSpan.FromMilliseconds(16);
-        _timer.Tick += Tick;
+        _reportFrameTiming = reportFrameTiming;
     }
 
     public PanelMotionValue PanelValue => _panel.Value;
@@ -61,7 +67,7 @@ public sealed class PanelMotionCoordinator : IDisposable
         _panel.RequestOpen();
         _folds.RequestOpen();
         ApplyCurrent();
-        StartTimerIfNeeded();
+        StartRenderingIfNeeded();
     }
 
     public void RequestClose()
@@ -75,7 +81,7 @@ public sealed class PanelMotionCoordinator : IDisposable
             CloseAfterMotion();
             return;
         }
-        StartTimerIfNeeded();
+        StartRenderingIfNeeded();
     }
 
     public void BeginCardReturn(DragOffset current, DragOffset target)
@@ -83,7 +89,7 @@ public sealed class PanelMotionCoordinator : IDisposable
         _cardReturn.Start(current, target);
         _applyReturn(_cardReturn.Value);
         SyncReturnIfSettled(_cardReturn.Value);
-        StartTimerIfNeeded();
+        StartRenderingIfNeeded();
     }
 
     public void ResetCardReturn()
@@ -100,13 +106,12 @@ public sealed class PanelMotionCoordinator : IDisposable
         _applyReturn(current);
     }
 
-    public void Stop() => _timer.Stop();
+    public void Stop() => StopRendering(reportTiming: false);
 
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _timer.Stop();
-        _timer.Tick -= Tick;
+        StopRendering(reportTiming: false);
     }
 
     private void ApplyCurrent()
@@ -116,19 +121,34 @@ public sealed class PanelMotionCoordinator : IDisposable
         if (!_folds.IsAnimating) _completeFolds();
     }
 
-    private void StartTimerIfNeeded()
+    private void StartRenderingIfNeeded()
     {
         if (!_panel.IsAnimating && !_folds.IsAnimating && !_cardReturn.IsAnimating) return;
+        if (_isRendering) return;
+
+        // Rendering follows the active XAML composition target, so the same spring
+        // advances at the monitor's actual cadence instead of a fixed 60 Hz timer.
         _lastTimestamp = Stopwatch.GetTimestamp();
-        _timer.Start();
+        _frameCount = 0;
+        _totalFrameMilliseconds = 0;
+        _maximumFrameMilliseconds = 0;
+        _isRendering = true;
+        CompositionTarget.Rendering += RenderFrame;
     }
 
-    private void Tick(DispatcherQueueTimer sender, object args)
+    private void RenderFrame(object? sender, object args)
     {
         long now = Stopwatch.GetTimestamp();
         TimeSpan elapsed = TimeSpan.FromSeconds(
             (now - _lastTimestamp) / (double)Stopwatch.Frequency);
         _lastTimestamp = now;
+        double elapsedMilliseconds = elapsed.TotalMilliseconds;
+        _frameCount++;
+        _totalFrameMilliseconds += elapsedMilliseconds;
+        _maximumFrameMilliseconds = Math.Max(
+            _maximumFrameMilliseconds,
+            elapsedMilliseconds);
+
         if (_panel.IsAnimating) _applyPanel(_panel.Step(elapsed));
         if (_folds.IsAnimating)
         {
@@ -144,12 +164,27 @@ public sealed class PanelMotionCoordinator : IDisposable
         if (_closeWhenSettles && !_panel.IsAnimating && !_folds.IsAnimating &&
             _panel.State == PanelMotionState.Closed)
         {
-            _timer.Stop();
+            StopRendering(reportTiming: true);
             CloseAfterMotion();
         }
         else if (!_panel.IsAnimating && !_folds.IsAnimating && !_cardReturn.IsAnimating)
         {
-            _timer.Stop();
+            StopRendering(reportTiming: true);
+        }
+    }
+
+    private void StopRendering(bool reportTiming)
+    {
+        if (!_isRendering) return;
+
+        CompositionTarget.Rendering -= RenderFrame;
+        _isRendering = false;
+        if (reportTiming && _frameCount > 0)
+        {
+            _reportFrameTiming?.Invoke(new MotionFrameTiming(
+                _frameCount,
+                _totalFrameMilliseconds / _frameCount,
+                _maximumFrameMilliseconds));
         }
     }
 

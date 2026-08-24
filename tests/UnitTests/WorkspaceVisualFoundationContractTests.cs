@@ -576,6 +576,61 @@ public sealed class WorkspaceVisualFoundationContractTests
         Assert.IsGreaterThan(prepare, attach);
     }
 
+    [TestMethod(DisplayName = "UT-UI-008 [PNL-006] Panel motion follows composition render cadence")]
+    public void PanelMotionFollowsCompositionRenderCadence()
+    {
+        string coordinator = File.ReadAllText(GetSourcePath(
+            "src",
+            "WorkspacePanel",
+            "Motion",
+            "PanelMotionCoordinator.cs")).Replace("\r\n", "\n");
+        StringAssert.Contains(
+            coordinator,
+            "CompositionTarget.Rendering += RenderFrame;");
+        StringAssert.Contains(
+            coordinator,
+            "CompositionTarget.Rendering -= RenderFrame;");
+        StringAssert.Contains(coordinator, "MotionFrameTiming");
+        Assert.IsFalse(coordinator.Contains(
+            "DispatcherQueueTimer",
+            StringComparison.Ordinal));
+        Assert.IsFalse(coordinator.Contains(
+            "TimeSpan.FromMilliseconds(16)",
+            StringComparison.Ordinal));
+
+        string mainWindow = File.ReadAllText(
+            GetAssetPath("MainWindow.xaml.cs")).Replace("\r\n", "\n");
+        int applyPanelStart = mainWindow.IndexOf(
+            "private void ApplyPanelMotion(",
+            StringComparison.Ordinal);
+        int headerRevealStart = mainWindow.IndexOf(
+            "private void ApplyHeaderReveal(",
+            applyPanelStart,
+            StringComparison.Ordinal);
+        int nextMethod = mainWindow.IndexOf(
+            "private int ToPhysicalPixels(",
+            headerRevealStart,
+            StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, applyPanelStart);
+        Assert.IsGreaterThan(applyPanelStart, headerRevealStart);
+        Assert.IsGreaterThan(headerRevealStart, nextMethod);
+
+        string applyPanel = mainWindow[applyPanelStart..headerRevealStart];
+        string headerReveal = mainWindow[headerRevealStart..nextMethod];
+        Assert.IsFalse(applyPanel.Contains(
+            "NativeWindowStyles.Move",
+            StringComparison.Ordinal));
+        Assert.IsFalse(mainWindow.Contains(
+            "PanelMotionTransform",
+            StringComparison.Ordinal));
+        StringAssert.Contains(
+            headerReveal,
+            "CreateRectangleClip(\n            0,\n            0,\n            width,\n            height)");
+        StringAssert.Contains(
+            headerReveal,
+            "width * (float)Math.Clamp(progress, 0, 1)");
+    }
+
     /// <summary>
     /// Literal colour is banned everywhere in the shared dictionary except the weather
     /// illustration, which has no semantic equivalent - no Windows brush means "overcast

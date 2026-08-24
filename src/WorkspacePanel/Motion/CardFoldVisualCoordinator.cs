@@ -124,6 +124,9 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             blocker.Offset = new Vector3((float)rect.X, (float)rect.Y, 0);
             blocker.Size = new Vector2((float)rect.Width, (float)rect.Height);
             blocker.Brush = compositor.CreateColorBrush(ResolveCardColor(element));
+            // The blocker masks the stable ItemsRepeater card for the entire
+            // redirect session. It is static, so set it once rather than every frame.
+            blocker.Opacity = 0.96f;
             blocker.Clip = CreateRoundedClip(
                 compositor,
                 (float)rect.Width,
@@ -207,9 +210,6 @@ public sealed class CardFoldVisualCoordinator : IDisposable
                 DegreesToRadians(p.RotationX),
                 DegreesToRadians(p.RotationZ));
             entry.MotionRoot.Opacity = (float)p.Opacity;
-            // Hide the real card for the whole redirect session; both slot and mirror
-            // disappear atomically at settle so the handoff cannot flash.
-            entry.Blocker.Opacity = 0.96f;
             ApplyStripe(entry.Crease, p, 0.14f, -10);
             ApplyStripe(entry.Specular, p, 0.24f, 12);
         }
