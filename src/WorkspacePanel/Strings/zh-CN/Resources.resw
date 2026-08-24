@@ -835,4 +835,22 @@
   <data name="AddCardFailedStatus" xml:space="preserve">
     <value>无法打开卡片选择器。</value>
   </data>
+  <data name="SettingsDialog.Title" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="SettingsDialog.CloseButtonText" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="SettingsCategoryWeather.Content" xml:space="preserve">
+    <value>天气</value>
+  </data>
+  <data name="SettingsCategoryWeather.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>天气设置</value>
+  </data>
+  <data name="SettingsCategorySystemMonitor.Content" xml:space="preserve">
+    <value>硬件监控</value>
+  </data>
+  <data name="SettingsCategorySystemMonitor.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>硬件监控设置</value>
+  </data>
 </root>

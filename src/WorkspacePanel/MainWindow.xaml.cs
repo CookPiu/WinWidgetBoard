@@ -490,71 +490,86 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
-    private async void SysMonSettingsButton_Click(object sender, RoutedEventArgs e)
+    private void SysMonSettingsButton_Click(object sender, RoutedEventArgs e) =>
+        ShowSettingsDialog(SettingsCategory.SystemMonitor);
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
+        ShowSettingsDialog(SettingsCategory.Weather);
+
+    /// <summary>
+    /// Opens the one settings surface on the requested category. Both entry points land here:
+    /// the header button and a card's own settings button differ only in where they start,
+    /// not in what they open, so a user who arrived from the hardware card can still reach the
+    /// weather section without closing anything.
+    /// </summary>
+    private async void ShowSettingsDialog(SettingsCategory category)
     {
         Interlocked.Increment(ref _statusVersion);
+        var weatherViewModel = new WeatherSettingsViewModel(
+            _weatherSettingsClient,
+            key => _resources.GetString(key));
+        var systemMonitorViewModel = new SystemMonitorSettingsViewModel(
+            _systemMonitorClient,
+            key => _resources.GetString(key.Replace('.', '/')));
         try
         {
-            var viewModel = new SystemMonitorSettingsViewModel(
-                _systemMonitorClient,
-                key => _resources.GetString(key.Replace('.', '/')));
             if (RootGrid.XamlRoot is null)
             {
                 return;
             }
 
-            var dialog = new SystemMonitorSettingsDialog(viewModel)
+            var dialog = new SettingsDialog(
+                weatherViewModel,
+                systemMonitorViewModel,
+                category)
             {
                 XamlRoot = RootGrid.XamlRoot,
             };
-            await viewModel.LoadAsync(CancellationToken.None);
+            // Both sections load before the dialog opens: the rail lets the user switch at
+            // any time, and a section that only starts loading when it is first shown would
+            // flash its empty state on every switch.
+            await weatherViewModel.LoadAsync(CancellationToken.None);
+            await systemMonitorViewModel.LoadAsync(CancellationToken.None);
             using IDisposable modalScope = EnterModalScope();
             await dialog.ShowAsync();
             Interlocked.Increment(ref _statusVersion);
-            StatusText.Text = viewModel.StatusText;
-        }
-        catch (Exception exception)
-            when (exception is not OutOfMemoryException and
-                not StackOverflowException)
-        {
-            Interlocked.Increment(ref _statusVersion);
-            StatusText.Text = _resources.GetString("SysMonSettingsLoadFailedStatus");
-        }
-    }
-
-    private async void SettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        Interlocked.Increment(ref _statusVersion);
-        try
-        {
-            var viewModel = new WeatherSettingsViewModel(
-                _weatherSettingsClient,
-                key => _resources.GetString(key));
-            if (RootGrid.XamlRoot is null)
-            {
-                return;
-            }
-
-            var dialog = new WeatherSettingsDialog(viewModel)
-            {
-                XamlRoot = RootGrid.XamlRoot,
-            };
-            await viewModel.LoadAsync(CancellationToken.None);
-            using IDisposable modalScope = EnterModalScope();
-            await dialog.ShowAsync();
-            Interlocked.Increment(ref _statusVersion);
-            StatusText.Text = viewModel.WasSaved
-                ? _resources.GetString("WeatherSettingsSavedStatus")
-                : viewModel.StatusText;
+            StatusText.Text = ResolveSettingsStatus(
+                category,
+                weatherViewModel,
+                systemMonitorViewModel);
         }
         catch (Exception exception)
             when (exception is not OutOfMemoryException and
                 not StackOverflowException and
                 not AccessViolationException)
         {
-            Debug.WriteLine($"WorkspacePanel weather settings dialog failed: {exception}");
-            StatusText.Text = _resources.GetString("WeatherSettingsLoadFailedStatus");
+            Debug.WriteLine($"WorkspacePanel settings dialog failed: {exception}");
+            Interlocked.Increment(ref _statusVersion);
+            StatusText.Text = _resources.GetString(
+                category == SettingsCategory.SystemMonitor
+                    ? "SysMonSettingsLoadFailedStatus"
+                    : "WeatherSettingsLoadFailedStatus");
         }
+    }
+
+    /// <summary>
+    /// A save in either section is worth reporting, whichever category the dialog opened on.
+    /// The weather section states its own saved message; the hardware section already carries
+    /// one in its status text.
+    /// </summary>
+    private string ResolveSettingsStatus(
+        SettingsCategory category,
+        WeatherSettingsViewModel weather,
+        SystemMonitorSettingsViewModel systemMonitor)
+    {
+        if (weather.WasSaved)
+        {
+            return _resources.GetString("WeatherSettingsSavedStatus");
+        }
+
+        return category == SettingsCategory.SystemMonitor
+            ? systemMonitor.StatusText
+            : weather.StatusText;
     }
 
     private async void EditLayoutButton_Click(object sender, RoutedEventArgs e)

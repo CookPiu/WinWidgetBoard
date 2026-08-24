@@ -353,9 +353,11 @@ try {
         -Root $automationRoot `
         -AutomationId 'WeatherSettingsCoordinatesBox' `
         -Timeout ([TimeSpan]::FromSeconds(10))
+    # The settings dialog closes rather than cancels: it holds every card's settings and each
+    # section saves on its own, so dismissing it does not undo a save that already happened.
     $dialogCloseButton = Get-ElementByNames `
         -Root $automationRoot `
-        -Names @('Cancel', '取消')
+        -Names @('Close', '关闭')
     Invoke-Element -Element $dialogCloseButton
     # Closing the panel immediately after the dialog leaves the tree is the regression for
     # the deferred close request: the modal scope is still held at this point, so the click

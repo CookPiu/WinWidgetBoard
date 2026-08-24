@@ -36,7 +36,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、生产数据、6 张卡片，基线提交 `eba4d0d`。Before：入口主胶囊 14 DIP、硬件分段 10 DIP，两者都取 `Segoe UI Semibold`，在 200% 缩放的任务栏上读作系统小字；面板每次展开时天气与硬件卡片先闪一段「暂不可用」再出现内容。After：主胶囊 16 DIP、分段 11 DIP，字体改用 Segoe UI Variable 的光学切分（Text / Small 两个 Semibold 面），缺失时整枚回落 `Segoe UI Semibold`；卡片不再闪空态。Why：闪烁不是加载时序，而是可见性调度器每次显示卡片时都向面板要一张「新快照」，而面板为一切非便签卡片伪造的都是 `Unavailable` 占位，序号高于它覆盖掉的 Broker 数据。天气与硬件卡片的内容只由 CoreBroker 提供，面板对它们无话可说，因此改为原样返回当前快照（序号不前进，`ApplySnapshot` 视为空操作）；首帧初始状态同时由 `Unavailable` 改为 `Loading`——`Unavailable` 声明的是「这张卡片给不出内容」，与事实相反。计时器 / 待办 / 日历是 ADR-0022 的延期占位卡，确实给不出内容，保持 `Unavailable` 不变；
+- UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、隔离测试数据、6 张卡片，基线提交 `759b6ac`。Before：设置分散在两处——头部「设置」按钮直接打开天气对话框，硬件监控在卡片内另有一颗按钮开自己的对话框，两者互不可达。After：合并为一处设置浮层，左侧分类栏（天气 / 硬件监控），两个入口都进同一浮层、只是落点不同；关闭按钮由「取消」改为「关闭」，因为保存按分类各自进行，关闭不撤销已保存的内容。Why：新增的客制化选项应挂在最终形态的界面上，而不是挂在马上要拆的对话框上。实现中踩到两个 WinUI 陷阱并已写入规范 3.3：`ListView.SelectedIndex` 在 XAML 里设置会在项还不存在时抛出、`SelectionChanged` 在分区元素创建前就触发，两者都表现为无定位信息的 `XamlParseException`；`ContentDialog` 内的内容按无界宽度测量，星号列把整个宽度交给第一个子元素、把 `Auto` 列排到裁剪之外，天气的搜索按钮因此变成零尺寸并从自动化树上消失，用 `MaxWidth` 约束分类段才修好；
 - Release UnitTests：400/400；
 - 参考机 `3200×2000 @ 165 Hz`、200% DPI：冷开 / 关闭 / 驻留重开的合成帧平均间隔分别为
   `6.03 / 5.98 / 6.04 ms`，最大间隔为 `7.30 / 6.45 / 8.93 ms`；120 ms 中途反向后保持常驻并正常隐藏，
@@ -46,7 +46,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - `WinWidgetBoard.CoreBroker.exe --pipe-handshake-smoke-test`、`WinWidgetBoard.WorkspacePanel.exe --smoke-test` 与 `--broker-smoke-test`（配真实 Broker）退出码均为 0；
 - 真实桌面 `WinWidgetBoard.LauncherHost.exe --smoke-test` / `--panel-launch-smoke-test` / `--panel-lifecycle-smoke-test`（均配 `--no-broker`，指向新构建的 Release x64 面板）退出码均为 0：分层弹簧改造后，面板仍能展开、收起后在阀值内隐藏并保持常驻、再次展开为同一进程；
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
-- 真实桌面 `Test-WeatherSettingsInteraction.ps1` 在移除脚本侧等待、直接把「取消对话框后立即点关闭」作为回归的前提下连续 3 次完整通过：`REAL-WEATHER-SETTINGS-PASS`（保存经真实面板写入 SQLite 并触发 provider 运行时重载）、`REAL-WEATHER-SETTINGS-RESTART-PASS`（重启后 `weather.settings.get` 读回 Tokyo / 35.6762 / 139.6503）和 `WINDOW-EXIT-PASS exitCode=0`；
+- **`Test-WeatherSettingsInteraction.ps1` 与 `Test-SystemMonitorInteraction.ps1` 目前不通过，且与本轮改动无关**——已用 `git stash` 回退到 `759b6ac` 和 `eba4d0d` 分别复跑，失败点完全相同。设置流程本身通过：搜索 Tokyo、选中候选、填入只读经纬度、保存并等到 `StatusText` 出现「天气位置已保存」全部走通；卡住的是其后「卡片的位置文字变为 Tokyo」这一步（30 s 内不出现，把等待放宽到 150 s 时通过一次，120 s 时又失败，属于偶发）。已定位到的事实：Broker 在切换位置时确实发布了带新 `location.label` 的 Loading 快照（`WeatherProviderRuntime.ApplyRegistrationLocked`），且新旧注册共用同一个序号计数器，因此不是序号被判旧；而 `WeatherCardProjection` 在读不到 `location.label` 时回退到**硬编码英文字面量 `"Weather"`**——这既是卡片当时显示的内容，也违反「用户可见字符串只放在 resw」。硬件监控脚本卡在更早的「卡片出现百分比读数」一步，同样在两个历史提交上复现。两者都留待天气阶段一并处理；
 - CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
 - 真实桌面 `Test-LauncherEntryPlacement.ps1` 通过：入口落在任务栏条带 1904..2000 内，
   入口外的条带点位归属其他进程（穿透成立），按 Explorer 的方式重排任务栏 5 次入口 0 次被盖住
