@@ -332,6 +332,85 @@ public sealed class CardRuntimeContractTests
                 (NoteEditorStatus)999));
     }
 
+    [TestMethod(DisplayName = "UT-CARD-012 [CRD-001] Broker-backed cards start loading, deferred cards stay unavailable")]
+    public async Task BrokerBackedCardsStartLoadingAndDeferredCardsStayUnavailable()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+
+        foreach (string instanceId in new[]
+                 {
+                     BuiltInCardCatalog.WeatherInstanceId,
+                     BuiltInCardCatalog.SystemMonitorInstanceId,
+                 })
+        {
+            using CardRuntimeInstance runtime =
+                BuiltInCardRuntimeFactory.Create(instanceId, noteEditor);
+            Assert.IsTrue(
+                BuiltInCardCatalog.IsBrokerBacked(runtime.Definition.CardTypeId),
+                instanceId);
+            // Unavailable says the card cannot provide content. These can - the content is
+            // simply still in flight from CoreBroker.
+            Assert.AreEqual(
+                CardRuntimeStatus.Loading,
+                runtime.Snapshot.Status,
+                instanceId);
+            Assert.IsNull(runtime.Snapshot.ErrorCode, instanceId);
+        }
+
+        foreach (string instanceId in new[]
+                 {
+                     BuiltInCardCatalog.TimerInstanceId,
+                     BuiltInCardCatalog.TodoInstanceId,
+                     BuiltInCardCatalog.CalendarInstanceId,
+                 })
+        {
+            using CardRuntimeInstance runtime =
+                BuiltInCardRuntimeFactory.Create(instanceId, noteEditor);
+            Assert.IsFalse(
+                BuiltInCardCatalog.IsBrokerBacked(runtime.Definition.CardTypeId),
+                instanceId);
+            Assert.AreEqual(
+                CardRuntimeStatus.Unavailable,
+                runtime.Snapshot.Status,
+                instanceId);
+            Assert.AreEqual(
+                CardRuntimeErrorCodes.NotImplemented,
+                runtime.Snapshot.ErrorCode,
+                instanceId);
+        }
+    }
+
+    [TestMethod(DisplayName = "UT-CARD-013 [CRD-002] A visibility refresh never overwrites broker card content")]
+    public async Task VisibilityRefreshNeverOverwritesBrokerCardContent()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        using CardRuntimeInstance runtime = BuiltInCardRuntimeFactory.Create(
+            BuiltInCardCatalog.WeatherInstanceId,
+            noteEditor);
+
+        var broker = new CardRuntimeSnapshot(
+            BuiltInCardCatalog.WeatherInstanceId,
+            BuiltInCardCatalog.WeatherCardTypeId,
+            BuiltInCardRuntimeFactory.CurrentSchemaVersion,
+            sequence: 7,
+            FixedTimestamp,
+            CardRuntimeFreshness.Fresh,
+            CardRuntimeStatus.Ready);
+        Assert.IsTrue(runtime.ApplyRemoteSnapshot(broker));
+
+        // This is what the visibility scheduler asks for every time the panel is shown.
+        CardRuntimeSnapshot refreshed = BuiltInCardRuntimeFactory.CreateFreshSnapshot(
+            runtime,
+            noteEditor);
+
+        Assert.AreEqual(CardRuntimeStatus.Ready, refreshed.Status);
+        // Applying it must change nothing: the sequence did not advance, so the card keeps
+        // showing the broker's content instead of blinking through a local placeholder.
+        Assert.IsFalse(runtime.ApplySnapshot(refreshed));
+        Assert.AreEqual(CardRuntimeStatus.Ready, runtime.Snapshot.Status);
+        Assert.AreEqual(7, runtime.Snapshot.Sequence);
+    }
+
     private static CardRuntimeInstance CreateRuntime(
         string instanceId,
         JsonElement payload = default)

@@ -255,15 +255,82 @@ struct DibSurface
     }
 };
 
-// The semibold face by name, not by weight. Asking the "Segoe UI" family for FW_SEMIBOLD
-// resolves to tmWeight 700 - GDI's mapper rounds up to the Bold face rather than picking the
-// Semibold one - and full bold at this size fills its own counters and reads as ragged.
-// "Segoe UI Semibold" is a face in its own right and resolves to 600 exactly. It has shipped
-// with Windows since 8; if it were ever missing the mapper would substitute exactly what the
-// old request already produced, so there is nothing worse to fall back to.
-constexpr wchar_t kEntryFontFace[] = L"Segoe UI Semibold";
+// Which of the entry's two type sizes a font is being made for. Segoe UI Variable is
+// optically sized - the same design drawn differently per size band - so the two sizes want
+// different cuts rather than the same cut scaled.
+enum class EntryTypeRole : unsigned char
+{
+    Capsule,
+    Segment,
+};
 
-HFONT CreateEntryFont(const int pixelHeight)
+// The semibold face by name, not by weight. Asking a family for FW_SEMIBOLD resolves to
+// tmWeight 700 - GDI's mapper rounds up to the Bold face rather than picking the Semibold one
+// - and full bold at this size fills its own counters and reads as ragged. Each of these is a
+// face in its own right and resolves to 600 exactly.
+//
+// Segoe UI Variable is the Windows 11 UI face. Its Text cut is drawn for body sizes and its
+// Small cut for captions: both carry a larger x-height and looser spacing than Segoe UI at the
+// same em, which is most of what makes the capsule read cleanly against the taskbar. It
+// shipped with Windows 11; on Windows 10 it is absent, and GDI's mapper would substitute
+// something arbitrary rather than the obvious neighbour, so availability is resolved once and
+// the whole entry falls back to Segoe UI Semibold together. Mixing the two across the two
+// capsules would be worse than using the older face for both.
+constexpr wchar_t kEntryCapsuleFontFace[] = L"Segoe UI Variable Text Semibold";
+constexpr wchar_t kEntrySegmentFontFace[] = L"Segoe UI Variable Small Semibol";
+constexpr wchar_t kEntryFallbackFontFace[] = L"Segoe UI Semibold";
+
+int CALLBACK RecordFontFamilyFound(
+    const LOGFONTW*,
+    const TEXTMETRICW*,
+    const DWORD,
+    const LPARAM parameter)
+{
+    *reinterpret_cast<bool*>(parameter) = true;
+    return 0;
+}
+
+bool IsFontFamilyInstalled(const wchar_t* const face)
+{
+    const HDC screen = GetDC(nullptr);
+    if (screen == nullptr)
+    {
+        return false;
+    }
+
+    LOGFONTW request{};
+    request.lfCharSet = DEFAULT_CHARSET;
+    wcscpy_s(request.lfFaceName, face);
+    bool found = false;
+    EnumFontFamiliesExW(
+        screen,
+        &request,
+        RecordFontFamilyFound,
+        reinterpret_cast<LPARAM>(&found),
+        0);
+    ReleaseDC(nullptr, screen);
+    return found;
+}
+
+const wchar_t* ResolveEntryFontFace(const EntryTypeRole role)
+{
+    // Fonts are not installed and uninstalled underneath a running entry, and the entry
+    // creates a font per render pass; resolving this once keeps a family enumeration off
+    // every repaint.
+    static const bool variableAvailable =
+        IsFontFamilyInstalled(kEntryCapsuleFontFace) &&
+        IsFontFamilyInstalled(kEntrySegmentFontFace);
+    if (!variableAvailable)
+    {
+        return kEntryFallbackFontFace;
+    }
+
+    return role == EntryTypeRole::Segment
+        ? kEntrySegmentFontFace
+        : kEntryCapsuleFontFace;
+}
+
+HFONT CreateEntryFont(const int pixelHeight, const EntryTypeRole role)
 {
     return CreateFontW(
         -pixelHeight,
@@ -282,7 +349,7 @@ HFONT CreateEntryFont(const int pixelHeight)
         // to plain grey-scale antialiasing and the same read still produces the right value.
         CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_SWISS,
-        kEntryFontFace);
+        ResolveEntryFontFace(role));
 }
 
 // One text-mask pixel as coverage. ClearType writes the three subpixel samples into B, G and
@@ -307,7 +374,7 @@ struct TextMeasurer
     HFONT font{};
     HGDIOBJ previousFont{};
 
-    explicit TextMeasurer(const int fontPixelHeight)
+    TextMeasurer(const int fontPixelHeight, const EntryTypeRole role)
     {
         screen = GetDC(nullptr);
         if (screen == nullptr)
@@ -315,7 +382,7 @@ struct TextMeasurer
             return;
         }
 
-        font = CreateEntryFont(fontPixelHeight);
+        font = CreateEntryFont(fontPixelHeight, role);
         if (font != nullptr)
         {
             previousFont = SelectObject(screen, font);
@@ -603,7 +670,9 @@ bool ComposeText(
         return false;
     }
 
-    HFONT font = CreateEntryFont(ResolveFontPixelHeight(request));
+    HFONT font = CreateEntryFont(
+        ResolveFontPixelHeight(request),
+        EntryTypeRole::Capsule);
     if (font == nullptr)
     {
         return false;
@@ -1348,7 +1417,7 @@ bool ComposeSegments(
     // does not go through ResolveFontPixelHeight, which serves the single-line modes.
     const int fontPixelHeight =
         ScaleLogical(kEntrySegmentFontSizeLogical, request.dpi);
-    const TextMeasurer measurer(fontPixelHeight);
+    const TextMeasurer measurer(fontPixelHeight, EntryTypeRole::Segment);
     if (!measurer.IsReady())
     {
         return false;
@@ -1362,7 +1431,7 @@ bool ComposeSegments(
         return false;
     }
 
-    HFONT font = CreateEntryFont(fontPixelHeight);
+    HFONT font = CreateEntryFont(fontPixelHeight, EntryTypeRole::Segment);
     if (font == nullptr)
     {
         return false;
@@ -2197,7 +2266,9 @@ int MeasureEntryContentWidthLogical(
         return 0;
     }
 
-    HFONT font = CreateEntryFont(ScaleLogical(kEntryFontSizeLogical, dpi));
+    HFONT font = CreateEntryFont(
+        ScaleLogical(kEntryFontSizeLogical, dpi),
+        EntryTypeRole::Capsule);
     HGDIOBJ previousFont = SelectObject(screen, font);
     SIZE extent{};
     const bool measured = GetTextExtentPoint32W(
@@ -2228,7 +2299,9 @@ int MeasureEntrySegmentsWidthLogical(
         return 0;
     }
 
-    const TextMeasurer measurer(ScaleLogical(kEntrySegmentFontSizeLogical, dpi));
+    const TextMeasurer measurer(
+        ScaleLogical(kEntrySegmentFontSizeLogical, dpi),
+        EntryTypeRole::Segment);
     if (!measurer.IsReady())
     {
         return 0;

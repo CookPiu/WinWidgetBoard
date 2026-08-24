@@ -111,6 +111,15 @@ public static class BuiltInCardCatalog
             new BuiltInCardInstance(SystemMonitorInstanceId, SystemMonitor),
         ]);
 
+    /// <summary>
+    /// True for card types whose content is published by CoreBroker rather than produced in
+    /// the panel. The panel must never manufacture a snapshot for one of these: the broker is
+    /// the only source of their content, so anything the panel invents overwrites real data
+    /// until the next broker event arrives.
+    /// </summary>
+    public static bool IsBrokerBacked(string cardTypeId) =>
+        cardTypeId is WeatherCardTypeId or SystemMonitorCardTypeId;
+
     public static ICardDefinition ResolveInstance(string instanceId)
     {
         CardRuntimeContractGuards.RequireIdentifier(
@@ -155,6 +164,12 @@ public static class BuiltInCardRuntimeFactory
                 BuiltInCardCatalog.UnknownCardTypeId =>
                     CreateUnknownSnapshot(
                         instanceId,
+                        sequence: 0,
+                        timestampUtc),
+                _ when BuiltInCardCatalog.IsBrokerBacked(definition.CardTypeId) =>
+                    CreateAwaitingBrokerSnapshot(
+                        instanceId,
+                        definition.CardTypeId,
                         sequence: 0,
                         timestampUtc),
                 _ => CreatePlaceholderSnapshot(
@@ -217,6 +232,14 @@ public static class BuiltInCardRuntimeFactory
                 runtime.InstanceId,
                 sequence,
                 timestampUtc),
+            // The panel has nothing fresher to say about a broker-backed card, so it says
+            // nothing: returning the current snapshot leaves the sequence unchanged and
+            // ApplySnapshot treats it as a no-op. Manufacturing a placeholder here is what
+            // made the weather and hardware cards drop back to "unavailable" on every show -
+            // the visibility scheduler refreshes each card as it becomes visible, and the
+            // placeholder carried a higher local sequence than the broker data it replaced.
+            _ when BuiltInCardCatalog.IsBrokerBacked(
+                runtime.Definition.CardTypeId) => runtime.Snapshot,
             _ => CreatePlaceholderSnapshot(
                 runtime.InstanceId,
                 runtime.Definition.CardTypeId,
@@ -282,6 +305,26 @@ public static class BuiltInCardRuntimeFactory
             errorCode);
     }
 
+    // A card whose content is on its way from CoreBroker. Loading rather than Unavailable:
+    // the card can provide content, it just has none yet, and Unavailable states the
+    // opposite. It carries no error code and offers no action - there is nothing wrong to
+    // retry or disable.
+    private static CardRuntimeSnapshot CreateAwaitingBrokerSnapshot(
+        string instanceId,
+        string cardTypeId,
+        long sequence,
+        DateTimeOffset timestampUtc) =>
+        new(
+            instanceId,
+            cardTypeId,
+            CurrentSchemaVersion,
+            sequence,
+            timestampUtc,
+            CardRuntimeFreshness.Unknown,
+            CardRuntimeStatus.Loading);
+
+    // A card the shipped scope defers (ADR-0022). Unlike the broker-backed cards there is no
+    // content coming, so Unavailable is the truthful state.
     private static CardRuntimeSnapshot CreatePlaceholderSnapshot(
         string instanceId,
         string cardTypeId,

@@ -36,8 +36,8 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、CoreBroker 断开占位数据、6 张卡片，基线提交 `96e7315`。Before：折页用顶层合成层镜像，卡片子树的 XAML 命中几何整体下移一个网格行且不恢复——便签标题与正文只能点到视觉位置正下方的空白才选中；标题栏展开裁剪在动效结束后残留、会裁掉便签搜索结果；收起比展开慢约一倍；减少动态效果的淡化实际约 `1 s`。After：折页改由卡片自身 `RenderTransform` 驱动，命中与渲染按 XAML 契约一致（实测关闭折页时命中回到 `y=290`，与布局 `y=286` 重合）；裁剪在收敛时释放；收起总时长 `549 → 460 ms`、展开 `700 → 583 ms`；减少动态效果为 `180 ms` 总时长。Why：规范 9.3 本就要求折页不影响拖动、缩放、命中测试与 UIA 身份，合成层镜像从未满足该验收条件；代价是卡片受 `ScrollViewer` 裁剪、不再飞出面板，且失去真三维透视与折痕高光；
-- Release UnitTests：398/398；
+- UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、生产数据、6 张卡片，基线提交 `eba4d0d`。Before：入口主胶囊 14 DIP、硬件分段 10 DIP，两者都取 `Segoe UI Semibold`，在 200% 缩放的任务栏上读作系统小字；面板每次展开时天气与硬件卡片先闪一段「暂不可用」再出现内容。After：主胶囊 16 DIP、分段 11 DIP，字体改用 Segoe UI Variable 的光学切分（Text / Small 两个 Semibold 面），缺失时整枚回落 `Segoe UI Semibold`；卡片不再闪空态。Why：闪烁不是加载时序，而是可见性调度器每次显示卡片时都向面板要一张「新快照」，而面板为一切非便签卡片伪造的都是 `Unavailable` 占位，序号高于它覆盖掉的 Broker 数据。天气与硬件卡片的内容只由 CoreBroker 提供，面板对它们无话可说，因此改为原样返回当前快照（序号不前进，`ApplySnapshot` 视为空操作）；首帧初始状态同时由 `Unavailable` 改为 `Loading`——`Unavailable` 声明的是「这张卡片给不出内容」，与事实相反。计时器 / 待办 / 日历是 ADR-0022 的延期占位卡，确实给不出内容，保持 `Unavailable` 不变；
+- Release UnitTests：400/400；
 - 参考机 `3200×2000 @ 165 Hz`、200% DPI：冷开 / 关闭 / 驻留重开的合成帧平均间隔分别为
   `6.03 / 5.98 / 6.04 ms`，最大间隔为 `7.30 / 6.45 / 8.93 ms`；120 ms 中途反向后保持常驻并正常隐藏，
   整段平均 `6.08 ms`、最大 `11.60 ms`。逐帧截图确认 6 张卡片使用不同的放射轴和朝向胶囊的边缘铰点；
@@ -49,7 +49,8 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面 `Test-WeatherSettingsInteraction.ps1` 在移除脚本侧等待、直接把「取消对话框后立即点关闭」作为回归的前提下连续 3 次完整通过：`REAL-WEATHER-SETTINGS-PASS`（保存经真实面板写入 SQLite 并触发 provider 运行时重载）、`REAL-WEATHER-SETTINGS-RESTART-PASS`（重启后 `weather.settings.get` 读回 Tokyo / 35.6762 / 139.6503）和 `WINDOW-EXIT-PASS exitCode=0`；
 - CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
 - 真实桌面 `Test-LauncherEntryPlacement.ps1` 通过：入口落在任务栏条带 1904..2000 内，
-  入口外的条带点位归属其他进程（穿透成立），点击开启面板；
+  入口外的条带点位归属其他进程（穿透成立），按 Explorer 的方式重排任务栏 5 次入口 0 次被盖住
+  （`ENTRY-ZORDER-PASS`），点击开启面板；
   `--geometry-smoke-test` 与 `--entry-visual-smoke-test` 退出码均为 0。
   该脚本必须在 DPI 感知的宿主（`pwsh`）里运行：Windows PowerShell 5.1 是 DPI 非感知进程，
   `GetWindowRect` 会返回虚拟化后的坐标，200% 缩放下把宽度报成一半并误判为越界；

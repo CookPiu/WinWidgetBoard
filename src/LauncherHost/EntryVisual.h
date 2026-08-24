@@ -16,7 +16,11 @@ inline constexpr int kEntryIndicatorWidthLogical = 4;
 inline constexpr int kEntryIndicatorGapLogical = 8;
 inline constexpr int kEntryIndicatorRestHeightLogical = 4;
 inline constexpr int kEntryIndicatorActiveHeightLogical = 16;
-inline constexpr int kEntryFontSizeLogical = 14;
+// Two steps up from the 14 DIP the strip started at. The capsule is 40 DIP tall inside a
+// 48 DIP taskbar, so the extra type costs no height, and it is what pulls the clock and the
+// temperature out of "small system text". The entry measures its own content, so the capsule
+// widens to match rather than clipping.
+inline constexpr int kEntryFontSizeLogical = 16;
 inline constexpr int kEntryIconSizeLogical = 18;
 inline constexpr int kEntryIconGapLogical = 8;
 // Trailing room reserved for the condition illustration, so the motif bleeds off the closing
@@ -24,13 +28,16 @@ inline constexpr int kEntryIconGapLogical = 8;
 // owns the empty bottom-right corner rather than the text column.
 inline constexpr int kEntryMotifWidthLogical = 26;
 // Hardware readings are packed two rows deep, the way TrafficMonitor stacks its upload over
-// its download. At the entry's normal 14 DIP type a single row runs out of width after four
+// its download. At the entry's own type size a single row runs out of width after four
 // readings and still leaves most of the capsule's height empty; a smaller face folded into two
 // rows fits the whole configured set and reads as one dense instrument instead of a sentence.
 // Segments fill column by column - segment 0 above segment 1, segment 2 above segment 3 - so a
 // related pair such as up/down stays together in one column.
 inline constexpr int kEntrySegmentRowsPerColumn = 2;
-inline constexpr int kEntrySegmentFontSizeLogical = 10;
+// Still the smaller of the two sizes, but no longer the 10 DIP that made the readings the
+// least legible thing on the strip. 11 DIP inside the 15 DIP row keeps both rows clear of
+// each other.
+inline constexpr int kEntrySegmentFontSizeLogical = 11;
 // One text row plus its leading. Two of these stack around the capsule's centre line.
 inline constexpr int kEntrySegmentRowHeightLogical = 15;
 // The glyph shrinks with the type it labels, and its gap with it; at 18 DIP it would be
