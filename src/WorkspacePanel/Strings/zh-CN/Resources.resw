@@ -862,4 +862,16 @@
   <data name="WeatherSettingsCommonList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>常用地点</value>
   </data>
+  <data name="SysMonNetworkSectionHeader.Text" xml:space="preserve">
+    <value>网络来源</value>
+  </data>
+  <data name="SysMonNetworkInterfaceBox.Header" xml:space="preserve">
+    <value>测量哪块网卡</value>
+  </data>
+  <data name="SysMonNetworkInterfaceBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>网络来源</value>
+  </data>
+  <data name="SysMonNetworkAllInterfaces" xml:space="preserve">
+    <value>全部网卡（合计）</value>
+  </data>
 </root>

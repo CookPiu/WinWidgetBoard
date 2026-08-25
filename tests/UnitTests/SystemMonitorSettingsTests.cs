@@ -187,6 +187,110 @@ public sealed class SystemMonitorSettingsTests
         Assert.IsTrue(entry.IncludeAutomationId.Contains("Entry", StringComparison.Ordinal));
     }
 
+    [TestMethod(DisplayName =
+        "UT-SYSMON-050 [MON-003] An unusable network source degrades to all adapters")]
+    public void AnUnusableNetworkSourceDegradesToAllAdapters()
+    {
+        Assert.IsTrue(SystemMonitorContract.IsValidNetworkInterfaceId(null));
+        Assert.IsTrue(SystemMonitorContract.IsValidNetworkInterfaceId(string.Empty));
+        Assert.IsTrue(SystemMonitorContract.IsValidNetworkInterfaceId("{adapter-a}"));
+        Assert.IsFalse(SystemMonitorContract.IsValidNetworkInterfaceId("badid"));
+        Assert.IsFalse(
+            SystemMonitorContract.IsValidNetworkInterfaceId(
+                new string('x', SystemMonitorContract.MaxNetworkInterfaceIdLength + 1)));
+
+        // Normalizing rather than throwing is what lets a row written by a newer build, or a
+        // corrupted one, still be read: the readings fall back to the previous behaviour.
+        Assert.AreEqual(
+            SystemMonitorContract.AllNetworkInterfaces,
+            SystemMonitorContract.NormalizeNetworkInterfaceId("badid"));
+        Assert.AreEqual(
+            "{adapter-a}",
+            SystemMonitorContract.NormalizeNetworkInterfaceId("{adapter-a}"));
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-047 [MON-003] The network source list starts at all adapters and restores the stored choice")]
+    public async Task NetworkSourceListStartsAtAllAdaptersAndRestoresTheStoredChoice()
+    {
+        var client = new FakeSystemMonitorClient
+        {
+            NetworkInterfaces =
+            [
+                new() { Id = "{adapter-a}", Name = "Ethernet" },
+                new() { Id = "{adapter-b}", Name = "Wi-Fi" },
+            ],
+            Settings = new SystemMonitorSettingsDto
+            {
+                InstanceId = BuiltInCardCatalog.SystemMonitorInstanceId,
+                CardItems = SystemMonitorContract.DefaultCardItems,
+                EntryItems = SystemMonitorContract.DefaultEntryItems,
+                NetworkInterfaceId = "{adapter-b}",
+                Revision = 3,
+            },
+        };
+        var viewModel = new SystemMonitorSettingsViewModel(client);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        // "All adapters" is what the rates meant before the source was configurable, so it is
+        // the first row rather than one option among equals.
+        Assert.AreEqual(3, viewModel.NetworkOptions.Count);
+        Assert.AreEqual(
+            SystemMonitorContract.AllNetworkInterfaces,
+            viewModel.NetworkOptions[0].Id);
+        Assert.AreEqual("{adapter-b}", viewModel.SelectedNetworkInterfaceId);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-048 [MON-003] A stored adapter the machine no longer reports stays selectable")]
+    public async Task AStoredAdapterTheMachineNoLongerReportsStaysSelectable()
+    {
+        var client = new FakeSystemMonitorClient
+        {
+            NetworkInterfaces = [new() { Id = "{adapter-a}", Name = "Ethernet" }],
+            Settings = new SystemMonitorSettingsDto
+            {
+                InstanceId = BuiltInCardCatalog.SystemMonitorInstanceId,
+                CardItems = SystemMonitorContract.DefaultCardItems,
+                EntryItems = SystemMonitorContract.DefaultEntryItems,
+                NetworkInterfaceId = "{unplugged}",
+                Revision = 1,
+            },
+        };
+        var viewModel = new SystemMonitorSettingsViewModel(client);
+
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        // Dropping the row would show "all adapters" while the broker still holds the missing
+        // one, and the next save would discard a choice the user never changed.
+        Assert.AreEqual("{unplugged}", viewModel.SelectedNetworkInterfaceId);
+        Assert.IsTrue(
+            viewModel.NetworkOptions.Any(option => option.Id == "{unplugged}"));
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-049 [MON-003] Saving sends the selected network source")]
+    public async Task SavingSendsTheSelectedNetworkSource()
+    {
+        var client = new FakeSystemMonitorClient
+        {
+            NetworkInterfaces =
+            [
+                new() { Id = "{adapter-a}", Name = "Ethernet" },
+                new() { Id = "{adapter-b}", Name = "Wi-Fi" },
+            ],
+        };
+        var viewModel = new SystemMonitorSettingsViewModel(client);
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        viewModel.SelectedNetworkIndex = 2;
+        Assert.IsTrue(await viewModel.SaveAsync(CancellationToken.None));
+
+        Assert.AreEqual("{adapter-b}", client.LastSave?.NetworkInterfaceId);
+        Assert.AreEqual("{adapter-b}", viewModel.SelectedNetworkInterfaceId);
+    }
+
     private sealed class FakeSystemMonitorClient : ISystemMonitorSettingsClient
     {
         public SystemMonitorSettingsDto Settings { get; set; } = new()
@@ -201,10 +305,19 @@ public sealed class SystemMonitorSettingsTests
 
         public CoreBrokerClientException? SaveError { get; set; }
 
-        public Task<SystemMonitorSettingsDto> GetSystemMonitorSettingsAsync(
+        /// <summary>What the broker would report this machine can measure.</summary>
+        public IReadOnlyList<SystemMonitorNetworkInterfaceDto> NetworkInterfaces { get; set; } =
+            [];
+
+        public Task<SystemMonitorSettingsGetResponse> GetSystemMonitorSettingsAsync(
             string instanceId,
             CancellationToken cancellationToken) =>
-            Task.FromResult(Settings);
+            Task.FromResult(
+                new SystemMonitorSettingsGetResponse
+                {
+                    Settings = Settings,
+                    NetworkInterfaces = NetworkInterfaces,
+                });
 
         public Task<SystemMonitorSettingsDto> SaveSystemMonitorSettingsAsync(
             SystemMonitorSettingsSaveRequest request,
@@ -221,6 +334,9 @@ public sealed class SystemMonitorSettingsTests
                 InstanceId = request.InstanceId ?? string.Empty,
                 CardItems = request.CardItems ?? [],
                 EntryItems = request.EntryItems ?? [],
+                NetworkInterfaceId =
+                    SystemMonitorContract.NormalizeNetworkInterfaceId(
+                        request.NetworkInterfaceId),
                 Revision = request.ExpectedRevision + 1,
             };
             return Task.FromResult(Settings);

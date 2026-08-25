@@ -1,6 +1,7 @@
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using WinWidgetBoard.Contracts.Protocol;
 
 namespace WinWidgetBoard.CoreBroker.Providers;
 
@@ -175,6 +176,7 @@ public sealed class SystemMetricSampler : IDisposable
     private ulong _previousIdleTicks;
     private ulong _previousBusyTicks;
     private bool _hasCpuBaseline;
+    private string _networkInterfaceId = SystemMonitorContract.AllNetworkInterfaces;
     private bool _disposed;
 
     public SystemMetricSampler()
@@ -287,8 +289,60 @@ public sealed class SystemMetricSampler : IDisposable
         return Math.Clamp(busyDelta * 100d / totalDelta, 0d, 100d);
     }
 
+    /// <summary>
+    /// Which adapter the network rates are measured from. Empty sums every usable adapter.
+    /// Changing it drops the baseline: the previous tick measured a different set of counters,
+    /// so a delta across the change would report traffic that never happened on either source.
+    /// </summary>
+    public string NetworkInterfaceId
+    {
+        get => _networkInterfaceId;
+        set
+        {
+            string next = SystemMonitorContract.NormalizeNetworkInterfaceId(value);
+            if (string.Equals(_networkInterfaceId, next, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _networkInterfaceId = next;
+            _networkRateTracker.Reset();
+        }
+    }
+
+    /// <summary>
+    /// The adapters that can be selected as the network source, in the order the platform
+    /// reports them. Deliberately the same filter the counters use: a list that offered an
+    /// adapter the sampler would then ignore is a setting that silently does nothing.
+    /// </summary>
+    public static IReadOnlyList<SystemMonitorNetworkInterfaceDto> ListSelectableInterfaces()
+    {
+        var interfaces = new List<SystemMonitorNetworkInterfaceDto>();
+        foreach (NetworkInterface adapter in EnumerateCountableAdapters())
+        {
+            if (!TryGetIpInterfaceId(adapter, out string interfaceId))
+            {
+                continue;
+            }
+
+            string name = adapter.Name;
+            if (name.Length > SystemMonitorContract.MaxNetworkInterfaceNameLength)
+            {
+                name = name[..SystemMonitorContract.MaxNetworkInterfaceNameLength];
+            }
+
+            interfaces.Add(new SystemMonitorNetworkInterfaceDto
+            {
+                Id = interfaceId,
+                Name = name,
+            });
+        }
+
+        return interfaces;
+    }
+
     private NetworkRateMeasurement SampleNetworkRates(DateTimeOffset nowUtc) =>
-        _networkRateTracker.Sample(ReadNetworkCounters(), nowUtc);
+        _networkRateTracker.Sample(ReadNetworkCounters(_networkInterfaceId), nowUtc);
 
     /// <summary>
     /// Reads one counter per real IP-layer interface. Windows may expose the same physical NIC
@@ -297,31 +351,18 @@ public sealed class SystemMetricSampler : IDisposable
     /// them would multiply one packet's traffic, so a usable IPv4 or IPv6 interface index is the
     /// boundary between a logical endpoint and a transport filter.
     /// </summary>
-    private static List<NetworkInterfaceCounterSnapshot> ReadNetworkCounters()
+    private static List<NetworkInterfaceCounterSnapshot> ReadNetworkCounters(
+        string networkInterfaceId)
     {
-        NetworkInterface[] adapters;
-        try
-        {
-            adapters = NetworkInterface.GetAllNetworkInterfaces();
-        }
-        catch (NetworkInformationException)
-        {
-            return [];
-        }
-        catch (PlatformNotSupportedException)
-        {
-            return [];
-        }
-
         var counters = new List<NetworkInterfaceCounterSnapshot>();
         var seenInterfaceIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (NetworkInterface adapter in adapters)
+        bool selectOne = networkInterfaceId.Length > 0;
+        foreach (NetworkInterface adapter in EnumerateCountableAdapters())
         {
-            if (adapter.OperationalStatus != OperationalStatus.Up ||
-                adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
-                adapter.NetworkInterfaceType == NetworkInterfaceType.Tunnel ||
-                !TryGetIpInterfaceId(adapter, out string interfaceId) ||
-                !seenInterfaceIds.Add(interfaceId))
+            if (!TryGetIpInterfaceId(adapter, out string interfaceId) ||
+                !seenInterfaceIds.Add(interfaceId) ||
+                (selectOne &&
+                    !string.Equals(interfaceId, networkInterfaceId, StringComparison.Ordinal)))
             {
                 continue;
             }
@@ -351,6 +392,38 @@ public sealed class SystemMetricSampler : IDisposable
         }
 
         return counters;
+    }
+
+    /// <summary>
+    /// The adapters worth counting at all: up, and neither a loopback nor a tunnel. Shared by
+    /// the counter read and the selectable list so the two can never disagree about what
+    /// counts as an adapter.
+    /// </summary>
+    private static IEnumerable<NetworkInterface> EnumerateCountableAdapters()
+    {
+        NetworkInterface[] adapters;
+        try
+        {
+            adapters = NetworkInterface.GetAllNetworkInterfaces();
+        }
+        catch (NetworkInformationException)
+        {
+            yield break;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            yield break;
+        }
+
+        foreach (NetworkInterface adapter in adapters)
+        {
+            if (adapter.OperationalStatus == OperationalStatus.Up &&
+                adapter.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                adapter.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
+            {
+                yield return adapter;
+            }
+        }
     }
 
     private static bool TryGetIpInterfaceId(NetworkInterface adapter, out string interfaceId)

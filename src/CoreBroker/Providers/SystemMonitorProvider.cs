@@ -44,6 +44,34 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
         _sampler = new SystemMetricSampler();
     }
 
+    /// <summary>
+    /// Which adapter the network rates come from. Set when the user's choice changes; the
+    /// sampler drops its baseline so the first tick after the change is not a delta across two
+    /// different sets of counters.
+    /// </summary>
+    public void SetNetworkInterfaceId(string? networkInterfaceId)
+    {
+        lock (_sampleGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            string next =
+                SystemMonitorContract.NormalizeNetworkInterfaceId(networkInterfaceId);
+            if (string.Equals(_sampler.NetworkInterfaceId, next, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _sampler.NetworkInterfaceId = next;
+            // The sparkline would otherwise draw one continuous line across two different
+            // sources, which is a shape the machine never produced.
+            _recentSamples.Clear();
+        }
+    }
+
     public ScheduledProviderDescriptor Descriptor { get; } =
         new(
             ProviderId,

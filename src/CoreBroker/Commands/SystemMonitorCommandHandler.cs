@@ -58,6 +58,12 @@ internal sealed class SystemMonitorCommandHandler
             return ErrorResponse(request, "validation.invalid-argument", "validation");
         }
 
+        // Enumerated before taking the gate: it reads the machine, not any shared state, and
+        // holding the router's single lock across an OS enumeration would put every other
+        // command behind it.
+        IReadOnlyList<SystemMonitorNetworkInterfaceDto> interfaces =
+            SystemMonitorRuntime.ListNetworkInterfaces();
+
         lock (_gate)
         {
             try
@@ -68,6 +74,7 @@ internal sealed class SystemMonitorCommandHandler
                     new SystemMonitorSettingsGetResponse
                     {
                         Settings = ToContract(_runtime.GetSettings()),
+                        NetworkInterfaces = interfaces,
                     });
             }
             catch (ObjectDisposedException)
@@ -122,6 +129,7 @@ internal sealed class SystemMonitorCommandHandler
             !IsValidMonitorInstanceId(payload.InstanceId) ||
             !SystemMonitorContract.IsValidItemList(payload.CardItems) ||
             !SystemMonitorContract.IsValidItemList(payload.EntryItems) ||
+            !SystemMonitorContract.IsValidNetworkInterfaceId(payload.NetworkInterfaceId) ||
             payload.ExpectedRevision < 0)
         {
             return ErrorResponse(request, "validation.invalid-argument", "validation");
@@ -131,6 +139,7 @@ internal sealed class SystemMonitorCommandHandler
             payload.InstanceId!,
             Describe(payload.CardItems!),
             Describe(payload.EntryItems!),
+            SystemMonitorContract.NormalizeNetworkInterfaceId(payload.NetworkInterfaceId),
             payload.ExpectedRevision);
 
         lock (_gate)
@@ -155,7 +164,8 @@ internal sealed class SystemMonitorCommandHandler
                     payload.InstanceId!,
                     payload.CardItems!,
                     payload.EntryItems!,
-                    payload.ExpectedRevision);
+                    payload.ExpectedRevision,
+                    payload.NetworkInterfaceId);
                 var responsePayload = new SystemMonitorSettingsSaveResponse
                 {
                     ClientOperationId = payload.ClientOperationId,
@@ -191,6 +201,7 @@ internal sealed class SystemMonitorCommandHandler
             InstanceId = settings.InstanceId,
             CardItems = settings.CardItems,
             EntryItems = settings.EntryItems,
+            NetworkInterfaceId = settings.NetworkInterfaceId,
             Revision = settings.Revision,
             UpdatedAtUtc = settings.UpdatedAtUtc ?? string.Empty,
         };
@@ -253,5 +264,6 @@ internal sealed class SystemMonitorCommandHandler
         string InstanceId,
         string CardItems,
         string EntryItems,
+        string NetworkInterfaceId,
         int ExpectedRevision);
 }

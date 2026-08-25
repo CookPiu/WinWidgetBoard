@@ -153,5 +153,15 @@ public static class SqliteSchema
                     ON sysmon_settings(revision);
                 PRAGMA user_version = 4;
                 """),
+            // Empty keeps the previous behaviour - every usable adapter summed - so existing
+            // rows need no backfill and an upgrade changes nothing until the user chooses.
+            new SqliteMigration(
+                5,
+                "persist-system-monitor-network-source",
+                """
+                ALTER TABLE sysmon_settings
+                    ADD COLUMN network_interface_id TEXT NOT NULL DEFAULT '';
+                PRAGMA user_version = 5;
+                """),
         };
 }

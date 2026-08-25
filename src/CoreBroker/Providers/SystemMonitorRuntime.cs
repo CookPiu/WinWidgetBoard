@@ -59,6 +59,7 @@ public sealed class SystemMonitorRuntime : IDisposable
         _provider = new SystemMonitorProvider(
             () => GetSettings().CardItems,
             () => _clock.UtcNow);
+        _provider.SetNetworkInterfaceId(_settings.NetworkInterfaceId);
 
         var adapter = new ProviderCardSnapshotAdapter(
             SystemMonitorProvider.InstanceId,
@@ -118,11 +119,20 @@ public sealed class SystemMonitorRuntime : IDisposable
         }
     }
 
+    /// <summary>
+    /// The adapters the machine can measure right now. Read on demand rather than cached: the
+    /// set changes with docking, VPNs and cables, and a list captured at startup would be a
+    /// menu of the machine as it used to be.
+    /// </summary>
+    public static IReadOnlyList<SystemMonitorNetworkInterfaceDto> ListNetworkInterfaces() =>
+        SystemMetricSampler.ListSelectableInterfaces();
+
     public SystemMonitorSettingsRecord SaveSettings(
         string instanceId,
         IReadOnlyList<SystemMonitorItemDto> cardItems,
         IReadOnlyList<SystemMonitorItemDto> entryItems,
-        int expectedRevision)
+        int expectedRevision,
+        string? networkInterfaceId = null)
     {
         if (!string.Equals(
                 instanceId,
@@ -142,10 +152,14 @@ public sealed class SystemMonitorRuntime : IDisposable
                 cardItems,
                 entryItems,
                 expectedRevision,
-                _clock.UtcNow);
+                _clock.UtcNow,
+                networkInterfaceId);
 
             // No republish and no re-registration: the next tick already reads the new list,
-            // and the card is at most one cadence behind.
+            // and the card is at most one cadence behind. The network source is different -
+            // it changes what gets sampled, not what gets shown - so it is pushed down to the
+            // sampler here rather than read per tick.
+            _provider.SetNetworkInterfaceId(saved.NetworkInterfaceId);
             _settings = saved;
             return saved;
         }

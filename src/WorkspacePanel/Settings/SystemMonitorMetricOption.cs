@@ -20,6 +20,14 @@ public sealed record SystemMonitorDetailOption(
     string DisplayName);
 
 /// <summary>
+/// One selectable network source. The empty ID is the "all adapters" entry, which is where the
+/// list always starts and what the readings meant before the source was configurable.
+/// </summary>
+public sealed record SystemMonitorNetworkOption(
+    string Id,
+    string DisplayName);
+
+/// <summary>
 /// One metric as the settings dialog shows it: included or not, at some level of detail, in
 /// whatever position the list currently holds it. Display order is list order - there is no
 /// separate index to keep in step with it.

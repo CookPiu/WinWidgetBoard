@@ -5,7 +5,12 @@ namespace WinWidgetBoard.CoreBroker.Client;
 
 public interface ISystemMonitorSettingsClient
 {
-    Task<SystemMonitorSettingsDto> GetSystemMonitorSettingsAsync(
+    /// <summary>
+    /// Returns the whole response, not just the stored settings: the selectable network
+    /// adapters ride with it, and asking for them separately would mean a second round trip
+    /// whose answer could already disagree with the first.
+    /// </summary>
+    Task<SystemMonitorSettingsGetResponse> GetSystemMonitorSettingsAsync(
         string instanceId,
         CancellationToken cancellationToken);
 
@@ -23,7 +28,7 @@ public sealed class CoreBrokerSystemMonitorClient : ISystemMonitorSettingsClient
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    public async Task<SystemMonitorSettingsDto> GetSystemMonitorSettingsAsync(
+    public async Task<SystemMonitorSettingsGetResponse> GetSystemMonitorSettingsAsync(
         string instanceId,
         CancellationToken cancellationToken)
     {
@@ -36,7 +41,7 @@ public sealed class CoreBrokerSystemMonitorClient : ISystemMonitorSettingsClient
         EnsureSuccess(response, SystemMonitorContract.SettingsGetMethod);
         return Deserialize<SystemMonitorSettingsGetResponse>(
             response,
-            SystemMonitorContract.SettingsGetMethod).Settings;
+            SystemMonitorContract.SettingsGetMethod);
     }
 
     public async Task<SystemMonitorSettingsDto> SaveSystemMonitorSettingsAsync(

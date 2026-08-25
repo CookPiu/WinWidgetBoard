@@ -328,22 +328,40 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 
 ### sysmon.settings.get / sysmon.settings.save
 
-配置的是**显示什么**，不是采集什么：一次采样读取整台机器，所以改显示项不改采样，
-provider 的请求键从不变化。
+显示项配置的是**显示什么**，不是采集什么：一次采样读取整台机器，所以改显示项不改采样，
+provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外——它改变**采什么**，因此保存后
+直接下推到采样器并丢弃基线。
 
 ```json
 {
   "instanceId": "demo.sysmon",
   "cardItems":  [ { "metricId": "cpu.usage", "detail": "detailed" } ],
   "entryItems": [ { "metricId": "cpu.usage", "detail": "normal" } ],
+  "networkInterfaceId": "",
   "revision": 3,
   "updatedAtUtc": "2026-08-21T06:27:21.0998747Z"
+}
+```
+
+`sysmon.settings.get` 的响应在 `settings` 之外还带一份 `networkInterfaces`：
+
+```json
+{
+  "settings": { "...": "如上" },
+  "networkInterfaces": [ { "id": "{adapter-guid}", "name": "以太网" } ]
 }
 ```
 
 - `cardItems` 与 `entryItems` **各自独立**，各最多 8 项，**顺序即显示顺序**（没有单独的序号字段）；
 - 同一列表内不允许重复 `metricId`；未收录的 `metricId` 一律 `validation.invalid-argument`；
 - `detail` 取 `compact` / `normal` / `detailed`；
+- `networkInterfaceId` 决定网速从哪块网卡测量。**空串表示全部可用网卡合计**，这也是可配置之前
+  的含义与默认值；长度上限 `128`，不接受控制字符，非法值一律归一为空串而不是拒读——由更新版本
+  写入或损坏的行必须仍能读出来，代价只是回落到旧行为；
+- 存的 ID 在当前机器上找不到对应网卡时**不是错误**（拔了线、断了 VPN），此时网速报告为不可用，
+  而不是悄悄改回全部合计——后者会让用户以为自己的选择生效了；
+- `networkInterfaces` **不落盘**：网卡随插拔和 VPN 变化，保存时记下的列表下次打开就已经过时。
+  它只在 `get` 响应里出现，且与采样器使用同一套过滤条件，因此列表不会提供采样器会忽略的网卡；
 - 保存受 `expectedRevision` 保护，冲突返回 `conflict.sysmon-settings-revision`。
 
 指标标记（三个进程共用一张表）：`cpu.usage`、`cpu.clock`、`cpu.temperature`、`memory.usage`、

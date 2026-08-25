@@ -22,6 +22,7 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
     private string _statusText = string.Empty;
     private string _validationText = string.Empty;
     private int _revision;
+    private int _selectedNetworkIndex = -1;
     private bool _isBusy;
     private bool _wasSaved;
     private bool _isLoaded;
@@ -50,6 +51,68 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
         EntryOptions = BuildOptions(
             SystemMonitorSurface.Entry,
             SystemMonitorContract.DefaultEntryItems);
+        ApplyNetworkInterfaces([], SystemMonitorContract.AllNetworkInterfaces);
+    }
+
+    /// <summary>
+    /// Rebuilds the source list around what the broker reported, then restores the stored
+    /// choice. A stored adapter the machine no longer reports is appended with its ID as the
+    /// label, because dropping it would turn "not connected right now" into "never chosen".
+    /// </summary>
+    private void ApplyNetworkInterfaces(
+        IReadOnlyList<SystemMonitorNetworkInterfaceDto> interfaces,
+        string? storedId)
+    {
+        NetworkOptions.Clear();
+        NetworkOptions.Add(
+            new SystemMonitorNetworkOption(
+                SystemMonitorContract.AllNetworkInterfaces,
+                _text("SysMonNetworkAllInterfaces")));
+        foreach (SystemMonitorNetworkInterfaceDto adapter in interfaces)
+        {
+            if (adapter.Id.Length == 0)
+            {
+                continue;
+            }
+
+            NetworkOptions.Add(
+                new SystemMonitorNetworkOption(
+                    adapter.Id,
+                    adapter.Name.Length > 0 ? adapter.Name : adapter.Id));
+        }
+
+        string normalized = SystemMonitorContract.NormalizeNetworkInterfaceId(storedId);
+        if (normalized.Length > 0 &&
+            !NetworkOptions.Any(option =>
+                string.Equals(option.Id, normalized, StringComparison.Ordinal)))
+        {
+            NetworkOptions.Add(new SystemMonitorNetworkOption(normalized, normalized));
+        }
+
+        SelectNetworkInterface(normalized);
+    }
+
+    private void SelectNetworkInterface(string? interfaceId)
+    {
+        string normalized = SystemMonitorContract.NormalizeNetworkInterfaceId(interfaceId);
+        for (int index = 0; index < NetworkOptions.Count; index++)
+        {
+            if (string.Equals(NetworkOptions[index].Id, normalized, StringComparison.Ordinal))
+            {
+                SetSelectedNetworkIndex(index);
+                return;
+            }
+        }
+
+        SetSelectedNetworkIndex(0);
+    }
+
+    private void SetSelectedNetworkIndex(int index)
+    {
+        if (SetField(ref _selectedNetworkIndex, index, nameof(SelectedNetworkIndex)))
+        {
+            OnPropertyChanged(nameof(SelectedNetworkInterfaceId));
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -59,6 +122,38 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
     public ObservableCollection<SystemMonitorMetricOption> CardOptions { get; }
 
     public ObservableCollection<SystemMonitorMetricOption> EntryOptions { get; }
+
+    /// <summary>
+    /// The selectable network sources, always starting with "all adapters". The rest come from
+    /// the broker's own enumeration, so the list can only ever offer sources the sampler would
+    /// actually count.
+    /// </summary>
+    public ObservableCollection<SystemMonitorNetworkOption> NetworkOptions { get; } = [];
+
+    /// <summary>
+    /// Index into <see cref="NetworkOptions"/>. A stored adapter this machine no longer has
+    /// is kept in the list rather than silently dropped: losing the row would make the combo
+    /// read "all adapters" while the broker still holds the missing one, and saving anything
+    /// else would then quietly discard the user's choice.
+    /// </summary>
+    public int SelectedNetworkIndex
+    {
+        get => _selectedNetworkIndex;
+        set
+        {
+            if (value < 0 || value >= NetworkOptions.Count)
+            {
+                return;
+            }
+
+            SetSelectedNetworkIndex(value);
+        }
+    }
+
+    public string SelectedNetworkInterfaceId =>
+        _selectedNetworkIndex >= 0 && _selectedNetworkIndex < NetworkOptions.Count
+            ? NetworkOptions[_selectedNetworkIndex].Id
+            : SystemMonitorContract.AllNetworkInterfaces;
 
     public bool IsAvailable => _client is not null;
 
@@ -115,14 +210,18 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            SystemMonitorSettingsDto settings = await _client
+            SystemMonitorSettingsGetResponse response = await _client
                 .GetSystemMonitorSettingsAsync(
                     BuiltInCardCatalog.SystemMonitorInstanceId,
                     cancellationToken)
                 .ConfigureAwait(true);
+            SystemMonitorSettingsDto settings = response.Settings;
             Revision = settings.Revision;
             ApplyItems(CardOptions, settings.CardItems);
             ApplyItems(EntryOptions, settings.EntryItems);
+            ApplyNetworkInterfaces(
+                response.NetworkInterfaces,
+                settings.NetworkInterfaceId);
             _isLoaded = true;
             StatusText = _text("SysMonSettingsLoadedStatus");
         }
@@ -166,6 +265,7 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
                         InstanceId = BuiltInCardCatalog.SystemMonitorInstanceId,
                         CardItems = SelectedCardItems,
                         EntryItems = SelectedEntryItems,
+                        NetworkInterfaceId = SelectedNetworkInterfaceId,
                         ExpectedRevision = Revision,
                     },
                     cancellationToken)
@@ -173,6 +273,7 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
             Revision = saved.Revision;
             ApplyItems(CardOptions, saved.CardItems);
             ApplyItems(EntryOptions, saved.EntryItems);
+            SelectNetworkInterface(saved.NetworkInterfaceId);
             StatusText = _text("SysMonSettingsSavedStatus");
             WasSaved = true;
             return true;

@@ -14,7 +14,8 @@ public sealed record SystemMonitorSettingsRecord
         IReadOnlyList<SystemMonitorItemDto> cardItems,
         IReadOnlyList<SystemMonitorItemDto> entryItems,
         int revision,
-        string? updatedAtUtc)
+        string? updatedAtUtc,
+        string? networkInterfaceId = null)
     {
         if (!SystemMonitorContract.IsValidInstanceId(instanceId))
         {
@@ -49,6 +50,11 @@ public sealed record SystemMonitorSettingsRecord
         EntryItems = entryItems.ToArray();
         Revision = revision;
         UpdatedAtUtc = updatedAtUtc;
+        // Normalized rather than validated: a row written by a newer build, or one that names
+        // an adapter this machine no longer has, degrades to "all adapters" instead of
+        // stopping the broker from reading its own settings.
+        NetworkInterfaceId =
+            SystemMonitorContract.NormalizeNetworkInterfaceId(networkInterfaceId);
     }
 
     public string InstanceId { get; }
@@ -60,6 +66,9 @@ public sealed record SystemMonitorSettingsRecord
     public int Revision { get; }
 
     public string? UpdatedAtUtc { get; }
+
+    /// <summary>Empty means every usable adapter summed.</summary>
+    public string NetworkInterfaceId { get; }
 
     public static string SerializeItems(IReadOnlyList<SystemMonitorItemDto> items) =>
         JsonSerializer.Serialize(items, ContractJson.Options);

@@ -30,6 +30,19 @@ public static class SystemMonitorContract
     public const int MaxSegmentTextLength = 32;
 
     /// <summary>
+    /// The network source the up and down rates are measured from. Empty means every usable
+    /// adapter summed, which is what the readings meant before this was configurable and stays
+    /// the default. A stored ID that no longer matches any adapter is not an error - the
+    /// machine simply has no such interface right now - and the rates report as unavailable
+    /// rather than silently falling back to the sum of everything.
+    /// </summary>
+    public const string AllNetworkInterfaces = "";
+
+    public const int MaxNetworkInterfaceIdLength = 128;
+
+    public const int MaxNetworkInterfaceNameLength = 128;
+
+    /// <summary>
     /// How many recent samples travel with each taskbar segment for its sparkline. At the
     /// two-second cadence this is two minutes of history - long enough to show a spike you
     /// just missed, short enough that the summary stays a small message.
@@ -100,6 +113,24 @@ public static class SystemMonitorContract
 
     public static bool IsKnownMetricId(string? value) =>
         value is not null && MetricIds.Contains(value, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Validates a stored or requested network source. Null and empty both mean "all adapters";
+    /// anything else is an opaque adapter ID that only has to be storable and printable, since
+    /// the broker matches it against what the machine reports rather than parsing it.
+    /// </summary>
+    public static bool IsValidNetworkInterfaceId(string? value) =>
+        value is null ||
+        value.Length == 0 ||
+        (value.Length <= MaxNetworkInterfaceIdLength && !value.Any(char.IsControl));
+
+    /// <summary>
+    /// Trims a stored ID to the empty "all adapters" value when it is unusable, so a row
+    /// written by a newer build - or corrupted - degrades to the previous behaviour instead of
+    /// failing the read.
+    /// </summary>
+    public static string NormalizeNetworkInterfaceId(string? value) =>
+        IsValidNetworkInterfaceId(value) ? value ?? AllNetworkInterfaces : AllNetworkInterfaces;
 
     /// <summary>
     /// Validates one surface's item list. Order is the list order, so no separate index is
@@ -179,6 +210,26 @@ public sealed record SystemMonitorSettingsGetRequest
 public sealed record SystemMonitorSettingsGetResponse
 {
     public SystemMonitorSettingsDto Settings { get; init; } = new();
+
+    /// <summary>
+    /// The adapters this machine can measure right now, for the settings surface to offer.
+    /// It rides on the response rather than living in the DTO because it is not stored state:
+    /// adapters come and go, and a list persisted at save time would be wrong by the next
+    /// time the dialog opens.
+    /// </summary>
+    public IReadOnlyList<SystemMonitorNetworkInterfaceDto> NetworkInterfaces { get; init; } =
+        Array.Empty<SystemMonitorNetworkInterfaceDto>();
+}
+
+/// <summary>
+/// One selectable network source. The ID is whatever the platform calls the adapter; the name
+/// is what the machine already shows for it, so the broker translates nothing.
+/// </summary>
+public sealed record SystemMonitorNetworkInterfaceDto
+{
+    public string Id { get; init; } = string.Empty;
+
+    public string Name { get; init; } = string.Empty;
 }
 
 public sealed record SystemMonitorSettingsSaveRequest
@@ -190,6 +241,9 @@ public sealed record SystemMonitorSettingsSaveRequest
     public IReadOnlyList<SystemMonitorItemDto>? CardItems { get; init; }
 
     public IReadOnlyList<SystemMonitorItemDto>? EntryItems { get; init; }
+
+    /// <summary>Empty selects every usable adapter, which is the default.</summary>
+    public string? NetworkInterfaceId { get; init; }
 
     public int ExpectedRevision { get; init; }
 }
@@ -216,6 +270,12 @@ public sealed record SystemMonitorSettingsDto
     /// </summary>
     public IReadOnlyList<SystemMonitorItemDto> EntryItems { get; init; } =
         Array.Empty<SystemMonitorItemDto>();
+
+    /// <summary>
+    /// Which adapter the network rates are measured from. Empty is every usable adapter summed.
+    /// </summary>
+    public string NetworkInterfaceId { get; init; } =
+        SystemMonitorContract.AllNetworkInterfaces;
 
     public int Revision { get; init; }
 

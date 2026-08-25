@@ -17,8 +17,8 @@ public sealed class SystemMonitorSettingsRepository
         ValidateInstanceId(instanceId);
         SystemMonitorSettingsRecord? result = null;
         _repository.Query(
-            "SELECT instance_id, card_items, entry_items, revision, updated_at_utc " +
-            "FROM sysmon_settings WHERE instance_id = @instance;",
+            "SELECT instance_id, card_items, entry_items, revision, updated_at_utc, " +
+            "network_interface_id FROM sysmon_settings WHERE instance_id = @instance;",
             statement => statement.BindText("@instance", instanceId),
             statement => result = ReadRecord(statement));
         return result;
@@ -29,9 +29,17 @@ public sealed class SystemMonitorSettingsRepository
         IReadOnlyList<SystemMonitorItemDto> cardItems,
         IReadOnlyList<SystemMonitorItemDto> entryItems,
         int expectedRevision,
-        DateTimeOffset? nowUtc = null)
+        DateTimeOffset? nowUtc = null,
+        string? networkInterfaceId = null)
     {
         ValidateInstanceId(instanceId);
+        if (!SystemMonitorContract.IsValidNetworkInterfaceId(networkInterfaceId))
+        {
+            throw new ArgumentException(
+                "System monitor network interface ID is invalid.",
+                nameof(networkInterfaceId));
+        }
+
         if (!SystemMonitorContract.IsValidItemList(cardItems))
         {
             throw new ArgumentException(
@@ -62,13 +70,16 @@ public sealed class SystemMonitorSettingsRepository
         string updatedAtUtc = NoteRecord.FormatTimestamp(nowUtc ?? DateTimeOffset.UtcNow);
         string cardJson = SystemMonitorSettingsRecord.SerializeItems(cardItems);
         string entryJson = SystemMonitorSettingsRecord.SerializeItems(entryItems);
+        string networkId =
+            SystemMonitorContract.NormalizeNetworkInterfaceId(networkInterfaceId);
 
         if (current is null)
         {
             _repository.Execute(
                 "INSERT INTO sysmon_settings " +
-                "(instance_id, card_items, entry_items, revision, updated_at_utc) " +
-                "VALUES (@instance, @card, @entry, @revision, @updated);",
+                "(instance_id, card_items, entry_items, revision, updated_at_utc, " +
+                "network_interface_id) " +
+                "VALUES (@instance, @card, @entry, @revision, @updated, @network);",
                 statement =>
                 {
                     statement.BindText("@instance", instanceId);
@@ -76,13 +87,15 @@ public sealed class SystemMonitorSettingsRepository
                     statement.BindText("@entry", entryJson);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
+                    statement.BindText("@network", networkId);
                 });
         }
         else
         {
             int changes = _repository.Execute(
                 "UPDATE sysmon_settings SET card_items = @card, entry_items = @entry, " +
-                "revision = @revision, updated_at_utc = @updated " +
+                "revision = @revision, updated_at_utc = @updated, " +
+                "network_interface_id = @network " +
                 "WHERE instance_id = @instance AND revision = @expected;",
                 statement =>
                 {
@@ -90,6 +103,7 @@ public sealed class SystemMonitorSettingsRepository
                     statement.BindText("@entry", entryJson);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
+                    statement.BindText("@network", networkId);
                     statement.BindText("@instance", instanceId);
                     statement.BindInt("@expected", expectedRevision);
                 });
@@ -108,7 +122,8 @@ public sealed class SystemMonitorSettingsRepository
             cardItems,
             entryItems,
             nextRevision,
-            updatedAtUtc);
+            updatedAtUtc,
+            networkId);
     }
 
     private static SystemMonitorSettingsRecord ReadRecord(SqliteStatement statement) =>
@@ -119,7 +134,8 @@ public sealed class SystemMonitorSettingsRepository
             SystemMonitorSettingsRecord.DeserializeItems(statement.ReadText(2)),
             statement.ReadInt(3),
             statement.ReadText(4) ??
-                throw new SqliteException(1, "sysmon_settings.updated_at_utc is NULL."));
+                throw new SqliteException(1, "sysmon_settings.updated_at_utc is NULL."),
+            statement.ReadText(5));
 
     private static void ValidateInstanceId(string instanceId)
     {

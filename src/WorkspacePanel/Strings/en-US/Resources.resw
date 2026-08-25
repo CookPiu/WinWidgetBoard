@@ -862,4 +862,16 @@
   <data name="WeatherSettingsCommonList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Common places</value>
   </data>
+  <data name="SysMonNetworkSectionHeader.Text" xml:space="preserve">
+    <value>Network source</value>
+  </data>
+  <data name="SysMonNetworkInterfaceBox.Header" xml:space="preserve">
+    <value>Adapter to measure</value>
+  </data>
+  <data name="SysMonNetworkInterfaceBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Network source</value>
+  </data>
+  <data name="SysMonNetworkAllInterfaces" xml:space="preserve">
+    <value>All adapters (combined)</value>
+  </data>
 </root>

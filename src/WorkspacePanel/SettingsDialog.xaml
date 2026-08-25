@@ -254,6 +254,25 @@
                         ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
                         automation:AutomationProperties.AutomationId="SysMonCardList" />
 
+                    <!--
+                        The network source sits with the metric lists rather than in its own
+                        section: it changes what the up and down rows mean, and a reading and
+                        the thing it is measured from should not be a category apart.
+                    -->
+                    <TextBlock
+                        x:Uid="SysMonNetworkSectionHeader"
+                        Style="{StaticResource WwbCardTitleStyle}" />
+                    <ComboBox
+                        x:Name="SysMonNetworkInterfaceBox"
+                        x:Uid="SysMonNetworkInterfaceBox"
+                        Width="300"
+                        HorizontalAlignment="Left"
+                        FontSize="12"
+                        ItemsSource="{x:Bind SystemMonitorViewModel.NetworkOptions, Mode=OneWay}"
+                        DisplayMemberPath="DisplayName"
+                        SelectedIndex="{x:Bind SystemMonitorViewModel.SelectedNetworkIndex, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="SysMonNetworkInterfaceBox" />
+
                     <TextBlock
                         x:Uid="SysMonEntrySectionHeader"
                         Style="{StaticResource WwbCardTitleStyle}" />
