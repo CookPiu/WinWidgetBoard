@@ -200,6 +200,8 @@ Stable-identity invariants (`docs/02-ux-design-spec.md` §4.3) have caused real 
 
 Touching `CardGridLayout`, `CardLayoutSurfaceViewModel`, repeater binding, drag, or resize requires the real cross-card "drag + resize in one edit session" regression (`-ResizeDragCombination`).
 
+Touching the card fold additionally requires `scripts/Test-CardFoldHitTest.ps1`. The fold animates each card's own composition visual, which is **not** in the XAML hit-test chain, so it is correct only because every property returns to identity when the motion settles; that script is what proves a reset was not missed. Unlike the drag scripts it needs no foreground transfer, so it runs on a desktop with other windows open — the drag scripts must be run from an interactive terminal, because Windows refuses to hand the foreground to a console host that is not already in it, and any maximized window then covers the panel and fails their precondition.
+
 ### Weather
 
 Open-Meteo is the only network provider (`app.winwidgetboard.weather.open-meteo`, 15-minute visible cadence, 10-second deadline). Requests carry label, lat/long, and units — no account, device ID, or auto-location. Location label and coordinates persist to SQLite; **weather payloads never do** — they stay in the broker process, and failures degrade to Offline/Stale/Error while keeping the last in-process success (ADR 0020, 0021). Saving a location swaps the provider request key at runtime via `WeatherProviderRuntime` and publishes a Loading snapshot.
