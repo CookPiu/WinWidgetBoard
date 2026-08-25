@@ -49,7 +49,19 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - **`Test-WeatherSettingsInteraction.ps1` 与 `Test-SystemMonitorInteraction.ps1` 目前不通过，且与本轮改动无关**——已用 `git stash` 回退到 `759b6ac` 和 `eba4d0d` 分别复跑，失败点完全相同。设置流程本身通过：搜索 Tokyo、选中候选、填入只读经纬度、保存并等到 `StatusText` 出现「天气位置已保存」全部走通；卡住的是其后「卡片的位置文字变为 Tokyo」这一步（30 s 内不出现，把等待放宽到 150 s 时通过一次，120 s 时又失败，属于偶发）。已定位到的事实：Broker 在切换位置时确实发布了带新 `location.label` 的 Loading 快照（`WeatherProviderRuntime.ApplyRegistrationLocked`），且新旧注册共用同一个序号计数器，因此不是序号被判旧；而 `WeatherCardProjection` 在读不到 `location.label` 时回退到**硬编码英文字面量 `"Weather"`**——这既是卡片当时显示的内容，也违反「用户可见字符串只放在 resw」。硬件监控脚本卡在更早的「卡片出现百分比读数」一步，同样在两个历史提交上复现。两者都留待天气阶段一并处理；
 - CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
 - **首次启动时 provider 卡片一直「正在加载」已修复**（`COLDSTART-PASS`）。成因：`CardSubscriptionLifecycleCoordinator.RequestRefresh` 在尚未初始化时直接返回，而冷启动路径上面板变可见的时刻早于首次订阅完成，那次请求被丢弃——订阅因此带着「布局之前的视口」生效，即一张卡片都没有，天气与硬件就停在加载态，直到下一次打开才重新请求。现在把该请求记下并在初始化完成后补发（并 marshal 回 UI 线程，`DispatcherQueueTimer` 只接受 UI 线程）。实机 A/B：不打补丁时首次打开 90 秒内两张卡片都不离开加载态；打补丁后 **1 秒**内就绪；
-- **动效帧率已实测但结论未定**。隔离面板中：展开 48 帧平均 `12.19 ms`、最大 `20.28 ms`；收起 30 帧平均 `15.69 ms`、最大 `18.41 ms`。本页早先记录的 `6.03 / 5.98 / 6.04 ms` 无法在该环境复现。分布形态（均值 12–16、最大仅 18–20）更像**固定刷新节流**而非丢帧——真正的过载会让最大值远离均值。怀疑隔离面板被合成器限到 60 Hz（`15.69 ms` ≈ 60 Hz）。已排除一项自身嫌疑：把便签滚动内容的 `MinHeight` 视口绑定换成常量后为 `13.27 / 16.06 ms`，无改善。**未能测到真实启动器路径**：`StartupTrace` 只写 stderr，而 LauncherHost 创建面板时不继承重定向句柄，需要给 `StartupTrace` 加一个文件 sink 才能测；在此之前不做任何性能改动（`AGENTS.md`：无测量不做性能改写）；
+- **动效帧率已定位并修复**。折页的几何原先逐帧写 6 张卡片的 `CompositeTransform`，这就是全部代价。逐项隔离测量（隔离面板，`3200×2000 @ 165 Hz`、200% DPI，帧预算 `6.06 ms`）：
+
+  | 配置 | 展开均值 | 收起均值 |
+  | --- | --- | --- |
+  | 原实现 | `12.19 ms` | `15.69 ms` |
+  | 完全不应用折页 | `6.00 ms` | `6.05 ms` |
+  | 去掉位图缓存 | `12.20 ms` | `16.22 ms` |
+  | 只写变换、不写透明度 | `11.95 ms` | `16.23 ms` |
+  | 只写透明度、不写变换 | `5.98 ms` | `5.94 ms` |
+  | **改到合成视觉后** | **`6.09 ms`** | **`6.27 ms`** |
+
+  结论：透明度免费，位图缓存毫无作用（已移除），代价全在 `CompositeTransform` 上。几何改写到卡片自身的合成视觉后回到刷新率，且帧数由 48/30 增至 96/74——同样时长里帧数翻倍。显示器经 `Win32_VideoController` 确认当前就是 `165 Hz`，不是显示设置问题。
+- **未跑**：`Test-CardDragInteraction.ps1` 的 `-WithBroker` 与 `-ResizeDragCombination`（CLAUDE.md 对折页改动强制要求）。两次尝试都在前置检查处失败——桌面上有其它应用窗口盖住面板（分别报 pid 24108 `REDAgent` 与 pid 28756），该脚本要求无遮挡且可获得焦点的桌面。折页的命中一致性因此**只有源码契约（`UT-UI-007`，已改为要求四个属性全部复位）和帧率测量为证，缺实机拖动/缩放证据**；
 - 真实桌面便签独立窗口通过（`NOTEWINDOW-PASS`）：窗口开在 `840×920` 物理像素（= `420×460` DIP），勾选「保持在最前」后 `WS_EX_TOPMOST` 由 False 变 True，弹出窗口打开即显示卡片当时的正文（证明两处共用同一个编辑器而非各持一份），在窗口里输入后状态行报「已保存到本地」。**注意**：面板在焦点移到弹出窗口时会隐藏自己，所以「卡片是否跟随」无法在窗口置前时读取——改为断言弹出窗口打开时与卡片内容一致，方向等价且不受焦点影响；
 - 真实桌面便签三脚本全部通过：`REAL-NOTE-LIST-PASS`、`REAL-NOTE-DELETE-PASS current+list`、`REAL-NOTE-CREATE-PASS create+list+search+open+draft-guard`。过程中修掉两处由本轮改动暴露的问题：滚动内容现在恰好等于视口高度，`ScrollPattern.SetScrollPercent` 会在「可滚动」检查与调用之间翻转并抛 `InvalidOperationException`（模块里改为忽略该状态——没有可滚的东西正是调用方要的结果）；`Test-NoteCreateInteraction.ps1` 需要在选中便签后重新打开切换器才能再用搜索框；
 - 真实桌面天气卡片（生产路径，经启动器打开面板）：北京 `28.4 °C` / Drizzle，逐小时六格显示 `10:00`–`15:00` 及各自字形与温度，雨、多云、雷暴三种字形肉眼可辨。**预报按尺寸披露**已按行数而非尺寸序判定（`W` 四列一行，与 `M` 同高）；实测放大卡片到 `L` 后走势才出现——修掉了 `UpdatePlacement` 不重发尺寸相关属性的缺陷，否则放大后要等下一次快照。**未测**：`XL` 下的每日三行未拍到实机截图；直接以 `--acceptance-test` 启动的面板不上报可见性，两张 provider 卡片在该路径下长期停留在「正在加载」，因此 `Test-SystemMonitorInteraction.ps1` 与 `Test-WeatherSettingsInteraction.ps1` 的后半段在隔离栈里不可用——这不是本轮引入的，回退到 `759b6ac`、`eba4d0d` 复跑失败点相同，留待单独排查；

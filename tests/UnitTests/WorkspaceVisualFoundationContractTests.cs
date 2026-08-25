@@ -592,17 +592,21 @@ public sealed class WorkspaceVisualFoundationContractTests
             "Motion",
             "CardFoldVisualCoordinator.cs"));
 
-        // Handing a live card's visual to the compositor as a source displaced that
+        // Handing a live card's visual to the compositor as a *source* displaced that
         // subtree's XAML hit-test geometry by a full grid row and never restored it:
         // the panel arranged and painted correctly while pointer input landed a row
         // lower. Measured for both APIs, so neither may come back.
+        //
+        // Setting properties on the element's own visual is a different thing and is
+        // allowed: nothing is re-hosted, and the displacement lasts only as long as the
+        // animation. GetElementVisual is therefore not on this list - what is banned is
+        // sampling one visual into another tree.
         foreach (string banned in new[]
                  {
                      "CreateRedirectVisual",
                      "CreateVisualSurface",
                      "SourceVisual",
                      "SetElementChildVisual",
-                     "GetElementVisual",
                  })
         {
             Assert.IsFalse(
@@ -610,17 +614,26 @@ public sealed class WorkspaceVisualFoundationContractTests
                 $"{banned} re-hosts a live card visual and breaks hit testing.");
         }
 
-        // The fold runs on the card's own RenderTransform, which XAML hit-testing
-        // follows, so pointer input tracks the picture even mid-fold. The element
-        // level composition transforms are not an option here anyway: they throw
-        // UnauthorizedAccessException on an element that already has one.
-        StringAssert.Contains(source, "element.RenderTransform as CompositeTransform");
+        // The geometry runs on the card's own composition visual. A CompositeTransform
+        // written on six cards per frame was the entire cost of the fold: 12.19 ms open
+        // and 15.69 ms close on a 165 Hz display, against 5.98 / 5.94 for the same
+        // motion writing only the opacity. A bitmap cache changed nothing, so it is gone
+        // too - it was there on the assumption that it avoided re-rasterization.
+        StringAssert.Contains(source, "ElementCompositionPreview.GetElementVisual(element)");
+        StringAssert.Contains(source, "entry.Visual.Scale = new Vector3(");
         StringAssert.Contains(source, "CardFoldPathResolver.ResolveFoldScale(presentation)");
+        Assert.IsFalse(
+            source.Contains("new BitmapCache()", StringComparison.Ordinal),
+            "The bitmap cache measured as making no difference and must not return " +
+            "without one.");
 
-        // It has to land on exact identity, or a card stays painted off its arranged
-        // position for the rest of that element's life.
-        StringAssert.Contains(source, "transform.ScaleX = 1;");
-        StringAssert.Contains(source, "transform.TranslateY = 0;");
+        // A composition transform is not in the hit-test chain, so landing on exact
+        // identity is what keeps a fold from becoming a permanent render/input
+        // mismatch. Every property the fold writes has to be returned.
+        StringAssert.Contains(source, "visual.Scale = Vector3.One;");
+        StringAssert.Contains(source, "visual.RotationAngleInDegrees = 0;");
+        StringAssert.Contains(source, "visual.Offset = Vector3.Zero;");
+        StringAssert.Contains(source, "visual.CenterPoint = Vector3.Zero;");
         StringAssert.Contains(source, "element.Opacity = 1;");
 
         // Reset has to run when a recycled element is cleared, not only on Complete.

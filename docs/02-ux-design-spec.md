@@ -592,6 +592,16 @@ CardSurface (WwbCardSurfaceStyle, MinHeight=160)
 
 卡片通道以稳定 `InstanceId` 为身份，数量、顺序和尺寸均由当前已实现元素实时解析；会话已建立时重新准备必须按调用方给出的卡片顺序返回 ID，返回字典序会打乱逐卡片交错；新增或重排卡片不需要新增动效分支。第一张到最后一张的展开角频率在 `17.6 → 13.2` 之间按当前卡片数量归一化，较确认预览整体略慢；关闭使用反向排序的 `17.2 → 21.6`，后到卡片先折回。
 
+折页的几何写在**卡片自身的合成视觉**上（`ElementCompositionPreview.GetElementVisual`），不写
+`RenderTransform`。参考机实测：逐帧对 6 张卡片写 `CompositeTransform`，展开均值 `12.19 ms`、
+收起 `15.69 ms`（165 Hz 的预算是 `6.06 ms`）；同一段动效只写透明度时是 `5.98 / 5.94 ms`；改到
+合成视觉后是 `6.09 / 6.27 ms`。位图缓存对此**毫无作用**（`12.20 / 16.22 ms`），因此一并移除——
+它当初是按「避免逐帧重栅格化」的假设加的，而该假设不成立。
+
+代价是明确且有界的：合成变换不在 XAML 命中链上，折页期间指针命中的是卡片**排布位置**而非绘制
+位置。这在一段动效的时长内可以接受，且**仅限于这段时长**——落地必须回到精确恒等值，这正是它
+不会变成持久性「渲染与输入不一致」的原因。
+
 **禁止把活动卡片的 visual 交给合成层做源。** `RedirectVisual` 与 `CompositionVisualSurface` 都经实测会把该子树的 XAML 命中几何整体下移一个网格行，且会话结束后不恢复——面板排布与绘制都正确，指针输入却落在下一行。元素级合成变换（`Scale` / `Rotation` / `RotationAxis` / `CenterPoint`）在这里也不可用：卡片已有 `RenderTransform` 占用同一变换槽，写入直接抛 `UnauthorizedAccessException`（只有 `Opacity` 和 `Translation` 可写）。
 
 因此折页只写卡片自己的 `CompositeTransform`。这不是退让：`RenderTransform` 属于 XAML 命中链，渲染与命中按契约必然一致，动画中途也对得上。代价是卡片被内容 `ScrollViewer` 裁剪，不能飞出面板。
