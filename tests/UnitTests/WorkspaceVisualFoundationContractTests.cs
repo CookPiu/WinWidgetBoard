@@ -310,9 +310,29 @@ public sealed class WorkspaceVisualFoundationContractTests
                     StringComparison.Ordinal)));
 
         XElement noteBody = GetNamedElement(document, "TextBox", "NoteBodyBox");
+        // The editor grows with the card. It used to be pinned at 148 DIP, so enlarging the
+        // notes card bought empty space instead of room to write - the content the card
+        // exists for stayed the same size while its chrome spread out.
+        Assert.IsNull(
+            (string?)noteBody.Attribute("Height"),
+            "The note body must not carry a fixed height.");
         Assert.AreEqual(
-            "148",
-            (string?)noteBody.Attribute("Height"));
+            "120",
+            (string?)noteBody.Attribute("MinHeight"));
+        Assert.AreEqual(
+            "Stretch",
+            (string?)noteBody.Attribute("VerticalAlignment"));
+
+        // A star row measured inside a ScrollViewer gets infinity and collapses to its
+        // content, so the scrolled content has to be told to fill the viewport first.
+        XElement noteScroller = GetNamedElement(
+            document,
+            "ScrollViewer",
+            "NotesCardScrollViewer");
+        XElement scrolledContent = noteScroller.Elements().Single();
+        Assert.AreEqual(
+            "{Binding ViewportHeight, ElementName=NotesCardScrollViewer}",
+            (string?)scrolledContent.Attribute("MinHeight"));
         Assert.AreEqual(
             "Hidden",
             (string?)noteBody.Attribute(

@@ -912,10 +912,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void ApplyNotePreviewState()
     {
         bool isPreviewVisible = NoteEditor.IsMarkdownPreviewVisible;
-        StackPanel? inputPanel = FindDescendantByName<StackPanel>(
+        // Looked up as FrameworkElement, not as the concrete panel type: this only needs
+        // something it can show and hide, and typing it to StackPanel meant the editor
+        // silently stopped hiding the day its layout became a Grid.
+        FrameworkElement? inputPanel = FindDescendantByName<FrameworkElement>(
             RootGrid,
             "NoteEditorInputPanel");
-        Border? previewPanel = FindDescendantByName<Border>(
+        FrameworkElement? previewPanel = FindDescendantByName<FrameworkElement>(
             RootGrid,
             "NoteMarkdownPreviewPanel");
         if (isPreviewVisible)

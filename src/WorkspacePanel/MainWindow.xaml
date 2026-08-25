@@ -597,10 +597,29 @@
                         VerticalScrollBarVisibility="Auto"
                         VerticalScrollMode="Enabled"
                         Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
-                        <StackPanel Spacing="8">
-                            <StackPanel
+                        <!--
+                            MinHeight tracks the scroller's viewport, which is what lets the
+                            star row below have a real height to divide. A star row measured
+                            inside a ScrollViewer otherwise gets infinity and collapses to its
+                            content, which is how the body box came to need a hard-coded 148:
+                            the card grew and the editor did not.
+                        -->
+                        <Grid
+                            RowSpacing="8"
+                            MinHeight="{Binding ViewportHeight, ElementName=NotesCardScrollViewer}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid
                                 x:Name="NoteEditorInputPanel"
-                                Spacing="6">
+                                RowSpacing="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
                                 <TextBox
                                     x:Name="NoteTitleBox"
                                     x:Uid="NoteTitleBox"
@@ -611,7 +630,8 @@
                                 <TextBox
                                     x:Name="NoteBodyBox"
                                     x:Uid="NoteBodyBox"
-                                    Height="148"
+                                    Grid.Row="1"
+                                    MinHeight="120"
                                     Style="{StaticResource WwbNoteBodyTextBoxStyle}"
                                     AcceptsReturn="True"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
@@ -622,17 +642,19 @@
                                     Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
                                     TextChanged="NoteBodyBox_TextChanged"
                                     TextWrapping="Wrap"
+                                    VerticalAlignment="Stretch"
                                     VerticalContentAlignment="Top" />
-                            </StackPanel>
+                            </Grid>
                             <Border
                                 x:Name="NoteMarkdownPreviewPanel"
+                                Grid.Row="1"
                                 x:Uid="NoteMarkdownPreviewPanel"
                                 Style="{StaticResource WwbSecondarySurfaceStyle}"
                                 Visibility="Collapsed">
                                 <ListView
                                     x:Name="NoteMarkdownPreviewText"
                                     x:Uid="NoteMarkdownPreviewText"
-                                    MaxHeight="148"
+                                    MaxHeight="320"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     IsItemClickEnabled="False"
@@ -644,6 +666,7 @@
                             </Border>
                             <Border
                                 x:Name="NoteOverflowPanel"
+                                Grid.Row="2"
                                 Tag="{Binding ElementName=NoteMoreButton}"
                                 Style="{StaticResource WwbNoteOverflowSurfaceStyle}"
                                 Visibility="Collapsed">
@@ -683,6 +706,8 @@
                             </Border>
                             <Grid
                                 x:Name="NoteEditorFooter"
+                                Grid.Row="3"
+                                VerticalAlignment="Bottom"
                                 ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -723,7 +748,7 @@
                                         Click="RedoNoteButton_Click" />
                                 </StackPanel>
                             </Grid>
-                        </StackPanel>
+                        </Grid>
                     </ScrollViewer>
                     <Border
                         Grid.Row="2"
