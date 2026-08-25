@@ -40,6 +40,27 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             "is_day",
         ]);
 
+    private static readonly string HourlyVariables = string.Join(
+        ",",
+        ["temperature_2m", "weather_code", "is_day"]);
+
+    private static readonly string DailyVariables = string.Join(
+        ",",
+        ["weather_code", "temperature_2m_max", "temperature_2m_min"]);
+
+    /// <summary>
+    /// Today plus three. The card shows the three days after today, so a fourth day has to be
+    /// requested to have three to show.
+    /// </summary>
+    private const int ForecastDays = 4;
+
+    /// <summary>How many hours of the trend the card can use. The rest of the day is fetched
+    /// anyway - it comes with the daily request - and simply not published.</summary>
+    private const int PublishedHourlyCount = 12;
+
+    /// <summary>Bounds the published forecast independently of what the API returns.</summary>
+    private const int MaxPublishedDailyCount = 3;
+
     private readonly HttpClient _httpClient;
     private readonly Uri _endpoint;
     private readonly Func<DateTimeOffset> _utcNow;
@@ -284,6 +305,9 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                 $"latitude={FormatDouble(location.Latitude)}",
                 $"longitude={FormatDouble(location.Longitude)}",
                 $"current={Uri.EscapeDataString(CurrentVariables)}",
+                $"hourly={Uri.EscapeDataString(HourlyVariables)}",
+                $"daily={Uri.EscapeDataString(DailyVariables)}",
+                $"forecast_days={ForecastDays.ToString(CultureInfo.InvariantCulture)}",
                 "timezone=auto",
                 "temperature_unit=celsius",
                 "wind_speed_unit=kmh",
@@ -332,7 +356,157 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             windSpeedKmh,
             weatherCode,
             isDay != 0,
-            timezone);
+            timezone,
+            ReadHourly(root, observedAtLocal),
+            ReadDaily(root));
+    }
+
+    /// <summary>
+    /// The next few hours, starting at the reading the card is already showing.
+    ///
+    /// The window is found by comparing the hourly timestamps with the current one rather than
+    /// by assuming where the array starts: the API returns whole local days, so index 0 is
+    /// midnight, and taking the first entries would show this morning as the forecast. A
+    /// forecast the user can see is in the past is worse than no forecast.
+    ///
+    /// Missing or malformed hourly data yields an empty list, never a partial hour: this is
+    /// supplementary, and the current reading must not fail because a trend did.
+    /// </summary>
+    private static List<WeatherHourlyEntry> ReadHourly(
+        JsonElement root,
+        string observedAtLocal)
+    {
+        if (!root.TryGetProperty("hourly", out JsonElement hourly) ||
+            hourly.ValueKind != JsonValueKind.Object ||
+            !TryReadArray(hourly, "time", out JsonElement times) ||
+            !TryReadArray(hourly, "temperature_2m", out JsonElement temperatures) ||
+            !TryReadArray(hourly, "weather_code", out JsonElement codes) ||
+            !TryReadArray(hourly, "is_day", out JsonElement isDayValues))
+        {
+            return [];
+        }
+
+        int count = times.GetArrayLength();
+        if (temperatures.GetArrayLength() < count ||
+            codes.GetArrayLength() < count ||
+            isDayValues.GetArrayLength() < count)
+        {
+            return [];
+        }
+
+        int start = -1;
+        for (int index = 0; index < count; index++)
+        {
+            string? time = times[index].GetString();
+            if (time is not null &&
+                string.CompareOrdinal(time, observedAtLocal) >= 0)
+            {
+                start = index;
+                break;
+            }
+        }
+
+        if (start < 0)
+        {
+            return [];
+        }
+
+        var entries = new List<WeatherHourlyEntry>(PublishedHourlyCount);
+        for (int index = start;
+            index < count && entries.Count < PublishedHourlyCount;
+            index++)
+        {
+            if (times[index].GetString() is not { } time ||
+                !TryReadFiniteDouble(temperatures[index], out double temperature) ||
+                !TryReadInt32(codes[index], out int code) ||
+                !TryReadInt32(isDayValues[index], out int isDay))
+            {
+                return entries;
+            }
+
+            entries.Add(
+                new WeatherHourlyEntry(
+                    time,
+                    temperature,
+                    code,
+                    isDay != 0));
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// The days after today. Index 0 is today, which the current reading already covers, so it
+    /// is skipped rather than shown twice with a different number on it.
+    /// </summary>
+    private static List<WeatherDailyEntry> ReadDaily(JsonElement root)
+    {
+        if (!root.TryGetProperty("daily", out JsonElement daily) ||
+            daily.ValueKind != JsonValueKind.Object ||
+            !TryReadArray(daily, "time", out JsonElement dates) ||
+            !TryReadArray(daily, "weather_code", out JsonElement codes) ||
+            !TryReadArray(daily, "temperature_2m_max", out JsonElement highs) ||
+            !TryReadArray(daily, "temperature_2m_min", out JsonElement lows))
+        {
+            return [];
+        }
+
+        int count = dates.GetArrayLength();
+        if (codes.GetArrayLength() < count ||
+            highs.GetArrayLength() < count ||
+            lows.GetArrayLength() < count)
+        {
+            return [];
+        }
+
+        var entries = new List<WeatherDailyEntry>(MaxPublishedDailyCount);
+        for (int index = 1;
+            index < count && entries.Count < MaxPublishedDailyCount;
+            index++)
+        {
+            if (dates[index].GetString() is not { } date ||
+                !TryReadInt32(codes[index], out int code) ||
+                !TryReadFiniteDouble(highs[index], out double high) ||
+                !TryReadFiniteDouble(lows[index], out double low))
+            {
+                return entries;
+            }
+
+            entries.Add(new WeatherDailyEntry(date, high, low, code));
+        }
+
+        return entries;
+    }
+
+    private static bool TryReadArray(
+        JsonElement parent,
+        string name,
+        out JsonElement array)
+    {
+        array = default;
+        if (!parent.TryGetProperty(name, out JsonElement value) ||
+            value.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        array = value;
+        return true;
+    }
+
+    private static bool TryReadFiniteDouble(JsonElement element, out double value)
+    {
+        value = 0;
+        return element.ValueKind == JsonValueKind.Number &&
+            element.TryGetDouble(out value) &&
+            double.IsFinite(value);
+    }
+
+    private static bool TryReadInt32(JsonElement element, out int value)
+    {
+        value = 0;
+        return element.ValueKind == JsonValueKind.Number &&
+            element.TryGetInt32(out value);
     }
 
     private static JsonElement CreatePayload(
@@ -365,6 +539,31 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                         response.WeatherCode,
                         response.IsDay),
                 },
+                // Both lists may be empty: the forecast is supplementary, and a card that has
+                // the current reading is still a working card. The panel decides what to draw
+                // from what is present rather than from a separate "has forecast" flag.
+                hourly = response.Hourly.Select(entry => new
+                {
+                    timeLocal = entry.TimeLocal,
+                    temperatureC = entry.TemperatureC,
+                    weatherCode = entry.WeatherCode,
+                    isDay = entry.IsDay,
+                    conditionIconId = WeatherConditionContract.FromWeatherCode(
+                        entry.WeatherCode,
+                        entry.IsDay),
+                }).ToArray(),
+                daily = response.Daily.Select(entry => new
+                {
+                    dateLocal = entry.DateLocal,
+                    highTemperatureC = entry.HighTemperatureC,
+                    lowTemperatureC = entry.LowTemperatureC,
+                    weatherCode = entry.WeatherCode,
+                    // Daytime icon: a day's summary is about the day, and a night glyph on a
+                    // forecast row reads as "tonight" rather than "Wednesday".
+                    conditionIconId = WeatherConditionContract.FromWeatherCode(
+                        entry.WeatherCode,
+                        isDay: true),
+                }).ToArray(),
             },
             ContractJson.Options);
 
@@ -509,7 +708,21 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         double WindSpeedKmh,
         int WeatherCode,
         bool IsDay,
-        string Timezone);
+        string Timezone,
+        IReadOnlyList<WeatherHourlyEntry> Hourly,
+        IReadOnlyList<WeatherDailyEntry> Daily);
+
+    private sealed record WeatherHourlyEntry(
+        string TimeLocal,
+        double TemperatureC,
+        int WeatherCode,
+        bool IsDay);
+
+    private sealed record WeatherDailyEntry(
+        string DateLocal,
+        double HighTemperatureC,
+        double LowTemperatureC,
+        int WeatherCode);
 }
 
 public sealed record WeatherLocation

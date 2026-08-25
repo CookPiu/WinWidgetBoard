@@ -107,6 +107,33 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public bool HasWeatherData => WeatherProjection.HasData;
 
+    public IReadOnlyList<WeatherHourProjection> WeatherHours => WeatherProjection.Hours;
+
+    public IReadOnlyList<WeatherDayProjection> WeatherDays => WeatherProjection.Days;
+
+    /// <summary>
+    /// The forecast is disclosed by card size, not merely by whether it arrived. A card is a
+    /// fixed number of grid rows tall, so content that does not fit is clipped rather than
+    /// scrolled - showing the trend on a card that cannot hold it produced a row of times with
+    /// their glyphs and temperatures cut off, which is worse than not showing it.
+    /// </summary>
+    /// Gated on rows rather than on the size order: W is four columns but only one row, so
+    /// it is exactly as short as M and clips the same way.
+    public bool HasWeatherHours =>
+        WeatherProjection.HasHours &&
+        Placement.Size is CardSize.L or CardSize.XL;
+
+    /// Three more rows on top of the trend, each needing room for a weekday, a glyph and two
+    /// temperatures - that is the widest and tallest size only.
+    public bool HasWeatherDays =>
+        WeatherProjection.HasDays && Placement.Size is CardSize.XL;
+
+    /// <summary>
+    /// False before the first reading names a place. The card leaves the location line out
+    /// rather than showing a placeholder where a city name belongs.
+    /// </summary>
+    public bool HasWeatherLocation => WeatherProjection.LocationLabel.Length > 0;
+
     public SystemMonitorCardProjection SystemMonitorProjection =>
         Volatile.Read(ref _systemMonitorProjection);
 
@@ -150,10 +177,25 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             return false;
         }
 
+        CardSize previousSize = Placement.Size;
         Placement = placement;
         PropertyChanged?.Invoke(
             this,
             new PropertyChangedEventArgs(nameof(Placement)));
+        if (previousSize != placement.Size)
+        {
+            // Anything disclosed by card size has to be republished here. Resizing raises
+            // Placement only, so a size-gated section would keep whatever visibility it had
+            // when the snapshot last arrived - a card grown to fit the forecast would sit
+            // there without one until the next refresh happened to land.
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherHours)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherDays)));
+        }
+
         return true;
     }
 
@@ -286,6 +328,21 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherData)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherHours)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherDays)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherHours)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherDays)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherLocation)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherAutomationSummary)));

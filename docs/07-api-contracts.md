@@ -326,6 +326,22 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 
 三个方法，一个内置实例 `demo.sysmon`。
 
+天气卡片载荷在 `current` 之外还带两段预报，均可为空数组——预报是补充信息，只有实况的卡片仍是
+可用的卡片，面板据「有没有」决定画不画，而不是另设一个「有预报」标志位：
+
+```json
+{
+  "hourly": [ { "timeLocal": "2026-08-25T09:00", "temperatureC": 30.9, "weatherCode": 3, "isDay": true, "conditionIconId": "cloudy" } ],
+  "daily":  [ { "dateLocal": "2026-08-26", "highTemperatureC": 24.6, "lowTemperatureC": 19.2, "weatherCode": 61, "conditionIconId": "rain" } ]
+}
+```
+
+- `hourly` 最多 **12** 条，自**当前观测小时**起算。Open-Meteo 的 `hourly.time` 从当地零点开始，
+  因此窗口按与 `current.time` 比较定位，而不是取数组开头——取开头会把今天早上当成预报；
+- `daily` 最多 **3** 条，跳过下标 0（今天，实况已覆盖），即「明天起的三天」；
+- `daily` 的 `conditionIconId` 一律按白天取：一整天的概括用夜间字形会读成「今晚」而不是「周三」；
+- 单条畸形即截断该列表，不影响实况——实况才是这张卡片的职责。
+
 ### sysmon.settings.get / sysmon.settings.save
 
 显示项配置的是**显示什么**，不是采集什么：一次采样读取整台机器，所以改显示项不改采样，

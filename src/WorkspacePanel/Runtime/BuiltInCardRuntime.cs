@@ -45,10 +45,13 @@ public static class BuiltInCardCatalog
         CardSize.L,
         StandardSizes);
 
+    // L by default, for the same reason the hardware monitor is: the card now carries an
+    // hourly trend under the current reading, and at M there is one grid row of height, which
+    // clips the trend to a line of bare times.
     public static ICardDefinition Weather { get; } = new CardDefinition(
         WeatherCardTypeId,
         "WeatherCardTitle.Text",
-        CardSize.M,
+        CardSize.L,
         StandardSizes);
 
     public static ICardDefinition Timer { get; } = new CardDefinition(

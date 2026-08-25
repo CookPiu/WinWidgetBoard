@@ -267,7 +267,7 @@ Bug fixes need a minimal repro or regression. Performance claims require device,
 
 ## UI changes
 
-`docs/02-ux-design-spec.md` (v0.7, "静谧画布") is the authority for structure, density, visuals, and motion; read it before any visible UI work and use `docs/templates/ui-change-template.md` as the checklist (normally not committed). Reviews record `Before / After / Why` against a fixed reference environment (theme, DPI, window size, language, data state, baseline commit).
+`docs/02-ux-design-spec.md` (v0.8, "静谧画布") is the authority for structure, density, visuals, and motion; read it before any visible UI work and use `docs/templates/ui-change-template.md` as the checklist (normally not committed). Reviews record `Before / After / Why` against a fixed reference environment (theme, DPI, window size, language, data state, baseline commit).
 
 Practical rules that get violated most often:
 

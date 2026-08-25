@@ -21,7 +21,9 @@ public sealed record WeatherCardProjection
         string observedAtText,
         string attributionText,
         string attributionUrl,
-        bool hasData)
+        bool hasData,
+        IReadOnlyList<WeatherHourProjection> hours,
+        IReadOnlyList<WeatherDayProjection> days)
     {
         LocationLabel = locationLabel;
         TemperatureText = temperatureText;
@@ -34,6 +36,8 @@ public sealed record WeatherCardProjection
         AttributionText = attributionText;
         AttributionUrl = attributionUrl;
         HasData = hasData;
+        Hours = hours;
+        Days = days;
     }
 
     public string LocationLabel { get; }
@@ -63,8 +67,27 @@ public sealed record WeatherCardProjection
 
     public bool HasData { get; }
 
+    /// <summary>
+    /// The next few hours, oldest first. Empty when the provider sent none, which the card
+    /// reads as "no trend to draw" rather than as an error.
+    /// </summary>
+    public IReadOnlyList<WeatherHourProjection> Hours { get; }
+
+    /// <summary>The days after today, nearest first. Empty when the provider sent none.</summary>
+    public IReadOnlyList<WeatherDayProjection> Days { get; }
+
+    public bool HasHours => Hours.Count > 0;
+
+    public bool HasDays => Days.Count > 0;
+
+    /// <summary>
+    /// The label is empty rather than a placeholder word. It used to fall back to the literal
+    /// "Weather", which is an English string in a localized UI and, worse, reads as a location:
+    /// the card's location line said "Weather" until the first fetch came back. Empty lets the
+    /// card leave the line out until there is a place to name.
+    /// </summary>
     public static WeatherCardProjection Empty { get; } = new(
-        "Weather",
+        string.Empty,
         "—",
         "—",
         "—",
@@ -74,7 +97,9 @@ public sealed record WeatherCardProjection
         "—",
         "Weather data by Open-Meteo.com",
         "https://open-meteo.com/",
-        hasData: false);
+        hasData: false,
+        [],
+        []);
 
     public static WeatherCardProjection FromSnapshot(
         CardRuntimeSnapshot snapshot)
@@ -90,7 +115,7 @@ public sealed record WeatherCardProjection
                 payload,
                 "location",
                 "label") ??
-            "Weather";
+            Empty.LocationLabel;
         string attributionText = ReadString(
                 payload,
                 "attribution") ??
@@ -113,7 +138,9 @@ public sealed record WeatherCardProjection
                 "—",
                 attributionText,
                 attributionUrl,
-                hasData: false);
+                hasData: false,
+                [],
+                []);
         }
 
         string temperatureText = FormatTemperature(
@@ -129,19 +156,162 @@ public sealed record WeatherCardProjection
             ReadConditionIconId(current),
             FormatPercentage(current, "relativeHumidityPercent"),
             FormatSpeed(current, "windSpeedKmh"),
-            ReadString(current, "observedAtLocal") ?? "—",
+            FormatObservedAt(ReadString(current, "observedAtLocal")),
             attributionText,
             attributionUrl,
-            hasData);
+            hasData,
+            ReadHours(payload),
+            ReadDays(payload));
+    }
+
+    /// <summary>
+    /// The hourly trend. A malformed entry ends the list rather than failing the projection:
+    /// the current reading is the card's job, and a broken trend must not take it down with it.
+    /// </summary>
+    private static List<WeatherHourProjection> ReadHours(JsonElement payload)
+    {
+        var hours = new List<WeatherHourProjection>();
+        if (!payload.TryGetProperty("hourly", out JsonElement hourly) ||
+            hourly.ValueKind != JsonValueKind.Array)
+        {
+            return hours;
+        }
+
+        foreach (JsonElement entry in hourly.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object ||
+                !TryReadFiniteDouble(entry, "temperatureC", out double celsius))
+            {
+                break;
+            }
+
+            hours.Add(
+                new WeatherHourProjection(
+                    FormatHourLabel(ReadString(entry, "timeLocal")),
+                    FormatTemperature(entry, "temperatureC"),
+                    celsius,
+                    ReadConditionIconId(entry)));
+        }
+
+        return hours;
+    }
+
+    private static List<WeatherDayProjection> ReadDays(JsonElement payload)
+    {
+        var days = new List<WeatherDayProjection>();
+        if (!payload.TryGetProperty("daily", out JsonElement daily) ||
+            daily.ValueKind != JsonValueKind.Array)
+        {
+            return days;
+        }
+
+        foreach (JsonElement entry in daily.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object)
+            {
+                break;
+            }
+
+            string high = FormatTemperature(entry, "highTemperatureC");
+            string low = FormatTemperature(entry, "lowTemperatureC");
+            if (high == "—" || low == "—")
+            {
+                break;
+            }
+
+            days.Add(
+                new WeatherDayProjection(
+                    FormatDayLabel(ReadString(entry, "dateLocal")),
+                    high,
+                    low,
+                    ReadConditionIconId(entry)));
+        }
+
+        return days;
+    }
+
+    /// <summary>
+    /// "14:00" from the provider's local ISO timestamp. Formatted with the current culture's
+    /// short time so a 12-hour locale does not read a 24-hour clock, and falls back to the raw
+    /// text rather than inventing a time when the string is not a timestamp.
+    /// </summary>
+    private static string FormatHourLabel(string? timeLocal)
+    {
+        if (timeLocal is null)
+        {
+            return "—";
+        }
+
+        return DateTime.TryParse(
+            timeLocal,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out DateTime parsed)
+            ? parsed.ToString("HH:mm", CultureInfo.CurrentCulture)
+            : timeLocal;
+    }
+
+    /// <summary>
+    /// The observation time as a clock reading. The provider sends a local ISO timestamp,
+    /// which the card was showing verbatim - "2026-08-25T09:30" is a machine's way of saying
+    /// half past nine.
+    /// </summary>
+    private static string FormatObservedAt(string? observedAtLocal)
+    {
+        if (observedAtLocal is null)
+        {
+            return "—";
+        }
+
+        return DateTime.TryParse(
+            observedAtLocal,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out DateTime parsed)
+            ? parsed.ToString("t", CultureInfo.CurrentCulture)
+            : observedAtLocal;
+    }
+
+    /// <summary>The weekday, which is what a three-day forecast is actually read by.</summary>
+    private static string FormatDayLabel(string? dateLocal)
+    {
+        if (dateLocal is null)
+        {
+            return "—";
+        }
+
+        return DateTime.TryParse(
+            dateLocal,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out DateTime parsed)
+            ? parsed.ToString("ddd", CultureInfo.CurrentCulture)
+            : dateLocal;
+    }
+
+    /// <summary>
+    /// Reads a finite number, or reports that there is not one. The kind is checked before
+    /// the value: <see cref="JsonElement.TryGetDouble"/> throws on a string rather than
+    /// returning false, so a payload field of the wrong type would take the whole card down
+    /// instead of leaving one reading blank.
+    /// </summary>
+    private static bool TryReadFiniteDouble(
+        JsonElement parent,
+        string propertyName,
+        out double value)
+    {
+        value = 0;
+        return parent.TryGetProperty(propertyName, out JsonElement element) &&
+            element.ValueKind == JsonValueKind.Number &&
+            element.TryGetDouble(out value) &&
+            double.IsFinite(value);
     }
 
     private static string FormatTemperature(
         JsonElement current,
         string propertyName)
     {
-        return current.TryGetProperty(propertyName, out JsonElement value) &&
-            value.TryGetDouble(out double number) &&
-            double.IsFinite(number)
+        return TryReadFiniteDouble(current, propertyName, out double number)
             ? $"{number.ToString("0.#", CultureInfo.CurrentCulture)} °C"
             : "—";
     }
@@ -150,9 +320,7 @@ public sealed record WeatherCardProjection
         JsonElement current,
         string propertyName)
     {
-        return current.TryGetProperty(propertyName, out JsonElement value) &&
-            value.TryGetDouble(out double number) &&
-            double.IsFinite(number)
+        return TryReadFiniteDouble(current, propertyName, out double number)
             ? $"{number.ToString("0.#", CultureInfo.CurrentCulture)}%"
             : "—";
     }
@@ -161,9 +329,7 @@ public sealed record WeatherCardProjection
         JsonElement current,
         string propertyName)
     {
-        return current.TryGetProperty(propertyName, out JsonElement value) &&
-            value.TryGetDouble(out double number) &&
-            double.IsFinite(number)
+        return TryReadFiniteDouble(current, propertyName, out double number)
             ? $"{number.ToString("0.#", CultureInfo.CurrentCulture)} km/h"
             : "—";
     }
@@ -195,6 +361,7 @@ public sealed record WeatherCardProjection
         JsonElement parent,
         string propertyName) =>
         parent.TryGetProperty(propertyName, out JsonElement value) &&
+        value.ValueKind == JsonValueKind.Number &&
         value.TryGetInt32(out int result)
             ? result
             : null;
@@ -245,3 +412,21 @@ public sealed record WeatherCardProjection
             null => "—",
         };
 }
+
+/// <summary>
+/// One hour of the trend. The temperature is carried both as the text the row shows and as the
+/// number the trend line is plotted from - the card needs both, and re-parsing the string to
+/// get the number back would make the display format part of the geometry.
+/// </summary>
+public sealed record WeatherHourProjection(
+    string TimeText,
+    string TemperatureText,
+    double TemperatureCelsius,
+    string ConditionIconId);
+
+/// <summary>One day of the forecast, high and low already formatted.</summary>
+public sealed record WeatherDayProjection(
+    string DayText,
+    string HighTemperatureText,
+    string LowTemperatureText,
+    string ConditionIconId);

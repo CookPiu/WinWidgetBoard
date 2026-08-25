@@ -112,6 +112,328 @@
             OrderedListItemTemplate="{StaticResource NoteMarkdownOrderedListItemTemplate}"
             QuoteTemplate="{StaticResource NoteMarkdownQuoteTemplate}"
             CodeTemplate="{StaticResource NoteMarkdownCodeTemplate}" />
+        <!--
+            Compact condition glyphs for the hourly and daily rows, drawn from discs and
+            rectangles rather than an icon font: the card already composes its backdrop from
+            primitives, and a font would add an availability dependency for eight shapes.
+
+            The cloud keeps to the upper two thirds and the precipitation marks to the lower
+            third. Sharing the same band turned rain into one dark blob at 18 DIP, which is the
+            size at which a glyph either reads instantly or is noise.
+
+            Day and night share a shape. At this size a crescent and a disc are nearly the same
+            mark, and the row already carries its own time or weekday; the distinction that
+            matters is carried by the backdrop, which is large enough to show it.
+        -->
+        <DataTemplate x:Key="WeatherGlyphClearTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Ellipse
+                    Width="10"
+                    Height="10"
+                    Margin="4,4,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphPartlyCloudyTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Ellipse
+                    Width="6"
+                    Height="6"
+                    Margin="11,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="7"
+                    Height="7"
+                    Margin="0,7,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="4,4,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="6"
+                    Height="6"
+                    Margin="10,8,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphCloudyTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Ellipse
+                    Width="7"
+                    Height="7"
+                    Margin="0,5,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="4,2,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="6"
+                    Height="6"
+                    Margin="10,6,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphFogTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Rectangle
+                    Width="14"
+                    Height="2"
+                    RadiusX="1"
+                    RadiusY="1"
+                    Margin="2,4,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Rectangle
+                    Width="14"
+                    Height="2"
+                    RadiusX="1"
+                    RadiusY="1"
+                    Margin="2,8,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Rectangle
+                    Width="10"
+                    Height="2"
+                    RadiusX="1"
+                    RadiusY="1"
+                    Margin="2,12,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphRainTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Ellipse
+                    Width="7"
+                    Height="7"
+                    Margin="0,5,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="4,2,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="6"
+                    Height="6"
+                    Margin="10,6,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Rectangle
+                    Width="2"
+                    Height="4"
+                    RadiusX="1"
+                    RadiusY="1"
+                    Margin="5,13,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Rectangle
+                    Width="2"
+                    Height="4"
+                    RadiusX="1"
+                    RadiusY="1"
+                    Margin="10,13,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphSnowTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Ellipse
+                    Width="7"
+                    Height="7"
+                    Margin="0,5,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="4,2,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="6"
+                    Height="6"
+                    Margin="10,6,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="3"
+                    Height="3"
+                    Margin="5,13,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="3"
+                    Height="3"
+                    Margin="10,13,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphStormTemplate">
+            <Grid Width="18" Height="18" Opacity="0.85">
+                <Ellipse
+                    Width="7"
+                    Height="7"
+                    Margin="0,5,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="9"
+                    Height="9"
+                    Margin="4,2,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Ellipse
+                    Width="6"
+                    Height="6"
+                    Margin="10,6,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Polygon
+                    Points="10,11 6,15 8,15 7,18 11,14 9,14 11,11"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="WeatherGlyphEmptyTemplate">
+            <Grid Width="18" Height="18" />
+        </DataTemplate>
+
+        <layout:WeatherBackdropTemplateSelector
+            x:Key="WeatherGlyphSelector"
+            ClearDayTemplate="{StaticResource WeatherGlyphClearTemplate}"
+            ClearNightTemplate="{StaticResource WeatherGlyphClearTemplate}"
+            PartlyCloudyDayTemplate="{StaticResource WeatherGlyphPartlyCloudyTemplate}"
+            PartlyCloudyNightTemplate="{StaticResource WeatherGlyphPartlyCloudyTemplate}"
+            CloudyTemplate="{StaticResource WeatherGlyphCloudyTemplate}"
+            FogTemplate="{StaticResource WeatherGlyphFogTemplate}"
+            RainTemplate="{StaticResource WeatherGlyphRainTemplate}"
+            SnowTemplate="{StaticResource WeatherGlyphSnowTemplate}"
+            ThunderstormTemplate="{StaticResource WeatherGlyphStormTemplate}"
+            EmptyTemplate="{StaticResource WeatherGlyphEmptyTemplate}" />
+
+        <!--
+            One hour of the trend: time, its condition glyph, its temperature. The glyph comes
+            from the same reduced condition set the card and the taskbar entry already share,
+            so an hour and the current reading cannot disagree about what "rain" looks like.
+        -->
+        <DataTemplate
+            x:Key="WeatherHourTemplate"
+            x:DataType="runtime:WeatherHourProjection">
+            <StackPanel
+                MinWidth="44"
+                Spacing="2"
+                HorizontalAlignment="Center">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource WwbCardCaptionStyle}"
+                    Text="{x:Bind TimeText}" />
+                <ContentControl
+                    Width="18"
+                    Height="18"
+                    HorizontalAlignment="Center"
+                    automation:AutomationProperties.AccessibilityView="Raw"
+                    Content="{x:Bind ConditionIconId}"
+                    ContentTemplateSelector="{StaticResource WeatherGlyphSelector}"
+                    IsTabStop="False" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource WwbCardBodyStyle}"
+                    Text="{x:Bind TemperatureText}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!--
+            One day of the forecast. High and low are separate columns rather than one string,
+            so the three rows line up into two readable columns instead of three ragged
+            sentences.
+        -->
+        <DataTemplate
+            x:Key="WeatherDayTemplate"
+            x:DataType="runtime:WeatherDayProjection">
+            <Grid
+                ColumnSpacing="{StaticResource WwbSpace2}"
+                Padding="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    Style="{StaticResource WwbCardBodyStyle}"
+                    Text="{x:Bind DayText}"
+                    TextTrimming="CharacterEllipsis" />
+                <ContentControl
+                    Grid.Column="1"
+                    Width="18"
+                    Height="18"
+                    automation:AutomationProperties.AccessibilityView="Raw"
+                    Content="{x:Bind ConditionIconId}"
+                    ContentTemplateSelector="{StaticResource WeatherGlyphSelector}"
+                    IsTabStop="False" />
+                <TextBlock
+                    Grid.Column="2"
+                    HorizontalAlignment="Right"
+                    Style="{StaticResource WwbCardBodyStyle}"
+                    Text="{x:Bind HighTemperatureText}"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    Grid.Column="3"
+                    Style="{StaticResource WwbCardCaptionStyle}"
+                    Text="{x:Bind LowTemperatureText}"
+                    TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </DataTemplate>
+
         <DataTemplate
             x:Key="CardRuntimeStatusTemplate"
             x:DataType="runtime:CardRuntimeStatusPresentation">
@@ -755,7 +1077,8 @@
                             automation:AutomationProperties.AutomationId="WeatherLocationText"
                             Style="{StaticResource WwbCardCaptionStyle}"
                             Text="{x:Bind WeatherLocationLabel, Mode=OneWay}"
-                            TextTrimming="CharacterEllipsis" />
+                            TextTrimming="CharacterEllipsis"
+                            Visibility="{x:Bind HasWeatherLocation, Mode=OneWay}" />
                     </Grid>
                     <Grid Grid.Row="1">
                         <ContentControl
@@ -766,53 +1089,91 @@
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
                             Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
-                        <Grid
-                            ColumnSpacing="12"
+                        <!--
+                            Three bands, in the order the question is actually asked: what it
+                            is like now, what the rest of today does, what the next days do.
+                            The previous layout put every secondary reading in one column of
+                            equal-weight captions beside the temperature, which gave the
+                            observation time the same standing as the temperature itself.
+                        -->
+                        <StackPanel
+                            Spacing="{StaticResource WwbSpace3}"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Spacing="2">
-                                <TextBlock
-                                    automation:AutomationProperties.AutomationId="WeatherTemperatureText"
-                                    automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
-                                    Style="{StaticResource WwbWeatherTemperatureStyle}"
-                                    Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
-                                <TextBlock
-                                    automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
-                                    Style="{StaticResource WwbCardBodyStyle}"
-                                    Text="{x:Bind WeatherConditionText, Mode=OneWay}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                            <StackPanel
-                                Grid.Column="1"
-                                Spacing="2"
-                                VerticalAlignment="Center">
-                                <TextBlock
-                                    Style="{StaticResource WwbCardCaptionStyle}"
-                                    Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}"
-                                    TextTrimming="CharacterEllipsis" />
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                            <Grid ColumnSpacing="{StaticResource WwbSpace3}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2">
+                                    <TextBlock
+                                        automation:AutomationProperties.AutomationId="WeatherTemperatureText"
+                                        automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
+                                        Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                        Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
+                                    <TextBlock
+                                        automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
+                                        Style="{StaticResource WwbCardBodyStyle}"
+                                        Text="{x:Bind WeatherConditionText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <!--
+                                    Secondary readings sit beside the temperature rather than
+                                    under it, so the card's first glance stays one number.
+                                -->
+                                <StackPanel
+                                    Grid.Column="1"
+                                    Spacing="2"
+                                    VerticalAlignment="Bottom">
                                     <TextBlock
                                         Style="{StaticResource WwbCardCaptionStyle}"
-                                        Text="{x:Bind WeatherHumidityText, Mode=OneWay}" />
+                                        Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
                                     <TextBlock
-                                        Grid.Column="1"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind WeatherHumidityText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
                                         Style="{StaticResource WwbCardCaptionStyle}"
                                         Text="{x:Bind WeatherWindText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis" />
-                                </Grid>
-                                <TextBlock
-                                    Style="{StaticResource WwbCardCaptionStyle}"
-                                    Text="{x:Bind WeatherObservedAtText, Mode=OneWay}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                        </Grid>
+                                </StackPanel>
+                            </Grid>
+
+                            <!--
+                                The hourly trend scrolls sideways rather than wrapping: it is
+                                one sequence in time, and a wrapped second row would read as a
+                                second day.
+                            -->
+                            <ScrollViewer
+                                x:Name="WeatherHourlyScroller"
+                                HorizontalScrollBarVisibility="Hidden"
+                                HorizontalScrollMode="Enabled"
+                                VerticalScrollBarVisibility="Disabled"
+                                VerticalScrollMode="Disabled"
+                                Visibility="{x:Bind HasWeatherHours, Mode=OneWay}">
+                                <ItemsControl
+                                    automation:AutomationProperties.AutomationId="WeatherHourlyList"
+                                    ItemsSource="{x:Bind WeatherHours, Mode=OneWay}"
+                                    ItemTemplate="{StaticResource WeatherHourTemplate}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="10" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <ItemsControl
+                                automation:AutomationProperties.AutomationId="WeatherDailyList"
+                                ItemsSource="{x:Bind WeatherDays, Mode=OneWay}"
+                                ItemTemplate="{StaticResource WeatherDayTemplate}"
+                                Visibility="{x:Bind HasWeatherDays, Mode=OneWay}" />
+
+                            <TextBlock
+                                Style="{StaticResource WwbCardCaptionStyle}"
+                                Text="{x:Bind WeatherObservedAtText, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
                     </Grid>
                     <HyperlinkButton
                         Grid.Row="2"
