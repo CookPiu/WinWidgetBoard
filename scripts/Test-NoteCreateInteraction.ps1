@@ -283,10 +283,13 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10)) `
         -Enabled)
 
+    # Browsing now lives on the notes card and closes once a note is picked, so the switcher
+    # has to be reopened before the search box exists again. In the header it was permanent.
+    Invoke-Element -Element $listButton
     $searchBox = Wait-VisibleElementByAutomationId `
         -Root $window `
         -AutomationId 'SearchBox' `
-        -Timeout ([TimeSpan]::FromSeconds(5)) `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
         -Enabled
     Set-TextValue -Element $searchBox -Value $originalTitle
     Set-TextValue -Element $searchBox -Value $createdBody

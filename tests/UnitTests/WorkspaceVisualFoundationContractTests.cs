@@ -222,17 +222,41 @@ public sealed class WorkspaceVisualFoundationContractTests
             "HeaderCommandBar");
         Assert.AreEqual("0", (string?)commandBar.Attribute("Grid.Row"));
 
+        // Note browsing belongs to the card that owns notes, not to the panel header: the
+        // header sits above every card including the ones it has nothing to do with, and the
+        // results row pushed the whole board down whenever it opened.
+        XElement notesCard = document
+            .Descendants(Presentation + "DataTemplate")
+            .Single(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Key"),
+                    "NotesCardTemplate",
+                    StringComparison.Ordinal));
+        foreach (string name in new[] { "SearchBox", "ListNotesButton", "NoteSearchResultsBorder" })
+        {
+            XElement moved = document
+                .Descendants()
+                .Single(candidate =>
+                    string.Equals(
+                        (string?)candidate.Attribute(Xaml + "Name"),
+                        name,
+                        StringComparison.Ordinal));
+            Assert.IsFalse(
+                moved.Ancestors().Contains(commandBar),
+                $"{name} must not be in the panel header.");
+            Assert.IsTrue(
+                moved.Ancestors().Contains(notesCard),
+                $"{name} belongs to the notes card.");
+        }
+
         XElement searchBox = GetNamedElement(document, "TextBox", "SearchBox");
         Assert.AreEqual(
             "{StaticResource WwbSearchBoxStyle}",
             (string?)searchBox.Attribute("Style"));
-        Assert.AreEqual("1", (string?)searchBox.Attribute("Grid.Column"));
-        Assert.IsTrue(searchBox.Ancestors().Contains(commandBar));
 
         foreach (string name in new[]
                  {
                      "GreetingText",
-                     "ListNotesButton",
                      "EditLayoutButton",
                      "SettingsButton",
                      "ClosePanelButton",
@@ -254,10 +278,10 @@ public sealed class WorkspaceVisualFoundationContractTests
             document,
             "Border",
             "NoteSearchResultsBorder");
-        Assert.AreEqual("1", (string?)searchResults.Attribute("Grid.Row"));
         Assert.AreEqual(
             "{StaticResource WwbSecondarySurfaceStyle}",
             (string?)searchResults.Attribute("Style"));
+        Assert.AreEqual("Collapsed", (string?)searchResults.Attribute("Visibility"));
 
         XElement status = GetNamedElement(document, "TextBlock", "StatusText");
         Assert.AreEqual(
@@ -801,19 +825,15 @@ public sealed class WorkspaceVisualFoundationContractTests
     [TestMethod(DisplayName = "UT-UI-009 [PNL-003] Header reveal clip is released once the panel settles")]
     public void HeaderRevealClipIsReleasedOncePanelSettles()
     {
-        // HeaderBar hosts NoteSearchResultsBorder, so a reveal clip left attached
-        // after the motion settled cuts the note results off when that row grows.
-        // UIA still reports them, which is why this is a source contract.
+        // A reveal clip left attached after the motion settled cuts off whatever the header
+        // grows to hold. It used to cut off the note results, which have since moved to the
+        // notes card; the clip must still be released, because the header keeps its status
+        // line and command row and both can change height. UIA reports clipped content
+        // normally, which is why this is a source contract rather than a UIA one.
         string source = File.ReadAllText(GetAssetPath("MainWindow.xaml.cs"));
         XDocument document = LoadAsset("MainWindow.xaml");
         XElement header = GetNamedElement(document, "Border", "HeaderBar");
-        XElement results = GetNamedElement(
-            document,
-            "Border",
-            "NoteSearchResultsBorder");
-        Assert.IsTrue(
-            results.Ancestors().Contains(header),
-            "The clip contract only matters while the results live inside HeaderBar.");
+        Assert.IsNotNull(header);
 
         int start = source.IndexOf(
             "private void ApplyHeaderReveal(",

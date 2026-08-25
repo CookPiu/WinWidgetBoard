@@ -28,6 +28,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             status => status.ToString());
         CardSurfaceItem[] originalItems = surface.Items.ToArray();
         CardRuntimeInstance[] originalRuntimes = surface.Items
@@ -72,6 +73,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             status => $"{status}:{noteEditor.ErrorCode}");
         var changed = new List<string>();
         surface.Items[0].PropertyChanged += (_, args) =>
@@ -96,6 +98,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             status => status.ToString());
         surface.SetPanelVisibility(true);
         surface.Items[0].SetViewportVisibility(true);
@@ -135,7 +138,8 @@ public sealed class CardLayoutSurfaceViewModelTests
         var editMode = new CardLayoutEditViewModel(layout);
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
-            noteEditor);
+            noteEditor,
+            new NoteSearchViewModel(null));
         CardSurfaceItem item = surface.Items[0];
         long hiddenSequence = item.RuntimeSnapshot.Sequence;
         string? hiddenError = item.RuntimeSnapshot.ErrorCode;
@@ -172,6 +176,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             status => status.ToString());
         CardSurfaceItem[] originalItems = surface.Items.ToArray();
         CardPlacement timerStart = layout.Placements.Single(
@@ -219,6 +224,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             status => status.ToString());
         Dictionary<string, CardSurfaceItem> originalItems = surface.Items
             .ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
@@ -278,6 +284,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             status => status.ToString());
         CardSurfaceItem[] originalItems = surface.Items.ToArray();
         var changed = new List<string>();
@@ -337,7 +344,8 @@ public sealed class CardLayoutSurfaceViewModelTests
         var editMode = new CardLayoutEditViewModel(layout);
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
-            noteEditor);
+            noteEditor,
+            new NoteSearchViewModel(null));
 
         string[] expectedTypeIds =
         [
@@ -380,6 +388,7 @@ public sealed class CardLayoutSurfaceViewModelTests
         using var surface = new CardLayoutSurfaceViewModel(
             editMode,
             noteEditor,
+            new NoteSearchViewModel(null),
             visibilityScheduler: scheduler);
 
         Assert.AreEqual(2, scheduler.RegistrationCount);

@@ -168,6 +168,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardSurface = new CardLayoutSurfaceViewModel(
             _cardEdit,
             NoteEditor,
+            NoteSearch,
             FormatNoteStatus,
             runtimeResourceResolver: key => _resources.GetString(
                 key.Replace('.', '/')),
@@ -710,9 +711,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void ConfigureHeaderToolTips()
     {
         ToolTipService.SetToolTip(
-            ListNotesButton,
-            _resources.GetString("ListNotesButtonToolTip"));
-        ToolTipService.SetToolTip(
             AddCardButton,
             _resources.GetString("AddCardButtonToolTip"));
         ToolTipService.SetToolTip(
@@ -978,10 +976,20 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         bool isVisible,
         bool immediate = false)
     {
+        // Looked up rather than referenced: the switcher moved into the notes card template,
+        // so it is realized per card element and is not a field on this page.
+        FrameworkElement? results = FindDescendantByName<FrameworkElement>(
+            RootGrid,
+            "NoteSearchResultsBorder");
+        if (results is null)
+        {
+            return;
+        }
+
         if (isVisible)
         {
             _surfaceMotion.Show(
-                NoteSearchResultsBorder,
+                results,
                 SurfaceMotionAnchor.Top,
                 floating: true);
             return;
@@ -989,12 +997,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         if (immediate)
         {
-            _surfaceMotion.HideImmediately(NoteSearchResultsBorder);
+            _surfaceMotion.HideImmediately(results);
             return;
         }
 
         _surfaceMotion.Hide(
-            NoteSearchResultsBorder,
+            results,
             SurfaceMotionAnchor.Top);
     }
 
@@ -1169,7 +1177,10 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _suppressNoteSearchTextChanged = true;
         try
         {
-            SearchBox.Text = string.Empty;
+            if (FindDescendantByName<TextBox>(RootGrid, "SearchBox") is { } searchBox)
+            {
+                searchBox.Text = string.Empty;
+            }
         }
         finally
         {
@@ -1255,6 +1266,14 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         bool loaded = await _noteList.LoadNoteAsync(
             noteId,
             CancellationToken.None);
+        if (loaded)
+        {
+            // Picking a note is the end of browsing. The switcher lives inside the card now,
+            // so leaving it open would keep the editor the user just asked for pushed below
+            // the fold - in the header it merely sat above the board and cost nothing.
+            SetSearchResultsVisible(false);
+        }
+
         StatusText.Text = _resources.GetString(
             loaded ? "NoteLoadedStatus" : "NoteLoadFailedStatus");
     }

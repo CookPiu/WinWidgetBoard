@@ -779,9 +779,18 @@ function Set-VerticalScrollPercent {
 
     $scroll = [System.Windows.Automation.ScrollPattern]$pattern
     if ($scroll.Current.VerticallyScrollable) {
-        $scroll.SetScrollPercent(
-            [System.Windows.Automation.ScrollPattern]::NoScroll,
-            $Percent)
+        try {
+            $scroll.SetScrollPercent(
+                [System.Windows.Automation.ScrollPattern]::NoScroll,
+                $Percent)
+        }
+        catch [InvalidOperationException] {
+            # A scroller whose content exactly fills its viewport reports itself scrollable
+            # and then rejects the set, and the two can disagree between one call and the
+            # next while a card is laying out. There is nothing to scroll, which is the state
+            # the caller was asking for, so this is not a failure.
+        }
+
         if ($DelayMilliseconds -gt 0) {
             Start-Sleep -Milliseconds $DelayMilliseconds
         }

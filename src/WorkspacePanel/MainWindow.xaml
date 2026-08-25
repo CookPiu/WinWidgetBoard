@@ -527,6 +527,13 @@
                                 Orientation="Horizontal"
                                 Spacing="2">
                                 <Button
+                                    x:Name="ListNotesButton"
+                                    x:Uid="ListNotesButton"
+                                    Style="{StaticResource WwbCardIconButtonStyle}"
+                                    IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
+                                    Tag="{Binding ElementName=NoteSearchResultsBorder}"
+                                    Click="ListNotesButton_Click" />
+                                <Button
                                     x:Name="NewNoteButton"
                                     x:Uid="NewNoteButton"
                                     Style="{StaticResource WwbCardIconButtonStyle}"
@@ -608,13 +615,78 @@
                             RowSpacing="8"
                             MinHeight="{Binding ViewportHeight, ElementName=NotesCardScrollViewer}">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
+                            <!--
+                                Note browsing lives on the card that owns notes. It used to
+                                sit in the panel header, above every card including the ones
+                                it had nothing to do with, and it pushed the whole board down
+                                whenever it opened.
+                            -->
+                            <Border
+                                x:Name="NoteSearchResultsBorder"
+                                Style="{StaticResource WwbSecondarySurfaceStyle}"
+                                Visibility="Collapsed">
+                                <StackPanel Spacing="6">
+                                    <TextBox
+                                        x:Name="SearchBox"
+                                        x:Uid="SearchBox"
+                                        Style="{StaticResource WwbSearchBoxStyle}"
+                                        IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
+                                        TextChanged="SearchBox_TextChanged" />
+                                    <ListView
+                                    x:Name="NoteSearchResultsList"
+                                    x:Uid="NoteSearchResultsList"
+                                    ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
+                                    IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                                    IsItemClickEnabled="False"
+                                    MaxHeight="180"
+                                    SelectionMode="None">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="notes:NoteSearchResult">
+                                            <Grid ColumnSpacing="6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button
+                                                    Grid.Column="0"
+                                                    Tag="{x:Bind NoteId}"
+                                                    Style="{StaticResource WwbSearchResultButtonStyle}"
+                                                    Click="NoteSearchResultButton_Click"
+                                                    automation:AutomationProperties.Name="{x:Bind Title}">
+                                                    <StackPanel
+                                                        Padding="2"
+                                                        Spacing="1">
+                                                        <TextBlock
+                                                            Text="{x:Bind Title}"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            Style="{StaticResource WwbSearchResultTitleStyle}" />
+                                                        <TextBlock
+                                                            Text="{x:Bind Preview}"
+                                                            TextWrapping="Wrap"
+                                                            Style="{StaticResource WwbSearchResultPreviewStyle}" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button
+                                                    Grid.Column="1"
+                                                    x:Uid="DeleteNoteButton"
+                                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                                    Click="DeleteNoteButton_Click" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                </StackPanel>
+                            </Border>
+
                             <Grid
                                 x:Name="NoteEditorInputPanel"
+                                Grid.Row="1"
                                 RowSpacing="6">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -647,7 +719,7 @@
                             </Grid>
                             <Border
                                 x:Name="NoteMarkdownPreviewPanel"
-                                Grid.Row="1"
+                                Grid.Row="2"
                                 x:Uid="NoteMarkdownPreviewPanel"
                                 Style="{StaticResource WwbSecondarySurfaceStyle}"
                                 Visibility="Collapsed">
@@ -666,7 +738,7 @@
                             </Border>
                             <Border
                                 x:Name="NoteOverflowPanel"
-                                Grid.Row="2"
+                                Grid.Row="3"
                                 Tag="{Binding ElementName=NoteMoreButton}"
                                 Style="{StaticResource WwbNoteOverflowSurfaceStyle}"
                                 Visibility="Collapsed">
@@ -706,7 +778,7 @@
                             </Border>
                             <Grid
                                 x:Name="NoteEditorFooter"
-                                Grid.Row="3"
+                                Grid.Row="4"
                                 VerticalAlignment="Bottom"
                                 ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
@@ -1777,8 +1849,11 @@
                         x:Name="HeaderCommandBar"
                         Grid.Row="0"
                         ColumnSpacing="8">
+                        <!--
+                            Two columns now. The middle one existed only to hold the note
+                            search box, which moved to the card that owns notes.
+                        -->
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -1822,27 +1897,11 @@
                             </Border>
                         </StackPanel>
 
-                        <TextBox
-                            x:Name="SearchBox"
-                            x:Uid="SearchBox"
-                            Grid.Column="1"
-                            MinWidth="120"
-                            VerticalAlignment="Center"
-                            Style="{StaticResource WwbSearchBoxStyle}"
-                            IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
-                            TextChanged="SearchBox_TextChanged" />
-
                         <StackPanel
-                            Grid.Column="2"
+                            Grid.Column="1"
                             Orientation="Horizontal"
                             Spacing="2"
                             VerticalAlignment="Center">
-                            <Button
-                                x:Name="ListNotesButton"
-                                x:Uid="ListNotesButton"
-                                Style="{StaticResource WwbToolbarButtonStyle}"
-                                IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
-                                Click="ListNotesButton_Click" />
                             <Button
                                 x:Name="EditLayoutButton"
                                 x:Uid="EditLayoutButton"
@@ -1879,55 +1938,6 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border
-                        x:Name="NoteSearchResultsBorder"
-                        Grid.Row="1"
-                        Style="{StaticResource WwbSecondarySurfaceStyle}"
-                        Visibility="Collapsed">
-                        <ListView
-                            x:Name="NoteSearchResultsList"
-                            x:Uid="NoteSearchResultsList"
-                            ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
-                            IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
-                            IsItemClickEnabled="False"
-                            MaxHeight="180"
-                            SelectionMode="None">
-                            <ListView.ItemTemplate>
-                                <DataTemplate x:DataType="notes:NoteSearchResult">
-                                    <Grid ColumnSpacing="6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button
-                                            Grid.Column="0"
-                                            Tag="{x:Bind NoteId}"
-                                            Style="{StaticResource WwbSearchResultButtonStyle}"
-                                            Click="NoteSearchResultButton_Click"
-                                            automation:AutomationProperties.Name="{x:Bind Title}">
-                                            <StackPanel
-                                                Padding="2"
-                                                Spacing="1">
-                                                <TextBlock
-                                                    Text="{x:Bind Title}"
-                                                    TextTrimming="CharacterEllipsis"
-                                                    Style="{StaticResource WwbSearchResultTitleStyle}" />
-                                                <TextBlock
-                                                    Text="{x:Bind Preview}"
-                                                    TextWrapping="Wrap"
-                                                    Style="{StaticResource WwbSearchResultPreviewStyle}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button
-                                            Grid.Column="1"
-                                            x:Uid="DeleteNoteButton"
-                                            Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                            Click="DeleteNoteButton_Click" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-                    </Border>
                 </Grid>
             </Border>
 

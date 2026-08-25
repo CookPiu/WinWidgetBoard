@@ -10,6 +10,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
     private readonly CardLayoutViewModel _layout;
     private readonly CardLayoutEditViewModel _editMode;
     private readonly NoteEditorViewModel _noteEditor;
+    private readonly NoteSearchViewModel _noteSearch;
     private readonly Func<NoteEditorStatus, string> _statusFormatter;
     private readonly Func<string, string?> _runtimeResourceResolver;
     private readonly Action<Action> _uiInvoker;
@@ -20,6 +21,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
     public CardLayoutSurfaceViewModel(
         CardLayoutEditViewModel editMode,
         NoteEditorViewModel noteEditor,
+        NoteSearchViewModel noteSearch,
         Func<NoteEditorStatus, string>? statusFormatter = null,
         CardRuntimeVisibilityScheduler? visibilityScheduler = null,
         Func<string, string?>? runtimeResourceResolver = null,
@@ -27,6 +29,8 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
     {
         ArgumentNullException.ThrowIfNull(editMode);
         ArgumentNullException.ThrowIfNull(noteEditor);
+        ArgumentNullException.ThrowIfNull(noteSearch);
+        _noteSearch = noteSearch;
         _editMode = editMode;
         _layout = editMode.Layout;
         _noteEditor = noteEditor;
@@ -188,6 +192,7 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
                 item = new CardSurfaceItem(
                     placement,
                     _noteEditor,
+                    _noteSearch,
                     _editMode,
                     _statusFormatter,
                     _visibilityScheduler,

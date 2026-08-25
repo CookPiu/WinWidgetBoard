@@ -25,6 +25,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public CardSurfaceItem(
         CardPlacement placement,
         NoteEditorViewModel noteEditor,
+        NoteSearchViewModel noteSearch,
         CardLayoutEditViewModel editMode,
         Func<NoteEditorStatus, string>? statusFormatter = null,
         CardRuntimeVisibilityScheduler? visibilityScheduler = null,
@@ -32,7 +33,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         Action<Action>? uiInvoker = null)
     {
         ArgumentNullException.ThrowIfNull(noteEditor);
+        ArgumentNullException.ThrowIfNull(noteSearch);
         ArgumentNullException.ThrowIfNull(editMode);
+        NoteSearch = noteSearch;
         Placement = placement;
         NoteEditor = noteEditor;
         _editMode = editMode;
@@ -71,6 +74,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string InstanceId => Placement.InstanceId;
 
     public NoteEditorViewModel NoteEditor { get; }
+
+    /// <summary>
+    /// The note list, for the card's own switcher. Browsing notes used to live in the panel
+    /// header, above every card including the ones it had nothing to do with; it belongs to
+    /// the card that owns notes.
+    /// </summary>
+    public NoteSearchViewModel NoteSearch { get; }
 
     public CardRuntimeInstance Runtime { get; }
 
