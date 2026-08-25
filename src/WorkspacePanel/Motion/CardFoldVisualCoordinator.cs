@@ -205,8 +205,12 @@ public sealed class CardFoldVisualCoordinator : IDisposable
         Visual visual = ElementCompositionPreview.GetElementVisual(element);
         visual.Scale = Vector3.One;
         visual.RotationAngleInDegrees = 0;
-        visual.Offset = Vector3.Zero;
         visual.CenterPoint = Vector3.Zero;
+        // Translation, never Offset. A visual's Offset is where XAML layout put the element,
+        // so writing it replaces the arranged position instead of adding to it - and zeroing
+        // it on reset stacked every card in the parent's top-left corner. Translation is the
+        // additive channel that composes on top of layout.
+        element.Translation = Vector3.Zero;
     }
 
     private static void ApplyPresentation(
@@ -247,7 +251,7 @@ public sealed class CardFoldVisualCoordinator : IDisposable
             CardFoldPathResolver.ResolveFoldScale(presentation);
         entry.Visual.Scale = new Vector3((float)scaleX, (float)scaleY, 1);
         entry.Visual.RotationAngleInDegrees = (float)presentation.RotationZ;
-        entry.Visual.Offset = new Vector3(
+        entry.Element.Translation = new Vector3(
             (float)presentation.OffsetX,
             (float)presentation.OffsetY,
             0);

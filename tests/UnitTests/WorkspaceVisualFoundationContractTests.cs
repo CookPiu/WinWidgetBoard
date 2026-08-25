@@ -632,9 +632,16 @@ public sealed class WorkspaceVisualFoundationContractTests
         // mismatch. Every property the fold writes has to be returned.
         StringAssert.Contains(source, "visual.Scale = Vector3.One;");
         StringAssert.Contains(source, "visual.RotationAngleInDegrees = 0;");
-        StringAssert.Contains(source, "visual.Offset = Vector3.Zero;");
         StringAssert.Contains(source, "visual.CenterPoint = Vector3.Zero;");
+        StringAssert.Contains(source, "element.Translation = Vector3.Zero;");
         StringAssert.Contains(source, "element.Opacity = 1;");
+
+        // Offset is where XAML layout put the element. Writing it replaces the arranged
+        // position rather than adding to it, and zeroing it on reset stacked every card in
+        // the parent's top-left corner. Translation is the additive channel.
+        Assert.IsFalse(
+            source.Contains(".Offset = ", StringComparison.Ordinal),
+            "The fold must translate with Translation, never by writing a visual's Offset.");
 
         // Reset has to run when a recycled element is cleared, not only on Complete.
         int unregister = source.IndexOf(

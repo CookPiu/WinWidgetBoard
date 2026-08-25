@@ -137,6 +137,7 @@ try {
         $panelPid = $panelProcess.Id
         $checked = 0
         $mismatches = @()
+        $seen = @()
         foreach ($id in $probes) {
             $element = Get-ElementByAutomationId -Root $panel -AutomationId $id
             if ($null -eq $element) { continue }
@@ -148,6 +149,30 @@ try {
             }
 
             $checked++
+            # Probes never overlap when the board is laid out: each sits in its own card, and
+            # the two that share the notes card sit in different rows. Overlap therefore means
+            # cards piled on top of each other.
+            #
+            # Hit testing alone cannot catch a pile-up: writing a visual's Offset instead of
+            # its Translation replaced the layout position and stacked every card in the
+            # parent's top-left corner, and the hit test still agreed because the picture and
+            # the input had moved together.
+            #
+            # Honest limit: reintroducing that bug did not reproduce the pile-up under this
+            # script's --no-broker conditions - the cards stayed where they belonged - so this
+            # check is an invariant that should hold rather than one proven to catch that
+            # particular failure.
+            foreach ($prior in $seen) {
+                if ($rect.X -lt ($prior.Rect.X + $prior.Rect.Width) -and
+                    ($rect.X + $rect.Width) -gt $prior.Rect.X -and
+                    $rect.Y -lt ($prior.Rect.Y + $prior.Rect.Height) -and
+                    ($rect.Y + $rect.Height) -gt $prior.Rect.Y) {
+                    $mismatches += "$id : overlaps $($prior.Id); cards are stacked"
+                }
+            }
+
+            $seen += [pscustomobject]@{ Id = $id; Rect = $rect }
+
             $centreX = [int]($rect.X + $rect.Width / 2)
             $centreY = [int]($rect.Y + $rect.Height / 2)
             $hit = [System.Windows.Automation.AutomationElement]::FromPoint(
