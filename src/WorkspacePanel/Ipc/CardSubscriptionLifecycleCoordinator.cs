@@ -20,6 +20,11 @@ public sealed class CardSubscriptionLifecycleCoordinator : IAsyncDisposable
     private readonly CancellationTokenSource _disposeCancellation = new();
     private int _disposed;
     private int _initialized;
+    // A refresh asked for before the first subscription completed. On a cold start the panel
+    // becomes visible while InitializeAsync is still in flight, and dropping that request left
+    // the provider cards subscribed with the viewport they had before any card was realized -
+    // which is none. They then sat on "loading" until the next open happened to ask again.
+    private int _refreshPendingBeforeInitialize;
 
     public CardSubscriptionLifecycleCoordinator(
         CoreBrokerCardsClient cardsClient,
@@ -60,8 +65,14 @@ public sealed class CardSubscriptionLifecycleCoordinator : IAsyncDisposable
 
     public void HandleBrokerReconnected(object? sender, EventArgs args)
     {
-        if (Volatile.Read(ref _disposed) != 0 || !IsInitialized)
+        if (Volatile.Read(ref _disposed) != 0)
         {
+            return;
+        }
+
+        if (!IsInitialized)
+        {
+            Volatile.Write(ref _refreshPendingBeforeInitialize, 1);
             return;
         }
 
@@ -76,8 +87,14 @@ public sealed class CardSubscriptionLifecycleCoordinator : IAsyncDisposable
 
     public void RequestRefresh()
     {
-        if (Volatile.Read(ref _disposed) != 0 || !IsInitialized)
+        if (Volatile.Read(ref _disposed) != 0)
         {
+            return;
+        }
+
+        if (!IsInitialized)
+        {
+            Volatile.Write(ref _refreshPendingBeforeInitialize, 1);
             return;
         }
 
@@ -123,7 +140,26 @@ public sealed class CardSubscriptionLifecycleCoordinator : IAsyncDisposable
                     state.VisibleInstanceIds,
                     cancellationToken)
                 .ConfigureAwait(false);
+            bool wasInitialized = Volatile.Read(ref _initialized) != 0;
             Volatile.Write(ref _initialized, 1);
+            if (!wasInitialized &&
+                Interlocked.Exchange(ref _refreshPendingBeforeInitialize, 0) != 0)
+            {
+                // Whatever asked while this was still starting gets its refresh now, with the
+                // viewport the panel actually has rather than the one it had before layout.
+                //
+                // Marshalled: this continuation runs wherever the await left it, and the
+                // refresh timer is a DispatcherQueueTimer that only accepts the UI thread.
+                if (_uiDispatcherQueue.HasThreadAccess)
+                {
+                    RequestRefresh();
+                }
+                else
+                {
+                    _uiDispatcherQueue.TryEnqueue(RequestRefresh);
+                }
+            }
+
             return true;
         }
         catch (OperationCanceledException) when (
