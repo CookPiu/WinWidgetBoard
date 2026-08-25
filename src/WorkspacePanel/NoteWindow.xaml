@@ -3,65 +3,129 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation">
-    <Grid
-        x:Name="NoteWindowRoot"
-        Padding="{StaticResource WwbCardPadding}"
-        RowSpacing="{StaticResource WwbSpace2}"
-        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <!--
+        Built from the panel's own surfaces rather than from default window chrome. A popped
+        out note is the same note on the same board; a flat white dialog with a system title
+        bar reads as a different application's window that happens to contain the text.
+    -->
+    <Grid x:Name="NoteWindowRoot">
+        <Border
+            Background="{ThemeResource WwbPanelAccentWashBrush}"
+            IsHitTestVisible="False" />
 
-        <!--
-            One command, stated as a checkbox rather than a toggle button: staying on top is a
-            mode the window is in, not an action it performs, and a checked box says which.
-        -->
-        <CheckBox
-            x:Name="AlwaysOnTopCheckBox"
-            x:Uid="NoteWindowAlwaysOnTop"
-            Grid.Row="0"
-            HorizontalAlignment="Left"
-            Style="{StaticResource WwbModeCheckBoxStyle}"
-            Click="AlwaysOnTopCheckBox_Click"
-            automation:AutomationProperties.AutomationId="NoteWindowAlwaysOnTop" />
+        <Grid Style="{StaticResource WwbPanelRootStyle}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <TextBox
-            x:Name="NoteWindowTitleBox"
-            x:Uid="NoteWindowTitleBox"
-            Grid.Row="1"
-            Style="{StaticResource WwbNoteTitleTextBoxStyle}"
-            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-            Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
-            TextChanged="NoteWindowTitleBox_TextChanged"
-            automation:AutomationProperties.AutomationId="NoteWindowTitleBox" />
+            <!--
+                The window's own title bar. The content is extended into it so the header is
+                the panel's header, not a system caption strip above one; the right-hand
+                spacer keeps the caption buttons from landing on the pin.
+            -->
+            <Border
+                x:Name="NoteWindowHeader"
+                Grid.Row="0"
+                Style="{StaticResource WwbHeaderSurfaceStyle}">
+                <Grid ColumnSpacing="{StaticResource WwbSpace2}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-        <TextBox
-            x:Name="NoteWindowBodyBox"
-            x:Uid="NoteWindowBodyBox"
-            Grid.Row="2"
-            Style="{StaticResource WwbNoteBodyTextBoxStyle}"
-            AcceptsReturn="True"
-            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
-            ScrollViewer.HorizontalScrollMode="Disabled"
-            ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-            ScrollViewer.VerticalScrollMode="Enabled"
-            ScrollViewer.VerticalScrollBarVisibility="Auto"
-            Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
-            TextChanged="NoteWindowBodyBox_TextChanged"
-            TextWrapping="Wrap"
-            VerticalAlignment="Stretch"
-            VerticalContentAlignment="Top"
-            automation:AutomationProperties.AutomationId="NoteWindowBodyBox" />
+                    <!--
+                        Only this strip is the drag region, not the whole header: a drag
+                        region swallows pointer input, and the pin sits in the same row.
+                        The heading rides on top of it with hit testing off so the text is
+                        draggable rather than a hole in the strip.
+                    -->
+                    <Border
+                        x:Name="NoteWindowDragRegion"
+                        Background="Transparent">
+                        <TextBlock
+                            x:Uid="NoteWindowHeaderTitle"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Left"
+                            IsHitTestVisible="False"
+                            Style="{StaticResource WwbPanelTitleStyle}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            automation:AutomationProperties.HeadingLevel="Level1" />
+                    </Border>
 
-        <TextBlock
-            x:Name="NoteWindowStatusText"
-            Grid.Row="3"
-            Style="{StaticResource WwbPanelContextStyle}"
-            TextTrimming="CharacterEllipsis"
-            TextWrapping="NoWrap"
-            automation:AutomationProperties.AutomationId="NoteWindowStatusText" />
+                    <!--
+                        Staying on top is a mode the window is in, so it is stated by a toggle
+                        whose pressed state is what says so - a checkbox in a header row reads
+                        as a form field next to a heading.
+                    -->
+                    <ToggleButton
+                        x:Name="AlwaysOnTopToggle"
+                        x:Uid="NoteWindowAlwaysOnTop"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource WwbToolbarToggleButtonStyle}"
+                        Click="AlwaysOnTopToggle_Click"
+                        automation:AutomationProperties.AutomationId="NoteWindowAlwaysOnTop" />
+
+                    <Border
+                        x:Name="NoteWindowCaptionSpacer"
+                        Grid.Column="2"
+                        Width="0"
+                        Background="Transparent"
+                        IsHitTestVisible="False" />
+                </Grid>
+            </Border>
+
+            <Border
+                Grid.Row="1"
+                Margin="{StaticResource WwbContentPadding}"
+                Style="{StaticResource WwbCardSurfaceStyle}">
+                <Grid RowSpacing="{StaticResource WwbSpace2}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBox
+                        x:Name="NoteWindowTitleBox"
+                        x:Uid="NoteWindowTitleBox"
+                        Grid.Row="0"
+                        Style="{StaticResource WwbNoteTitleTextBoxStyle}"
+                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                        Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
+                        TextChanged="NoteWindowTitleBox_TextChanged"
+                        automation:AutomationProperties.AutomationId="NoteWindowTitleBox" />
+
+                    <TextBox
+                        x:Name="NoteWindowBodyBox"
+                        x:Uid="NoteWindowBodyBox"
+                        Grid.Row="1"
+                        Style="{StaticResource WwbNoteBodyTextBoxStyle}"
+                        AcceptsReturn="True"
+                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                        ScrollViewer.VerticalScrollMode="Enabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
+                        TextChanged="NoteWindowBodyBox_TextChanged"
+                        TextWrapping="Wrap"
+                        VerticalAlignment="Stretch"
+                        VerticalContentAlignment="Top"
+                        automation:AutomationProperties.AutomationId="NoteWindowBodyBox" />
+
+                    <TextBlock
+                        x:Name="NoteWindowStatusText"
+                        Grid.Row="2"
+                        Style="{StaticResource WwbPanelContextStyle}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="NoWrap"
+                        automation:AutomationProperties.AutomationId="NoteWindowStatusText" />
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

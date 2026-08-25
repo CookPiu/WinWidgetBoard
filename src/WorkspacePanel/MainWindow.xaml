@@ -401,7 +401,7 @@
             x:DataType="runtime:WeatherDayProjection">
             <Grid
                 ColumnSpacing="{StaticResource WwbSpace2}"
-                Padding="0,2">
+                Padding="0,1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="48" />
                     <ColumnDefinition Width="24" />
@@ -848,11 +848,13 @@
                             </Border>
                             <Button
                                 x:Uid="DecreaseCardButton"
+                                automation:AutomationProperties.AutomationId="NotesCardDecreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="DecreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="IncreaseCardButton"
+                                automation:AutomationProperties.AutomationId="NotesCardIncreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="IncreaseCardSizeButton_Click" />
@@ -1194,100 +1196,197 @@
                             IsTabStop="False"
                             Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
                         <!--
-                            Three bands, in the order the question is actually asked: what it
-                            is like now, what the rest of today does, what the next days do.
-                            The previous layout put every secondary reading in one column of
-                            equal-weight captions beside the temperature, which gave the
-                            observation time the same standing as the temperature itself.
+                            Two bands, and which axis separates them depends on the card's
+                            shape rather than on its size order. A four-column card is only
+                            one row tall at W, so the forecast goes beside the reading; a
+                            two-column card that is two rows tall stacks them. The cell is
+                            bound rather than duplicated, so there is one hourly list in the
+                            tree and one automation ID for it.
                         -->
-                        <StackPanel
-                            Spacing="{StaticResource WwbSpace3}"
+                        <Grid
+                            ColumnSpacing="{StaticResource WwbSpace4}"
+                            RowSpacing="{StaticResource WwbSpace2}"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
-                            <Grid ColumnSpacing="{StaticResource WwbSpace3}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="{x:Bind WeatherCurrentColumnSpan, Mode=OneWay}"
+                                Spacing="{StaticResource WwbSpace1}">
+                                <!--
+                                    The number, then what it is. The glyph sits with the
+                                    condition rather than beside the temperature, so the
+                                    card's first glance stays one number and the
+                                    illustration reads as part of the phrase describing it.
+                                -->
+                                <TextBlock
+                                    automation:AutomationProperties.AutomationId="WeatherTemperatureText"
+                                    automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
+                                    Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                    Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Spacing="{StaticResource WwbSpace1}">
+                                    <ContentControl
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        automation:AutomationProperties.AccessibilityView="Raw"
+                                        Content="{x:Bind WeatherConditionIconId, Mode=OneWay}"
+                                        ContentTemplateSelector="{StaticResource WeatherGlyphSelector}"
+                                        IsTabStop="False" />
                                     <TextBlock
-                                        automation:AutomationProperties.AutomationId="WeatherTemperatureText"
-                                        automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
-                                        Style="{StaticResource WwbWeatherTemperatureStyle}"
-                                        Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
-                                    <TextBlock
+                                        automation:AutomationProperties.AutomationId="WeatherConditionText"
                                         automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
                                         Style="{StaticResource WwbCardBodyStyle}"
                                         Text="{x:Bind WeatherConditionText, Mode=OneWay}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Center" />
                                 </StackPanel>
+
                                 <!--
-                                    Secondary readings sit beside the temperature rather than
-                                    under it, so the card's first glance stays one number.
+                                    Each secondary reading is named. Three bare numbers in a
+                                    column beside the temperature - 32.4 degrees, 87%,
+                                    1.6 km/h - state nothing about which is the felt
+                                    temperature and which the humidity, and the first of them
+                                    reads as a second temperature.
                                 -->
-                                <StackPanel
-                                    Grid.Column="1"
-                                    Spacing="2"
-                                    VerticalAlignment="Bottom">
+                                <Grid
+                                    ColumnSpacing="{StaticResource WwbSpace3}"
+                                    Margin="0,4,0,0"
+                                    Visibility="{x:Bind HasWeatherSecondary, Mode=OneWay}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <TextBlock
+                                        x:Uid="WeatherApparentLabel"
+                                        Grid.Row="0"
+                                        Grid.Column="0"
                                         Style="{StaticResource WwbCardCaptionStyle}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Row="1"
+                                        Grid.Column="0"
+                                        automation:AutomationProperties.AutomationId="WeatherApparentTemperatureText"
+                                        Style="{StaticResource WwbCardBodyStyle}"
                                         Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis" />
                                     <TextBlock
+                                        x:Uid="WeatherHumidityLabel"
+                                        Grid.Row="0"
+                                        Grid.Column="1"
                                         Style="{StaticResource WwbCardCaptionStyle}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Row="1"
+                                        Grid.Column="1"
+                                        automation:AutomationProperties.AutomationId="WeatherHumidityText"
+                                        Style="{StaticResource WwbCardBodyStyle}"
                                         Text="{x:Bind WeatherHumidityText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis" />
                                     <TextBlock
+                                        x:Uid="WeatherWindLabel"
+                                        Grid.Row="0"
+                                        Grid.Column="2"
                                         Style="{StaticResource WwbCardCaptionStyle}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Row="1"
+                                        Grid.Column="2"
+                                        automation:AutomationProperties.AutomationId="WeatherWindText"
+                                        Style="{StaticResource WwbCardBodyStyle}"
                                         Text="{x:Bind WeatherWindText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </Grid>
+                                </Grid>
+                            </StackPanel>
 
-                            <!--
-                                The hourly trend scrolls sideways rather than wrapping: it is
-                                one sequence in time, and a wrapped second row would read as a
-                                second day.
-                            -->
-                            <ScrollViewer
-                                x:Name="WeatherHourlyScroller"
-                                HorizontalScrollBarVisibility="Hidden"
-                                HorizontalScrollMode="Enabled"
-                                VerticalScrollBarVisibility="Disabled"
-                                VerticalScrollMode="Disabled"
-                                Visibility="{x:Bind HasWeatherHours, Mode=OneWay}">
+                            <StackPanel
+                                Grid.Row="{x:Bind WeatherForecastRow, Mode=OneWay}"
+                                Grid.Column="{x:Bind WeatherForecastColumn, Mode=OneWay}"
+                                Grid.ColumnSpan="{x:Bind WeatherForecastColumnSpan, Mode=OneWay}"
+                                Spacing="{StaticResource WwbSpace1}"
+                                VerticalAlignment="Top">
+                                <!--
+                                    The hourly trend scrolls sideways rather than wrapping: it
+                                    is one sequence in time, and a wrapped second row would
+                                    read as a second day.
+                                -->
+                                <ScrollViewer
+                                    x:Name="WeatherHourlyScroller"
+                                    HorizontalScrollBarVisibility="Hidden"
+                                    HorizontalScrollMode="Enabled"
+                                    VerticalScrollBarVisibility="Disabled"
+                                    VerticalScrollMode="Disabled"
+                                    Visibility="{x:Bind HasWeatherHours, Mode=OneWay}">
+                                    <ItemsControl
+                                        automation:AutomationProperties.AutomationId="WeatherHourlyList"
+                                        ItemsSource="{x:Bind WeatherHours, Mode=OneWay}"
+                                        ItemTemplate="{StaticResource WeatherHourTemplate}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="10" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <Border
+                                    Style="{StaticResource WwbWeatherDividerStyle}"
+                                    Visibility="{x:Bind HasWeatherDays, Mode=OneWay}" />
+
                                 <ItemsControl
-                                    automation:AutomationProperties.AutomationId="WeatherHourlyList"
-                                    ItemsSource="{x:Bind WeatherHours, Mode=OneWay}"
-                                    ItemTemplate="{StaticResource WeatherHourTemplate}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="10" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                </ItemsControl>
-                            </ScrollViewer>
-
-                            <ItemsControl
-                                automation:AutomationProperties.AutomationId="WeatherDailyList"
-                                ItemsSource="{x:Bind WeatherDays, Mode=OneWay}"
-                                ItemTemplate="{StaticResource WeatherDayTemplate}"
-                                Visibility="{x:Bind HasWeatherDays, Mode=OneWay}" />
-
-                            <TextBlock
-                                Style="{StaticResource WwbCardCaptionStyle}"
-                                Text="{x:Bind WeatherObservedAtText, Mode=OneWay}"
-                                TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                                    automation:AutomationProperties.AutomationId="WeatherDailyList"
+                                    ItemsSource="{x:Bind WeatherDays, Mode=OneWay}"
+                                    ItemTemplate="{StaticResource WeatherDayTemplate}"
+                                    Visibility="{x:Bind HasWeatherDays, Mode=OneWay}" />
+                            </StackPanel>
+                        </Grid>
                     </Grid>
-                    <HyperlinkButton
+                    <!--
+                        Context, on one line: when the reading was taken and who supplied it.
+                        Both used to take a row each, and the attribution was a full-weight
+                        accent link - the loudest thing on a card whose subject is a
+                        temperature.
+                    -->
+                    <StackPanel
                         Grid.Row="2"
-                        HorizontalAlignment="Left"
-                        MinHeight="20"
-                        Padding="0"
-                        FontSize="11"
-                        Content="{x:Bind WeatherAttributionText, Mode=OneWay}"
-                        NavigateUri="https://open-meteo.com/"
-                        Visibility="{Binding HasWeatherData, Converter={StaticResource EditModeVisibilityConverter}}" />
+                        Orientation="Horizontal"
+                        Spacing="{StaticResource WwbSpace2}"
+                        Visibility="{x:Bind HasWeatherFooter, Mode=OneWay}">
+                        <TextBlock
+                            x:Uid="WeatherObservedAtLabel"
+                            Style="{StaticResource WwbCardCaptionStyle}"
+                            VerticalAlignment="Center" />
+                        <TextBlock
+                            automation:AutomationProperties.AutomationId="WeatherObservedAtText"
+                            Style="{StaticResource WwbCardCaptionStyle}"
+                            Text="{x:Bind WeatherObservedAtText, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            VerticalAlignment="Center" />
+                        <HyperlinkButton
+                            HorizontalAlignment="Left"
+                            MinHeight="16"
+                            Padding="0"
+                            FontSize="11"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Content="{x:Bind WeatherAttributionText, Mode=OneWay}"
+                            NavigateUri="https://open-meteo.com/"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
                     <Border
                         Grid.Row="3"
                         HorizontalAlignment="Left"
@@ -1308,11 +1407,13 @@
                             </Border>
                             <Button
                                 x:Uid="DecreaseCardButton"
+                                automation:AutomationProperties.AutomationId="WeatherCardDecreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="DecreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="IncreaseCardButton"
+                                automation:AutomationProperties.AutomationId="WeatherCardIncreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="IncreaseCardSizeButton_Click" />
@@ -1394,11 +1495,13 @@
                                 </Border>
                                 <Button
                                     x:Uid="DecreaseCardButton"
+                                    automation:AutomationProperties.AutomationId="TimerCardDecreaseButton"
                                     Style="{StaticResource WwbEditActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="DecreaseCardSizeButton_Click" />
                                 <Button
                                     x:Uid="IncreaseCardButton"
+                                    automation:AutomationProperties.AutomationId="TimerCardIncreaseButton"
                                     Style="{StaticResource WwbEditActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="IncreaseCardSizeButton_Click" />
@@ -1480,11 +1583,13 @@
                                 </Border>
                                 <Button
                                     x:Uid="DecreaseCardButton"
+                                    automation:AutomationProperties.AutomationId="TodoCardDecreaseButton"
                                     Style="{StaticResource WwbEditActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="DecreaseCardSizeButton_Click" />
                                 <Button
                                     x:Uid="IncreaseCardButton"
+                                    automation:AutomationProperties.AutomationId="TodoCardIncreaseButton"
                                     Style="{StaticResource WwbEditActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="IncreaseCardSizeButton_Click" />
@@ -1566,11 +1671,13 @@
                                 </Border>
                                 <Button
                                     x:Uid="DecreaseCardButton"
+                                    automation:AutomationProperties.AutomationId="CalendarCardDecreaseButton"
                                     Style="{StaticResource WwbEditActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="DecreaseCardSizeButton_Click" />
                                 <Button
                                     x:Uid="IncreaseCardButton"
+                                    automation:AutomationProperties.AutomationId="CalendarCardIncreaseButton"
                                     Style="{StaticResource WwbEditActionButtonStyle}"
                                     Tag="{x:Bind InstanceId}"
                                     Click="IncreaseCardSizeButton_Click" />
@@ -1647,11 +1754,13 @@
                             </Border>
                             <Button
                                 x:Uid="DecreaseCardButton"
+                                automation:AutomationProperties.AutomationId="UnknownCardDecreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="DecreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="IncreaseCardButton"
+                                automation:AutomationProperties.AutomationId="UnknownCardIncreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="IncreaseCardSizeButton_Click" />
@@ -1799,11 +1908,13 @@
                             </Border>
                             <Button
                                 x:Uid="DecreaseCardButton"
+                                automation:AutomationProperties.AutomationId="SystemMonitorCardDecreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="DecreaseCardSizeButton_Click" />
                             <Button
                                 x:Uid="IncreaseCardButton"
+                                automation:AutomationProperties.AutomationId="SystemMonitorCardIncreaseButton"
                                 Style="{StaticResource WwbEditActionButtonStyle}"
                                 Tag="{x:Bind InstanceId}"
                                 Click="IncreaseCardSizeButton_Click" />

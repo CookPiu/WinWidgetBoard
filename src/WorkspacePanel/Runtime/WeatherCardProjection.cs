@@ -15,6 +15,7 @@ public sealed record WeatherCardProjection
         string temperatureText,
         string apparentTemperatureText,
         string conditionText,
+        string conditionResourceKey,
         string conditionIconId,
         string humidityText,
         string windText,
@@ -29,6 +30,7 @@ public sealed record WeatherCardProjection
         TemperatureText = temperatureText;
         ApparentTemperatureText = apparentTemperatureText;
         ConditionText = conditionText;
+        ConditionResourceKey = conditionResourceKey;
         ConditionIconId = conditionIconId;
         HumidityText = humidityText;
         WindText = windText;
@@ -47,6 +49,14 @@ public sealed record WeatherCardProjection
     public string ApparentTemperatureText { get; }
 
     public string ConditionText { get; }
+
+    /// <summary>
+    /// The resource key for <see cref="ConditionText"/>, so the card can say "多云" in a
+    /// Chinese UI. The projection stays WinUI-free and therefore cannot resolve it itself;
+    /// it names the string, and the surface item - which already carries the panel's resource
+    /// resolver - looks it up and falls back to the English text when a key has no entry.
+    /// </summary>
+    public string ConditionResourceKey { get; }
 
     /// <summary>
     /// A <see cref="WeatherConditionContract"/> token. The card picks its illustration from
@@ -91,6 +101,7 @@ public sealed record WeatherCardProjection
         "—",
         "—",
         "—",
+        string.Empty,
         WeatherConditionContract.Unknown,
         "—",
         "—",
@@ -132,6 +143,7 @@ public sealed record WeatherCardProjection
                 "—",
                 "—",
                 "—",
+                string.Empty,
                 WeatherConditionContract.Unknown,
                 "—",
                 "—",
@@ -153,6 +165,7 @@ public sealed record WeatherCardProjection
             temperatureText,
             FormatTemperature(current, "apparentTemperatureC"),
             DescribeWeatherCode(ReadInt32(current, "weatherCode")),
+            ResolveConditionResourceKey(ReadInt32(current, "weatherCode")),
             ReadConditionIconId(current),
             FormatPercentage(current, "relativeHumidityPercent"),
             FormatSpeed(current, "windSpeedKmh"),
@@ -390,6 +403,30 @@ public sealed record WeatherCardProjection
             isDayValue.ValueKind != JsonValueKind.False;
         return WeatherConditionContract.FromWeatherCode(code.Value, isDay);
     }
+
+    /// <summary>
+    /// The resource key for a WMO code. Empty for a code with no localized name, which the
+    /// card reads as "use the English description" rather than as a missing string.
+    /// </summary>
+    private static string ResolveConditionResourceKey(int? code) =>
+        code switch
+        {
+            0 => "WeatherConditionClearSky",
+            1 => "WeatherConditionMainlyClear",
+            2 => "WeatherConditionPartlyCloudy",
+            3 => "WeatherConditionOvercast",
+            45 or 48 => "WeatherConditionFog",
+            51 or 53 or 55 => "WeatherConditionDrizzle",
+            56 or 57 => "WeatherConditionFreezingDrizzle",
+            61 or 63 or 65 => "WeatherConditionRain",
+            66 or 67 => "WeatherConditionFreezingRain",
+            71 or 73 or 75 or 77 => "WeatherConditionSnow",
+            80 or 81 or 82 => "WeatherConditionRainShowers",
+            85 or 86 => "WeatherConditionSnowShowers",
+            95 => "WeatherConditionThunderstorm",
+            96 or 99 => "WeatherConditionThunderstormHail",
+            _ => string.Empty,
+        };
 
     private static string DescribeWeatherCode(int? code) =>
         code switch

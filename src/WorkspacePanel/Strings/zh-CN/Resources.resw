@@ -890,12 +890,75 @@
     <value>便签已在独立窗口中打开。</value>
   </data>
   <data name="NoteWindowAlwaysOnTop.Content" xml:space="preserve">
+    <value>&#xE718;</value>
+  </data>
+  <data name="NoteWindowAlwaysOnTop.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>保持在最前</value>
+  </data>
+  <data name="NoteWindowAlwaysOnTop.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>保持在最前</value>
+  </data>
+  <data name="NoteWindowHeaderTitle.Text" xml:space="preserve">
+    <value>便签</value>
   </data>
   <data name="NoteWindowTitleBox.PlaceholderText" xml:space="preserve">
     <value>便签标题</value>
   </data>
   <data name="NoteWindowBodyBox.PlaceholderText" xml:space="preserve">
     <value>记录一些内容……</value>
+  </data>
+  <data name="WeatherConditionClearSky" xml:space="preserve">
+    <value>晴</value>
+  </data>
+  <data name="WeatherConditionMainlyClear" xml:space="preserve">
+    <value>晴间多云</value>
+  </data>
+  <data name="WeatherConditionPartlyCloudy" xml:space="preserve">
+    <value>多云</value>
+  </data>
+  <data name="WeatherConditionOvercast" xml:space="preserve">
+    <value>阴</value>
+  </data>
+  <data name="WeatherConditionFog" xml:space="preserve">
+    <value>雾</value>
+  </data>
+  <data name="WeatherConditionDrizzle" xml:space="preserve">
+    <value>毛毛雨</value>
+  </data>
+  <data name="WeatherConditionFreezingDrizzle" xml:space="preserve">
+    <value>冻毛毛雨</value>
+  </data>
+  <data name="WeatherConditionRain" xml:space="preserve">
+    <value>雨</value>
+  </data>
+  <data name="WeatherConditionFreezingRain" xml:space="preserve">
+    <value>冻雨</value>
+  </data>
+  <data name="WeatherConditionSnow" xml:space="preserve">
+    <value>雪</value>
+  </data>
+  <data name="WeatherConditionRainShowers" xml:space="preserve">
+    <value>阵雨</value>
+  </data>
+  <data name="WeatherConditionSnowShowers" xml:space="preserve">
+    <value>阵雪</value>
+  </data>
+  <data name="WeatherConditionThunderstorm" xml:space="preserve">
+    <value>雷阵雨</value>
+  </data>
+  <data name="WeatherConditionThunderstormHail" xml:space="preserve">
+    <value>雷阵雨伴冰雹</value>
+  </data>
+  <data name="WeatherApparentLabel.Text" xml:space="preserve">
+    <value>体感</value>
+  </data>
+  <data name="WeatherHumidityLabel.Text" xml:space="preserve">
+    <value>湿度</value>
+  </data>
+  <data name="WeatherWindLabel.Text" xml:space="preserve">
+    <value>风速</value>
+  </data>
+  <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
+    <value>更新于</value>
   </data>
 </root>

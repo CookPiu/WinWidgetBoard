@@ -103,7 +103,28 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string WeatherApparentTemperatureText =>
         WeatherProjection.ApparentTemperatureText;
 
-    public string WeatherConditionText => WeatherProjection.ConditionText;
+    /// <summary>
+    /// The condition, localized. The projection is WinUI-free and names the string rather
+    /// than resolving it; the English description it also carries is the fallback for a code
+    /// that has no entry, so the line degrades to "WMO 82" rather than to blank.
+    /// </summary>
+    public string WeatherConditionText
+    {
+        get
+        {
+            WeatherCardProjection projection = WeatherProjection;
+            if (projection.ConditionResourceKey.Length == 0)
+            {
+                return projection.ConditionText;
+            }
+
+            string? localized = _runtimeResourceResolver(
+                projection.ConditionResourceKey);
+            return string.IsNullOrEmpty(localized)
+                ? projection.ConditionText
+                : localized;
+        }
+    }
 
     public string WeatherConditionIconId => WeatherProjection.ConditionIconId;
 
@@ -127,16 +148,61 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// scrolled - showing the trend on a card that cannot hold it produced a row of times with
     /// their glyphs and temperatures cut off, which is worse than not showing it.
     /// </summary>
-    /// Gated on rows rather than on the size order: W is four columns but only one row, so
-    /// it is exactly as short as M and clips the same way.
+    /// Gated on rows and columns, not on the size order. W is four columns but only one row,
+    /// so it is exactly as short as M - it earns the trend by putting it beside the reading
+    /// rather than under it, which is what <see cref="IsWeatherWideLayout"/> arranges.
     public bool HasWeatherHours =>
         WeatherProjection.HasHours &&
+        Placement.Size is CardSize.L or CardSize.W or CardSize.XL;
+
+    /// Three more rows under the trend, each needing room for a weekday, a glyph and two
+    /// temperatures. That needs a second grid row, which rules out S, M and W.
+    public bool HasWeatherDays =>
+        WeatherProjection.HasDays &&
         Placement.Size is CardSize.L or CardSize.XL;
 
-    /// Three more rows on top of the trend, each needing room for a weekday, a glyph and two
-    /// temperatures - that is the widest and tallest size only.
-    public bool HasWeatherDays =>
-        WeatherProjection.HasDays && Placement.Size is CardSize.XL;
+    /// <summary>
+    /// The secondary readings - felt temperature, humidity, wind. The smallest card is one
+    /// cell: it holds the place, the number and what the sky is doing, and a fourth line
+    /// would push one of those three out.
+    /// </summary>
+    public bool HasWeatherSecondary =>
+        HasWeatherData && Placement.Size is not CardSize.S;
+
+    /// <summary>
+    /// When the observation time and the attribution have a line to sit on. Both are context
+    /// rather than content, so they are the first thing a smaller card drops.
+    /// </summary>
+    public bool HasWeatherFooter =>
+        HasWeatherData && Placement.Size is CardSize.L or CardSize.XL;
+
+    /// <summary>
+    /// True for the four-column sizes, where the forecast goes beside the current reading
+    /// instead of under it. W is four cells wide but one tall: stacking there clips the trend,
+    /// and putting it in the empty right half is the only way it fits at all.
+    /// </summary>
+    public bool IsWeatherWideLayout =>
+        Placement.Size is CardSize.W or CardSize.XL;
+
+    /// <summary>The forecast's grid cell, so one template serves both arrangements.</summary>
+    public int WeatherForecastColumn => IsWeatherWideLayout ? 1 : 0;
+
+    public int WeatherForecastRow => IsWeatherWideLayout ? 0 : 1;
+
+    /// <summary>
+    /// Stacked, the forecast spans both columns. Without this it sits in the Auto column
+    /// that sizes itself to the current reading, and the day rows - whose temperatures are
+    /// in a star column - are measured against infinity and arranged past the card's clip.
+    /// The weekday and its glyph showed; the high and the low did not.
+    /// </summary>
+    public int WeatherForecastColumnSpan => IsWeatherWideLayout ? 1 : 2;
+
+    /// <summary>
+    /// The current reading takes the whole width when nothing sits beside it. Without this
+    /// the stacked arrangement would leave the second column empty and squeeze the reading
+    /// into half a card.
+    /// </summary>
+    public int WeatherCurrentColumnSpan => IsWeatherWideLayout ? 1 : 2;
 
     /// <summary>
     /// False before the first reading names a place. The card leaves the location line out
@@ -204,6 +270,27 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherDays)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherSecondary)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherFooter)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsWeatherWideLayout)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherForecastColumn)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherForecastRow)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurrentColumnSpan)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherForecastColumnSpan)));
         }
 
         return true;
@@ -350,6 +437,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherDays)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherSecondary)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherFooter)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherLocation)));

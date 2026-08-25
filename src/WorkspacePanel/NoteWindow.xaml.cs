@@ -3,6 +3,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using WinRT.Interop;
@@ -43,6 +44,13 @@ public sealed partial class NoteWindow : Window
         Title = title;
         NoteWindowRoot.RequestedTheme = theme;
 
+        // The panel's own material, on the panel's own header. Without this the popped out
+        // note was a flat white window with a system caption strip - the same note, but
+        // visibly not part of the same board.
+        TryConfigureSystemBackdrop();
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(NoteWindowDragRegion);
+
         IntPtr handle = WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(
             Win32Interop.GetWindowIdFromWindow(handle));
@@ -65,6 +73,15 @@ public sealed partial class NoteWindow : Window
             presenter.IsMaximizable = true;
         }
 
+        // The caption buttons are drawn by the system over the extended content. Their
+        // width comes from the title bar rather than from a constant: it is stated in
+        // physical pixels and changes with the display's scaling, so a hard-coded reserve
+        // would put the pin under the minimise button on one monitor and leave a gap on
+        // another.
+        _appWindow.Changed += AppWindow_Changed;
+        NoteWindowRoot.SizeChanged += NoteWindowRoot_SizeChanged;
+        UpdateCaptionSpacer();
+
         _noteEditor.PropertyChanged += NoteEditor_PropertyChanged;
         Closed += NoteWindow_Closed;
         ApplyStatus();
@@ -81,15 +98,60 @@ public sealed partial class NoteWindow : Window
         Activate();
     }
 
-    private void AlwaysOnTopCheckBox_Click(object sender, RoutedEventArgs e)
+    private void AlwaysOnTopToggle_Click(object sender, RoutedEventArgs e)
     {
         if (_appWindow.Presenter is not OverlappedPresenter presenter ||
-            sender is not CheckBox box)
+            sender is not ToggleButton toggle)
         {
             return;
         }
 
-        presenter.IsAlwaysOnTop = box.IsChecked == true;
+        presenter.IsAlwaysOnTop = toggle.IsChecked == true;
+    }
+
+    /// <summary>
+    /// Desktop Acrylic, or the default window background when the system cannot provide it.
+    /// Matches the panel: a backdrop is a nicety, and failing to get one must not stop a
+    /// note from opening.
+    /// </summary>
+    private void TryConfigureSystemBackdrop()
+    {
+        try
+        {
+            SystemBackdrop = new DesktopAcrylicBackdrop();
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"NoteWindow Desktop Acrylic unavailable: {exception.Message}");
+        }
+    }
+
+    private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (args.DidSizeChange || args.DidPositionChange)
+        {
+            UpdateCaptionSpacer();
+        }
+    }
+
+    private void NoteWindowRoot_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        UpdateCaptionSpacer();
+
+    private void UpdateCaptionSpacer()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        uint dpi = GetDpiForWindow(WindowNative.GetWindowHandle(this));
+        double scale = dpi == 0 ? 1d : dpi / 96d;
+        double inset = _appWindow.TitleBar.RightInset / scale;
+        // Before the first layout the title bar reports no inset. Reserving the Windows 11
+        // default keeps the pin clear of the caption buttons for that one frame instead of
+        // letting it flash underneath them.
+        NoteWindowCaptionSpacer.Width = inset > 0 ? inset : 138;
     }
 
     private void NoteWindowTitleBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -136,6 +198,8 @@ public sealed partial class NoteWindow : Window
         }
 
         _closed = true;
+        _appWindow.Changed -= AppWindow_Changed;
+        NoteWindowRoot.SizeChanged -= NoteWindowRoot_SizeChanged;
         _noteEditor.PropertyChanged -= NoteEditor_PropertyChanged;
         Closed -= NoteWindow_Closed;
         Dismissed?.Invoke(this, EventArgs.Empty);

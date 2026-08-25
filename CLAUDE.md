@@ -279,7 +279,7 @@ Practical rules that get violated most often:
 - Search boxes, single button groups, and steady-state status must not occupy their own permanent row. Low-frequency actions use progressive disclosure; content space wins.
 - Animate only compositor properties (`Opacity`, `Scale`, `Translation`) — never `Width`/`Height`/`Margin`. Every animation must be interruptible, must resume from the current displayed value on reversal, and must degrade under reduced motion. High-frequency click/type/drag/resize gets zero added latency. No `RepositionThemeTransition` in the card grid: it breaks 1:1 pointer projection during drag.
 - Every icon button needs a localized tooltip, a readable automation name, and a stable unique `AutomationId` — the UIA scripts depend on those IDs. Hit targets stay logical (32 DIP header buttons); never hard-code physical pixels.
-- User-visible strings go in **both** `src/WorkspacePanel/Strings/en-US/Resources.resw` and `zh-CN/Resources.resw`; they must stay in sync (280 entries each today).
+- User-visible strings go in **both** `src/WorkspacePanel/Strings/en-US/Resources.resw` and `zh-CN/Resources.resw`; they must stay in sync (301 entries each today).
 
 ## Documentation
 

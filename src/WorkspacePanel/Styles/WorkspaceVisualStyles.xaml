@@ -365,6 +365,21 @@
             Value="{ThemeResource TextFillColorPrimaryBrush}" />
     </Style>
 
+    <!--
+        A hairline between the hourly trend and the days below it. Drawn from the system
+        divider brush, so high contrast substitutes its own boundary instead of a literal
+        colour that would vanish or shout.
+    -->
+    <Style
+        x:Key="WwbWeatherDividerStyle"
+        TargetType="Border">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+    </Style>
+
     <Style
         x:Key="WwbCardCaptionStyle"
         TargetType="TextBlock"
@@ -403,6 +418,31 @@
         x:Key="WwbToolbarButtonStyle"
         TargetType="Button"
         BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+        <Setter
+            Property="CornerRadius"
+            Value="{StaticResource WwbControlCornerRadius}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="{ThemeResource WwbSurfaceBorderThickness}" />
+    </Style>
+
+    <!--
+        The toolbar button as a mode switch. Same geometry and icon font as
+        WwbToolbarButtonStyle, which cannot simply be reused: a Style is bound to one
+        TargetType, and ToggleButton is not Button.
+    -->
+    <Style
+        x:Key="WwbToolbarToggleButtonStyle"
+        TargetType="ToggleButton"
+        BasedOn="{StaticResource DefaultToggleButtonStyle}">
         <Setter Property="MinWidth" Value="32" />
         <Setter Property="MinHeight" Value="32" />
         <Setter Property="Padding" Value="0" />

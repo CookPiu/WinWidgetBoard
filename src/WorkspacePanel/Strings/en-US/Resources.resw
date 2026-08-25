@@ -890,12 +890,75 @@
     <value>The note opened in a separate window.</value>
   </data>
   <data name="NoteWindowAlwaysOnTop.Content" xml:space="preserve">
+    <value>&#xE718;</value>
+  </data>
+  <data name="NoteWindowAlwaysOnTop.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Keep on top</value>
+  </data>
+  <data name="NoteWindowAlwaysOnTop.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Keep on top</value>
+  </data>
+  <data name="NoteWindowHeaderTitle.Text" xml:space="preserve">
+    <value>Note</value>
   </data>
   <data name="NoteWindowTitleBox.PlaceholderText" xml:space="preserve">
     <value>Note title</value>
   </data>
   <data name="NoteWindowBodyBox.PlaceholderText" xml:space="preserve">
     <value>Write something...</value>
+  </data>
+  <data name="WeatherConditionClearSky" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="WeatherConditionMainlyClear" xml:space="preserve">
+    <value>Mainly clear</value>
+  </data>
+  <data name="WeatherConditionPartlyCloudy" xml:space="preserve">
+    <value>Partly cloudy</value>
+  </data>
+  <data name="WeatherConditionOvercast" xml:space="preserve">
+    <value>Overcast</value>
+  </data>
+  <data name="WeatherConditionFog" xml:space="preserve">
+    <value>Fog</value>
+  </data>
+  <data name="WeatherConditionDrizzle" xml:space="preserve">
+    <value>Drizzle</value>
+  </data>
+  <data name="WeatherConditionFreezingDrizzle" xml:space="preserve">
+    <value>Freezing drizzle</value>
+  </data>
+  <data name="WeatherConditionRain" xml:space="preserve">
+    <value>Rain</value>
+  </data>
+  <data name="WeatherConditionFreezingRain" xml:space="preserve">
+    <value>Freezing rain</value>
+  </data>
+  <data name="WeatherConditionSnow" xml:space="preserve">
+    <value>Snow</value>
+  </data>
+  <data name="WeatherConditionRainShowers" xml:space="preserve">
+    <value>Rain showers</value>
+  </data>
+  <data name="WeatherConditionSnowShowers" xml:space="preserve">
+    <value>Snow showers</value>
+  </data>
+  <data name="WeatherConditionThunderstorm" xml:space="preserve">
+    <value>Thunderstorm</value>
+  </data>
+  <data name="WeatherConditionThunderstormHail" xml:space="preserve">
+    <value>Thunderstorm with hail</value>
+  </data>
+  <data name="WeatherApparentLabel.Text" xml:space="preserve">
+    <value>Feels like</value>
+  </data>
+  <data name="WeatherHumidityLabel.Text" xml:space="preserve">
+    <value>Humidity</value>
+  </data>
+  <data name="WeatherWindLabel.Text" xml:space="preserve">
+    <value>Wind</value>
+  </data>
+  <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
+    <value>Updated</value>
   </data>
 </root>

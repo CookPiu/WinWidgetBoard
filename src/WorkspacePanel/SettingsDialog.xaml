@@ -6,9 +6,29 @@
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
     xmlns:settings="using:WinWidgetBoard.WorkspacePanel.Settings"
     x:Uid="SettingsDialog"
-    DefaultButton="Close"
+    Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
+    BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
+    BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
+    CornerRadius="{StaticResource WwbPanelCornerRadius}"
+    CloseButtonStyle="{StaticResource WwbDialogButtonStyle}"
+    DefaultButton="None"
     MaxWidth="760">
+    <controls:ContentDialog.TitleTemplate>
+        <DataTemplate>
+            <TextBlock
+                Style="{StaticResource WwbPanelTitleStyle}"
+                Text="{Binding}"
+                TextWrapping="NoWrap" />
+        </DataTemplate>
+    </controls:ContentDialog.TitleTemplate>
+
     <controls:ContentDialog.Resources>
+        <!--
+            The dialog's outer radius is drawn by its own template from OverlayCornerRadius,
+            not from the CornerRadius set on the control, so the sheet kept the system's
+            8-DIP corner while every surface inside it used the panel's 16.
+        -->
+        <CornerRadius x:Key="OverlayCornerRadius">16</CornerRadius>
         <!--
             One row template serves both metric lists. Every automation ID carries the surface
             it belongs to, because the same twelve metrics appear twice and a script has to be
@@ -18,16 +38,22 @@
             x:Key="SysMonMetricOptionTemplate"
             x:DataType="settings:SystemMonitorMetricOption">
             <Grid
-                ColumnSpacing="{StaticResource WwbSpace2}"
+                ColumnSpacing="{StaticResource WwbSpace1}"
                 Padding="0,2">
                 <!--
                     Every column is stated. A star column here measures against infinity and
                     pushes the trailing reorder button past the list's right edge, which is
                     the same clip that hid the weather search button.
+
+                    The budget is what is left of the section's 344 after the list's border
+                    and the ListViewItem's own padding - roughly 310 - so these four columns
+                    plus their gaps have to stay under it. Widening the detail box to fit
+                    "数值与进度条" without taking it back off the name column clipped the
+                    move-down button straight off the row.
                 -->
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="116" />
                     <ColumnDefinition Width="96" />
+                    <ColumnDefinition Width="128" />
                     <ColumnDefinition Width="28" />
                     <ColumnDefinition Width="28" />
                 </Grid.ColumnDefinitions>
@@ -96,19 +122,30 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <ListView
-            x:Name="SettingsCategoryList"
-            Width="148"
-            SelectionMode="Single"
-            SelectionChanged="SettingsCategoryList_SelectionChanged"
-            automation:AutomationProperties.AutomationId="SettingsCategoryList">
-            <ListViewItem
-                x:Uid="SettingsCategoryWeather"
-                automation:AutomationProperties.AutomationId="SettingsCategoryWeather" />
-            <ListViewItem
-                x:Uid="SettingsCategorySystemMonitor"
-                automation:AutomationProperties.AutomationId="SettingsCategorySystemMonitor" />
-        </ListView>
+        <!--
+            The rail sits on the same layered surface a card does, so the sheet reads as
+            part of the board rather than as a system dialog that happens to be in front
+            of it.
+        -->
+        <Border
+            VerticalAlignment="Top"
+            Style="{StaticResource WwbSecondarySurfaceStyle}">
+            <ListView
+                x:Name="SettingsCategoryList"
+                Width="132"
+                Padding="0"
+                Background="Transparent"
+                SelectionMode="Single"
+                SelectionChanged="SettingsCategoryList_SelectionChanged"
+                automation:AutomationProperties.AutomationId="SettingsCategoryList">
+                <ListViewItem
+                    x:Uid="SettingsCategoryWeather"
+                    automation:AutomationProperties.AutomationId="SettingsCategoryWeather" />
+                <ListViewItem
+                    x:Uid="SettingsCategorySystemMonitor"
+                    automation:AutomationProperties.AutomationId="SettingsCategorySystemMonitor" />
+            </ListView>
+        </Border>
 
         <!--
             The section width is stated, not inherited from a star column. Inside a
@@ -131,10 +168,14 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <ScrollViewer
-                Width="392"
+            <Border
                 HorizontalAlignment="Left"
-                MaxHeight="320"
+                Padding="{StaticResource WwbCompactCardPadding}"
+                Style="{StaticResource WwbCardSurfaceStyle}">
+            <ScrollViewer
+                Width="368"
+                HorizontalAlignment="Left"
+                MaxHeight="330"
                 HorizontalScrollMode="Disabled"
                 HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">
@@ -145,7 +186,7 @@
                     and arranges the Auto column past the clip. One bounded container makes
                     every grid below it resolve correctly.
                 -->
-                <Grid Width="368" HorizontalAlignment="Left">
+                <Grid Width="344" HorizontalAlignment="Left">
                 <StackPanel
                     x:Name="WeatherSection"
                     Spacing="{StaticResource WwbSpace3}">
@@ -173,7 +214,8 @@
                         <TextBox
                             x:Name="WeatherSettingsSearchBox"
                             x:Uid="WeatherSettingsSearchBox"
-                            Width="240"
+                            Width="228"
+                            Style="{StaticResource WwbSearchBoxStyle}"
                             Text="{x:Bind WeatherViewModel.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             KeyDown="WeatherSettingsSearchBox_KeyDown"
                             automation:AutomationProperties.AutomationId="WeatherSettingsSearchBox" />
@@ -204,6 +246,10 @@
                     <ListView
                         x:Name="WeatherSettingsCommonList"
                         Padding="0"
+                        Background="Transparent"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource WwbControlCornerRadius}"
                         x:Uid="WeatherSettingsCommonList"
                         MaxHeight="212"
                         SelectionMode="Single"
@@ -220,6 +266,10 @@
                     <ListView
                         x:Name="WeatherSettingsResultsList"
                         Padding="0"
+                        Background="Transparent"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource WwbControlCornerRadius}"
                         x:Uid="WeatherSettingsResultsList"
                         MaxHeight="212"
                         SelectionMode="Single"
@@ -245,7 +295,11 @@
                         Style="{StaticResource WwbCardTitleStyle}" />
                     <ListView
                         x:Name="SysMonCardList"
-                        Padding="0"
+                        Padding="4,2"
+                        Background="Transparent"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource WwbControlCornerRadius}"
                         ScrollViewer.HorizontalScrollMode="Disabled"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                         MaxHeight="228"
@@ -265,7 +319,7 @@
                     <ComboBox
                         x:Name="SysMonNetworkInterfaceBox"
                         x:Uid="SysMonNetworkInterfaceBox"
-                        Width="300"
+                        Width="292"
                         HorizontalAlignment="Left"
                         FontSize="12"
                         ItemsSource="{x:Bind SystemMonitorViewModel.NetworkOptions, Mode=OneWay}"
@@ -278,7 +332,11 @@
                         Style="{StaticResource WwbCardTitleStyle}" />
                     <ListView
                         x:Name="SysMonEntryList"
-                        Padding="0"
+                        Padding="4,2"
+                        Background="Transparent"
+                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource WwbControlCornerRadius}"
                         ScrollViewer.HorizontalScrollMode="Disabled"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                         MaxHeight="228"
@@ -297,16 +355,22 @@
                 </StackPanel>
                 </Grid>
             </ScrollViewer>
+            </Border>
 
-            <Grid Grid.Row="1" Width="392" HorizontalAlignment="Left">
+            <Border
+                Grid.Row="1"
+                HorizontalAlignment="Left"
+                Padding="{StaticResource WwbCompactCardPadding}"
+                Style="{StaticResource WwbCardSurfaceStyle}">
+            <Grid Width="344" HorizontalAlignment="Left">
                 <StackPanel
                     x:Name="WeatherFooter"
-                    Width="368"
+                    Width="344"
                     HorizontalAlignment="Left"
                     Spacing="{StaticResource WwbSpace2}">
                     <TextBox
                         x:Name="WeatherSettingsLabelBox"
-                        Width="300"
+                        Width="292"
                         HorizontalAlignment="Left"
                         x:Uid="WeatherSettingsLabelBox"
                         Text="{x:Bind WeatherViewModel.LocationLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -319,7 +383,7 @@
                     -->
                     <TextBox
                         x:Name="WeatherSettingsCoordinatesBox"
-                        Width="300"
+                        Width="292"
                         HorizontalAlignment="Left"
                         x:Uid="WeatherSettingsCoordinatesBox"
                         IsReadOnly="True"
@@ -349,7 +413,7 @@
 
                 <StackPanel
                     x:Name="SystemMonitorFooter"
-                    Width="368"
+                    Width="344"
                     HorizontalAlignment="Left"
                     Spacing="{StaticResource WwbSpace2}"
                     Visibility="Collapsed">
@@ -369,6 +433,7 @@
                         automation:AutomationProperties.AutomationId="SysMonSettingsStatusText" />
                 </StackPanel>
             </Grid>
+            </Border>
         </Grid>
     </Grid>
 </controls:ContentDialog>
