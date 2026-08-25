@@ -874,4 +874,28 @@
   <data name="SysMonNetworkAllInterfaces" xml:space="preserve">
     <value>All adapters (combined)</value>
   </data>
+  <data name="PopOutNoteButton.Content" xml:space="preserve">
+    <value></value>
+  </data>
+  <data name="PopOutNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Open in a separate window</value>
+  </data>
+  <data name="PopOutNoteButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Open in a separate window</value>
+  </data>
+  <data name="NoteWindowTitle" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="NoteWindowOpenedStatus" xml:space="preserve">
+    <value>The note opened in a separate window.</value>
+  </data>
+  <data name="NoteWindowAlwaysOnTop.Content" xml:space="preserve">
+    <value>Keep on top</value>
+  </data>
+  <data name="NoteWindowTitleBox.PlaceholderText" xml:space="preserve">
+    <value>Note title</value>
+  </data>
+  <data name="NoteWindowBodyBox.PlaceholderText" xml:space="preserve">
+    <value>Write something...</value>
+  </data>
 </root>

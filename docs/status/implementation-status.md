@@ -36,7 +36,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
-- UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、生产数据、6 张卡片，基线提交 `e8fc94a`。Before：便签搜索框、列表按钮与结果层都在面板头部——位于所有卡片之上，包括与便签无关的那些，展开时还把整块板子往下推。After：三者整体移入便签卡片，按需展开；选中一条便签即收起切换器。Why：浏览便签属于拥有便签的那张卡片。收起这一条是搬进卡片后才成立的约束——在头部它只是浮在板子上方、代价为零，在卡片里不收起就会把用户刚挑中的那条便签挤出视野（`Test-NoteCreateInteraction.ps1` 正是这样红的）。`UT-UI-004` 原先断言这三者位于 `HeaderCommandBar`，已改为断言它们**不在**头部且位于 `NotesCardTemplate` 内；`UT-UI-009` 的前提「HeaderBar 承载结果层」不再成立，改为只断言裁剪释放本身——头部仍有状态行与命令行，两者都会变高；
+- UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、生产数据，基线提交 `986ea8a`。Before：便签只能在卡片里编辑，面板一失焦即隐藏，想让便签留在屏幕上没有办法。After：便签可弹出为独立窗口，可调整大小、可勾选「保持在最前」，与卡片共用同一个 `NoteEditorViewModel`；一次只有一个窗口，再点是带到前面。Why：同一条便签在两处必须是同一条——两套状态会让用户面对两个版本、让自动保存面对两个写入方。实测踩到一处：`AppWindow.Resize` 收的是**物理像素**，直接传 `420×460` 在 200% 缩放下开出来只有 `210×230` DIP，必须按 `GetDpiForWindow` 换算；
 - Release UnitTests：411/411；
 - 参考机 `3200×2000 @ 165 Hz`、200% DPI：冷开 / 关闭 / 驻留重开的合成帧平均间隔分别为
   `6.03 / 5.98 / 6.04 ms`，最大间隔为 `7.30 / 6.45 / 8.93 ms`；120 ms 中途反向后保持常驻并正常隐藏，
@@ -48,6 +48,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
 - **`Test-WeatherSettingsInteraction.ps1` 与 `Test-SystemMonitorInteraction.ps1` 目前不通过，且与本轮改动无关**——已用 `git stash` 回退到 `759b6ac` 和 `eba4d0d` 分别复跑，失败点完全相同。设置流程本身通过：搜索 Tokyo、选中候选、填入只读经纬度、保存并等到 `StatusText` 出现「天气位置已保存」全部走通；卡住的是其后「卡片的位置文字变为 Tokyo」这一步（30 s 内不出现，把等待放宽到 150 s 时通过一次，120 s 时又失败，属于偶发）。已定位到的事实：Broker 在切换位置时确实发布了带新 `location.label` 的 Loading 快照（`WeatherProviderRuntime.ApplyRegistrationLocked`），且新旧注册共用同一个序号计数器，因此不是序号被判旧；而 `WeatherCardProjection` 在读不到 `location.label` 时回退到**硬编码英文字面量 `"Weather"`**——这既是卡片当时显示的内容，也违反「用户可见字符串只放在 resw」。硬件监控脚本卡在更早的「卡片出现百分比读数」一步，同样在两个历史提交上复现。两者都留待天气阶段一并处理；
 - CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
+- 真实桌面便签独立窗口通过（`NOTEWINDOW-PASS`）：窗口开在 `840×920` 物理像素（= `420×460` DIP），勾选「保持在最前」后 `WS_EX_TOPMOST` 由 False 变 True，弹出窗口打开即显示卡片当时的正文（证明两处共用同一个编辑器而非各持一份），在窗口里输入后状态行报「已保存到本地」。**注意**：面板在焦点移到弹出窗口时会隐藏自己，所以「卡片是否跟随」无法在窗口置前时读取——改为断言弹出窗口打开时与卡片内容一致，方向等价且不受焦点影响；
 - 真实桌面便签三脚本全部通过：`REAL-NOTE-LIST-PASS`、`REAL-NOTE-DELETE-PASS current+list`、`REAL-NOTE-CREATE-PASS create+list+search+open+draft-guard`。过程中修掉两处由本轮改动暴露的问题：滚动内容现在恰好等于视口高度，`ScrollPattern.SetScrollPercent` 会在「可滚动」检查与调用之间翻转并抛 `InvalidOperationException`（模块里改为忽略该状态——没有可滚的东西正是调用方要的结果）；`Test-NoteCreateInteraction.ps1` 需要在选中便签后重新打开切换器才能再用搜索框；
 - 真实桌面天气卡片（生产路径，经启动器打开面板）：北京 `28.4 °C` / Drizzle，逐小时六格显示 `10:00`–`15:00` 及各自字形与温度，雨、多云、雷暴三种字形肉眼可辨。**预报按尺寸披露**已按行数而非尺寸序判定（`W` 四列一行，与 `M` 同高）；实测放大卡片到 `L` 后走势才出现——修掉了 `UpdatePlacement` 不重发尺寸相关属性的缺陷，否则放大后要等下一次快照。**未测**：`XL` 下的每日三行未拍到实机截图；直接以 `--acceptance-test` 启动的面板不上报可见性，两张 provider 卡片在该路径下长期停留在「正在加载」，因此 `Test-SystemMonitorInteraction.ps1` 与 `Test-WeatherSettingsInteraction.ps1` 的后半段在隔离栈里不可用——这不是本轮引入的，回退到 `759b6ac`、`eba4d0d` 复跑失败点相同，留待单独排查；
 - 真实桌面网络来源全链路通过（隔离 Broker + 面板，`NETSOURCE-PASS`）：下拉列出「全部网卡（合计）」加本机 4 块网卡，选中「以太网」保存后关闭再开，选择由 SQLite 读回一致。**未测**：没有在可控流量下比对「选定网卡」与「全部合计」的实际速率差异，过滤本身只是一次 ID 相等比较，且与列表枚举共用同一段代码；

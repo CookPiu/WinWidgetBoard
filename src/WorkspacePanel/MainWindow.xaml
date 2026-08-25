@@ -534,6 +534,13 @@
                                     Tag="{Binding ElementName=NoteSearchResultsBorder}"
                                     Click="ListNotesButton_Click" />
                                 <Button
+                                    x:Name="PopOutNoteButton"
+                                    x:Uid="PopOutNoteButton"
+                                    Style="{StaticResource WwbCardIconButtonStyle}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    Click="PopOutNoteButton_Click"
+                                    automation:AutomationProperties.AutomationId="PopOutNoteButton" />
+                                <Button
                                     x:Name="NewNoteButton"
                                     x:Uid="NewNoteButton"
                                     Style="{StaticResource WwbCardIconButtonStyle}"

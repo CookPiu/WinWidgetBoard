@@ -874,4 +874,28 @@
   <data name="SysMonNetworkAllInterfaces" xml:space="preserve">
     <value>全部网卡（合计）</value>
   </data>
+  <data name="PopOutNoteButton.Content" xml:space="preserve">
+    <value></value>
+  </data>
+  <data name="PopOutNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>在独立窗口中打开</value>
+  </data>
+  <data name="PopOutNoteButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>在独立窗口中打开</value>
+  </data>
+  <data name="NoteWindowTitle" xml:space="preserve">
+    <value>便签</value>
+  </data>
+  <data name="NoteWindowOpenedStatus" xml:space="preserve">
+    <value>便签已在独立窗口中打开。</value>
+  </data>
+  <data name="NoteWindowAlwaysOnTop.Content" xml:space="preserve">
+    <value>保持在最前</value>
+  </data>
+  <data name="NoteWindowTitleBox.PlaceholderText" xml:space="preserve">
+    <value>便签标题</value>
+  </data>
+  <data name="NoteWindowBodyBox.PlaceholderText" xml:space="preserve">
+    <value>记录一些内容……</value>
+  </data>
 </root>

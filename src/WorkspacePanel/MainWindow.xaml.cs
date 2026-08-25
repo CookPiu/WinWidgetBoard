@@ -56,6 +56,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     ];
 
     private readonly AppWindow _appWindow;
+    // The popped-out note, while one is open. Null is the normal state; the panel does not
+    // keep a closed window around because the editor it edits lives on this side anyway.
+    private NoteWindow? _noteWindow;
     private readonly IntPtr _windowHandle;
     private readonly PanelPlacement _placement;
     private readonly IWeatherSettingsClient? _weatherSettingsClient;
@@ -1386,6 +1389,41 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         NoteEditor.ToggleMarkdownPreview();
         StatusText.Text = _resources.GetString("NoteMarkdownEditStatus");
+    }
+
+    /// <summary>
+    /// Pops the current note into a window of its own, or brings the existing one forward.
+    ///
+    /// One window, not one per click: the pop-out shares the panel's editor, so a second
+    /// window would be a second view of the same note competing for the same caret.
+    /// </summary>
+    private void PopOutNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_noteWindow is not null)
+        {
+            _noteWindow.BringToFront();
+            return;
+        }
+
+        var window = new NoteWindow(
+            NoteEditor,
+            FormatNoteStatus,
+            _resources.GetString("NoteWindowTitle"),
+            RootGrid.ActualTheme);
+        window.Dismissed += NoteWindow_Dismissed;
+        _noteWindow = window;
+        window.Activate();
+        StatusText.Text = _resources.GetString("NoteWindowOpenedStatus");
+    }
+
+    private void NoteWindow_Dismissed(object? sender, EventArgs e)
+    {
+        if (sender is NoteWindow window)
+        {
+            window.Dismissed -= NoteWindow_Dismissed;
+        }
+
+        _noteWindow = null;
     }
 
     private void NoteTitleBox_TextChanged(object sender, TextChangedEventArgs e)

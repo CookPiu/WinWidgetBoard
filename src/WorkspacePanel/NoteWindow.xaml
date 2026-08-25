@@ -1,0 +1,67 @@
+<Window
+    x:Class="WinWidgetBoard.WorkspacePanel.NoteWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:automation="using:Microsoft.UI.Xaml.Automation">
+    <Grid
+        x:Name="NoteWindowRoot"
+        Padding="{StaticResource WwbCardPadding}"
+        RowSpacing="{StaticResource WwbSpace2}"
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--
+            One command, stated as a checkbox rather than a toggle button: staying on top is a
+            mode the window is in, not an action it performs, and a checked box says which.
+        -->
+        <CheckBox
+            x:Name="AlwaysOnTopCheckBox"
+            x:Uid="NoteWindowAlwaysOnTop"
+            Grid.Row="0"
+            HorizontalAlignment="Left"
+            Style="{StaticResource WwbModeCheckBoxStyle}"
+            Click="AlwaysOnTopCheckBox_Click"
+            automation:AutomationProperties.AutomationId="NoteWindowAlwaysOnTop" />
+
+        <TextBox
+            x:Name="NoteWindowTitleBox"
+            x:Uid="NoteWindowTitleBox"
+            Grid.Row="1"
+            Style="{StaticResource WwbNoteTitleTextBoxStyle}"
+            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+            Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
+            TextChanged="NoteWindowTitleBox_TextChanged"
+            automation:AutomationProperties.AutomationId="NoteWindowTitleBox" />
+
+        <TextBox
+            x:Name="NoteWindowBodyBox"
+            x:Uid="NoteWindowBodyBox"
+            Grid.Row="2"
+            Style="{StaticResource WwbNoteBodyTextBoxStyle}"
+            AcceptsReturn="True"
+            IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+            ScrollViewer.HorizontalScrollMode="Disabled"
+            ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+            ScrollViewer.VerticalScrollMode="Enabled"
+            ScrollViewer.VerticalScrollBarVisibility="Auto"
+            Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
+            TextChanged="NoteWindowBodyBox_TextChanged"
+            TextWrapping="Wrap"
+            VerticalAlignment="Stretch"
+            VerticalContentAlignment="Top"
+            automation:AutomationProperties.AutomationId="NoteWindowBodyBox" />
+
+        <TextBlock
+            x:Name="NoteWindowStatusText"
+            Grid.Row="3"
+            Style="{StaticResource WwbPanelContextStyle}"
+            TextTrimming="CharacterEllipsis"
+            TextWrapping="NoWrap"
+            automation:AutomationProperties.AutomationId="NoteWindowStatusText" />
+    </Grid>
+</Window>
