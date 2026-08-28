@@ -33,6 +33,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         nameof(TokenUsageCreditsText),
         nameof(TokenUsageQuotaObservedText),
         nameof(IsTokenUsagePageSwitcherVisible),
+        nameof(TokenUsageMetricLimit),
+        nameof(IsTokenUsageWideLayout),
+        nameof(TokenUsageSideColumn),
+        nameof(TokenUsageSideRow),
     ];
 
     private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
@@ -301,14 +305,67 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public bool HasTokenUsageData => TokenUsageCurrentPage?.HasData == true;
 
-    public bool IsTokenUsageTrendVisible => TokenUsageCurrentPage?.IsTrendVisible == true;
+    /// <summary>
+    /// How many readings this card is tall enough to show, out of the priority-ordered list
+    /// the broker sends.
+    ///
+    /// A card is a fixed number of grid rows tall and clips what does not fit rather than
+    /// scrolling it, so the readings past this point are not merely cramped - they are
+    /// invisible, and so is everything laid out below them. The numbers come from the real
+    /// budget: a row is 160 DIP with an 8 DIP gap, so a two-row card has 328 DIP, and after
+    /// 12 DIP padding twice, a 32 DIP header and 6 DIP spacing that leaves 266 DIP for
+    /// content. One reading costs about 23 DIP, or 26 with a meter.
+    /// </summary>
+    public int TokenUsageMetricLimit => Placement.Size switch
+    {
+        // 98 DIP of content: two readings and nothing else fits.
+        CardSize.S => 2,
+        // 98 DIP less the page tabs.
+        CardSize.M or CardSize.W => 2,
+        // 266 DIP, less tabs, trend, breakdown and quota.
+        CardSize.L => 4,
+        // Wide enough to put the breakdown and quota in their own column, which buys back
+        // the height the readings need.
+        _ => TokenUsageContract.MetricIds.Count,
+    };
+
+    /// <summary>
+    /// Four columns wide: the breakdown and quota move beside the readings instead of under
+    /// them. This is the same disclosure the weather card makes at the same widths - the extra
+    /// room a wide card has is horizontal, and stacking into it wastes the only axis that is
+    /// actually short.
+    /// </summary>
+    public bool IsTokenUsageWideLayout =>
+        Placement.Size is CardSize.W or CardSize.XL;
+
+    /// <summary>
+    /// Where the breakdown and quota go: beside the readings on a wide card, under them
+    /// otherwise. Two ints rather than a column width, because this type is linked into the
+    /// unit tests and must not reference a WinUI type - the same reason the weather card
+    /// publishes its forecast position this way.
+    /// </summary>
+    public int TokenUsageSideColumn => IsTokenUsageWideLayout ? 1 : 0;
+
+    public int TokenUsageSideRow => IsTokenUsageWideLayout ? 0 : 1;
+
+    /// <summary>
+    /// One grid row tall. The trend is the first thing to go: it is the tallest single block
+    /// and the only one whose absence costs no number.
+    /// </summary>
+    public bool IsTokenUsageTrendVisible =>
+        TokenUsageCurrentPage?.IsTrendVisible == true &&
+        Placement.Size is CardSize.L or CardSize.XL;
 
     public bool IsTokenUsageBreakdownVisible =>
-        TokenUsageCurrentPage?.IsBreakdownVisible == true;
+        TokenUsageCurrentPage?.IsBreakdownVisible == true &&
+        Placement.Size is not (CardSize.S or CardSize.M);
 
-    public bool IsTokenUsageQuotaVisible => TokenUsageCurrentPage?.IsQuotaVisible == true;
+    public bool IsTokenUsageQuotaVisible =>
+        TokenUsageCurrentPage?.IsQuotaVisible == true &&
+        Placement.Size is not (CardSize.S or CardSize.M);
 
-    public bool IsTokenUsageCreditsVisible => TokenUsageCurrentPage?.IsCreditsVisible == true;
+    public bool IsTokenUsageCreditsVisible =>
+        IsTokenUsageQuotaVisible && TokenUsageCurrentPage?.IsCreditsVisible == true;
 
     public string TokenUsageCreditsText =>
         TokenUsageCurrentPage?.QuotaCreditsText ?? string.Empty;
@@ -316,8 +373,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string TokenUsageQuotaObservedText =>
         TokenUsageCurrentPage?.QuotaObservedText ?? string.Empty;
 
+    /// <summary>
+    /// The smallest card has no room for tabs. It shows the overview and nothing else, which
+    /// is why the page it shows is the first one rather than whatever was last selected.
+    /// </summary>
     public bool IsTokenUsagePageSwitcherVisible =>
-        TokenUsageProjection.IsPageSwitcherVisible;
+        TokenUsageProjection.IsPageSwitcherVisible &&
+        Placement.Size is not CardSize.S;
 
     /// <summary>
     /// Switches the card to another page. Purely local: no IPC, no persistence, and the next
@@ -405,6 +467,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherForecastColumnSpan)));
+            // The token usage card discloses by size too, and its reading count is one of the
+            // things that changes - so the bound collection is rebuilt, not just re-announced.
+            MergeTokenUsage(TokenUsageProjection);
+            RaiseTokenUsageChanged();
         }
 
         return true;
@@ -588,7 +654,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             page?.PageId ?? _tokenUsagePageId);
         TokenUsageListMerger.MergeMetrics(
             TokenUsageMetrics,
-            page?.Metrics ?? Array.Empty<TokenUsageMetricRow>());
+            TakeVisibleMetrics(page));
         TokenUsageListMerger.MergeTrend(
             TokenUsageTrend,
             page?.Trend ?? Array.Empty<TokenUsageTrendBar>());
@@ -598,6 +664,29 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsageListMerger.MergeQuota(
             TokenUsageQuota,
             page?.Quota ?? Array.Empty<TokenUsageQuotaRow>());
+    }
+
+    /// <summary>
+    /// The prefix of the page's readings this card is tall enough to show. Truncated here
+    /// rather than hidden in XAML so the rows that are not shown are never built at all.
+    /// </summary>
+    private IReadOnlyList<TokenUsageMetricRow> TakeVisibleMetrics(TokenUsagePage? page)
+    {
+        IReadOnlyList<TokenUsageMetricRow> metrics =
+            page?.Metrics ?? Array.Empty<TokenUsageMetricRow>();
+        int limit = TokenUsageMetricLimit;
+        if (metrics.Count <= limit)
+        {
+            return metrics;
+        }
+
+        var visible = new TokenUsageMetricRow[limit];
+        for (int index = 0; index < limit; index++)
+        {
+            visible[index] = metrics[index];
+        }
+
+        return visible;
     }
 
     private void RaiseTokenUsageChanged()

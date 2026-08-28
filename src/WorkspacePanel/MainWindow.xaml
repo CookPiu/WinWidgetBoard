@@ -2101,7 +2101,7 @@
                 </Grid>
                 <ProgressBar
                     Grid.Row="1"
-                    Height="4"
+                    Height="2"
                     Minimum="0"
                     Maximum="100"
                     Value="{x:Bind MeterPercent, Mode=OneWay}"
@@ -2158,75 +2158,102 @@
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
                             Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
-                        <StackPanel
+                        <!--
+                            Two columns, but the second one is only used at four-column card
+                            widths. A card is a fixed number of grid rows tall and clips what
+                            does not fit, so on a wide card the breakdown and quota move
+                            beside the readings rather than under them - height is the axis
+                            that is short, and stacking into the extra width would waste it.
+                        -->
+                        <Grid
                             VerticalAlignment="Top"
-                            Spacing="6"
+                            ColumnSpacing="12"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
-                            <ItemsControl
-                                ItemsSource="{x:Bind TokenUsagePages}"
-                                ItemTemplate="{StaticResource TokenUsagePageTabTemplate}"
-                                IsTabStop="False"
-                                automation:AutomationProperties.AutomationId="TokenUsagePageTabs"
-                                Visibility="{x:Bind IsTokenUsagePageSwitcherVisible, Mode=OneWay}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="4" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                            </ItemsControl>
-                            <ItemsControl
-                                ItemsSource="{x:Bind TokenUsageMetrics}"
-                                ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
-                                IsTabStop="False"
-                                automation:AutomationProperties.AutomationId="TokenUsageMetricList" />
-                            <ItemsControl
-                                ItemsSource="{x:Bind TokenUsageTrend}"
-                                ItemTemplate="{StaticResource TokenUsageTrendBarTemplate}"
-                                IsTabStop="False"
-                                x:Uid="TokenUsageTrendStrip"
-                                automation:AutomationProperties.AutomationId="TokenUsageTrendStrip"
-                                Visibility="{x:Bind IsTokenUsageTrendVisible, Mode=OneWay}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                            </ItemsControl>
-                            <ItemsControl
-                                ItemsSource="{x:Bind TokenUsageBreakdown}"
-                                ItemTemplate="{StaticResource TokenUsageBreakdownTemplate}"
-                                IsTabStop="False"
-                                automation:AutomationProperties.AutomationId="TokenUsageBreakdownList"
-                                Visibility="{x:Bind IsTokenUsageBreakdownVisible, Mode=OneWay}" />
-                            <StackPanel
-                                Spacing="2"
-                                Visibility="{x:Bind IsTokenUsageQuotaVisible, Mode=OneWay}">
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        x:Uid="TokenUsageQuotaHeader"
-                                        Style="{StaticResource WwbCardCaptionStyle}" />
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        HorizontalAlignment="Right"
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        Text="{x:Bind TokenUsageQuotaObservedText, Mode=OneWay}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <!--
+                                    Auto, so at narrow sizes - where the side block sits in
+                                    the second row of the first column instead - this column
+                                    holds nothing and takes no width.
+                                -->
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Spacing="6">
                                 <ItemsControl
-                                    ItemsSource="{x:Bind TokenUsageQuota}"
-                                    ItemTemplate="{StaticResource TokenUsageQuotaTemplate}"
+                                    ItemsSource="{x:Bind TokenUsagePages}"
+                                    ItemTemplate="{StaticResource TokenUsagePageTabTemplate}"
                                     IsTabStop="False"
-                                    automation:AutomationProperties.AutomationId="TokenUsageQuotaList" />
-                                <TextBlock
-                                    Style="{StaticResource WwbCardCaptionStyle}"
-                                    Text="{x:Bind TokenUsageCreditsText, Mode=OneWay}"
-                                    Visibility="{x:Bind IsTokenUsageCreditsVisible, Mode=OneWay}" />
+                                    automation:AutomationProperties.AutomationId="TokenUsagePageTabs"
+                                    Visibility="{x:Bind IsTokenUsagePageSwitcherVisible, Mode=OneWay}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <ItemsControl
+                                    ItemsSource="{x:Bind TokenUsageMetrics}"
+                                    ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
+                                    IsTabStop="False"
+                                    automation:AutomationProperties.AutomationId="TokenUsageMetricList" />
+                                <ItemsControl
+                                    ItemsSource="{x:Bind TokenUsageTrend}"
+                                    ItemTemplate="{StaticResource TokenUsageTrendBarTemplate}"
+                                    IsTabStop="False"
+                                    x:Uid="TokenUsageTrendStrip"
+                                    automation:AutomationProperties.AutomationId="TokenUsageTrendStrip"
+                                    Visibility="{x:Bind IsTokenUsageTrendVisible, Mode=OneWay}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
                             </StackPanel>
-                        </StackPanel>
+                            <StackPanel
+                                Grid.Column="{x:Bind TokenUsageSideColumn, Mode=OneWay}"
+                                Grid.Row="{x:Bind TokenUsageSideRow, Mode=OneWay}"
+                                Spacing="6">
+                                <ItemsControl
+                                    ItemsSource="{x:Bind TokenUsageBreakdown}"
+                                    ItemTemplate="{StaticResource TokenUsageBreakdownTemplate}"
+                                    IsTabStop="False"
+                                    automation:AutomationProperties.AutomationId="TokenUsageBreakdownList"
+                                    Visibility="{x:Bind IsTokenUsageBreakdownVisible, Mode=OneWay}" />
+                                <StackPanel
+                                    Spacing="2"
+                                    Visibility="{x:Bind IsTokenUsageQuotaVisible, Mode=OneWay}">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            x:Uid="TokenUsageQuotaHeader"
+                                            Style="{StaticResource WwbCardCaptionStyle}" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource WwbCardCaptionStyle}"
+                                            Text="{x:Bind TokenUsageQuotaObservedText, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                    <ItemsControl
+                                        ItemsSource="{x:Bind TokenUsageQuota}"
+                                        ItemTemplate="{StaticResource TokenUsageQuotaTemplate}"
+                                        IsTabStop="False"
+                                        automation:AutomationProperties.AutomationId="TokenUsageQuotaList" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind TokenUsageCreditsText, Mode=OneWay}"
+                                        Visibility="{x:Bind IsTokenUsageCreditsVisible, Mode=OneWay}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                     <Border
                         Grid.Row="2"

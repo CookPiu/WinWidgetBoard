@@ -113,14 +113,21 @@ public static class TokenUsageContract
     /// </summary>
     public const string PeakRate = "usage.rate.peak";
 
+    /// <summary>
+    /// Every reading, in priority order - most worth seeing first.
+    ///
+    /// The order is load-bearing, not cosmetic: a card is a fixed number of grid rows tall and
+    /// clips what does not fit, so the smaller sizes show a prefix of this list. Reordering it
+    /// changes what a small card drops.
+    /// </summary>
     public static IReadOnlyList<string> MetricIds { get; } =
     [
         TodayBilledTokens,
+        CurrentRate,
+        CacheHitRate,
+        TodayRequests,
         TodayOutputTokens,
         TodayCacheReadTokens,
-        TodayRequests,
-        CacheHitRate,
-        CurrentRate,
         PeakRate,
     ];
 

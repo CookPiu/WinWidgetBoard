@@ -69,14 +69,16 @@ public static class TokenUsageFormatter
         return new TokenUsagePageDto
         {
             PageId = pageId,
+            // Priority order, matching TokenUsageContract.MetricIds: a card too short for all
+            // of them shows a prefix, so the most useful readings have to come first.
             Metrics =
             [
                 FormatBilledTokens(aggregate),
+                FormatCurrentRate(aggregate),
+                FormatCacheHitRate(aggregate),
+                FormatRequests(aggregate),
                 FormatOutputTokens(aggregate),
                 FormatCacheReadTokens(aggregate),
-                FormatRequests(aggregate),
-                FormatCacheHitRate(aggregate),
-                FormatCurrentRate(aggregate),
                 FormatPeakRate(aggregate),
             ],
             Trend = NormalizeTrend(aggregate.Trend),
