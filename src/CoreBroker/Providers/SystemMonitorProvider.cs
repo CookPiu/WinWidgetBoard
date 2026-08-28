@@ -76,18 +76,18 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
         new(
             ProviderId,
             Capability,
-            minimumInterval: TimeSpan.FromSeconds(2),
-            visibleInterval: TimeSpan.FromSeconds(2),
+            minimumInterval: TimeSpan.FromSeconds(1),
+            visibleInterval: TimeSpan.FromSeconds(1),
             // The taskbar entry can show readings with no panel open, so the hidden cadence
             // matches the visible one rather than backing off. What keeps this bounded is not
             // a slower interval but the fact that nothing samples at all unless the card is on
             // screen or the entry asked for a summary in the last few seconds.
-            hiddenInterval: TimeSpan.FromSeconds(2),
+            hiddenInterval: TimeSpan.FromSeconds(1),
             powerSaverInterval: null,
             requestTimeout: TimeSpan.FromSeconds(5),
             requiresNetwork: false,
             supportsManualRefresh: false,
-            manualRefreshMinimumInterval: TimeSpan.FromSeconds(2),
+            manualRefreshMinimumInterval: TimeSpan.FromSeconds(1),
             new ProviderBackoffOptions(
                 TimeSpan.FromSeconds(4),
                 TimeSpan.FromMinutes(1),

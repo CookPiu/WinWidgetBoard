@@ -30,8 +30,8 @@ constexpr ULONGLONG kHeartbeatIntervalMilliseconds = 5000;
 // just started, network still coming up - poll faster so the entry fills in promptly.
 constexpr ULONGLONG kWeatherPollIntervalMilliseconds = 60000;
 // The hardware monitor is the one reading where a stale number is a wrong number, so it polls
-// at the provider's own cadence rather than at the weather's leisurely one.
-constexpr ULONGLONG kMonitorPollIntervalMilliseconds = 2000;
+// once a second at the provider's own cadence rather than at the weather's leisurely one.
+constexpr ULONGLONG kMonitorPollIntervalMilliseconds = 1000;
 constexpr ULONGLONG kWeatherInitialPollIntervalMilliseconds = 3000;
 constexpr uint32_t kMaxMessageBytes = 1024 * 1024;
 
@@ -239,7 +239,7 @@ void CoreBrokerClient::SetSystemMonitorEnabled(const bool enabled)
     }
 
     // Ask on the next loop pass rather than waiting out a full interval, so switching the
-    // entry to hardware does not show an empty strip for two seconds.
+    // entry to hardware does not show an empty strip for one second.
     _nextMonitorTick = 0;
     _wakeCondition.notify_all();
 }

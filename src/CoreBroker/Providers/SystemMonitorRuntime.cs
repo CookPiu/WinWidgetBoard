@@ -12,7 +12,7 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// whole machine, so changing which readings are displayed changes the payload's contents but
 /// not what gets sampled, and the request key never moves.
 ///
-/// It also decides when sampling is allowed to happen at all. A two-second cadence that ran
+/// It also decides when sampling is allowed to happen at all. A one-second cadence that ran
 /// whenever the broker was alive would contradict the product's "run on demand" principle, so
 /// the provider stays warm only while the taskbar entry is actively asking for summaries, and
 /// otherwise falls back to the card's own visibility.
@@ -20,7 +20,7 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 public sealed class SystemMonitorRuntime : IDisposable
 {
     /// <summary>
-    /// How long a summary request keeps the provider warm. The entry polls every two seconds,
+    /// How long a summary request keeps the provider warm. The entry polls every second,
     /// so this tolerates a few missed polls without flapping, and stops sampling within a few
     /// seconds of the entry leaving monitor mode or exiting.
     /// </summary>

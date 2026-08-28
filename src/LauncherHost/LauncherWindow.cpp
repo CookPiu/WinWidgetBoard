@@ -30,9 +30,9 @@ constexpr UINT kTopmostSettleMilliseconds = 40;
 constexpr int kTopmostSettleTicks = 3;
 constexpr UINT_PTR kContentTimerId = 2;
 constexpr UINT kContentPollMilliseconds = 15000;
-// Hardware readings go stale in seconds, so that mode repaints on the provider's own cadence
-// instead of the clock's.
-constexpr UINT kMonitorContentPollMilliseconds = 2000;
+// Hardware readings go stale in seconds, so that mode repaints once a second at the provider's
+// own cadence instead of the clock's.
+constexpr UINT kMonitorContentPollMilliseconds = 1000;
 // Runs only while a state change is in flight, and is killed the moment it settles, so a
 // resting entry costs no timer wake-ups at all.
 constexpr UINT_PTR kAnimationTimerId = 3;

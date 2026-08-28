@@ -11,7 +11,7 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// </summary>
 internal static class SystemMonitorSmokeTest
 {
-    private static readonly TimeSpan SampleGap = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan SampleGap = TimeSpan.FromSeconds(1);
 
     public static async Task<int> RunAsync()
     {
