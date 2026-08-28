@@ -1719,8 +1719,51 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             _cardSurface.ClearViewportVisibility();
             CardItemsRepeater.ItemsSource = null;
             CardItemsRepeater.ItemsSource = _cardSurface.Items;
+            // The clear above dropped every registration, and ElementPrepared only fires
+            // again for elements the repeater actually rebuilds. A card the new membership
+            // still contains can keep its element, so it would never be registered again -
+            // and a card that is not registered is never reported in the viewport, which
+            // stops its provider, leaves a local card unable to publish its own content, and
+            // leaves it out of the fold. This is the panel's normal startup path, not an edge
+            // case: the surface is bound to the built-in board in the constructor and then
+            // replaced when the stored layout arrives.
+            ReestablishRealizedCards();
             RequestCardSubscriptionRefresh();
         }
+    }
+
+    /// <summary>
+    /// Re-registers whatever the repeater currently has realized. Idempotent with
+    /// <see cref="CardItemsRepeater_ElementPrepared"/>: an element that does get prepared
+    /// again simply registers the same values twice.
+    /// </summary>
+    private void ReestablishRealizedCards()
+    {
+        // The rebind above has not laid out yet, so nothing is realized until it does.
+        CardItemsRepeater.UpdateLayout();
+
+        int reestablished = 0;
+        for (int index = 0; index < _cardSurface.Items.Count; index++)
+        {
+            if (CardItemsRepeater.TryGetElement(index) is not UIElement element)
+            {
+                continue;
+            }
+
+            CardSurfaceItem? item = _cardSurface.GetItemAt(index);
+            if (item is null)
+            {
+                continue;
+            }
+
+            PrepareCardSurfaceDepth(element);
+            _cardFoldVisuals.Register(item.InstanceId, element);
+            _realizedCardRuntimes[element] = item.Runtime;
+            _cardSurface.SetViewportVisibility(item.Runtime, true);
+            reestablished++;
+        }
+
+        StartupTrace.Mark($"card-reestablished-{reestablished}");
     }
 
     private void CardItemsRepeater_ElementPrepared(
