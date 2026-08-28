@@ -20,6 +20,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     private CardRuntimeStatusPresentation _runtimePresentation;
     private WeatherCardProjection _weatherProjection;
     private SystemMonitorCardProjection _systemMonitorProjection;
+    private TokenUsageCardProjection _tokenUsageProjection;
     private bool _disposed;
 
     public CardSurfaceItem(
@@ -59,6 +60,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         SystemMonitorMetricListMerger.Merge(
             SystemMonitorMetrics,
             _systemMonitorProjection.Metrics);
+        _tokenUsageProjection = TokenUsageCardProjection.FromSnapshot(
+            Runtime.Snapshot,
+            _runtimeResourceResolver);
+        TokenUsageMetrics = [];
+        TokenUsageTrend = [];
+        TokenUsageModels = [];
+        MergeTokenUsage(_tokenUsageProjection);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
             RefreshSnapshotAsync);
@@ -222,6 +230,26 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public bool HasSystemMonitorData => SystemMonitorProjection.HasData;
 
+    public TokenUsageCardProjection TokenUsageProjection =>
+        Volatile.Read(ref _tokenUsageProjection);
+
+    /// <summary>
+    /// Stable collections updated in place, for the same reason the hardware monitor's are:
+    /// the card exists to sit still and change numbers, and rebuilding the sources on every
+    /// tick would rebuild every row's visuals with them.
+    /// </summary>
+    public ObservableCollection<TokenUsageMetricViewModel> TokenUsageMetrics { get; }
+
+    public ObservableCollection<TokenUsageTrendBarViewModel> TokenUsageTrend { get; }
+
+    public ObservableCollection<TokenUsageModelViewModel> TokenUsageModels { get; }
+
+    public bool HasTokenUsageData => TokenUsageProjection.HasData;
+
+    public bool IsTokenUsageTrendVisible => TokenUsageProjection.IsTrendVisible;
+
+    public bool AreTokenUsageModelsVisible => TokenUsageProjection.AreModelsVisible;
+
     public string WeatherAutomationSummary =>
         string.Join(
             " · ",
@@ -383,6 +411,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             _uiInvoker(() => SystemMonitorMetricListMerger.Merge(
                 SystemMonitorMetrics,
                 systemMonitor.Metrics));
+            TokenUsageCardProjection tokenUsage =
+                TokenUsageCardProjection.FromSnapshot(
+                    Runtime.Snapshot,
+                    _runtimeResourceResolver);
+            Interlocked.Exchange(ref _tokenUsageProjection, tokenUsage);
+            _uiInvoker(() => MergeTokenUsage(tokenUsage));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(RuntimeSnapshot)));
@@ -455,6 +489,25 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasSystemMonitorData)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(TokenUsageProjection)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasTokenUsageData)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsTokenUsageTrendVisible)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(AreTokenUsageModelsVisible)));
         }
+    }
+
+    private void MergeTokenUsage(TokenUsageCardProjection projection)
+    {
+        TokenUsageListMerger.MergeMetrics(TokenUsageMetrics, projection.Metrics);
+        TokenUsageListMerger.MergeTrend(TokenUsageTrend, projection.Trend);
+        TokenUsageListMerger.MergeModels(TokenUsageModels, projection.Models);
     }
 }

@@ -21,6 +21,7 @@ public static class BuiltInCardCatalog
     public const string TodoInstanceId = "demo.todo";
     public const string CalendarInstanceId = "demo.calendar";
     public const string SystemMonitorInstanceId = "demo.sysmon";
+    public const string TokenUsageInstanceId = "demo.tokenusage";
 
     public const string NotesCardTypeId = "builtin.notes";
     public const string WeatherCardTypeId = "builtin.weather";
@@ -28,6 +29,7 @@ public static class BuiltInCardCatalog
     public const string TodoCardTypeId = "builtin.todo";
     public const string CalendarCardTypeId = "builtin.calendar";
     public const string SystemMonitorCardTypeId = "builtin.sysmon";
+    public const string TokenUsageCardTypeId = "builtin.tokenusage";
     public const string UnknownCardTypeId = "builtin.unknown";
 
     private static readonly CardSize[] StandardSizes =
@@ -80,6 +82,14 @@ public static class BuiltInCardCatalog
         CardSize.L,
         StandardSizes);
 
+    // L for the same reason as the hardware monitor: the card stacks a row per reading and
+    // then a day's trend under them, and at M the strip is the first thing clipped.
+    public static ICardDefinition TokenUsage { get; } = new CardDefinition(
+        TokenUsageCardTypeId,
+        "TokenUsageCardTitle.Text",
+        CardSize.L,
+        StandardSizes);
+
     public static ICardDefinition Unknown { get; } = new CardDefinition(
         UnknownCardTypeId,
         "UnknownCardTitle.Text",
@@ -95,6 +105,7 @@ public static class BuiltInCardCatalog
             Todo,
             Calendar,
             SystemMonitor,
+            TokenUsage,
             Unknown,
         ]);
 
@@ -112,6 +123,7 @@ public static class BuiltInCardCatalog
             new BuiltInCardInstance(TodoInstanceId, Todo),
             new BuiltInCardInstance(CalendarInstanceId, Calendar),
             new BuiltInCardInstance(SystemMonitorInstanceId, SystemMonitor),
+            new BuiltInCardInstance(TokenUsageInstanceId, TokenUsage),
         ]);
 
     /// <summary>
@@ -121,7 +133,7 @@ public static class BuiltInCardCatalog
     /// until the next broker event arrives.
     /// </summary>
     public static bool IsBrokerBacked(string cardTypeId) =>
-        cardTypeId is WeatherCardTypeId or SystemMonitorCardTypeId;
+        cardTypeId is WeatherCardTypeId or SystemMonitorCardTypeId or TokenUsageCardTypeId;
 
     public static ICardDefinition ResolveInstance(string instanceId)
     {
@@ -136,6 +148,7 @@ public static class BuiltInCardCatalog
             TodoInstanceId => Todo,
             CalendarInstanceId => Calendar,
             SystemMonitorInstanceId => SystemMonitor,
+            TokenUsageInstanceId => TokenUsage,
             _ => Unknown,
         };
     }

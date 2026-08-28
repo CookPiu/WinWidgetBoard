@@ -961,4 +961,37 @@
   <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
     <value>更新于</value>
   </data>
+  <data name="TokenUsageCardTitle.Text" xml:space="preserve">
+    <value>Token 用量</value>
+  </data>
+  <data name="TokenUsageStatus.Empty" xml:space="preserve">
+    <value>暂无数据</value>
+  </data>
+  <data name="TokenUsageMetric.TodayBilled" xml:space="preserve">
+    <value>今日计费</value>
+  </data>
+  <data name="TokenUsageMetric.TodayOutput" xml:space="preserve">
+    <value>输出</value>
+  </data>
+  <data name="TokenUsageMetric.TodayCacheRead" xml:space="preserve">
+    <value>缓存读取</value>
+  </data>
+  <data name="TokenUsageMetric.TodayRequests" xml:space="preserve">
+    <value>响应数</value>
+  </data>
+  <data name="TokenUsageMetric.CacheHitRate" xml:space="preserve">
+    <value>缓存命中率</value>
+  </data>
+  <data name="TokenUsageMetric.CurrentRate" xml:space="preserve">
+    <value>当前速率</value>
+  </data>
+  <data name="TokenUsageMetric.PeakRate" xml:space="preserve">
+    <value>峰值速率</value>
+  </data>
+  <data name="TokenUsageMetric.Unknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="TokenUsageTrendStrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>最近 24 小时的计费 token</value>
+  </data>
 </root>

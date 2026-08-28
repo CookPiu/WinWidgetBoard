@@ -18,6 +18,8 @@ public sealed class CardSurfaceTemplateSelector : DataTemplateSelector
 
     public DataTemplate? SystemMonitorTemplate { get; set; }
 
+    public DataTemplate? TokenUsageTemplate { get; set; }
+
     public DataTemplate? DefaultTemplate { get; set; }
 
     protected override DataTemplate? SelectTemplateCore(object item)
@@ -35,6 +37,7 @@ public sealed class CardSurfaceTemplateSelector : DataTemplateSelector
             BuiltInCardCatalog.TodoCardTypeId => TodoTemplate,
             BuiltInCardCatalog.CalendarCardTypeId => CalendarTemplate,
             BuiltInCardCatalog.SystemMonitorCardTypeId => SystemMonitorTemplate,
+            BuiltInCardCatalog.TokenUsageCardTypeId => TokenUsageTemplate,
             _ => DefaultTemplate,
         };
     }

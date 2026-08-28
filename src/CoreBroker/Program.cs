@@ -123,6 +123,13 @@ internal static class Program
             providerVisibilityRegistry,
             cardSnapshotSubscriptionHub,
             refreshClock);
+        // No repository: the reading has no stored settings, and the transcripts it reads are
+        // never copied into the database.
+        using var tokenUsageRuntime = new TokenUsageRuntime(
+            providerHost,
+            providerVisibilityRegistry,
+            cardSnapshotSubscriptionHub,
+            refreshClock);
         var server = new CoreBrokerPipeServer(
             CoreBrokerPipeNames.Production,
             sessionToken,

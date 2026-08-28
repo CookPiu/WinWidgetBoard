@@ -961,4 +961,37 @@
   <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
     <value>Updated</value>
   </data>
+  <data name="TokenUsageCardTitle.Text" xml:space="preserve">
+    <value>Token usage</value>
+  </data>
+  <data name="TokenUsageStatus.Empty" xml:space="preserve">
+    <value>No data</value>
+  </data>
+  <data name="TokenUsageMetric.TodayBilled" xml:space="preserve">
+    <value>Billed today</value>
+  </data>
+  <data name="TokenUsageMetric.TodayOutput" xml:space="preserve">
+    <value>Output</value>
+  </data>
+  <data name="TokenUsageMetric.TodayCacheRead" xml:space="preserve">
+    <value>Cache reads</value>
+  </data>
+  <data name="TokenUsageMetric.TodayRequests" xml:space="preserve">
+    <value>Responses</value>
+  </data>
+  <data name="TokenUsageMetric.CacheHitRate" xml:space="preserve">
+    <value>Cache hit rate</value>
+  </data>
+  <data name="TokenUsageMetric.CurrentRate" xml:space="preserve">
+    <value>Current rate</value>
+  </data>
+  <data name="TokenUsageMetric.PeakRate" xml:space="preserve">
+    <value>Peak rate</value>
+  </data>
+  <data name="TokenUsageMetric.Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="TokenUsageTrendStrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Billed tokens over the last 24 hours</value>
+  </data>
 </root>

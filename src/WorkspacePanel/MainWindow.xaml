@@ -1930,6 +1930,227 @@
             </Border>
         </DataTemplate>
 
+        <!--
+            One usage reading. Only the cache hit rate has a real ceiling, so it is the only
+            row that shows a meter; a token count and a rate would need an invented maximum.
+        -->
+        <DataTemplate
+            x:Key="TokenUsageMetricTemplate"
+            x:DataType="runtime:TokenUsageMetricViewModel">
+            <Grid
+                Padding="0,3"
+                RowSpacing="3"
+                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind Name, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        Text="{x:Bind PrimaryText, Mode=OneWay}"
+                        Visibility="{x:Bind HasReading, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind MetricStatusText, Mode=OneWay}"
+                        Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="2"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind SecondaryText, Mode=OneWay}"
+                        Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
+                </Grid>
+                <ProgressBar
+                    Grid.Row="1"
+                    Height="4"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{x:Bind MeterPercent, Mode=OneWay}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    IsTabStop="False"
+                    automation:AutomationProperties.AccessibilityView="Raw"
+                    Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
+            </Grid>
+        </DataTemplate>
+
+        <!--
+            One hour of the day. The bar heights arrive already scaled against the window's own
+            peak - the panel has no ceiling of its own to judge a token count against - and a
+            bar never reaches zero height, so an hour with a little usage still reads
+            differently from an hour with none.
+        -->
+        <DataTemplate
+            x:Key="TokenUsageTrendBarTemplate"
+            x:DataType="runtime:TokenUsageTrendBarViewModel">
+            <Grid Height="32" Width="6" Margin="1,0">
+                <Rectangle
+                    VerticalAlignment="Bottom"
+                    Height="{x:Bind BarHeight, Mode=OneWay}"
+                    RadiusX="1"
+                    RadiusY="1"
+                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="TokenUsageModelTemplate"
+            x:DataType="runtime:TokenUsageModelViewModel">
+            <Grid
+                Padding="0,2"
+                RowSpacing="2"
+                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind Model, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind PrimaryText, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="2"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind SecondaryText, Mode=OneWay}" />
+                </Grid>
+                <ProgressBar
+                    Grid.Row="1"
+                    Height="2"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{x:Bind MeterPercent, Mode=OneWay}"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                    IsTabStop="False"
+                    automation:AutomationProperties.AccessibilityView="Raw" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate
+            x:Key="TokenUsageCardTemplate"
+            x:DataType="layout:CardSurfaceItem">
+            <Border
+                MinHeight="160"
+                Style="{StaticResource WwbCardSurfaceStyle}"
+                Padding="{StaticResource WwbCompactCardPadding}"
+                RenderTransformOrigin="0.5,0.5"
+                Tag="{x:Bind InstanceId}"
+                PointerCaptureLost="DemoNotesCardSurface_PointerCaptureLost"
+                PointerCanceled="DemoNotesCardSurface_PointerCanceled"
+                PointerMoved="DemoNotesCardSurface_PointerMoved"
+                PointerPressed="DemoNotesCardSurface_PointerPressed"
+                PointerReleased="DemoNotesCardSurface_PointerReleased">
+                <Border.RenderTransform>
+                    <CompositeTransform />
+                </Border.RenderTransform>
+                <Grid RowSpacing="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        Grid.Row="0"
+                        x:Uid="TokenUsageCardTitle"
+                        Style="{StaticResource WwbCardTitleStyle}" />
+                    <Grid Grid.Row="1">
+                        <ContentControl
+                            automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
+                            Content="{x:Bind RuntimePresentation, Mode=OneWay}"
+                            ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
+                            IsTabStop="False"
+                            Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
+                        <StackPanel
+                            VerticalAlignment="Top"
+                            Spacing="6"
+                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
+                            <ItemsControl
+                                ItemsSource="{x:Bind TokenUsageMetrics}"
+                                ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
+                                IsTabStop="False"
+                                automation:AutomationProperties.AutomationId="TokenUsageMetricList" />
+                            <ItemsControl
+                                ItemsSource="{x:Bind TokenUsageTrend}"
+                                ItemTemplate="{StaticResource TokenUsageTrendBarTemplate}"
+                                IsTabStop="False"
+                                x:Uid="TokenUsageTrendStrip"
+                                automation:AutomationProperties.AutomationId="TokenUsageTrendStrip"
+                                Visibility="{x:Bind IsTokenUsageTrendVisible, Mode=OneWay}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <ItemsControl
+                                ItemsSource="{x:Bind TokenUsageModels}"
+                                ItemTemplate="{StaticResource TokenUsageModelTemplate}"
+                                IsTabStop="False"
+                                automation:AutomationProperties.AutomationId="TokenUsageModelList"
+                                Visibility="{x:Bind AreTokenUsageModelsVisible, Mode=OneWay}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border
+                        Grid.Row="2"
+                        HorizontalAlignment="Left"
+                        Padding="{StaticResource WwbCompactToolbarPadding}"
+                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Border
+                                Tag="{x:Bind InstanceId}"
+                                Style="{StaticResource WwbDragHandleStyle}">
+                                <TextBlock
+                                    x:Name="TokenUsageCardDragHandle"
+                                    x:Uid="DragCardHandle"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                            </Border>
+                            <Button
+                                x:Uid="DecreaseCardButton"
+                                automation:AutomationProperties.AutomationId="TokenUsageCardDecreaseButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="DecreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="IncreaseCardButton"
+                                automation:AutomationProperties.AutomationId="TokenUsageCardIncreaseButton"
+                                Style="{StaticResource WwbEditActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="IncreaseCardSizeButton_Click" />
+                            <Button
+                                x:Uid="RemoveCardButton"
+                                automation:AutomationProperties.AutomationId="TokenUsageCardRemoveButton"
+                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
+                                Tag="{x:Bind InstanceId}"
+                                Click="RemoveCardButton_Click" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
         <layout:CardSurfaceTemplateSelector
             x:Key="CardTemplateSelector"
             NotesTemplate="{StaticResource NotesCardTemplate}"
@@ -1938,6 +2159,7 @@
             TodoTemplate="{StaticResource TodoCardTemplate}"
             CalendarTemplate="{StaticResource CalendarCardTemplate}"
             SystemMonitorTemplate="{StaticResource SystemMonitorCardTemplate}"
+            TokenUsageTemplate="{StaticResource TokenUsageCardTemplate}"
             DefaultTemplate="{StaticResource UnknownCardTemplate}" />
         </Grid.Resources>
         <Border
