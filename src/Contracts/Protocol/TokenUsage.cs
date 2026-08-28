@@ -97,18 +97,6 @@ public static class TokenUsageContract
     public const string CacheHitRate = "usage.cache.hit-rate";
 
     /// <summary>
-    /// The busiest fifteen minutes of today, as a per-minute rate.
-    ///
-    /// This is deliberately not "the speed of the last response". A transcript records only
-    /// the timestamp a response completed - there is no duration, latency or first-token
-    /// field anywhere in it - so a per-response speed could only be approximated from the gap
-    /// to the previous entry, which also contains the user's thinking time and every tool call
-    /// in between. Both rates here are measured over wall-clock windows the timestamps really
-    /// do delimit.
-    /// </summary>
-    public const string PeakRate = "usage.rate.peak";
-
-    /// <summary>
     /// Every reading, in priority order - most worth seeing first.
     ///
     /// The order is load-bearing, not cosmetic: a card is a fixed number of grid rows tall and
@@ -122,7 +110,6 @@ public static class TokenUsageContract
         TodayRequests,
         CacheHitRate,
         TodayOutputTokens,
-        PeakRate,
     ];
 
     public static IReadOnlyList<string> Methods { get; } =
@@ -218,13 +205,6 @@ public sealed record TokenUsagePageDto
         Array.Empty<TokenUsageBreakdownDto>();
 
     /// <summary>
-    /// Present only where the vendor actually reports quota. Absent is not "unknown quota" to
-    /// be rendered as empty dials - it means this vendor never told us, and the card shows
-    /// nothing rather than implying a limit it cannot see.
-    /// </summary>
-    public TokenUsageQuotaDto? Quota { get; init; }
-
-    /// <summary>
     /// Today's usage costed at the vendors' published list prices, already composed - for
     /// example "$12.34". Empty when nothing on this page could be priced.
     ///
@@ -275,45 +255,6 @@ public sealed record TokenUsageBreakdownDto
 
     /// <summary>This slice's share of the page's billed tokens, 0..1.</summary>
     public double Ratio { get; init; }
-}
-
-/// <summary>
-/// Quota as the vendor itself reported it, not as this product estimated it. Only carried for
-/// a vendor that publishes it in its own session records.
-/// </summary>
-public sealed record TokenUsageQuotaDto
-{
-    public IReadOnlyList<TokenUsageQuotaWindowDto> Windows { get; init; } =
-        Array.Empty<TokenUsageQuotaWindowDto>();
-
-    /// <summary>Composed credit balance, empty when the vendor reported none.</summary>
-    public string CreditsText { get; init; } = string.Empty;
-
-    public bool HasCredits => CreditsText.Length > 0;
-
-    /// <summary>
-    /// When the reading was observed. Quota is read from session records rather than queried,
-    /// so it is exactly as old as the last session activity - which the card has to say, or a
-    /// figure from yesterday reads as current.
-    /// </summary>
-    public string ObservedAtText { get; init; } = string.Empty;
-}
-
-public sealed record TokenUsageQuotaWindowDto
-{
-    /// <summary>Stable identity for merging rows in place; not displayed.</summary>
-    public string WindowId { get; init; } = string.Empty;
-
-    /// <summary>The window's length, already composed and language-neutral: "5h", "7d".</summary>
-    public string WindowText { get; init; } = string.Empty;
-
-    public string UsedText { get; init; } = string.Empty;
-
-    /// <summary>0..1, for the meter.</summary>
-    public double UsedRatio { get; init; }
-
-    /// <summary>When the window resets, composed in local time. Empty when not reported.</summary>
-    public string ResetsAtText { get; init; } = string.Empty;
 }
 
 public sealed record TokenUsageSettingsGetRequest

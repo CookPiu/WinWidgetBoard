@@ -192,47 +192,12 @@ public sealed class TokenUsageCardProjectionTests
     {
         var report = new TokenUsageReport(
             ReadyAggregate(),
-            [new TokenUsageVendorReport(TokenUsageContract.ClaudeVendorId, ReadyAggregate(), null)]);
+            [new TokenUsageVendorReport(TokenUsageContract.ClaudeVendorId, ReadyAggregate())]);
 
         TokenUsageCardProjection projection = Project(report);
 
         Assert.AreEqual(2, projection.Pages.Count);
         Assert.IsFalse(projection.IsPageSwitcherVisible);
-    }
-
-    [TestMethod(DisplayName =
-        "UT-TOKUSE-072 [USE-013] Quota is shown only for the vendor that reported it")]
-    public void QuotaOnlyOnTheReportingVendor()
-    {
-        TokenUsageCardProjection projection = Project(ReadyReport());
-
-        Assert.IsFalse(projection.Pages[0].IsQuotaVisible);
-        Assert.IsFalse(projection.Pages[1].IsQuotaVisible);
-        TokenUsagePage codex = projection.Pages[2];
-        Assert.IsTrue(codex.IsQuotaVisible);
-        Assert.AreEqual(1, codex.Quota.Count);
-        Assert.AreEqual("7d", codex.Quota[0].WindowText);
-        Assert.AreEqual("31.0%", codex.Quota[0].UsedText);
-        // The reset line is composed by the panel, so the sentence stays translatable.
-        Assert.IsTrue(codex.Quota[0].ResetsLabel.StartsWith("name:", StringComparison.Ordinal));
-        Assert.IsTrue(codex.IsCreditsVisible);
-    }
-
-    [TestMethod(DisplayName =
-        "UT-TOKUSE-073 [USE-013] A quota window whose reset has passed is not shown")]
-    public void StaleQuotaWindowIsDropped()
-    {
-        // Read from session records rather than queried, so a window that has certainly reset
-        // says nothing about the present. A stale "100% used" is worse than saying nothing.
-        var quota = new VendorQuotaSnapshot(
-            [new VendorQuotaWindow("primary", 100d, 300, SampledAt.AddHours(-1))],
-            CreditsBalance: null,
-            SampledAt.AddHours(-2));
-        var report = new TokenUsageReport(
-            ReadyAggregate(),
-            [new TokenUsageVendorReport(TokenUsageContract.CodexVendorId, ReadyAggregate(), quota)]);
-
-        Assert.IsFalse(Project(report).Pages[1].IsQuotaVisible);
     }
 
     private static TokenUsagePage Overview(TokenUsageCardProjection projection) =>
@@ -268,8 +233,7 @@ public sealed class TokenUsageCardProjectionTests
             [
                 new TokenUsageVendorReport(
                     TokenUsageContract.ClaudeVendorId,
-                    new TokenUsageAggregate(),
-                    null),
+                    new TokenUsageAggregate()),
             ]);
 
     private static TokenUsageReport ReadyReport() =>
@@ -278,21 +242,10 @@ public sealed class TokenUsageCardProjectionTests
             [
                 new TokenUsageVendorReport(
                     TokenUsageContract.ClaudeVendorId,
-                    ReadyAggregate(),
-                    null),
+                    ReadyAggregate()),
                 new TokenUsageVendorReport(
                     TokenUsageContract.CodexVendorId,
-                    ReadyAggregate(),
-                    new VendorQuotaSnapshot(
-                        [
-                            new VendorQuotaWindow(
-                                "secondary",
-                                31d,
-                                10_080,
-                                SampledAt.AddDays(5)),
-                        ],
-                        "2927.96",
-                        SampledAt.AddMinutes(-30))),
+                    ReadyAggregate()),
             ]);
 
     private static TokenUsageAggregate ReadyAggregate() =>

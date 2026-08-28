@@ -13,10 +13,7 @@ internal static class TokenUsageCardPayloads
     private static readonly DateTimeOffset SampledAt =
         new(2026, 8, 28, 10, 46, 0, TimeSpan.Zero);
 
-    /// <summary>
-    /// Both vendors reporting, with Codex carrying a quota window that has not reset yet -
-    /// the fullest page the card ever has to lay out.
-    /// </summary>
+    /// <summary>Both vendors reporting: the fullest page the card has to lay out.</summary>
     internal static JsonElement ReadyWithQuota() =>
         JsonSerializer.SerializeToElement(
             TokenUsageFormatter.CreatePayload(
@@ -25,21 +22,10 @@ internal static class TokenUsageCardPayloads
                     [
                         new TokenUsageVendorReport(
                             TokenUsageContract.ClaudeVendorId,
-                            Aggregate(),
-                            null),
+                            Aggregate()),
                         new TokenUsageVendorReport(
                             TokenUsageContract.CodexVendorId,
-                            Aggregate(),
-                            new VendorQuotaSnapshot(
-                                [
-                                    new VendorQuotaWindow(
-                                        "secondary",
-                                        31d,
-                                        10_080,
-                                        SampledAt.AddDays(5)),
-                                ],
-                                "2927.96",
-                                SampledAt.AddMinutes(-30))),
+                            Aggregate()),
                     ]),
                 SampledAt,
                 TimeZoneInfo.Utc),

@@ -1938,18 +1938,25 @@
             x:Key="TokenUsageMetricTemplate"
             x:DataType="runtime:TokenUsageMetricViewModel">
             <Grid
-                Padding="0,3"
-                RowSpacing="3"
+                Padding="0,2"
+                RowSpacing="2"
                 automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+                <!--
+                    Proportional columns, not Auto. Each row is its own Grid inside the items
+                    control, so an Auto column sizes to that row alone and every row puts its
+                    numbers on a different edge - the ragged right the card had. Equal
+                    proportions give every row the same two boundaries, and the figures are
+                    right-aligned into them so digits line up by place value.
+                -->
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock
                         Style="{StaticResource WwbCardCaptionStyle}"
@@ -1959,16 +1966,23 @@
                         Grid.Column="1"
                         Style="{StaticResource WwbCardBodyStyle}"
                         Text="{x:Bind PrimaryText, Mode=OneWay}"
+                        TextAlignment="Right"
+                        TextTrimming="CharacterEllipsis"
                         Visibility="{x:Bind HasReading, Mode=OneWay}" />
                     <TextBlock
                         Grid.Column="1"
+                        Grid.ColumnSpan="2"
                         Style="{StaticResource WwbCardCaptionStyle}"
                         Text="{x:Bind MetricStatusText, Mode=OneWay}"
+                        TextAlignment="Right"
+                        TextTrimming="CharacterEllipsis"
                         Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
                     <TextBlock
                         Grid.Column="2"
                         Style="{StaticResource WwbCardCaptionStyle}"
                         Text="{x:Bind SecondaryText, Mode=OneWay}"
+                        TextAlignment="Right"
+                        TextTrimming="CharacterEllipsis"
                         Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
                 </Grid>
                 <ProgressBar
@@ -1993,7 +2007,12 @@
         <DataTemplate
             x:Key="TokenUsageTrendBarTemplate"
             x:DataType="runtime:TokenUsageTrendBarViewModel">
-            <Grid Height="32" Width="6" Margin="1,0">
+            <!--
+                The track height must match TokenUsageTrendBar.TrackHeight, which is what the
+                bar heights are computed against; a taller track here alone would just add
+                empty space above every bar.
+            -->
+            <Grid Height="44" Width="6" Margin="1,0">
                 <Rectangle
                     VerticalAlignment="Bottom"
                     Height="{x:Bind BarHeight, Mode=OneWay}"
@@ -2012,61 +2031,12 @@
             x:Key="TokenUsagePageTabTemplate"
             x:DataType="runtime:TokenUsagePageTabViewModel">
             <ToggleButton
-                MinWidth="0"
-                Padding="8,2"
+                Style="{StaticResource WwbPageTabToggleStyle}"
                 Content="{x:Bind Name, Mode=OneWay}"
                 IsChecked="{x:Bind IsSelected, Mode=OneWay}"
                 Tag="{x:Bind PageId}"
                 Click="TokenUsagePageTab_Click"
                 automation:AutomationProperties.Name="{x:Bind Name, Mode=OneWay}" />
-        </DataTemplate>
-
-        <!--
-            One quota window, as the vendor itself reported it. Only vendors that publish quota
-            get this block, and only while the reading is still current - a window whose reset
-            time has passed is dropped upstream rather than shown stale.
-        -->
-        <DataTemplate
-            x:Key="TokenUsageQuotaTemplate"
-            x:DataType="runtime:TokenUsageQuotaViewModel">
-            <Grid
-                Padding="0,2"
-                RowSpacing="2"
-                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind WindowText, Mode=OneWay}" />
-                    <TextBlock
-                        Grid.Column="1"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind ResetsLabel, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis"
-                        Visibility="{x:Bind IsResetVisible, Mode=OneWay}" />
-                    <TextBlock
-                        Grid.Column="2"
-                        Style="{StaticResource WwbCardBodyStyle}"
-                        Text="{x:Bind UsedText, Mode=OneWay}" />
-                </Grid>
-                <ProgressBar
-                    Grid.Row="1"
-                    Height="2"
-                    Minimum="0"
-                    Maximum="100"
-                    Value="{x:Bind MeterPercent, Mode=OneWay}"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    IsTabStop="False"
-                    automation:AutomationProperties.AccessibilityView="Raw" />
-            </Grid>
         </DataTemplate>
 
         <DataTemplate
@@ -2116,31 +2086,10 @@
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
                             Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
-                        <!--
-                            Two columns, but the second one is only used at four-column card
-                            widths. A card is a fixed number of grid rows tall and clips what
-                            does not fit, so on a wide card the breakdown and quota move
-                            beside the readings rather than under them - height is the axis
-                            that is short, and stacking into the extra width would waste it.
-                        -->
-                        <Grid
+                        <StackPanel
                             VerticalAlignment="Top"
-                            ColumnSpacing="12"
+                            Spacing="6"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <!--
-                                    Auto, so at narrow sizes - where the side block sits in
-                                    the second row of the first column instead - this column
-                                    holds nothing and takes no width.
-                                -->
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <StackPanel Spacing="6">
                                 <ItemsControl
                                     ItemsSource="{x:Bind TokenUsagePages}"
                                     ItemTemplate="{StaticResource TokenUsagePageTabTemplate}"
@@ -2188,49 +2137,7 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
-                            </StackPanel>
-                            <StackPanel
-                                Grid.Column="{x:Bind TokenUsageSideColumn, Mode=OneWay}"
-                                Grid.Row="{x:Bind TokenUsageSideRow, Mode=OneWay}"
-                                Spacing="6">
-                                <!--
-                                    Header, balance and observation time share one line. They
-                                    were three, which cost eighteen DIP the card does not have:
-                                    at L the quota block ran past the bottom edge and the
-                                    balance was drawn off the card entirely.
-                                -->
-                                <StackPanel
-                                    Spacing="2"
-                                    Visibility="{x:Bind IsTokenUsageQuotaVisible, Mode=OneWay}">
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            x:Uid="TokenUsageQuotaHeader"
-                                            Style="{StaticResource WwbCardCaptionStyle}" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageCreditsText, Mode=OneWay}"
-                                            TextTrimming="CharacterEllipsis"
-                                            Visibility="{x:Bind IsTokenUsageCreditsVisible, Mode=OneWay}" />
-                                        <TextBlock
-                                            Grid.Column="2"
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageQuotaObservedText, Mode=OneWay}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </Grid>
-                                    <ItemsControl
-                                        ItemsSource="{x:Bind TokenUsageQuota}"
-                                        ItemTemplate="{StaticResource TokenUsageQuotaTemplate}"
-                                        IsTabStop="False"
-                                        automation:AutomationProperties.AutomationId="TokenUsageQuotaList" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Grid>
+                        </StackPanel>
                     </Grid>
                     <Border
                         Grid.Row="2"

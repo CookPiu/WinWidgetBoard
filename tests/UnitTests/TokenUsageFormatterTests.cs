@@ -103,17 +103,6 @@ public sealed class TokenUsageFormatterTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-047 [USE-007] The peak rate names the window it was measured in")]
-    public void PeakRateCarriesItsWindowStart()
-    {
-        TokenUsagePageDto payload = Page(ReadyAggregate());
-
-        TokenUsageMetricDto peak = Metric(payload, TokenUsageContract.PeakRate);
-        Assert.AreEqual(TokenUsageMetricStatus.Ready, peak.Status);
-        Assert.AreEqual("09:30", peak.SecondaryText);
-    }
-
-    [TestMethod(DisplayName =
         "UT-TOKUSE-048 [USE-006] Model shares are stated against today's real total")]
     public void ModelSharesUseTheRealTotal()
     {
@@ -128,7 +117,6 @@ public sealed class TokenUsageFormatterTests
         TokenUsageFormatter.CreatePage(
             TokenUsageContract.OverviewPageId,
             aggregate,
-            quota: null,
             TimeZoneInfo.Utc,
             SampledAt);
 

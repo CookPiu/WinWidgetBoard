@@ -291,43 +291,6 @@ public sealed class TranscriptUsageScannerTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-014 [USE-011] Codex quota is read from the records, never estimated")]
-    public void CodexReadsQuotaFromRecords()
-    {
-        var source = new CodexTokenUsageSource(_root);
-        WriteSession(
-            "codex.jsonl",
-            CodexTurnContext("gpt-5.6-sol", "2026-08-28T09:00:00.000Z"),
-            CodexTokenCountWithQuota("2026-08-28T09:00:01.000Z", usedPercent: 30, windowMinutes: 300));
-
-        source.Scan(DateTimeOffset.MinValue, CancellationToken.None);
-
-        VendorQuotaSnapshot quota = source.Quota!;
-        Assert.AreEqual(1, quota.Windows.Count);
-        Assert.AreEqual("primary", quota.Windows[0].WindowId);
-        Assert.AreEqual(30d, quota.Windows[0].UsedPercent, 0.001d);
-        Assert.AreEqual(300, quota.Windows[0].WindowMinutes);
-        // Read from a record rather than queried, so it is exactly as old as that record.
-        Assert.AreEqual(
-            DateTimeOffset.Parse("2026-08-28T09:00:01.000Z", CultureInfo.InvariantCulture)
-                .ToUniversalTime(),
-            quota.ObservedAtUtc);
-    }
-
-    [TestMethod(DisplayName =
-        "UT-TOKUSE-015 [USE-011] Claude publishes no quota and must not invent one")]
-    public void ClaudeReportsNoQuota()
-    {
-        var source = new ClaudeTokenUsageSource(_root);
-        WriteSession(
-            "a.jsonl",
-            ClaudeLine("req_1", "msg_1", "claude-opus-5", "2026-08-28T09:00:00.000Z", 1, 1, 0, 0));
-        source.Scan(DateTimeOffset.MinValue, CancellationToken.None);
-
-        Assert.IsNull(source.Quota);
-    }
-
-    [TestMethod(DisplayName =
         "UT-TOKUSE-016 [USE-011] Re-reading a truncated Codex file does not double-count")]
     public void CodexRereadIsAbsorbedByDeduplication()
     {
@@ -421,15 +384,4 @@ public sealed class TranscriptUsageScannerTests
             output,
             cacheRead,
             input + output);
-
-    internal static string CodexTokenCountWithQuota(
-        string timestamp,
-        double usedPercent,
-        int windowMinutes) =>
-        string.Format(
-            CultureInfo.InvariantCulture,
-            """{{"timestamp":"{0}","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":100,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":10,"total_tokens":110}}}},"rate_limits":{{"primary":{{"used_percent":{1},"window_minutes":{2},"resets_at":4102444800}},"credits":{{"has_credits":true,"balance":"2927.9641200000"}}}}}}}}""",
-            timestamp,
-            usedPercent,
-            windowMinutes);
 }

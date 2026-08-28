@@ -173,7 +173,7 @@ public sealed class TokenUsageProvider : IProviderRefreshSource
                 _aggregator.Ingest(source.Scan(since, cancellationToken), producedAtUtc);
             }
 
-            report = _aggregator.Compute(producedAtUtc, enabled, LookupQuota);
+            report = _aggregator.Compute(producedAtUtc, enabled);
         }
 
         JsonElement payload = JsonSerializer.SerializeToElement(
@@ -190,9 +190,6 @@ public sealed class TokenUsageProvider : IProviderRefreshSource
                 // there is nothing worth serving stale.
                 producedAtUtc.Add(Descriptor.VisibleInterval)));
     }
-
-    private VendorQuotaSnapshot? LookupQuota(string vendorId) =>
-        _sources.TryGetValue(vendorId, out ITokenUsageSource? source) ? source.Quota : null;
 
     /// <summary>
     /// Reduces a requested selection to known vendors in contract order, so the card's pages

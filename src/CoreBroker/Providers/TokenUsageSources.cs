@@ -46,20 +46,6 @@ public readonly record struct TranscriptUsageRecord(
 }
 
 /// <summary>
-/// Quota exactly as a vendor reported it in its own records. Never estimated here.
-/// </summary>
-public sealed record VendorQuotaWindow(
-    string WindowId,
-    double UsedPercent,
-    int WindowMinutes,
-    DateTimeOffset? ResetsAtUtc);
-
-public sealed record VendorQuotaSnapshot(
-    IReadOnlyList<VendorQuotaWindow> Windows,
-    string? CreditsBalance,
-    DateTimeOffset ObservedAtUtc);
-
-/// <summary>
 /// Reads one vendor's usage out of the session records it already writes on this machine.
 /// </summary>
 public interface ITokenUsageSource
@@ -70,9 +56,6 @@ public interface ITokenUsageSource
     bool IsAvailable { get; }
 
     long SkippedLineCount { get; }
-
-    /// <summary>Quota the vendor published, or null where it publishes none.</summary>
-    VendorQuotaSnapshot? Quota { get; }
 
     IReadOnlyList<TranscriptUsageRecord> Scan(
         DateTimeOffset sinceUtc,
@@ -115,9 +98,6 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
     public bool IsAvailable => _reader.RootExists;
 
     public long SkippedLineCount => _reader.SkippedLineCount;
-
-    /// <summary>Claude's transcripts carry no quota or rate-limit fields.</summary>
-    public VendorQuotaSnapshot? Quota => null;
 
     public string RootDirectory => _reader.RootDirectory;
 
@@ -423,7 +403,6 @@ public sealed class CodexTokenUsageSource : ITokenUsageSource, IJsonlLineConsume
         new(StringComparer.OrdinalIgnoreCase);
     private List<TranscriptUsageRecord> _pending = [];
     private CodexFileState? _current;
-    private VendorQuotaSnapshot? _quota;
 
     public CodexTokenUsageSource(string? rootDirectory = null)
     {
@@ -446,13 +425,6 @@ public sealed class CodexTokenUsageSource : ITokenUsageSource, IJsonlLineConsume
     public bool IsAvailable => _reader.RootExists;
 
     public long SkippedLineCount => _reader.SkippedLineCount;
-
-    /// <summary>
-    /// The most recently observed quota, or null when nothing has been read yet. Quota is
-    /// read from records rather than queried, so it is exactly as old as the last session
-    /// activity - which is why the snapshot carries its own observation time.
-    /// </summary>
-    public VendorQuotaSnapshot? Quota => _quota;
 
     public string RootDirectory => _reader.RootDirectory;
 
@@ -561,11 +533,6 @@ public sealed class CodexTokenUsageSource : ITokenUsageSource, IJsonlLineConsume
             return;
         }
 
-        if (payload.Quota is { } quota)
-        {
-            _quota = quota with { ObservedAtUtc = timestamp.ToUniversalTime() };
-        }
-
         CodexTotals totals = payload.Totals;
         CodexTotals previous = state.PreviousTotals;
         // A drop means the session was compacted: treat this reading as a fresh baseline
@@ -627,17 +594,6 @@ public sealed class CodexTokenUsageSource : ITokenUsageSource, IJsonlLineConsume
                 }
 
                 ReadInfo(ref reader, ref payload);
-            }
-            else if (reader.ValueTextEquals("rate_limits"u8))
-            {
-                reader.Read();
-                if (reader.TokenType != JsonTokenType.StartObject)
-                {
-                    JsonScan.SkipValue(ref reader);
-                    continue;
-                }
-
-                payload.Quota = ReadRateLimits(ref reader);
             }
             else
             {
@@ -710,145 +666,11 @@ public sealed class CodexTokenUsageSource : ITokenUsageSource, IJsonlLineConsume
         return totals;
     }
 
-    private static VendorQuotaSnapshot ReadRateLimits(ref Utf8JsonReader reader)
-    {
-        var windows = new List<VendorQuotaWindow>(2);
-        string? credits = null;
-
-        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-        {
-            bool isPrimary = reader.ValueTextEquals("primary"u8);
-            bool isSecondary = reader.ValueTextEquals("secondary"u8);
-            bool isCredits = reader.ValueTextEquals("credits"u8);
-            if (!isPrimary && !isSecondary && !isCredits)
-            {
-                reader.Read();
-                JsonScan.SkipValue(ref reader);
-                continue;
-            }
-
-            string name = isPrimary ? "primary" : isSecondary ? "secondary" : "credits";
-            reader.Read();
-            if (reader.TokenType != JsonTokenType.StartObject)
-            {
-                JsonScan.SkipValue(ref reader);
-                continue;
-            }
-
-            if (isCredits)
-            {
-                credits = ReadCredits(ref reader);
-                continue;
-            }
-
-            if (ReadWindow(ref reader, name) is { } window)
-            {
-                windows.Add(window);
-            }
-        }
-
-        return new VendorQuotaSnapshot(windows, credits, default);
-    }
-
-    private static VendorQuotaWindow? ReadWindow(ref Utf8JsonReader reader, string windowId)
-    {
-        double used = -1d;
-        int minutes = 0;
-        DateTimeOffset? resetsAt = null;
-
-        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-        {
-            if (reader.ValueTextEquals("used_percent"u8))
-            {
-                reader.Read();
-                if (reader.TokenType == JsonTokenType.Number &&
-                    reader.TryGetDouble(out double value) &&
-                    double.IsFinite(value))
-                {
-                    used = value;
-                }
-            }
-            else if (reader.ValueTextEquals("window_minutes"u8))
-            {
-                minutes = (int)Math.Min(int.MaxValue, JsonScan.ReadCount(ref reader));
-            }
-            else if (reader.ValueTextEquals("resets_at"u8))
-            {
-                reader.Read();
-                if (reader.TokenType == JsonTokenType.Number &&
-                    reader.TryGetInt64(out long epochSeconds) &&
-                    epochSeconds > 0)
-                {
-                    resetsAt = DateTimeOffset.FromUnixTimeSeconds(epochSeconds);
-                }
-            }
-            else
-            {
-                reader.Read();
-                JsonScan.SkipValue(ref reader);
-            }
-        }
-
-        return used < 0d
-            ? null
-            : new VendorQuotaWindow(windowId, used, minutes, resetsAt);
-    }
-
-    private static string? ReadCredits(ref Utf8JsonReader reader)
-    {
-        string? balance = null;
-        bool hasCredits = false;
-
-        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
-        {
-            if (reader.ValueTextEquals("balance"u8))
-            {
-                reader.Read();
-                // The vendor reports this as a string of raw precision
-                // ("2927.9641200000"), which is not a balance anyone reads. Rounded to two
-                // places where it parses, and passed through untouched where it does not -
-                // a balance in a form this build does not recognise is still worth showing.
-                balance = reader.TokenType switch
-                {
-                    JsonTokenType.String => FormatBalance(reader.GetString()),
-                    JsonTokenType.Number => reader.GetDouble().ToString(
-                        "0.##",
-                        System.Globalization.CultureInfo.InvariantCulture),
-                    _ => null,
-                };
-            }
-            else if (reader.ValueTextEquals("has_credits"u8))
-            {
-                reader.Read();
-                hasCredits = reader.TokenType == JsonTokenType.True;
-            }
-            else
-            {
-                reader.Read();
-                JsonScan.SkipValue(ref reader);
-            }
-        }
-
-        return hasCredits ? balance : null;
-    }
-
-    private static string? FormatBalance(string? raw) =>
-        string.IsNullOrWhiteSpace(raw)
-            ? null
-            : double.TryParse(
-                raw,
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out double value) && double.IsFinite(value)
-                ? value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
-                : raw;
-
     private struct CodexPayload
     {
         public string? Model;
         public bool HasTotals;
         public CodexTotals Totals;
-        public VendorQuotaSnapshot? Quota;
     }
 
     private struct CodexTotals

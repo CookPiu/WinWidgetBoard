@@ -982,12 +982,6 @@
   <data name="TokenUsageMetric.CacheHitRate" xml:space="preserve">
     <value>缓存命中率</value>
   </data>
-  <data name="TokenUsageMetric.CurrentRate" xml:space="preserve">
-    <value>当前速率</value>
-  </data>
-  <data name="TokenUsageMetric.PeakRate" xml:space="preserve">
-    <value>峰值速率</value>
-  </data>
   <data name="TokenUsageMetric.Unknown" xml:space="preserve">
     <value>未知</value>
   </data>
@@ -1005,18 +999,6 @@
   </data>
   <data name="TokenUsagePage.Unknown" xml:space="preserve">
     <value>未知</value>
-  </data>
-  <data name="TokenUsageQuota.Header" xml:space="preserve">
-    <value>配额</value>
-  </data>
-  <data name="TokenUsageQuota.Resets" xml:space="preserve">
-    <value>{0} 重置</value>
-  </data>
-  <data name="TokenUsageQuota.Observed" xml:space="preserve">
-    <value>截至 {0}</value>
-  </data>
-  <data name="TokenUsageQuota.Credits" xml:space="preserve">
-    <value>余额</value>
   </data>
   <data name="TokenUsageSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Token 用量设置</value>
@@ -1065,8 +1047,5 @@
   </data>
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>今日花费</value>
-  </data>
-  <data name="TokenUsageQuotaHeader.Text" xml:space="preserve">
-    <value>配额</value>
   </data>
 </root>

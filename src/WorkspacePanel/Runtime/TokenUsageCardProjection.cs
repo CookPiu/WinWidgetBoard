@@ -11,10 +11,6 @@ namespace WinWidgetBoard.WorkspacePanel.Runtime;
 public static class TokenUsageResourceKeys
 {
     public const string EmptyStatus = "TokenUsageStatus.Empty";
-    public const string QuotaHeader = "TokenUsageQuota.Header";
-    public const string QuotaCredits = "TokenUsageQuota.Credits";
-    public const string QuotaResets = "TokenUsageQuota.Resets";
-    public const string QuotaObserved = "TokenUsageQuota.Observed";
     public const string CostEstimate = "TokenUsageCost.Estimate";
     public const string CostUnpriced = "TokenUsageCost.Unpriced";
 
@@ -25,7 +21,6 @@ public static class TokenUsageResourceKeys
         TokenUsageContract.TodayCacheReadTokens => "TokenUsageMetric.TodayCacheRead",
         TokenUsageContract.TodayRequests => "TokenUsageMetric.TodayRequests",
         TokenUsageContract.CacheHitRate => "TokenUsageMetric.CacheHitRate",
-        TokenUsageContract.PeakRate => "TokenUsageMetric.PeakRate",
         _ => "TokenUsageMetric.Unknown",
     };
 
@@ -116,8 +111,12 @@ public sealed record TokenUsageTrendBar
     /// <summary>
     /// The bar strip's height in DIPs. It lives here rather than in XAML because the bar
     /// heights are computed, and one number cannot be the source of truth in two places.
+    ///
+    /// Taller than a row of readings because it is a chart, not a reading: height is the only
+    /// axis a bar has, and at 32 the quiet hours were indistinguishable from each other. This
+    /// is the space the card had left once the quota block was gone.
     /// </summary>
-    public const double TrackHeight = 32d;
+    public const double TrackHeight = 44d;
 
     /// <summary>
     /// A bar is never fully invisible: an hour with a little usage and an hour with none read
@@ -150,31 +149,6 @@ public sealed record TokenUsageBreakdownRow
     public string AutomationName => $"{Label} {PrimaryText} {SecondaryText}";
 }
 
-/// <summary>One quota window, as the vendor reported it.</summary>
-public sealed record TokenUsageQuotaRow
-{
-    public string WindowId { get; init; } = string.Empty;
-
-    public string WindowText { get; init; } = string.Empty;
-
-    public string UsedText { get; init; } = string.Empty;
-
-    public string ResetsAtText { get; init; } = string.Empty;
-
-    /// <summary>Composed "resets at ..." line, or empty when no reset time was reported.</summary>
-    public string ResetsLabel { get; init; } = string.Empty;
-
-    public double UsedRatio { get; init; }
-
-    public double MeterPercent => Math.Clamp(UsedRatio, 0d, 1d) * 100d;
-
-    public bool IsResetVisible => ResetsLabel.Length > 0;
-
-    public string AutomationName => IsResetVisible
-        ? $"{WindowText} {UsedText} {ResetsLabel}"
-        : $"{WindowText} {UsedText}";
-}
-
 /// <summary>
 /// One view the card can page to: the overview, or a single vendor.
 /// </summary>
@@ -193,13 +167,6 @@ public sealed record TokenUsagePage
 
     public IReadOnlyList<TokenUsageBreakdownRow> Breakdown { get; init; } =
         Array.Empty<TokenUsageBreakdownRow>();
-
-    public IReadOnlyList<TokenUsageQuotaRow> Quota { get; init; } =
-        Array.Empty<TokenUsageQuotaRow>();
-
-    public string QuotaCreditsText { get; init; } = string.Empty;
-
-    public string QuotaObservedText { get; init; } = string.Empty;
 
     /// <summary>
     /// Today's usage at published list prices, already composed - "≈$12.34", or with a
@@ -228,13 +195,6 @@ public sealed record TokenUsagePage
 
     public bool IsBreakdownVisible => Breakdown.Count > 0;
 
-    /// <summary>
-    /// Only shown for a vendor that actually publishes quota, and only while the reading is
-    /// still current. Absent is not "unknown quota" to be drawn as empty dials.
-    /// </summary>
-    public bool IsQuotaVisible => Quota.Count > 0 || QuotaCreditsText.Length > 0;
-
-    public bool IsCreditsVisible => QuotaCreditsText.Length > 0;
 }
 
 public sealed record TokenUsageCardProjection
@@ -304,9 +264,6 @@ public sealed record TokenUsageCardProjection
                     Metrics = metrics,
                     Trend = ReadTrend(page),
                     Breakdown = ReadBreakdown(page),
-                    Quota = ReadQuota(page, resourceResolver, out string credits, out string observed),
-                    QuotaCreditsText = credits,
-                    QuotaObservedText = observed,
                     CostText = ReadString(page, "costText") ?? string.Empty,
                     UnpricedModelCount = ReadInt(page, "unpricedModelCount"),
                     CostNoteText = costNote,
@@ -429,67 +386,6 @@ public sealed record TokenUsageCardProjection
                     PrimaryText = ReadString(slice, "primaryText") ?? "—",
                     SecondaryText = ReadString(slice, "secondaryText") ?? string.Empty,
                     Ratio = ReadRatio(slice, "ratio") ?? 0d,
-                });
-        }
-
-        return rows.ToArray();
-    }
-
-    private static TokenUsageQuotaRow[] ReadQuota(
-        JsonElement page,
-        Func<string, string?> resourceResolver,
-        out string creditsText,
-        out string observedText)
-    {
-        creditsText = string.Empty;
-        observedText = string.Empty;
-        if (!page.TryGetProperty("quota", out JsonElement quota) ||
-            quota.ValueKind != JsonValueKind.Object)
-        {
-            return Array.Empty<TokenUsageQuotaRow>();
-        }
-
-        string credits = ReadString(quota, "creditsText") ?? string.Empty;
-        // Labelled, because an unlabelled number sitting in a row of percentages reads as
-        // another percentage.
-        creditsText = credits.Length > 0
-            ? Format(resourceResolver, TokenUsageResourceKeys.QuotaCredits, credits)
-            : string.Empty;
-        string observed = ReadString(quota, "observedAtText") ?? string.Empty;
-        if (observed.Length > 0)
-        {
-            observedText = Format(
-                resourceResolver,
-                TokenUsageResourceKeys.QuotaObserved,
-                observed);
-        }
-
-        if (!quota.TryGetProperty("windows", out JsonElement windows) ||
-            windows.ValueKind != JsonValueKind.Array)
-        {
-            return Array.Empty<TokenUsageQuotaRow>();
-        }
-
-        var rows = new List<TokenUsageQuotaRow>(windows.GetArrayLength());
-        foreach (JsonElement window in windows.EnumerateArray())
-        {
-            if (window.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            string resets = ReadString(window, "resetsAtText") ?? string.Empty;
-            rows.Add(
-                new TokenUsageQuotaRow
-                {
-                    WindowId = ReadString(window, "windowId") ?? string.Empty,
-                    WindowText = ReadString(window, "windowText") ?? string.Empty,
-                    UsedText = ReadString(window, "usedText") ?? "—",
-                    ResetsAtText = resets,
-                    ResetsLabel = resets.Length > 0
-                        ? Format(resourceResolver, TokenUsageResourceKeys.QuotaResets, resets)
-                        : string.Empty,
-                    UsedRatio = ReadRatio(window, "usedRatio") ?? 0d,
                 });
         }
 

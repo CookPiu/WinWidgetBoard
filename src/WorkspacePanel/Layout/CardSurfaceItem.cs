@@ -29,15 +29,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         nameof(IsTokenUsageTrendVisible),
         nameof(TokenUsageCostText),
         nameof(IsTokenUsageCostVisible),
-        nameof(IsTokenUsageQuotaVisible),
-        nameof(IsTokenUsageCreditsVisible),
-        nameof(TokenUsageCreditsText),
-        nameof(TokenUsageQuotaObservedText),
         nameof(IsTokenUsagePageSwitcherVisible),
         nameof(TokenUsageMetricLimit),
-        nameof(IsTokenUsageWideLayout),
-        nameof(TokenUsageSideColumn),
-        nameof(TokenUsageSideRow),
     ];
 
     private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
@@ -94,7 +87,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsagePages = [];
         TokenUsageMetrics = [];
         TokenUsageTrend = [];
-        TokenUsageQuota = [];
         MergeTokenUsage(_tokenUsageProjection);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
@@ -273,8 +265,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public ObservableCollection<TokenUsageTrendBarViewModel> TokenUsageTrend { get; }
 
-    public ObservableCollection<TokenUsageQuotaViewModel> TokenUsageQuota { get; }
-
     /// <summary>
     /// The page currently shown. Falls back to the first available page when the selected one
     /// disappears - which is what switching a vendor off does.
@@ -318,12 +308,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     {
         // 98 DIP of content: two readings and nothing else fits.
         CardSize.S => 2,
-        // 98 DIP less the page tabs.
+        // 98 DIP less the page tabs leaves 68, and a reading costs about 24.
         CardSize.M or CardSize.W => 2,
-        // 266 DIP, less tabs (30), the amount (54), the trend (38) and quota (49).
-        CardSize.L => 3,
-        // Wide enough to put the quota in its own column, which buys back the height the
-        // readings need.
+        // 266 DIP, less tabs (30), the amount (54) and the trend (38), leaves 144 - which is
+        // every reading there is. Nothing is hidden at the card's default size.
         _ => TokenUsageContract.MetricIds.Count,
     };
 
@@ -342,44 +330,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         Placement.Size is CardSize.L or CardSize.XL;
 
     /// <summary>
-    /// Four columns wide: the breakdown and quota move beside the readings instead of under
-    /// them. This is the same disclosure the weather card makes at the same widths - the extra
-    /// room a wide card has is horizontal, and stacking into it wastes the only axis that is
-    /// actually short.
-    /// </summary>
-    public bool IsTokenUsageWideLayout =>
-        Placement.Size is CardSize.W or CardSize.XL;
-
-    /// <summary>
-    /// Where the breakdown and quota go: beside the readings on a wide card, under them
-    /// otherwise. Two ints rather than a column width, because this type is linked into the
-    /// unit tests and must not reference a WinUI type - the same reason the weather card
-    /// publishes its forecast position this way.
-    /// </summary>
-    public int TokenUsageSideColumn => IsTokenUsageWideLayout ? 1 : 0;
-
-    public int TokenUsageSideRow => IsTokenUsageWideLayout ? 0 : 1;
-
-    /// <summary>
     /// One grid row tall. The trend is the first thing to go: it is the tallest single block
     /// and the only one whose absence costs no number.
     /// </summary>
     public bool IsTokenUsageTrendVisible =>
         TokenUsageCurrentPage?.IsTrendVisible == true &&
         Placement.Size is CardSize.L or CardSize.XL;
-
-    public bool IsTokenUsageQuotaVisible =>
-        TokenUsageCurrentPage?.IsQuotaVisible == true &&
-        Placement.Size is not (CardSize.S or CardSize.M);
-
-    public bool IsTokenUsageCreditsVisible =>
-        IsTokenUsageQuotaVisible && TokenUsageCurrentPage?.IsCreditsVisible == true;
-
-    public string TokenUsageCreditsText =>
-        TokenUsageCurrentPage?.QuotaCreditsText ?? string.Empty;
-
-    public string TokenUsageQuotaObservedText =>
-        TokenUsageCurrentPage?.QuotaObservedText ?? string.Empty;
 
     /// <summary>
     /// The smallest card has no room for tabs. It shows the overview and nothing else, which
@@ -666,9 +622,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsageListMerger.MergeTrend(
             TokenUsageTrend,
             page?.Trend ?? Array.Empty<TokenUsageTrendBar>());
-        TokenUsageListMerger.MergeQuota(
-            TokenUsageQuota,
-            page?.Quota ?? Array.Empty<TokenUsageQuotaRow>());
     }
 
     /// <summary>

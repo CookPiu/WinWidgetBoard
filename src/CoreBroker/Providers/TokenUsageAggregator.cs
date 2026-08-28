@@ -38,11 +38,10 @@ public sealed record TokenUsageAggregate
     public int TodayRequests { get; init; }
 
     /// <summary>
-    /// Billed tokens per minute over the trailing rate window.
+    /// Billed tokens per minute over the trailing window.
     ///
-    /// No longer shown on the card - the readings there are about spend and volume - but kept
-    /// because it defines the window <see cref="PeakRatePerMinute"/> is measured over, and
-    /// because the tests that pin that windowing assert against it.
+    /// Not shown on the card - the readings there are about spend and volume - but computed
+    /// and tested, because the windowing it pins is what any later rate reading would rest on.
     /// </summary>
     public double CurrentRatePerMinute { get; init; }
 
@@ -113,11 +112,10 @@ public sealed record TokenUsageAggregate
     public bool HasCost => TodayCostUsd > 0m;
 }
 
-/// <summary>One vendor's page, plus whatever quota that vendor published.</summary>
+/// <summary>One vendor's page.</summary>
 public sealed record TokenUsageVendorReport(
     string VendorId,
-    TokenUsageAggregate Aggregate,
-    VendorQuotaSnapshot? Quota);
+    TokenUsageAggregate Aggregate);
 
 /// <summary>Everything the card can page through.</summary>
 public sealed record TokenUsageReport(
@@ -211,8 +209,7 @@ public sealed class TokenUsageAggregator
     /// </summary>
     public TokenUsageReport Compute(
         DateTimeOffset nowUtc,
-        IReadOnlyList<string> enabledVendors,
-        Func<string, VendorQuotaSnapshot?>? quotaLookup = null)
+        IReadOnlyList<string> enabledVendors)
     {
         ArgumentNullException.ThrowIfNull(enabledVendors);
 
@@ -234,8 +231,7 @@ public sealed class TokenUsageAggregator
                             record.VendorId,
                             vendorId,
                             StringComparison.Ordinal),
-                        record => record.Model),
-                    quotaLookup?.Invoke(vendorId)));
+                        record => record.Model)));
         }
 
         return new TokenUsageReport(overview, vendors);

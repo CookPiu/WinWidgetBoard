@@ -982,12 +982,6 @@
   <data name="TokenUsageMetric.CacheHitRate" xml:space="preserve">
     <value>Cache hit rate</value>
   </data>
-  <data name="TokenUsageMetric.CurrentRate" xml:space="preserve">
-    <value>Current rate</value>
-  </data>
-  <data name="TokenUsageMetric.PeakRate" xml:space="preserve">
-    <value>Peak rate</value>
-  </data>
   <data name="TokenUsageMetric.Unknown" xml:space="preserve">
     <value>Unknown</value>
   </data>
@@ -1005,18 +999,6 @@
   </data>
   <data name="TokenUsagePage.Unknown" xml:space="preserve">
     <value>Unknown</value>
-  </data>
-  <data name="TokenUsageQuota.Header" xml:space="preserve">
-    <value>Quota</value>
-  </data>
-  <data name="TokenUsageQuota.Resets" xml:space="preserve">
-    <value>resets {0}</value>
-  </data>
-  <data name="TokenUsageQuota.Observed" xml:space="preserve">
-    <value>as of {0}</value>
-  </data>
-  <data name="TokenUsageQuota.Credits" xml:space="preserve">
-    <value>Credits</value>
   </data>
   <data name="TokenUsageSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Token usage settings</value>
@@ -1065,8 +1047,5 @@
   </data>
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>Spent today</value>
-  </data>
-  <data name="TokenUsageQuotaHeader.Text" xml:space="preserve">
-    <value>Quota</value>
   </data>
 </root>

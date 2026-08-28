@@ -34,20 +34,13 @@ public static class TokenUsageFormatter
             CreatePage(
                 TokenUsageContract.OverviewPageId,
                 report.Overview,
-                quota: null,
                 zone,
                 sampledAtUtc),
         };
 
         foreach (TokenUsageVendorReport vendor in report.Vendors)
         {
-            pages.Add(
-                CreatePage(
-                    vendor.VendorId,
-                    vendor.Aggregate,
-                    vendor.Quota,
-                    zone,
-                    sampledAtUtc));
+            pages.Add(CreatePage(vendor.VendorId, vendor.Aggregate, zone, sampledAtUtc));
         }
 
         return new TokenUsageCardPayloadDto
@@ -60,7 +53,6 @@ public static class TokenUsageFormatter
     public static TokenUsagePageDto CreatePage(
         string pageId,
         TokenUsageAggregate aggregate,
-        VendorQuotaSnapshot? quota,
         TimeZoneInfo? timeZone = null,
         DateTimeOffset nowUtc = default)
     {
@@ -82,11 +74,9 @@ public static class TokenUsageFormatter
                 FormatRequests(aggregate),
                 FormatCacheHitRate(aggregate),
                 FormatOutputTokens(aggregate),
-                FormatPeakRate(aggregate),
             ],
             Trend = NormalizeTrend(aggregate.Trend),
             Breakdown = FormatBreakdown(aggregate),
-            Quota = FormatQuota(quota, timeZone ?? TimeZoneInfo.Local, nowUtc),
             CostText = FormatCost(aggregate),
             UnpricedModelCount = aggregate.UnpricedModelCount,
         };
@@ -164,114 +154,6 @@ public static class TokenUsageFormatter
         double.IsFinite(ratio)
             ? Round(Math.Clamp(ratio, 0d, 1d) * 100d, 1) + "%"
             : Placeholder;
-
-    /// <summary>
-    /// A quota window's length, language-neutral: "5h", "7d", "45m". The vendor reports it in
-    /// minutes and the card has no room for a sentence.
-    /// </summary>
-    public static string FormatWindowLength(int minutes)
-    {
-        if (minutes <= 0)
-        {
-            return string.Empty;
-        }
-
-        if (minutes % 1440 == 0)
-        {
-            return (minutes / 1440).ToString(CultureInfo.InvariantCulture) + "d";
-        }
-
-        if (minutes % 60 == 0)
-        {
-            return (minutes / 60).ToString(CultureInfo.InvariantCulture) + "h";
-        }
-
-        return minutes.ToString(CultureInfo.InvariantCulture) + "m";
-    }
-
-    private static TokenUsageQuotaDto? FormatQuota(
-        VendorQuotaSnapshot? quota,
-        TimeZoneInfo timeZone,
-        DateTimeOffset nowUtc)
-    {
-        if (quota is null || quota.Windows.Count == 0)
-        {
-            // Absent means the vendor never told us. Rendering an empty dial instead would
-            // imply a limit the card cannot actually see.
-            return null;
-        }
-
-        var windows = new List<TokenUsageQuotaWindowDto>(quota.Windows.Count);
-        foreach (VendorQuotaWindow window in quota.Windows)
-        {
-            // Quota is read from session records rather than queried, so a window whose reset
-            // instant has already passed says nothing about the present: it certainly reset,
-            // and by how much it has since refilled is not something this card can know. It is
-            // dropped rather than shown, on the same principle as a vendor that reports no
-            // quota at all - a stale "100% used" is worse than saying nothing.
-            if (window.ResetsAtUtc is { } resetsAt && resetsAt <= nowUtc)
-            {
-                continue;
-            }
-
-            double ratio = Math.Clamp(window.UsedPercent / 100d, 0d, 1d);
-            windows.Add(
-                new TokenUsageQuotaWindowDto
-                {
-                    WindowId = window.WindowId,
-                    WindowText = FormatWindowLength(window.WindowMinutes),
-                    UsedText = FormatPercent(ratio),
-                    UsedRatio = ratio,
-                    ResetsAtText = FormatResetInstant(window.ResetsAtUtc, timeZone, nowUtc),
-                });
-        }
-
-        // Credits do not expire on a window, so they survive every window going stale; with
-        // neither left there is nothing to show.
-        string credits = quota.CreditsBalance ?? string.Empty;
-        if (windows.Count == 0 && credits.Length == 0)
-        {
-            return null;
-        }
-
-        return new TokenUsageQuotaDto
-        {
-            Windows = windows,
-            CreditsText = credits,
-            ObservedAtText = FormatObservedInstant(quota.ObservedAtUtc, timeZone),
-        };
-    }
-
-    /// <summary>
-    /// A reset instant as a wall-clock time rather than a countdown: the payload is refreshed
-    /// on a cadence, and a countdown baked into a string is wrong the moment it is rendered.
-    /// The date is added only when the reset is not today, which is what tells a five-hour
-    /// window apart from a weekly one at a glance.
-    /// </summary>
-    private static string FormatResetInstant(
-        DateTimeOffset? instantUtc,
-        TimeZoneInfo timeZone,
-        DateTimeOffset nowUtc)
-    {
-        if (instantUtc is not { } instant)
-        {
-            return string.Empty;
-        }
-
-        DateTimeOffset local = TimeZoneInfo.ConvertTime(instant, timeZone);
-        DateTimeOffset nowLocal = TimeZoneInfo.ConvertTime(nowUtc, timeZone);
-        return local.Date == nowLocal.Date
-            ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
-            : local.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture);
-    }
-
-    private static string FormatObservedInstant(
-        DateTimeOffset instantUtc,
-        TimeZoneInfo timeZone) =>
-        instantUtc == default
-            ? string.Empty
-            : TimeZoneInfo.ConvertTime(instantUtc, timeZone)
-                .ToString("HH:mm", CultureInfo.InvariantCulture);
 
     private static TokenUsageMetricDto FormatBilledTokens(TokenUsageAggregate aggregate)
     {
@@ -380,23 +262,6 @@ public static class TokenUsageFormatter
         {
             // The one metric here with a real ceiling, so the one that earns a meter.
             Ratio = Math.Clamp(rate, 0d, 1d),
-        };
-    }
-
-    private static TokenUsageMetricDto FormatPeakRate(TokenUsageAggregate aggregate)
-    {
-        if (!aggregate.HasAnyRecord ||
-            aggregate.PeakWindowStartLocal is not { } peakWindow ||
-            aggregate.PeakRatePerMinute <= 0)
-        {
-            return Empty(TokenUsageContract.PeakRate);
-        }
-
-        return Ready(
-            TokenUsageContract.PeakRate,
-            FormatRate(aggregate.PeakRatePerMinute)) with
-        {
-            SecondaryText = peakWindow.ToString("HH:mm", CultureInfo.InvariantCulture),
         };
     }
 

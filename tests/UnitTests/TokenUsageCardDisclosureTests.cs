@@ -26,8 +26,8 @@ public sealed class TokenUsageCardDisclosureTests
     [DataRow(CardSize.S, 2)]
     [DataRow(CardSize.M, 2)]
     [DataRow(CardSize.W, 2)]
-    [DataRow(CardSize.L, 3)]
-    [DataRow(CardSize.XL, 6)]
+    [DataRow(CardSize.L, 5)]
+    [DataRow(CardSize.XL, 5)]
     public void MetricLimitFollowsCardHeight(CardSize size, int expected)
     {
         using CardSurfaceItem card = CreateTokenUsageCard(size);
@@ -53,18 +53,17 @@ public sealed class TokenUsageCardDisclosureTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-092 [USE-015] The amount and the quota both survive at L, the default size")]
-    public void AmountAndQuotaFitAtTheDefaultSize()
+        "UT-TOKUSE-092 [USE-015] Nothing is hidden at the card's default size")]
+    public void EverythingFitsAtTheDefaultSize()
     {
         using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
         ApplyReadyPayload(card);
-        card.SelectTokenUsagePage(TokenUsageContract.CodexVendorId);
 
-        // The regression this size budget exists for: the readings filled the row and
-        // everything below them was laid out past the bottom edge of the card.
+        // 266 DIP, less the tabs, the amount and the trend, leaves room for every reading -
+        // so L shows the whole card rather than a prefix of it.
         Assert.IsTrue(card.IsTokenUsageCostVisible);
-        Assert.IsTrue(card.IsTokenUsageQuotaVisible);
-        Assert.AreEqual(3, card.TokenUsageMetrics.Count);
+        Assert.IsTrue(card.IsTokenUsageTrendVisible);
+        Assert.AreEqual(TokenUsageContract.MetricIds.Count, card.TokenUsageMetrics.Count);
     }
 
     [TestMethod(DisplayName =
@@ -83,26 +82,6 @@ public sealed class TokenUsageCardDisclosureTests
         // The figure itself is available at every size; only the headline treatment needs
         // the height.
         Assert.AreNotEqual(string.Empty, card.TokenUsageCostText);
-    }
-
-    [TestMethod(DisplayName =
-        "UT-TOKUSE-093 [USE-015] A wide card puts the side blocks in their own column")]
-    [DataRow(CardSize.L, false, 0, 1)]
-    [DataRow(CardSize.XL, true, 1, 0)]
-    [DataRow(CardSize.W, true, 1, 0)]
-    public void WideCardsMoveTheSideBlocksBeside(
-        CardSize size,
-        bool wide,
-        int column,
-        int row)
-    {
-        using CardSurfaceItem card = CreateTokenUsageCard(size);
-
-        // Height is the axis that is short; stacking into a wide card's extra width would
-        // waste the only room it actually has.
-        Assert.AreEqual(wide, card.IsTokenUsageWideLayout);
-        Assert.AreEqual(column, card.TokenUsageSideColumn);
-        Assert.AreEqual(row, card.TokenUsageSideRow);
     }
 
     [TestMethod(DisplayName =
@@ -126,7 +105,7 @@ public sealed class TokenUsageCardDisclosureTests
         ApplyReadyPayload(card);
 
         CollectionAssert.AreEqual(
-            TokenUsageContract.MetricIds.Take(3).ToArray(),
+            TokenUsageContract.MetricIds.ToArray(),
             card.TokenUsageMetrics.Select(metric => metric.MetricId).ToArray());
         // Spend first: the billed total and the cache reads that dominate it are the two a
         // card of any size keeps.
@@ -142,7 +121,7 @@ public sealed class TokenUsageCardDisclosureTests
     {
         using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
         ApplyReadyPayload(card);
-        Assert.AreEqual(3, card.TokenUsageMetrics.Count);
+        Assert.AreEqual(TokenUsageContract.MetricIds.Count, card.TokenUsageMetrics.Count);
 
         // Resizing raises Placement only. A card grown to hold every reading has to fill in
         // the ones it was hiding, rather than waiting for the next refresh to land.

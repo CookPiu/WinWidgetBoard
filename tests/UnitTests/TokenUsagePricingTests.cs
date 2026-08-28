@@ -144,7 +144,6 @@ public sealed class TokenUsagePricingTests
         TokenUsagePageDto page = TokenUsageFormatter.CreatePage(
             TokenUsageContract.OverviewPageId,
             aggregate,
-            quota: null,
             Utc,
             Now);
 

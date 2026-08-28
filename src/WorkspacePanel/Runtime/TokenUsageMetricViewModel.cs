@@ -166,60 +166,6 @@ public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
     }
 }
 
-public sealed class TokenUsageQuotaViewModel : INotifyPropertyChanged
-{
-    private TokenUsageQuotaRow _row;
-
-    public TokenUsageQuotaViewModel(TokenUsageQuotaRow row)
-    {
-        _row = row ?? throw new ArgumentNullException(nameof(row));
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public string WindowId => _row.WindowId;
-
-    public string WindowText => _row.WindowText;
-
-    public string UsedText => _row.UsedText;
-
-    public string ResetsLabel => _row.ResetsLabel;
-
-    public bool IsResetVisible => _row.IsResetVisible;
-
-    public double MeterPercent => _row.MeterPercent;
-
-    public string AutomationName => _row.AutomationName;
-
-    public bool Apply(TokenUsageQuotaRow row)
-    {
-        ArgumentNullException.ThrowIfNull(row);
-        if (!string.Equals(row.WindowId, _row.WindowId, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        TokenUsageQuotaRow previous = _row;
-        _row = row;
-
-        Raise(previous.WindowText, row.WindowText, nameof(WindowText));
-        Raise(previous.UsedText, row.UsedText, nameof(UsedText));
-        Raise(previous.ResetsLabel, row.ResetsLabel, nameof(ResetsLabel));
-        Raise(previous.IsResetVisible, row.IsResetVisible, nameof(IsResetVisible));
-        Raise(previous.MeterPercent, row.MeterPercent, nameof(MeterPercent));
-        Raise(previous.AutomationName, row.AutomationName, nameof(AutomationName));
-        return true;
-    }
-
-    private void Raise<T>(T previous, T current, string propertyName)
-    {
-        if (!EqualityComparer<T>.Default.Equals(previous, current))
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-    }
-}
-
 /// <summary>
 /// One tab of the card's page switcher. Selection lives here rather than on the card so the
 /// tab strip can bind a single collection and still show which page is current.
@@ -316,16 +262,6 @@ public static class TokenUsageListMerger
             rows,
             (item, row) => string.Equals(item.Label, row.Label, StringComparison.Ordinal),
             row => new TokenUsageBreakdownViewModel(row),
-            (item, row) => item.Apply(row));
-
-    public static void MergeQuota(
-        ObservableCollection<TokenUsageQuotaViewModel> target,
-        IReadOnlyList<TokenUsageQuotaRow> rows) =>
-        Merge(
-            target,
-            rows,
-            (item, row) => string.Equals(item.WindowId, row.WindowId, StringComparison.Ordinal),
-            row => new TokenUsageQuotaViewModel(row),
             (item, row) => item.Apply(row));
 
     /// <summary>

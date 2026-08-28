@@ -353,6 +353,164 @@
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
     </Style>
 
+    <!--
+        A segmented selector for a card's page tabs.
+
+        The default ToggleButton is wrong here for two reasons the visual spec names directly:
+        it outlines every state, and it fills the checked state with solid accent. Section 6.3
+        forbids outlining containers for their own sake, and 6.2 reserves accent for focus,
+        selection emphasis and primary actions - a row of tabs on a card is none of those at
+        full strength. Selection is carried by a subtle fill and a weight change instead, which
+        also keeps the strip readable when several tabs sit side by side.
+
+        Focus is the one thing that does keep the system's own visual: the focus rect is drawn
+        by the template's FocusVisual, unmodified.
+    -->
+    <Style x:Key="WwbPageTabToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="10,3" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid
+                        x:Name="Root"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Label"
+                                            Storyboard.TargetProperty="Foreground">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource TextFillColorDisabledBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <!--
+                                    The selected tab reads by fill and weight, not by colour
+                                    alone - state must never be carried by colour on its own.
+                                -->
+                                <VisualState x:Name="Checked">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource ControlFillColorDefaultBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Label"
+                                            Storyboard.TargetProperty="Foreground">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Label"
+                                            Storyboard.TargetProperty="FontWeight">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="SemiBold" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="CheckedPointerOver">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Label"
+                                            Storyboard.TargetProperty="Foreground">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Label"
+                                            Storyboard.TargetProperty="FontWeight">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="SemiBold" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="CheckedPressed">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame
+                                                KeyTime="0"
+                                                Value="{ThemeResource ControlFillColorTertiaryBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Label"
+                                            Storyboard.TargetProperty="FontWeight">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="SemiBold" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="CheckedDisabled" />
+                                <VisualState x:Name="Indeterminate" />
+                                <VisualState x:Name="IndeterminatePointerOver" />
+                                <VisualState x:Name="IndeterminatePressed" />
+                                <VisualState x:Name="IndeterminateDisabled" />
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter
+                            x:Name="Label"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Content}"
+                            FontSize="{TemplateBinding FontSize}"
+                            Foreground="{TemplateBinding Foreground}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style
         x:Key="WwbWeatherTemperatureStyle"
         TargetType="TextBlock"
