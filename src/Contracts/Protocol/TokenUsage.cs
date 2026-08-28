@@ -12,8 +12,38 @@ namespace WinWidgetBoard.Contracts.Protocol;
 /// </summary>
 public static class TokenUsageContract
 {
+    public const string SettingsGetMethod = "tokenusage.settings.get";
+    public const string SettingsSaveMethod = "tokenusage.settings.save";
+
     public const int MaxInstanceIdLength = CardsContract.MaxInstanceIdLength;
     public const string DefaultInstanceId = "demo.tokenusage";
+
+    // --- vendors ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// The page that sums every enabled vendor. It is a page id, not a vendor id: nothing is
+    /// ever scanned or configured under this name.
+    /// </summary>
+    public const string OverviewPageId = "overview";
+
+    public const string ClaudeVendorId = "claude";
+    public const string CodexVendorId = "codex";
+
+    public const int MaxVendorIdLength = 32;
+
+    /// <summary>
+    /// Every vendor this build can read, in the order the card offers their pages. Adding one
+    /// means adding a usage source that can produce the same record shape - not a plugin
+    /// surface (see ADR-0030).
+    /// </summary>
+    public static IReadOnlyList<string> VendorIds { get; } =
+    [
+        ClaudeVendorId,
+        CodexVendorId,
+    ];
+
+    public static bool IsKnownVendorId(string? value) =>
+        value is not null && VendorIds.Contains(value, StringComparer.Ordinal);
 
     /// <summary>
     /// How many hourly buckets travel with the card. Twenty-four is the window the card's
@@ -30,12 +60,12 @@ public static class TokenUsageContract
     public const int RateWindowMinutes = 15;
 
     /// <summary>
-    /// The most models the card breaks usage down by, largest first. A longer tail is dropped
-    /// rather than summed into an "other" row: the shares are stated against today's real
-    /// total, which the card shows separately, so a truncated list simply does not add up to
-    /// one - which is the honest reading of it.
+    /// The most rows a page breaks its usage down into, largest first. A longer tail is
+    /// dropped rather than summed into an "other" row: the shares are stated against the
+    /// page's real total, which it shows separately, so a truncated list simply does not add
+    /// up to one - which is the honest reading of it.
     /// </summary>
-    public const int MaxModelRows = 5;
+    public const int MaxBreakdownRows = 5;
 
     public const int MaxModelNameLength = 128;
 
@@ -70,8 +100,9 @@ public static class TokenUsageContract
     public const string CurrentRate = "usage.rate.current";
 
     /// <summary>
-    /// The busiest window of the retained history, as a per-minute rate over a window the same
-    /// length as <see cref="CurrentRate"/>'s so the two can be read against each other.
+    /// The busiest window of today, as a per-minute rate over a window the same length as
+    /// <see cref="CurrentRate"/>'s so the two can be read against each other, and over the same
+    /// day as the totals it sits beside.
     ///
     /// This is deliberately not "the speed of the last response". A transcript records only
     /// the timestamp a response completed - there is no duration, latency or first-token
@@ -93,8 +124,37 @@ public static class TokenUsageContract
         PeakRate,
     ];
 
+    public static IReadOnlyList<string> Methods { get; } =
+    [
+        SettingsGetMethod,
+        SettingsSaveMethod,
+    ];
+
     public static bool IsValidInstanceId(string? value) =>
         CardsContract.IsValidIdentifier(value, MaxInstanceIdLength);
+
+    /// <summary>
+    /// Validates a stored or requested vendor selection. An empty list is legal and means the
+    /// card is switched off entirely, which is a state the user can choose.
+    /// </summary>
+    public static bool IsValidVendorList(IReadOnlyList<string>? vendors)
+    {
+        if (vendors is null || vendors.Count > VendorIds.Count)
+        {
+            return false;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string vendor in vendors)
+        {
+            if (!IsKnownVendorId(vendor) || !seen.Add(vendor))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public static bool IsKnownMetricId(string? value) =>
         value is not null && MetricIds.Contains(value, StringComparer.Ordinal);
@@ -116,26 +176,52 @@ public static class TokenUsageMetricStatus
 }
 
 /// <summary>
-/// The card snapshot payload. Every displayed string is composed here: the broker owns units,
-/// rounding and thousands separators so the panel binds text instead of reaching into numbers.
-/// Metric names are the exception - those are localized, and the panel owns its resources.
+/// The card snapshot payload: one page per view the card can show. Page 0 is always the
+/// overview; the rest are the enabled vendors, in contract order.
+///
+/// Pages rather than one flat reading because the vendors are not interchangeable - Codex
+/// reports real quota windows and Claude has no equivalent field - and a single merged view
+/// would either drop that or imply it covers both.
+///
+/// Every displayed string is composed here: the broker owns units, rounding and thousands
+/// separators so the panel binds text instead of reaching into numbers. Metric names are the
+/// exception - those are localized, and the panel owns its resources.
 /// </summary>
 public sealed record TokenUsageCardPayloadDto
 {
+    public IReadOnlyList<TokenUsagePageDto> Pages { get; init; } =
+        Array.Empty<TokenUsagePageDto>();
+
+    public string SampledAtUtc { get; init; } = string.Empty;
+}
+
+public sealed record TokenUsagePageDto
+{
+    /// <summary><see cref="TokenUsageContract.OverviewPageId"/> or a vendor id.</summary>
+    public string PageId { get; init; } = string.Empty;
+
     public IReadOnlyList<TokenUsageMetricDto> Metrics { get; init; } =
         Array.Empty<TokenUsageMetricDto>();
 
     /// <summary>
-    /// Hourly billed-token totals, oldest first, normalised to 0..1 against the window's own
+    /// Hourly billed-token totals, oldest first, normalised to 0..1 against this page's own
     /// peak. Normalised here for the same reason the text is formatted here: the card has no
     /// ceiling to draw against and would have to invent one.
     /// </summary>
     public IReadOnlyList<double> Trend { get; init; } = Array.Empty<double>();
 
-    public IReadOnlyList<TokenUsageModelDto> Models { get; init; } =
-        Array.Empty<TokenUsageModelDto>();
+    /// <summary>
+    /// What this page splits its usage by: vendors on the overview, models on a vendor page.
+    /// </summary>
+    public IReadOnlyList<TokenUsageBreakdownDto> Breakdown { get; init; } =
+        Array.Empty<TokenUsageBreakdownDto>();
 
-    public string SampledAtUtc { get; init; } = string.Empty;
+    /// <summary>
+    /// Present only where the vendor actually reports quota. Absent is not "unknown quota" to
+    /// be rendered as empty dials - it means this vendor never told us, and the card shows
+    /// nothing rather than implying a limit it cannot see.
+    /// </summary>
+    public TokenUsageQuotaDto? Quota { get; init; }
 }
 
 public sealed record TokenUsageMetricDto
@@ -156,19 +242,118 @@ public sealed record TokenUsageMetricDto
 }
 
 /// <summary>
-/// One model's share of today's usage. The name is the raw model identifier: it is not
-/// translated, and inventing a display name for a model this build has never heard of would
-/// be worse than showing what the transcript actually recorded.
+/// One slice of a page's usage. The label is a raw identifier - a vendor id or a model name -
+/// and is not translated: inventing a display name for a model this build has never heard of
+/// would be worse than showing what the session actually recorded.
 /// </summary>
-public sealed record TokenUsageModelDto
+public sealed record TokenUsageBreakdownDto
 {
-    public string Model { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
 
     public string PrimaryText { get; init; } = string.Empty;
 
     public string SecondaryText { get; init; } = string.Empty;
 
-    /// <summary>This model's share of today's billed tokens, 0..1.</summary>
+    /// <summary>This slice's share of the page's billed tokens, 0..1.</summary>
     public double Ratio { get; init; }
 }
 
+/// <summary>
+/// Quota as the vendor itself reported it, not as this product estimated it. Only carried for
+/// a vendor that publishes it in its own session records.
+/// </summary>
+public sealed record TokenUsageQuotaDto
+{
+    public IReadOnlyList<TokenUsageQuotaWindowDto> Windows { get; init; } =
+        Array.Empty<TokenUsageQuotaWindowDto>();
+
+    /// <summary>Composed credit balance, empty when the vendor reported none.</summary>
+    public string CreditsText { get; init; } = string.Empty;
+
+    public bool HasCredits => CreditsText.Length > 0;
+
+    /// <summary>
+    /// When the reading was observed. Quota is read from session records rather than queried,
+    /// so it is exactly as old as the last session activity - which the card has to say, or a
+    /// figure from yesterday reads as current.
+    /// </summary>
+    public string ObservedAtText { get; init; } = string.Empty;
+}
+
+public sealed record TokenUsageQuotaWindowDto
+{
+    /// <summary>Stable identity for merging rows in place; not displayed.</summary>
+    public string WindowId { get; init; } = string.Empty;
+
+    /// <summary>The window's length, already composed and language-neutral: "5h", "7d".</summary>
+    public string WindowText { get; init; } = string.Empty;
+
+    public string UsedText { get; init; } = string.Empty;
+
+    /// <summary>0..1, for the meter.</summary>
+    public double UsedRatio { get; init; }
+
+    /// <summary>When the window resets, composed in local time. Empty when not reported.</summary>
+    public string ResetsAtText { get; init; } = string.Empty;
+}
+
+public sealed record TokenUsageSettingsGetRequest
+{
+    public string? InstanceId { get; init; }
+}
+
+public sealed record TokenUsageSettingsGetResponse
+{
+    public TokenUsageSettingsDto Settings { get; init; } = new();
+
+    /// <summary>
+    /// Which vendors this machine actually has data for right now. It rides on the response
+    /// rather than in the stored settings because it is not stored state: a vendor can be
+    /// installed or removed between two openings of the dialog, and a list persisted at save
+    /// time would describe the machine as it used to be.
+    /// </summary>
+    public IReadOnlyList<TokenUsageVendorStatusDto> Vendors { get; init; } =
+        Array.Empty<TokenUsageVendorStatusDto>();
+}
+
+public sealed record TokenUsageVendorStatusDto
+{
+    public string VendorId { get; init; } = string.Empty;
+
+    /// <summary>False when the vendor's session directory does not exist on this machine.</summary>
+    public bool IsAvailable { get; init; }
+}
+
+public sealed record TokenUsageSettingsSaveRequest
+{
+    public Guid ClientOperationId { get; init; }
+
+    public string? InstanceId { get; init; }
+
+    public IReadOnlyList<string>? EnabledVendors { get; init; }
+
+    public int ExpectedRevision { get; init; }
+}
+
+public sealed record TokenUsageSettingsSaveResponse
+{
+    public Guid ClientOperationId { get; init; }
+
+    public TokenUsageSettingsDto Settings { get; init; } = new();
+}
+
+public sealed record TokenUsageSettingsDto
+{
+    public string InstanceId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Which vendors are counted, in contract order. Everything known is enabled by default:
+    /// the card's job is to say what was spent, and a vendor silently left out of a total is
+    /// the one failure mode that cannot be noticed by looking at it.
+    /// </summary>
+    public IReadOnlyList<string> EnabledVendors { get; init; } = Array.Empty<string>();
+
+    public int Revision { get; init; }
+
+    public string UpdatedAtUtc { get; init; } = string.Empty;
+}

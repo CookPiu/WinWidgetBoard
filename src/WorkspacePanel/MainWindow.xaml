@@ -2004,8 +2004,8 @@
         </DataTemplate>
 
         <DataTemplate
-            x:Key="TokenUsageModelTemplate"
-            x:DataType="runtime:TokenUsageModelViewModel">
+            x:Key="TokenUsageBreakdownTemplate"
+            x:DataType="runtime:TokenUsageBreakdownViewModel">
             <Grid
                 Padding="0,2"
                 RowSpacing="2"
@@ -2022,7 +2022,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock
                         Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind Model, Mode=OneWay}"
+                        Text="{x:Bind Label, Mode=OneWay}"
                         TextTrimming="CharacterEllipsis" />
                     <TextBlock
                         Grid.Column="1"
@@ -2040,6 +2040,72 @@
                     Maximum="100"
                     Value="{x:Bind MeterPercent, Mode=OneWay}"
                     Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                    IsTabStop="False"
+                    automation:AutomationProperties.AccessibilityView="Raw" />
+            </Grid>
+        </DataTemplate>
+
+        <!--
+            One page tab. A ToggleButton rather than a Pivot or a NavigationView: the card is a
+            few grid cells tall, and both of those spend a whole row on chrome before showing
+            any content.
+        -->
+        <DataTemplate
+            x:Key="TokenUsagePageTabTemplate"
+            x:DataType="runtime:TokenUsagePageTabViewModel">
+            <ToggleButton
+                MinWidth="0"
+                Padding="8,2"
+                Content="{x:Bind Name, Mode=OneWay}"
+                IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                Tag="{x:Bind PageId}"
+                Click="TokenUsagePageTab_Click"
+                automation:AutomationProperties.Name="{x:Bind Name, Mode=OneWay}" />
+        </DataTemplate>
+
+        <!--
+            One quota window, as the vendor itself reported it. Only vendors that publish quota
+            get this block, and only while the reading is still current - a window whose reset
+            time has passed is dropped upstream rather than shown stale.
+        -->
+        <DataTemplate
+            x:Key="TokenUsageQuotaTemplate"
+            x:DataType="runtime:TokenUsageQuotaViewModel">
+            <Grid
+                Padding="0,2"
+                RowSpacing="2"
+                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind WindowText, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind ResetsLabel, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind IsResetVisible, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="2"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        Text="{x:Bind UsedText, Mode=OneWay}" />
+                </Grid>
+                <ProgressBar
+                    Grid.Row="1"
+                    Height="4"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{x:Bind MeterPercent, Mode=OneWay}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     IsTabStop="False"
                     automation:AutomationProperties.AccessibilityView="Raw" />
             </Grid>
@@ -2068,10 +2134,23 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        Grid.Row="0"
-                        x:Uid="TokenUsageCardTitle"
-                        Style="{StaticResource WwbCardTitleStyle}" />
+                    <Grid Grid.Row="0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Uid="TokenUsageCardTitle"
+                            Style="{StaticResource WwbCardTitleStyle}" />
+                        <Button
+                            x:Uid="TokenUsageSettingsButton"
+                            Grid.Column="1"
+                            Style="{StaticResource WwbCardIconButtonStyle}"
+                            Click="TokenUsageSettingsButton_Click"
+                            automation:AutomationProperties.AutomationId="TokenUsageSettingsButton">
+                            <FontIcon FontSize="14" Glyph="&#xE713;" />
+                        </Button>
+                    </Grid>
                     <Grid Grid.Row="1">
                         <ContentControl
                             automation:AutomationProperties.Name="{x:Bind RuntimePresentation.AutomationSummary, Mode=OneWay}"
@@ -2083,6 +2162,18 @@
                             VerticalAlignment="Top"
                             Spacing="6"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
+                            <ItemsControl
+                                ItemsSource="{x:Bind TokenUsagePages}"
+                                ItemTemplate="{StaticResource TokenUsagePageTabTemplate}"
+                                IsTabStop="False"
+                                automation:AutomationProperties.AutomationId="TokenUsagePageTabs"
+                                Visibility="{x:Bind IsTokenUsagePageSwitcherVisible, Mode=OneWay}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="4" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
                             <ItemsControl
                                 ItemsSource="{x:Bind TokenUsageMetrics}"
                                 ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
@@ -2102,11 +2193,39 @@
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
                             <ItemsControl
-                                ItemsSource="{x:Bind TokenUsageModels}"
-                                ItemTemplate="{StaticResource TokenUsageModelTemplate}"
+                                ItemsSource="{x:Bind TokenUsageBreakdown}"
+                                ItemTemplate="{StaticResource TokenUsageBreakdownTemplate}"
                                 IsTabStop="False"
-                                automation:AutomationProperties.AutomationId="TokenUsageModelList"
-                                Visibility="{x:Bind AreTokenUsageModelsVisible, Mode=OneWay}" />
+                                automation:AutomationProperties.AutomationId="TokenUsageBreakdownList"
+                                Visibility="{x:Bind IsTokenUsageBreakdownVisible, Mode=OneWay}" />
+                            <StackPanel
+                                Spacing="2"
+                                Visibility="{x:Bind IsTokenUsageQuotaVisible, Mode=OneWay}">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        x:Uid="TokenUsageQuotaHeader"
+                                        Style="{StaticResource WwbCardCaptionStyle}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind TokenUsageQuotaObservedText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                                <ItemsControl
+                                    ItemsSource="{x:Bind TokenUsageQuota}"
+                                    ItemTemplate="{StaticResource TokenUsageQuotaTemplate}"
+                                    IsTabStop="False"
+                                    automation:AutomationProperties.AutomationId="TokenUsageQuotaList" />
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind TokenUsageCreditsText, Mode=OneWay}"
+                                    Visibility="{x:Bind IsTokenUsageCreditsVisible, Mode=OneWay}" />
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                     <Border

@@ -163,5 +163,24 @@ public static class SqliteSchema
                     ADD COLUMN network_interface_id TEXT NOT NULL DEFAULT '';
                 PRAGMA user_version = 5;
                 """),
+            // Only the user's choice of which vendors to count. No usage figure and nothing
+            // read out of a session transcript is ever persisted (ADR-0030). The vendor list
+            // is JSON text for the same reason the monitor's item lists are: short, ordered,
+            // and only ever read or written whole.
+            new SqliteMigration(
+                6,
+                "persist-token-usage-vendor-selection",
+                """
+                CREATE TABLE IF NOT EXISTS token_usage_settings (
+                    instance_id TEXT NOT NULL PRIMARY KEY,
+                    enabled_vendors TEXT NOT NULL,
+                    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+                    updated_at_utc TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_token_usage_settings_revision
+                    ON token_usage_settings(revision);
+                PRAGMA user_version = 6;
+                """),
         };
 }

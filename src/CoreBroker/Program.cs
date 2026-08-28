@@ -123,9 +123,10 @@ internal static class Program
             providerVisibilityRegistry,
             cardSnapshotSubscriptionHub,
             refreshClock);
-        // No repository: the reading has no stored settings, and the transcripts it reads are
-        // never copied into the database.
+        // The repository stores only which vendors are counted. No usage figure and nothing
+        // read out of a session record is ever written to the database (ADR-0030).
         using var tokenUsageRuntime = new TokenUsageRuntime(
+            new TokenUsageSettingsRepository(database),
             providerHost,
             providerVisibilityRegistry,
             cardSnapshotSubscriptionHub,
@@ -141,7 +142,8 @@ internal static class Program
                 providerVisibilityRegistry,
                 weatherRuntime,
                 geocodingService,
-                systemMonitorRuntime));
+                systemMonitorRuntime,
+                tokenUsageRuntime));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;

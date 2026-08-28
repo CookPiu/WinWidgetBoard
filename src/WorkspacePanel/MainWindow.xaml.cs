@@ -63,6 +63,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly PanelPlacement _placement;
     private readonly IWeatherSettingsClient? _weatherSettingsClient;
     private readonly ISystemMonitorSettingsClient? _systemMonitorClient;
+    private readonly ITokenUsageSettingsClient? _tokenUsageClient;
     private readonly CardSnapshotDispatcher _cardSnapshotDispatcher;
     private int _statusVersion;
     private readonly CardSubscriptionLifecycleCoordinator?
@@ -112,10 +113,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         bool keepOpenForAcceptance = false,
         CoreBrokerCardsClient? cardsClient = null,
         IWeatherSettingsClient? weatherSettingsClient = null,
-        ISystemMonitorSettingsClient? systemMonitorClient = null)
+        ISystemMonitorSettingsClient? systemMonitorClient = null,
+        ITokenUsageSettingsClient? tokenUsageClient = null)
     {
         _weatherSettingsClient = weatherSettingsClient;
         _systemMonitorClient = systemMonitorClient;
+        _tokenUsageClient = tokenUsageClient;
         _keepOpenForAcceptance = keepOpenForAcceptance;
         _uiDispatcherQueue = UiDispatcherQueue.GetForCurrentThread();
         _cardSnapshotDispatcher = new CardSnapshotDispatcher(
@@ -497,6 +500,33 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private void SysMonSettingsButton_Click(object sender, RoutedEventArgs e) =>
         ShowSettingsDialog(SettingsCategory.SystemMonitor);
 
+    private void TokenUsageSettingsButton_Click(object sender, RoutedEventArgs e) =>
+        ShowSettingsDialog(SettingsCategory.TokenUsage);
+
+    /// <summary>
+    /// Switches the token-usage card to another page. Purely local view state: no IPC, no
+    /// persistence, and the card returns to the overview the next time the panel opens.
+    /// </summary>
+    private void TokenUsagePageTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string pageId } ||
+            pageId.Length == 0)
+        {
+            return;
+        }
+
+        foreach (CardSurfaceItem card in _cardSurface.Items)
+        {
+            if (string.Equals(
+                    card.CardTypeId,
+                    BuiltInCardCatalog.TokenUsageCardTypeId,
+                    StringComparison.Ordinal))
+            {
+                card.SelectTokenUsagePage(pageId);
+            }
+        }
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
         ShowSettingsDialog(SettingsCategory.Weather);
 
@@ -515,6 +545,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         var systemMonitorViewModel = new SystemMonitorSettingsViewModel(
             _systemMonitorClient,
             key => _resources.GetString(key.Replace('.', '/')));
+        var tokenUsageViewModel = new TokenUsageSettingsViewModel(
+            _tokenUsageClient,
+            key => _resources.GetString(key.Replace('.', '/')));
         try
         {
             if (RootGrid.XamlRoot is null)
@@ -525,6 +558,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             var dialog = new SettingsDialog(
                 weatherViewModel,
                 systemMonitorViewModel,
+                tokenUsageViewModel,
                 category)
             {
                 XamlRoot = RootGrid.XamlRoot,
@@ -534,13 +568,15 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             // flash its empty state on every switch.
             await weatherViewModel.LoadAsync(CancellationToken.None);
             await systemMonitorViewModel.LoadAsync(CancellationToken.None);
+            await tokenUsageViewModel.LoadAsync(CancellationToken.None);
             using IDisposable modalScope = EnterModalScope();
             await dialog.ShowAsync();
             Interlocked.Increment(ref _statusVersion);
             StatusText.Text = ResolveSettingsStatus(
                 category,
                 weatherViewModel,
-                systemMonitorViewModel);
+                systemMonitorViewModel,
+                tokenUsageViewModel);
         }
         catch (Exception exception)
             when (exception is not OutOfMemoryException and
@@ -550,9 +586,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             Debug.WriteLine($"WorkspacePanel settings dialog failed: {exception}");
             Interlocked.Increment(ref _statusVersion);
             StatusText.Text = _resources.GetString(
-                category == SettingsCategory.SystemMonitor
-                    ? "SysMonSettingsLoadFailedStatus"
-                    : "WeatherSettingsLoadFailedStatus");
+                category switch
+                {
+                    SettingsCategory.SystemMonitor => "SysMonSettingsLoadFailedStatus",
+                    SettingsCategory.TokenUsage => "TokenUsageSettingsLoadFailedStatus",
+                    _ => "WeatherSettingsLoadFailedStatus",
+                });
         }
     }
 
@@ -564,16 +603,20 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private string ResolveSettingsStatus(
         SettingsCategory category,
         WeatherSettingsViewModel weather,
-        SystemMonitorSettingsViewModel systemMonitor)
+        SystemMonitorSettingsViewModel systemMonitor,
+        TokenUsageSettingsViewModel tokenUsage)
     {
         if (weather.WasSaved)
         {
             return _resources.GetString("WeatherSettingsSavedStatus");
         }
 
-        return category == SettingsCategory.SystemMonitor
-            ? systemMonitor.StatusText
-            : weather.StatusText;
+        return category switch
+        {
+            SettingsCategory.SystemMonitor => systemMonitor.StatusText,
+            SettingsCategory.TokenUsage => tokenUsage.StatusText,
+            _ => weather.StatusText,
+        };
     }
 
     private async void EditLayoutButton_Click(object sender, RoutedEventArgs e)

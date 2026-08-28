@@ -46,8 +46,8 @@ public sealed class TokenUsageMetricViewModel : INotifyPropertyChanged
     public string AutomationName => _row.AutomationName;
 
     /// <summary>
-    /// Updates from a newer row and raises only what moved. Returns false when the row is for
-    /// a different metric, which is a caller mistake rather than a state to absorb.
+    /// Updates from a newer row and raises only what moved. Returns false when the row is for a
+    /// different metric, which is a caller mistake rather than a state to absorb.
     /// </summary>
     public bool Apply(TokenUsageMetricRow row)
     {
@@ -88,8 +88,8 @@ public sealed class TokenUsageMetricViewModel : INotifyPropertyChanged
 }
 
 /// <summary>
-/// One bar of the 24-hour strip. Identified by its position, because that is what a bar is:
-/// the same slot keeps its visual and only changes height as the window slides.
+/// One bar of the 24-hour strip. Identified by its position, because that is what a bar is: the
+/// same slot keeps its visual and only changes height as the window slides.
 /// </summary>
 public sealed class TokenUsageTrendBarViewModel : INotifyPropertyChanged
 {
@@ -118,18 +118,18 @@ public sealed class TokenUsageTrendBarViewModel : INotifyPropertyChanged
     }
 }
 
-public sealed class TokenUsageModelViewModel : INotifyPropertyChanged
+public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
 {
-    private TokenUsageModelRow _row;
+    private TokenUsageBreakdownRow _row;
 
-    public TokenUsageModelViewModel(TokenUsageModelRow row)
+    public TokenUsageBreakdownViewModel(TokenUsageBreakdownRow row)
     {
         _row = row ?? throw new ArgumentNullException(nameof(row));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string Model => _row.Model;
+    public string Label => _row.Label;
 
     public string PrimaryText => _row.PrimaryText;
 
@@ -139,15 +139,15 @@ public sealed class TokenUsageModelViewModel : INotifyPropertyChanged
 
     public string AutomationName => _row.AutomationName;
 
-    public bool Apply(TokenUsageModelRow row)
+    public bool Apply(TokenUsageBreakdownRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        if (!string.Equals(row.Model, _row.Model, StringComparison.Ordinal))
+        if (!string.Equals(row.Label, _row.Label, StringComparison.Ordinal))
         {
             return false;
         }
 
-        TokenUsageModelRow previous = _row;
+        TokenUsageBreakdownRow previous = _row;
         _row = row;
 
         Raise(previous.PrimaryText, row.PrimaryText, nameof(PrimaryText));
@@ -166,6 +166,109 @@ public sealed class TokenUsageModelViewModel : INotifyPropertyChanged
     }
 }
 
+public sealed class TokenUsageQuotaViewModel : INotifyPropertyChanged
+{
+    private TokenUsageQuotaRow _row;
+
+    public TokenUsageQuotaViewModel(TokenUsageQuotaRow row)
+    {
+        _row = row ?? throw new ArgumentNullException(nameof(row));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public string WindowId => _row.WindowId;
+
+    public string WindowText => _row.WindowText;
+
+    public string UsedText => _row.UsedText;
+
+    public string ResetsLabel => _row.ResetsLabel;
+
+    public bool IsResetVisible => _row.IsResetVisible;
+
+    public double MeterPercent => _row.MeterPercent;
+
+    public string AutomationName => _row.AutomationName;
+
+    public bool Apply(TokenUsageQuotaRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (!string.Equals(row.WindowId, _row.WindowId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        TokenUsageQuotaRow previous = _row;
+        _row = row;
+
+        Raise(previous.WindowText, row.WindowText, nameof(WindowText));
+        Raise(previous.UsedText, row.UsedText, nameof(UsedText));
+        Raise(previous.ResetsLabel, row.ResetsLabel, nameof(ResetsLabel));
+        Raise(previous.IsResetVisible, row.IsResetVisible, nameof(IsResetVisible));
+        Raise(previous.MeterPercent, row.MeterPercent, nameof(MeterPercent));
+        Raise(previous.AutomationName, row.AutomationName, nameof(AutomationName));
+        return true;
+    }
+
+    private void Raise<T>(T previous, T current, string propertyName)
+    {
+        if (!EqualityComparer<T>.Default.Equals(previous, current))
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+}
+
+/// <summary>
+/// One tab of the card's page switcher. Selection lives here rather than on the card so the
+/// tab strip can bind a single collection and still show which page is current.
+/// </summary>
+public sealed class TokenUsagePageTabViewModel : INotifyPropertyChanged
+{
+    private string _name;
+    private bool _isSelected;
+
+    public TokenUsagePageTabViewModel(string pageId, string name, bool isSelected)
+    {
+        PageId = pageId;
+        _name = name;
+        _isSelected = isSelected;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public string PageId { get; }
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (!string.Equals(_name, value, StringComparison.Ordinal))
+            {
+                _name = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+            }
+        }
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected != value)
+            {
+                _isSelected = value;
+                PropertyChanged?.Invoke(
+                    this,
+                    new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
+        }
+    }
+}
+
 /// <summary>
 /// Brings the bound collections in line with a new projection while keeping the existing view
 /// models wherever the same row is still present, so a refresh updates text rather than
@@ -175,34 +278,13 @@ public static class TokenUsageListMerger
 {
     public static void MergeMetrics(
         ObservableCollection<TokenUsageMetricViewModel> target,
-        IReadOnlyList<TokenUsageMetricRow> rows)
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(rows);
-
-        for (int index = 0; index < rows.Count; index++)
-        {
-            TokenUsageMetricRow row = rows[index];
-            int existing = IndexOf(target, item => string.Equals(
-                item.MetricId,
-                row.MetricId,
-                StringComparison.Ordinal));
-            if (existing < 0)
-            {
-                target.Insert(index, new TokenUsageMetricViewModel(row));
-                continue;
-            }
-
-            if (existing != index)
-            {
-                target.Move(existing, index);
-            }
-
-            target[index].Apply(row);
-        }
-
-        Trim(target, rows.Count);
-    }
+        IReadOnlyList<TokenUsageMetricRow> rows) =>
+        Merge(
+            target,
+            rows,
+            (item, row) => string.Equals(item.MetricId, row.MetricId, StringComparison.Ordinal),
+            row => new TokenUsageMetricViewModel(row),
+            (item, row) => item.Apply(row));
 
     public static void MergeTrend(
         ObservableCollection<TokenUsageTrendBarViewModel> target,
@@ -226,23 +308,52 @@ public static class TokenUsageListMerger
         Trim(target, bars.Count);
     }
 
-    public static void MergeModels(
-        ObservableCollection<TokenUsageModelViewModel> target,
-        IReadOnlyList<TokenUsageModelRow> rows)
+    public static void MergeBreakdown(
+        ObservableCollection<TokenUsageBreakdownViewModel> target,
+        IReadOnlyList<TokenUsageBreakdownRow> rows) =>
+        Merge(
+            target,
+            rows,
+            (item, row) => string.Equals(item.Label, row.Label, StringComparison.Ordinal),
+            row => new TokenUsageBreakdownViewModel(row),
+            (item, row) => item.Apply(row));
+
+    public static void MergeQuota(
+        ObservableCollection<TokenUsageQuotaViewModel> target,
+        IReadOnlyList<TokenUsageQuotaRow> rows) =>
+        Merge(
+            target,
+            rows,
+            (item, row) => string.Equals(item.WindowId, row.WindowId, StringComparison.Ordinal),
+            row => new TokenUsageQuotaViewModel(row),
+            (item, row) => item.Apply(row));
+
+    /// <summary>
+    /// The page tabs. Membership changes only when a vendor is switched on or off, so this is
+    /// normally a no-op that just keeps the selected flag in sync.
+    /// </summary>
+    public static void MergePages(
+        ObservableCollection<TokenUsagePageTabViewModel> target,
+        IReadOnlyList<TokenUsagePage> pages,
+        string selectedPageId)
     {
         ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(pages);
 
-        for (int index = 0; index < rows.Count; index++)
+        for (int index = 0; index < pages.Count; index++)
         {
-            TokenUsageModelRow row = rows[index];
-            int existing = IndexOf(target, item => string.Equals(
-                item.Model,
-                row.Model,
-                StringComparison.Ordinal));
+            TokenUsagePage page = pages[index];
+            int existing = IndexOf(
+                target,
+                item => string.Equals(item.PageId, page.PageId, StringComparison.Ordinal));
             if (existing < 0)
             {
-                target.Insert(index, new TokenUsageModelViewModel(row));
+                target.Insert(
+                    index,
+                    new TokenUsagePageTabViewModel(
+                        page.PageId,
+                        page.Name,
+                        string.Equals(page.PageId, selectedPageId, StringComparison.Ordinal)));
                 continue;
             }
 
@@ -251,7 +362,40 @@ public static class TokenUsageListMerger
                 target.Move(existing, index);
             }
 
-            target[index].Apply(row);
+            target[index].Name = page.Name;
+            target[index].IsSelected =
+                string.Equals(page.PageId, selectedPageId, StringComparison.Ordinal);
+        }
+
+        Trim(target, pages.Count);
+    }
+
+    private static void Merge<TItem, TRow>(
+        ObservableCollection<TItem> target,
+        IReadOnlyList<TRow> rows,
+        Func<TItem, TRow, bool> matches,
+        Func<TRow, TItem> create,
+        Action<TItem, TRow> apply)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(rows);
+
+        for (int index = 0; index < rows.Count; index++)
+        {
+            TRow row = rows[index];
+            int existing = IndexOf(target, item => matches(item, row));
+            if (existing < 0)
+            {
+                target.Insert(index, create(row));
+                continue;
+            }
+
+            if (existing != index)
+            {
+                target.Move(existing, index);
+            }
+
+            apply(target[index], row);
         }
 
         Trim(target, rows.Count);

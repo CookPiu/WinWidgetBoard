@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.WorkspacePanel.Notes;
 using WinWidgetBoard.WorkspacePanel.Runtime;
 
@@ -15,12 +16,34 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     // ran the tick. Only the metric list is a collection, and mutating one off-thread is what
     // WinUI actually refuses, so the merge - and nothing else - goes through here.
     private readonly Action<Action> _uiInvoker;
+    /// <summary>
+    /// Everything the token-usage card re-reads when its page or its data changes. Listed once
+    /// rather than at each call site, because the page switch and the snapshot arrival have to
+    /// notify exactly the same set or one path leaves a stale binding on screen.
+    /// </summary>
+    private static readonly string[] TokenUsageChangeNotifications =
+    [
+        nameof(TokenUsageProjection),
+        nameof(TokenUsageCurrentPage),
+        nameof(HasTokenUsageData),
+        nameof(IsTokenUsageTrendVisible),
+        nameof(IsTokenUsageBreakdownVisible),
+        nameof(IsTokenUsageQuotaVisible),
+        nameof(IsTokenUsageCreditsVisible),
+        nameof(TokenUsageCreditsText),
+        nameof(TokenUsageQuotaObservedText),
+        nameof(IsTokenUsagePageSwitcherVisible),
+    ];
+
     private readonly CardRuntimeVisibilityScheduler? _visibilityScheduler;
     private readonly CardRuntimeRegistration? _visibilityRegistration;
     private CardRuntimeStatusPresentation _runtimePresentation;
     private WeatherCardProjection _weatherProjection;
     private SystemMonitorCardProjection _systemMonitorProjection;
     private TokenUsageCardProjection _tokenUsageProjection;
+    // The chosen page is panel-local view state, deliberately not persisted: the card opens on
+    // the overview every time rather than on whatever was last looked at.
+    private string _tokenUsagePageId = TokenUsageContract.OverviewPageId;
     private bool _disposed;
 
     public CardSurfaceItem(
@@ -63,9 +86,11 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         _tokenUsageProjection = TokenUsageCardProjection.FromSnapshot(
             Runtime.Snapshot,
             _runtimeResourceResolver);
+        TokenUsagePages = [];
         TokenUsageMetrics = [];
         TokenUsageTrend = [];
-        TokenUsageModels = [];
+        TokenUsageBreakdown = [];
+        TokenUsageQuota = [];
         MergeTokenUsage(_tokenUsageProjection);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
@@ -238,17 +263,78 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// the card exists to sit still and change numbers, and rebuilding the sources on every
     /// tick would rebuild every row's visuals with them.
     /// </summary>
+    public ObservableCollection<TokenUsagePageTabViewModel> TokenUsagePages { get; }
+
     public ObservableCollection<TokenUsageMetricViewModel> TokenUsageMetrics { get; }
 
     public ObservableCollection<TokenUsageTrendBarViewModel> TokenUsageTrend { get; }
 
-    public ObservableCollection<TokenUsageModelViewModel> TokenUsageModels { get; }
+    public ObservableCollection<TokenUsageBreakdownViewModel> TokenUsageBreakdown { get; }
 
-    public bool HasTokenUsageData => TokenUsageProjection.HasData;
+    public ObservableCollection<TokenUsageQuotaViewModel> TokenUsageQuota { get; }
 
-    public bool IsTokenUsageTrendVisible => TokenUsageProjection.IsTrendVisible;
+    /// <summary>
+    /// The page currently shown. Falls back to the first available page when the selected one
+    /// disappears - which is what switching a vendor off does.
+    /// </summary>
+    public TokenUsagePage? TokenUsageCurrentPage
+    {
+        get
+        {
+            IReadOnlyList<TokenUsagePage> pages = TokenUsageProjection.Pages;
+            if (pages.Count == 0)
+            {
+                return null;
+            }
 
-    public bool AreTokenUsageModelsVisible => TokenUsageProjection.AreModelsVisible;
+            foreach (TokenUsagePage page in pages)
+            {
+                if (string.Equals(page.PageId, _tokenUsagePageId, StringComparison.Ordinal))
+                {
+                    return page;
+                }
+            }
+
+            return pages[0];
+        }
+    }
+
+    public bool HasTokenUsageData => TokenUsageCurrentPage?.HasData == true;
+
+    public bool IsTokenUsageTrendVisible => TokenUsageCurrentPage?.IsTrendVisible == true;
+
+    public bool IsTokenUsageBreakdownVisible =>
+        TokenUsageCurrentPage?.IsBreakdownVisible == true;
+
+    public bool IsTokenUsageQuotaVisible => TokenUsageCurrentPage?.IsQuotaVisible == true;
+
+    public bool IsTokenUsageCreditsVisible => TokenUsageCurrentPage?.IsCreditsVisible == true;
+
+    public string TokenUsageCreditsText =>
+        TokenUsageCurrentPage?.QuotaCreditsText ?? string.Empty;
+
+    public string TokenUsageQuotaObservedText =>
+        TokenUsageCurrentPage?.QuotaObservedText ?? string.Empty;
+
+    public bool IsTokenUsagePageSwitcherVisible =>
+        TokenUsageProjection.IsPageSwitcherVisible;
+
+    /// <summary>
+    /// Switches the card to another page. Purely local: no IPC, no persistence, and the next
+    /// broker snapshot re-renders whichever page is selected at that moment.
+    /// </summary>
+    public void SelectTokenUsagePage(string pageId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pageId);
+        if (string.Equals(_tokenUsagePageId, pageId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _tokenUsagePageId = pageId;
+        MergeTokenUsage(TokenUsageProjection);
+        RaiseTokenUsageChanged();
+    }
 
     public string WeatherAutomationSummary =>
         string.Join(
@@ -489,25 +575,36 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasSystemMonitorData)));
-            PropertyChanged?.Invoke(
-                this,
-                new PropertyChangedEventArgs(nameof(TokenUsageProjection)));
-            PropertyChanged?.Invoke(
-                this,
-                new PropertyChangedEventArgs(nameof(HasTokenUsageData)));
-            PropertyChanged?.Invoke(
-                this,
-                new PropertyChangedEventArgs(nameof(IsTokenUsageTrendVisible)));
-            PropertyChanged?.Invoke(
-                this,
-                new PropertyChangedEventArgs(nameof(AreTokenUsageModelsVisible)));
+            RaiseTokenUsageChanged();
         }
     }
 
     private void MergeTokenUsage(TokenUsageCardProjection projection)
     {
-        TokenUsageListMerger.MergeMetrics(TokenUsageMetrics, projection.Metrics);
-        TokenUsageListMerger.MergeTrend(TokenUsageTrend, projection.Trend);
-        TokenUsageListMerger.MergeModels(TokenUsageModels, projection.Models);
+        TokenUsagePage? page = TokenUsageCurrentPage;
+        TokenUsageListMerger.MergePages(
+            TokenUsagePages,
+            projection.Pages,
+            page?.PageId ?? _tokenUsagePageId);
+        TokenUsageListMerger.MergeMetrics(
+            TokenUsageMetrics,
+            page?.Metrics ?? Array.Empty<TokenUsageMetricRow>());
+        TokenUsageListMerger.MergeTrend(
+            TokenUsageTrend,
+            page?.Trend ?? Array.Empty<TokenUsageTrendBar>());
+        TokenUsageListMerger.MergeBreakdown(
+            TokenUsageBreakdown,
+            page?.Breakdown ?? Array.Empty<TokenUsageBreakdownRow>());
+        TokenUsageListMerger.MergeQuota(
+            TokenUsageQuota,
+            page?.Quota ?? Array.Empty<TokenUsageQuotaRow>());
+    }
+
+    private void RaiseTokenUsageChanged()
+    {
+        foreach (string propertyName in TokenUsageChangeNotifications)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }

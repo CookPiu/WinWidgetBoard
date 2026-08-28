@@ -72,9 +72,7 @@ public sealed class TokenUsageFormatterTests
         "UT-TOKUSE-045 [USE-007] An empty aggregate reports every metric as empty")]
     public void EmptyAggregateProducesEmptyMetrics()
     {
-        TokenUsageCardPayloadDto payload = TokenUsageFormatter.CreatePayload(
-            new TokenUsageAggregate(),
-            SampledAt);
+        TokenUsagePageDto payload = Page(new TokenUsageAggregate());
 
         Assert.AreEqual(TokenUsageContract.MetricIds.Count, payload.Metrics.Count);
         foreach (TokenUsageMetricDto metric in payload.Metrics)
@@ -84,16 +82,14 @@ public sealed class TokenUsageFormatterTests
             Assert.IsTrue(TokenUsageContract.IsKnownMetricId(metric.MetricId));
         }
 
-        Assert.AreEqual(0, payload.Models.Count);
+        Assert.AreEqual(0, payload.Breakdown.Count);
     }
 
     [TestMethod(DisplayName =
         "UT-TOKUSE-046 [USE-007] Only the hit rate carries a meter")]
     public void OnlyBoundedMetricsCarryARatio()
     {
-        TokenUsageCardPayloadDto payload = TokenUsageFormatter.CreatePayload(
-            ReadyAggregate(),
-            SampledAt);
+        TokenUsagePageDto payload = Page(ReadyAggregate());
 
         // A token count and a rate have no ceiling to draw a bar against; inventing one would
         // make the card assert something the data does not say.
@@ -110,9 +106,7 @@ public sealed class TokenUsageFormatterTests
         "UT-TOKUSE-047 [USE-007] The peak rate names the window it was measured in")]
     public void PeakRateCarriesItsWindowStart()
     {
-        TokenUsageCardPayloadDto payload = TokenUsageFormatter.CreatePayload(
-            ReadyAggregate(),
-            SampledAt);
+        TokenUsagePageDto payload = Page(ReadyAggregate());
 
         TokenUsageMetricDto peak = Metric(payload, TokenUsageContract.PeakRate);
         Assert.AreEqual(TokenUsageMetricStatus.Ready, peak.Status);
@@ -123,17 +117,23 @@ public sealed class TokenUsageFormatterTests
         "UT-TOKUSE-048 [USE-006] Model shares are stated against today's real total")]
     public void ModelSharesUseTheRealTotal()
     {
-        TokenUsageCardPayloadDto payload = TokenUsageFormatter.CreatePayload(
-            ReadyAggregate(),
-            SampledAt);
+        TokenUsagePageDto payload = Page(ReadyAggregate());
 
-        Assert.AreEqual(1, payload.Models.Count);
-        Assert.AreEqual("claude-opus-5", payload.Models[0].Model);
-        Assert.AreEqual("75.0%", payload.Models[0].SecondaryText);
+        Assert.AreEqual(1, payload.Breakdown.Count);
+        Assert.AreEqual("claude-opus-5", payload.Breakdown[0].Label);
+        Assert.AreEqual("75.0%", payload.Breakdown[0].SecondaryText);
     }
 
+    private static TokenUsagePageDto Page(TokenUsageAggregate aggregate) =>
+        TokenUsageFormatter.CreatePage(
+            TokenUsageContract.OverviewPageId,
+            aggregate,
+            quota: null,
+            TimeZoneInfo.Utc,
+            SampledAt);
+
     private static TokenUsageMetricDto Metric(
-        TokenUsageCardPayloadDto payload,
+        TokenUsagePageDto payload,
         string metricId) =>
         payload.Metrics.Single(metric =>
             string.Equals(metric.MetricId, metricId, StringComparison.Ordinal));
@@ -155,7 +155,7 @@ public sealed class TokenUsageFormatterTests
             PeakRatePerMinute = 14_900d,
             PeakWindowStartLocal = new DateTimeOffset(2026, 8, 28, 9, 30, 0, TimeSpan.Zero),
             Trend = [Bucket(1), Bucket(2)],
-            Models = [new TokenUsageModelTotal("claude-opus-5", 300_000, 73)],
+            Breakdown = [new TokenUsageSlice("claude-opus-5", 300_000, 73)],
             CacheHitRate = 0.75d,
         };
 }

@@ -994,4 +994,67 @@
   <data name="TokenUsageTrendStrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>最近 24 小时的计费 token</value>
   </data>
+  <data name="TokenUsagePage.Overview" xml:space="preserve">
+    <value>总览</value>
+  </data>
+  <data name="TokenUsagePage.Claude" xml:space="preserve">
+    <value>Claude</value>
+  </data>
+  <data name="TokenUsagePage.Codex" xml:space="preserve">
+    <value>Codex</value>
+  </data>
+  <data name="TokenUsagePage.Unknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="TokenUsageQuota.Header" xml:space="preserve">
+    <value>配额</value>
+  </data>
+  <data name="TokenUsageQuota.Resets" xml:space="preserve">
+    <value>{0} 重置</value>
+  </data>
+  <data name="TokenUsageQuota.Observed" xml:space="preserve">
+    <value>截至 {0}</value>
+  </data>
+  <data name="TokenUsageQuota.Credits" xml:space="preserve">
+    <value>余额</value>
+  </data>
+  <data name="TokenUsageSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Token 用量设置</value>
+  </data>
+  <data name="TokenUsageSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Token 用量设置</value>
+  </data>
+  <data name="SettingsCategoryTokenUsage.Content" xml:space="preserve">
+    <value>Token 用量</value>
+  </data>
+  <data name="TokenUsageSettingsDescription.Text" xml:space="preserve">
+    <value>统计各工具在本机写下的会话记录；不发送到任何地方，也不需要账号或密钥。</value>
+  </data>
+  <data name="TokenUsageVendorUnavailable.Text" xml:space="preserve">
+    <value>无记录</value>
+  </data>
+  <data name="TokenUsageSettingsSaveButton.Content" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="TokenUsageSettingsSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>保存 Token 用量设置</value>
+  </data>
+  <data name="TokenUsageSettingsLoadedStatus" xml:space="preserve">
+    <value>已载入 Token 用量设置。</value>
+  </data>
+  <data name="TokenUsageSettingsUnavailableStatus" xml:space="preserve">
+    <value>Token 用量设置不可用。</value>
+  </data>
+  <data name="TokenUsageSettingsLoadFailedStatus" xml:space="preserve">
+    <value>无法载入 Token 用量设置。</value>
+  </data>
+  <data name="TokenUsageSettingsSavedStatus" xml:space="preserve">
+    <value>已保存 Token 用量设置。</value>
+  </data>
+  <data name="TokenUsageSettingsSaveFailedStatus" xml:space="preserve">
+    <value>无法保存 Token 用量设置。</value>
+  </data>
+  <data name="TokenUsageSettingsConflictStatus" xml:space="preserve">
+    <value>Token 用量设置已在别处更改，已重新载入。</value>
+  </data>
 </root>

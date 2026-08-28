@@ -15,6 +15,7 @@ public sealed class CoreBrokerCommandRouter
     private readonly LayoutCommandHandler? _layoutCommandHandler;
     private readonly WeatherSettingsCommandHandler? _weatherSettingsCommandHandler;
     private readonly SystemMonitorCommandHandler? _systemMonitorCommandHandler;
+    private readonly TokenUsageCommandHandler? _tokenUsageCommandHandler;
     private readonly CardSubscriptionCommandHandler _cardSubscriptionCommandHandler;
     private readonly PanelVisibilityCommandHandler _panelVisibilityCommandHandler;
 
@@ -25,7 +26,8 @@ public sealed class CoreBrokerCommandRouter
         ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null,
         WeatherProviderRuntime? weatherProviderRuntime = null,
         OpenMeteoGeocodingService? geocodingService = null,
-        SystemMonitorRuntime? systemMonitorRuntime = null)
+        SystemMonitorRuntime? systemMonitorRuntime = null,
+        TokenUsageRuntime? tokenUsageRuntime = null)
     {
         _noteCommandHandler = noteRepository is null
             ? null
@@ -42,6 +44,9 @@ public sealed class CoreBrokerCommandRouter
         _systemMonitorCommandHandler = systemMonitorRuntime is null
             ? null
             : new SystemMonitorCommandHandler(systemMonitorRuntime, _gate);
+        _tokenUsageCommandHandler = tokenUsageRuntime is null
+            ? null
+            : new TokenUsageCommandHandler(tokenUsageRuntime, _gate);
         _cardSubscriptionCommandHandler = new CardSubscriptionCommandHandler(
             cardSnapshotSubscriptionHub,
             providerVisibilityRegistry);
@@ -60,6 +65,8 @@ public sealed class CoreBrokerCommandRouter
         _weatherSettingsCommandHandler?.LocationSearchAvailable == true;
 
     public bool SystemMonitorAvailable => _systemMonitorCommandHandler is not null;
+
+    public bool TokenUsageAvailable => _tokenUsageCommandHandler is not null;
 
     /// <summary>
     /// The only asynchronous command. It is routed separately rather than through
@@ -158,6 +165,12 @@ public sealed class CoreBrokerCommandRouter
         if (SystemMonitorContract.Methods.Contains(request.Method, StringComparer.Ordinal))
         {
             return _systemMonitorCommandHandler?.Handle(request) ??
+                ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (TokenUsageContract.Methods.Contains(request.Method, StringComparer.Ordinal))
+        {
+            return _tokenUsageCommandHandler?.Handle(request) ??
                 ErrorResponse(request, "resource.unavailable", "resource-unavailable");
         }
 

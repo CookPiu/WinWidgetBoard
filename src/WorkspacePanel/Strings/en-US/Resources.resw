@@ -994,4 +994,67 @@
   <data name="TokenUsageTrendStrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Billed tokens over the last 24 hours</value>
   </data>
+  <data name="TokenUsagePage.Overview" xml:space="preserve">
+    <value>Overview</value>
+  </data>
+  <data name="TokenUsagePage.Claude" xml:space="preserve">
+    <value>Claude</value>
+  </data>
+  <data name="TokenUsagePage.Codex" xml:space="preserve">
+    <value>Codex</value>
+  </data>
+  <data name="TokenUsagePage.Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="TokenUsageQuota.Header" xml:space="preserve">
+    <value>Quota</value>
+  </data>
+  <data name="TokenUsageQuota.Resets" xml:space="preserve">
+    <value>resets {0}</value>
+  </data>
+  <data name="TokenUsageQuota.Observed" xml:space="preserve">
+    <value>as of {0}</value>
+  </data>
+  <data name="TokenUsageQuota.Credits" xml:space="preserve">
+    <value>Credits</value>
+  </data>
+  <data name="TokenUsageSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Token usage settings</value>
+  </data>
+  <data name="TokenUsageSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Token usage settings</value>
+  </data>
+  <data name="SettingsCategoryTokenUsage.Content" xml:space="preserve">
+    <value>Token usage</value>
+  </data>
+  <data name="TokenUsageSettingsDescription.Text" xml:space="preserve">
+    <value>Counted from the session records each tool writes on this machine. Nothing is sent anywhere, and no account or key is needed.</value>
+  </data>
+  <data name="TokenUsageVendorUnavailable.Text" xml:space="preserve">
+    <value>no records</value>
+  </data>
+  <data name="TokenUsageSettingsSaveButton.Content" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="TokenUsageSettingsSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Save token usage settings</value>
+  </data>
+  <data name="TokenUsageSettingsLoadedStatus" xml:space="preserve">
+    <value>Token usage settings loaded.</value>
+  </data>
+  <data name="TokenUsageSettingsUnavailableStatus" xml:space="preserve">
+    <value>Token usage settings are unavailable.</value>
+  </data>
+  <data name="TokenUsageSettingsLoadFailedStatus" xml:space="preserve">
+    <value>Could not load token usage settings.</value>
+  </data>
+  <data name="TokenUsageSettingsSavedStatus" xml:space="preserve">
+    <value>Token usage settings saved.</value>
+  </data>
+  <data name="TokenUsageSettingsSaveFailedStatus" xml:space="preserve">
+    <value>Could not save token usage settings.</value>
+  </data>
+  <data name="TokenUsageSettingsConflictStatus" xml:space="preserve">
+    <value>Token usage settings changed elsewhere and were reloaded.</value>
+  </data>
 </root>

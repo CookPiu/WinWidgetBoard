@@ -4,16 +4,17 @@ using WinWidgetBoard.Contracts.Protocol;
 namespace WinWidgetBoard.CoreBroker.Providers;
 
 /// <summary>
-/// Turns an aggregate into the exact strings the card displays, and normalises the trend into
-/// the 0..1 the card can draw. The broker owns units and rounding here for the same reason
+/// Turns a report into the exact strings the card displays, and normalises each page's trend
+/// into the 0..1 it can draw. The broker owns units and rounding here for the same reason
 /// <see cref="SystemMonitorFormatter"/> does: the card should bind text rather than re-derive
 /// numbers, and there is then one place where a unit is decided.
 ///
-/// Every unit produced here is language-neutral - K, M, B, %, /min and a 24-hour clock - so
-/// nothing in this file needs translating. The metric names are the part that does, and those
+/// Every unit produced here is language-neutral - K, M, B, %, /min, h/d and a 24-hour clock -
+/// so nothing in this file needs translating. Metric names are the part that does, and those
 /// stay in the panel's own resources.
 ///
-/// Pure: no clock, no I/O, no state. The whole formatting surface is unit-testable.
+/// Pure: no clock, no I/O, no state. "Now" arrives as the sample instant, which is also what
+/// decides whether a quota window has already reset.
 /// </summary>
 public static class TokenUsageFormatter
 {
@@ -21,13 +22,53 @@ public static class TokenUsageFormatter
     public const string Placeholder = "—";
 
     public static TokenUsageCardPayloadDto CreatePayload(
-        TokenUsageAggregate aggregate,
-        DateTimeOffset sampledAtUtc)
+        TokenUsageReport report,
+        DateTimeOffset sampledAtUtc,
+        TimeZoneInfo? timeZone = null)
     {
-        ArgumentNullException.ThrowIfNull(aggregate);
+        ArgumentNullException.ThrowIfNull(report);
+        TimeZoneInfo zone = timeZone ?? TimeZoneInfo.Local;
+
+        var pages = new List<TokenUsagePageDto>(report.Vendors.Count + 1)
+        {
+            CreatePage(
+                TokenUsageContract.OverviewPageId,
+                report.Overview,
+                quota: null,
+                zone,
+                sampledAtUtc),
+        };
+
+        foreach (TokenUsageVendorReport vendor in report.Vendors)
+        {
+            pages.Add(
+                CreatePage(
+                    vendor.VendorId,
+                    vendor.Aggregate,
+                    vendor.Quota,
+                    zone,
+                    sampledAtUtc));
+        }
 
         return new TokenUsageCardPayloadDto
         {
+            Pages = pages,
+            SampledAtUtc = sampledAtUtc.ToString("O", CultureInfo.InvariantCulture),
+        };
+    }
+
+    public static TokenUsagePageDto CreatePage(
+        string pageId,
+        TokenUsageAggregate aggregate,
+        VendorQuotaSnapshot? quota,
+        TimeZoneInfo? timeZone = null,
+        DateTimeOffset nowUtc = default)
+    {
+        ArgumentNullException.ThrowIfNull(aggregate);
+
+        return new TokenUsagePageDto
+        {
+            PageId = pageId,
             Metrics =
             [
                 FormatBilledTokens(aggregate),
@@ -39,14 +80,14 @@ public static class TokenUsageFormatter
                 FormatPeakRate(aggregate),
             ],
             Trend = NormalizeTrend(aggregate.Trend),
-            Models = FormatModels(aggregate),
-            SampledAtUtc = sampledAtUtc.ToString("O", CultureInfo.InvariantCulture),
+            Breakdown = FormatBreakdown(aggregate),
+            Quota = FormatQuota(quota, timeZone ?? TimeZoneInfo.Local, nowUtc),
         };
     }
 
     /// <summary>
-    /// Scales the hourly totals against the window's own peak. There is no absolute ceiling a
-    /// token count could be drawn against, so the alternative would be inventing one; a bar
+    /// Scales a page's hourly totals against that page's own peak. There is no absolute ceiling
+    /// a token count could be drawn against, so the alternative would be inventing one; a bar
     /// chart of the last day against its own maximum is the honest shape.
     /// </summary>
     public static double[] NormalizeTrend(IReadOnlyList<TokenUsageHourBucket> trend)
@@ -107,51 +148,142 @@ public static class TokenUsageFormatter
     }
 
     /// <summary>Tokens per minute, in the same compact scale as a count.</summary>
-    public static string FormatRate(double tokensPerMinute)
-    {
-        if (!double.IsFinite(tokensPerMinute) || tokensPerMinute < 0)
-        {
-            return Placeholder;
-        }
-
-        return FormatTokenCount((long)Math.Round(tokensPerMinute)) + "/min";
-    }
+    public static string FormatRate(double tokensPerMinute) =>
+        double.IsFinite(tokensPerMinute) && tokensPerMinute >= 0
+            ? FormatTokenCount((long)Math.Round(tokensPerMinute)) + "/min"
+            : Placeholder;
 
     public static string FormatPercent(double ratio) =>
         double.IsFinite(ratio)
             ? Round(Math.Clamp(ratio, 0d, 1d) * 100d, 1) + "%"
             : Placeholder;
 
-    private static TokenUsageMetricDto FormatBilledTokens(TokenUsageAggregate aggregate)
+    /// <summary>
+    /// A quota window's length, language-neutral: "5h", "7d", "45m". The vendor reports it in
+    /// minutes and the card has no room for a sentence.
+    /// </summary>
+    public static string FormatWindowLength(int minutes)
     {
-        if (!aggregate.HasAnyRecord || aggregate.TodayRequests == 0)
+        if (minutes <= 0)
         {
-            return Empty(TokenUsageContract.TodayBilledTokens);
+            return string.Empty;
         }
 
-        return new TokenUsageMetricDto
+        if (minutes % 1440 == 0)
         {
-            MetricId = TokenUsageContract.TodayBilledTokens,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = FormatTokenCount(aggregate.TodayBilledTokens),
-            SecondaryText = string.Empty,
-            Ratio = null,
+            return (minutes / 1440).ToString(CultureInfo.InvariantCulture) + "d";
+        }
+
+        if (minutes % 60 == 0)
+        {
+            return (minutes / 60).ToString(CultureInfo.InvariantCulture) + "h";
+        }
+
+        return minutes.ToString(CultureInfo.InvariantCulture) + "m";
+    }
+
+    private static TokenUsageQuotaDto? FormatQuota(
+        VendorQuotaSnapshot? quota,
+        TimeZoneInfo timeZone,
+        DateTimeOffset nowUtc)
+    {
+        if (quota is null || quota.Windows.Count == 0)
+        {
+            // Absent means the vendor never told us. Rendering an empty dial instead would
+            // imply a limit the card cannot actually see.
+            return null;
+        }
+
+        var windows = new List<TokenUsageQuotaWindowDto>(quota.Windows.Count);
+        foreach (VendorQuotaWindow window in quota.Windows)
+        {
+            // Quota is read from session records rather than queried, so a window whose reset
+            // instant has already passed says nothing about the present: it certainly reset,
+            // and by how much it has since refilled is not something this card can know. It is
+            // dropped rather than shown, on the same principle as a vendor that reports no
+            // quota at all - a stale "100% used" is worse than saying nothing.
+            if (window.ResetsAtUtc is { } resetsAt && resetsAt <= nowUtc)
+            {
+                continue;
+            }
+
+            double ratio = Math.Clamp(window.UsedPercent / 100d, 0d, 1d);
+            windows.Add(
+                new TokenUsageQuotaWindowDto
+                {
+                    WindowId = window.WindowId,
+                    WindowText = FormatWindowLength(window.WindowMinutes),
+                    UsedText = FormatPercent(ratio),
+                    UsedRatio = ratio,
+                    ResetsAtText = FormatResetInstant(window.ResetsAtUtc, timeZone, nowUtc),
+                });
+        }
+
+        // Credits do not expire on a window, so they survive every window going stale; with
+        // neither left there is nothing to show.
+        string credits = quota.CreditsBalance ?? string.Empty;
+        if (windows.Count == 0 && credits.Length == 0)
+        {
+            return null;
+        }
+
+        return new TokenUsageQuotaDto
+        {
+            Windows = windows,
+            CreditsText = credits,
+            ObservedAtText = FormatObservedInstant(quota.ObservedAtUtc, timeZone),
         };
     }
 
+    /// <summary>
+    /// A reset instant as a wall-clock time rather than a countdown: the payload is refreshed
+    /// on a cadence, and a countdown baked into a string is wrong the moment it is rendered.
+    /// The date is added only when the reset is not today, which is what tells a five-hour
+    /// window apart from a weekly one at a glance.
+    /// </summary>
+    private static string FormatResetInstant(
+        DateTimeOffset? instantUtc,
+        TimeZoneInfo timeZone,
+        DateTimeOffset nowUtc)
+    {
+        if (instantUtc is not { } instant)
+        {
+            return string.Empty;
+        }
+
+        DateTimeOffset local = TimeZoneInfo.ConvertTime(instant, timeZone);
+        DateTimeOffset nowLocal = TimeZoneInfo.ConvertTime(nowUtc, timeZone);
+        return local.Date == nowLocal.Date
+            ? local.ToString("HH:mm", CultureInfo.InvariantCulture)
+            : local.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatObservedInstant(
+        DateTimeOffset instantUtc,
+        TimeZoneInfo timeZone) =>
+        instantUtc == default
+            ? string.Empty
+            : TimeZoneInfo.ConvertTime(instantUtc, timeZone)
+                .ToString("HH:mm", CultureInfo.InvariantCulture);
+
+    private static TokenUsageMetricDto FormatBilledTokens(TokenUsageAggregate aggregate) =>
+        HasToday(aggregate)
+            ? Ready(
+                TokenUsageContract.TodayBilledTokens,
+                FormatTokenCount(aggregate.TodayBilledTokens))
+            : Empty(TokenUsageContract.TodayBilledTokens);
+
     private static TokenUsageMetricDto FormatOutputTokens(TokenUsageAggregate aggregate)
     {
-        if (!aggregate.HasAnyRecord || aggregate.TodayRequests == 0)
+        if (!HasToday(aggregate))
         {
             return Empty(TokenUsageContract.TodayOutputTokens);
         }
 
-        return new TokenUsageMetricDto
+        return Ready(
+            TokenUsageContract.TodayOutputTokens,
+            FormatTokenCount(aggregate.TodayOutputTokens)) with
         {
-            MetricId = TokenUsageContract.TodayOutputTokens,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = FormatTokenCount(aggregate.TodayOutputTokens),
-            SecondaryText = string.Empty,
             Ratio = aggregate.TodayBilledTokens > 0
                 ? Math.Clamp(
                     aggregate.TodayOutputTokens / (double)aggregate.TodayBilledTokens,
@@ -161,41 +293,19 @@ public static class TokenUsageFormatter
         };
     }
 
-    private static TokenUsageMetricDto FormatCacheReadTokens(TokenUsageAggregate aggregate)
-    {
-        if (!aggregate.HasAnyRecord || aggregate.TodayRequests == 0)
-        {
-            return Empty(TokenUsageContract.TodayCacheReadTokens);
-        }
+    private static TokenUsageMetricDto FormatCacheReadTokens(TokenUsageAggregate aggregate) =>
+        HasToday(aggregate)
+            ? Ready(
+                TokenUsageContract.TodayCacheReadTokens,
+                FormatTokenCount(aggregate.TodayCacheReadTokens))
+            : Empty(TokenUsageContract.TodayCacheReadTokens);
 
-        return new TokenUsageMetricDto
-        {
-            MetricId = TokenUsageContract.TodayCacheReadTokens,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = FormatTokenCount(aggregate.TodayCacheReadTokens),
-            SecondaryText = string.Empty,
-            Ratio = null,
-        };
-    }
-
-    private static TokenUsageMetricDto FormatRequests(TokenUsageAggregate aggregate)
-    {
-        if (!aggregate.HasAnyRecord || aggregate.TodayRequests == 0)
-        {
-            return Empty(TokenUsageContract.TodayRequests);
-        }
-
-        return new TokenUsageMetricDto
-        {
-            MetricId = TokenUsageContract.TodayRequests,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = aggregate.TodayRequests.ToString(
-                "N0",
-                CultureInfo.InvariantCulture),
-            SecondaryText = string.Empty,
-            Ratio = null,
-        };
-    }
+    private static TokenUsageMetricDto FormatRequests(TokenUsageAggregate aggregate) =>
+        HasToday(aggregate)
+            ? Ready(
+                TokenUsageContract.TodayRequests,
+                aggregate.TodayRequests.ToString("N0", CultureInfo.InvariantCulture))
+            : Empty(TokenUsageContract.TodayRequests);
 
     private static TokenUsageMetricDto FormatCacheHitRate(TokenUsageAggregate aggregate)
     {
@@ -204,35 +314,21 @@ public static class TokenUsageFormatter
             return Empty(TokenUsageContract.CacheHitRate);
         }
 
-        return new TokenUsageMetricDto
+        return Ready(TokenUsageContract.CacheHitRate, FormatPercent(rate)) with
         {
-            MetricId = TokenUsageContract.CacheHitRate,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = FormatPercent(rate),
-            SecondaryText = string.Empty,
             // The one metric here with a real ceiling, so the one that earns a meter.
             Ratio = Math.Clamp(rate, 0d, 1d),
         };
     }
 
-    private static TokenUsageMetricDto FormatCurrentRate(TokenUsageAggregate aggregate)
-    {
-        if (!aggregate.HasAnyRecord)
-        {
-            return Empty(TokenUsageContract.CurrentRate);
-        }
-
-        // An idle window reports zero rather than a placeholder: "nothing has run for the last
-        // quarter of an hour" is a reading, and one the user asked to see.
-        return new TokenUsageMetricDto
-        {
-            MetricId = TokenUsageContract.CurrentRate,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = FormatRate(aggregate.CurrentRatePerMinute),
-            SecondaryText = string.Empty,
-            Ratio = null,
-        };
-    }
+    private static TokenUsageMetricDto FormatCurrentRate(TokenUsageAggregate aggregate) =>
+        aggregate.HasAnyRecord
+            // An idle window reports zero rather than a placeholder: "nothing has run for the
+            // last quarter of an hour" is a reading, and one the user asked to see.
+            ? Ready(
+                TokenUsageContract.CurrentRate,
+                FormatRate(aggregate.CurrentRatePerMinute))
+            : Empty(TokenUsageContract.CurrentRate);
 
     private static TokenUsageMetricDto FormatPeakRate(TokenUsageAggregate aggregate)
     {
@@ -243,34 +339,32 @@ public static class TokenUsageFormatter
             return Empty(TokenUsageContract.PeakRate);
         }
 
-        return new TokenUsageMetricDto
+        return Ready(
+            TokenUsageContract.PeakRate,
+            FormatRate(aggregate.PeakRatePerMinute)) with
         {
-            MetricId = TokenUsageContract.PeakRate,
-            Status = TokenUsageMetricStatus.Ready,
-            PrimaryText = FormatRate(aggregate.PeakRatePerMinute),
             SecondaryText = peakWindow.ToString("HH:mm", CultureInfo.InvariantCulture),
-            Ratio = null,
         };
     }
 
-    private static TokenUsageModelDto[] FormatModels(TokenUsageAggregate aggregate)
+    private static TokenUsageBreakdownDto[] FormatBreakdown(TokenUsageAggregate aggregate)
     {
-        if (aggregate.Models.Count == 0)
+        if (aggregate.Breakdown.Count == 0)
         {
-            return Array.Empty<TokenUsageModelDto>();
+            return Array.Empty<TokenUsageBreakdownDto>();
         }
 
-        var rows = new TokenUsageModelDto[aggregate.Models.Count];
+        var rows = new TokenUsageBreakdownDto[aggregate.Breakdown.Count];
         for (int i = 0; i < rows.Length; i++)
         {
-            TokenUsageModelTotal model = aggregate.Models[i];
+            TokenUsageSlice slice = aggregate.Breakdown[i];
             double share = aggregate.TodayBilledTokens > 0
-                ? Math.Clamp(model.BilledTokens / (double)aggregate.TodayBilledTokens, 0d, 1d)
+                ? Math.Clamp(slice.BilledTokens / (double)aggregate.TodayBilledTokens, 0d, 1d)
                 : 0d;
-            rows[i] = new TokenUsageModelDto
+            rows[i] = new TokenUsageBreakdownDto
             {
-                Model = model.Model,
-                PrimaryText = FormatTokenCount(model.BilledTokens),
+                Label = slice.Label,
+                PrimaryText = FormatTokenCount(slice.BilledTokens),
                 SecondaryText = FormatPercent(share),
                 Ratio = share,
             };
@@ -278,6 +372,19 @@ public static class TokenUsageFormatter
 
         return rows;
     }
+
+    private static bool HasToday(TokenUsageAggregate aggregate) =>
+        aggregate.HasAnyRecord && aggregate.TodayRequests > 0;
+
+    private static TokenUsageMetricDto Ready(string metricId, string primaryText) =>
+        new()
+        {
+            MetricId = metricId,
+            Status = TokenUsageMetricStatus.Ready,
+            PrimaryText = primaryText,
+            SecondaryText = string.Empty,
+            Ratio = null,
+        };
 
     private static TokenUsageMetricDto Empty(string metricId) =>
         new()

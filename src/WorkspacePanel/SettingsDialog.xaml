@@ -144,6 +144,9 @@
                 <ListViewItem
                     x:Uid="SettingsCategorySystemMonitor"
                     automation:AutomationProperties.AutomationId="SettingsCategorySystemMonitor" />
+                <ListViewItem
+                    x:Uid="SettingsCategoryTokenUsage"
+                    automation:AutomationProperties.AutomationId="SettingsCategoryTokenUsage" />
             </ListView>
         </Border>
 
@@ -364,6 +367,45 @@
                 Style="{StaticResource WwbCardSurfaceStyle}">
             <Grid Width="344" HorizontalAlignment="Left">
                 <StackPanel
+                    x:Name="TokenUsageSection"
+                    Spacing="{StaticResource WwbSpace3}"
+                    Visibility="Collapsed">
+                    <TextBlock
+                        x:Uid="TokenUsageSettingsDescription"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        TextWrapping="Wrap" />
+                    <ItemsControl
+                        ItemsSource="{x:Bind TokenUsageViewModel.Vendors}"
+                        automation:AutomationProperties.AutomationId="TokenUsageVendorList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="settings:TokenUsageVendorOption">
+                                <Grid Padding="0,4" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox
+                                        Content="{x:Bind DisplayName}"
+                                        IsChecked="{x:Bind IsEnabled, Mode=TwoWay}"
+                                        automation:AutomationProperties.Name="{x:Bind DisplayName}" />
+                                    <!--
+                                        A vendor with nothing on this machine stays switchable:
+                                        installing it later should just start counting. The row
+                                        says so rather than looking like a silent failure.
+                                    -->
+                                    <TextBlock
+                                        x:Uid="TokenUsageVendorUnavailable"
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Visibility="{x:Bind IsUnavailableVisible, Mode=OneWay}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel
                     x:Name="WeatherFooter"
                     Width="344"
                     HorizontalAlignment="Left"
@@ -431,6 +473,28 @@
                         Text="{x:Bind SystemMonitorViewModel.StatusText, Mode=OneWay}"
                         TextWrapping="Wrap"
                         automation:AutomationProperties.AutomationId="SysMonSettingsStatusText" />
+                </StackPanel>
+
+                <StackPanel
+                    x:Name="TokenUsageFooter"
+                    Width="344"
+                    HorizontalAlignment="Left"
+                    Spacing="{StaticResource WwbSpace2}"
+                    Visibility="Collapsed">
+                    <Button
+                        x:Name="TokenUsageSettingsSaveButton"
+                        x:Uid="TokenUsageSettingsSaveButton"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource WwbPrimaryDialogButtonStyle}"
+                        IsEnabled="{x:Bind TokenUsageViewModel.CanSave, Mode=OneWay}"
+                        Click="TokenUsageSettingsSaveButton_Click"
+                        automation:AutomationProperties.AutomationId="TokenUsageSettingsSaveButton" />
+                    <TextBlock
+                        x:Name="TokenUsageSettingsStatusText"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind TokenUsageViewModel.StatusText, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        automation:AutomationProperties.AutomationId="TokenUsageSettingsStatusText" />
                 </StackPanel>
             </Grid>
             </Border>

@@ -4,15 +4,19 @@ using WinWidgetBoard.Contracts.Protocol;
 namespace WinWidgetBoard.WorkspacePanel.Runtime;
 
 /// <summary>
-/// Resource keys for the metric names and the one non-ready state. The broker formats every
+/// Resource keys for the names the broker deliberately does not compose. It formats every
 /// number but never a name: names are the part that has to be translated, and the panel owns
 /// the resources.
 /// </summary>
 public static class TokenUsageResourceKeys
 {
     public const string EmptyStatus = "TokenUsageStatus.Empty";
+    public const string QuotaHeader = "TokenUsageQuota.Header";
+    public const string QuotaCredits = "TokenUsageQuota.Credits";
+    public const string QuotaResets = "TokenUsageQuota.Resets";
+    public const string QuotaObserved = "TokenUsageQuota.Observed";
 
-    public static string GetNameKey(string metricId) => metricId switch
+    public static string GetMetricNameKey(string metricId) => metricId switch
     {
         TokenUsageContract.TodayBilledTokens => "TokenUsageMetric.TodayBilled",
         TokenUsageContract.TodayOutputTokens => "TokenUsageMetric.TodayOutput",
@@ -23,11 +27,24 @@ public static class TokenUsageResourceKeys
         TokenUsageContract.PeakRate => "TokenUsageMetric.PeakRate",
         _ => "TokenUsageMetric.Unknown",
     };
+
+    /// <summary>
+    /// The page tab's label. Vendor names are proper nouns and read the same in every language
+    /// the panel ships, but they still come from resources - a name on screen is the panel's to
+    /// own, and hard-coding two of them here is how the third one ends up untranslatable.
+    /// </summary>
+    public static string GetPageNameKey(string pageId) => pageId switch
+    {
+        TokenUsageContract.OverviewPageId => "TokenUsagePage.Overview",
+        TokenUsageContract.ClaudeVendorId => "TokenUsagePage.Claude",
+        TokenUsageContract.CodexVendorId => "TokenUsagePage.Codex",
+        _ => "TokenUsagePage.Unknown",
+    };
 }
 
 /// <summary>
-/// One reading of the token-usage card. The visibility rules are resolved here rather than in
-/// XAML so they stay testable without a WinUI host.
+/// One reading on a page. The visibility rules are resolved here rather than in XAML so they
+/// stay testable without a WinUI host.
 /// </summary>
 public sealed record TokenUsageMetricRow
 {
@@ -71,8 +88,8 @@ public sealed record TokenUsageMetricRow
 }
 
 /// <summary>
-/// One hour of the trend. <see cref="Fraction"/> arrives already scaled against the window's
-/// own peak - the panel has no ceiling of its own to judge a token count against.
+/// One hour of the trend. <see cref="Fraction"/> arrives already scaled against the page's own
+/// peak - the panel has no ceiling of its own to judge a token count against.
 /// </summary>
 public sealed record TokenUsageTrendBar
 {
@@ -97,9 +114,10 @@ public sealed record TokenUsageTrendBar
         Math.Clamp(Fraction, 0d, 1d) * TrackHeight);
 }
 
-public sealed record TokenUsageModelRow
+/// <summary>One slice of a page: a vendor on the overview, a model on a vendor's page.</summary>
+public sealed record TokenUsageBreakdownRow
 {
-    public string Model { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
 
     public string PrimaryText { get; init; } = string.Empty;
 
@@ -109,46 +127,100 @@ public sealed record TokenUsageModelRow
 
     public double MeterPercent => Math.Clamp(Ratio, 0d, 1d) * 100d;
 
-    public string AutomationName => $"{Model} {PrimaryText} {SecondaryText}";
+    public string AutomationName => $"{Label} {PrimaryText} {SecondaryText}";
 }
 
-public sealed record TokenUsageCardProjection
+/// <summary>One quota window, as the vendor reported it.</summary>
+public sealed record TokenUsageQuotaRow
 {
-    private TokenUsageCardProjection(
-        IReadOnlyList<TokenUsageMetricRow> metrics,
-        IReadOnlyList<TokenUsageTrendBar> trend,
-        IReadOnlyList<TokenUsageModelRow> models,
-        bool hasData)
-    {
-        Metrics = metrics;
-        Trend = trend;
-        Models = models;
-        HasData = hasData;
-    }
+    public string WindowId { get; init; } = string.Empty;
 
-    public IReadOnlyList<TokenUsageMetricRow> Metrics { get; }
+    public string WindowText { get; init; } = string.Empty;
 
-    public IReadOnlyList<TokenUsageTrendBar> Trend { get; }
+    public string UsedText { get; init; } = string.Empty;
 
-    public IReadOnlyList<TokenUsageModelRow> Models { get; }
+    public string ResetsAtText { get; init; } = string.Empty;
 
-    public bool HasData { get; }
+    /// <summary>Composed "resets at ..." line, or empty when no reset time was reported.</summary>
+    public string ResetsLabel { get; init; } = string.Empty;
+
+    public double UsedRatio { get; init; }
+
+    public double MeterPercent => Math.Clamp(UsedRatio, 0d, 1d) * 100d;
+
+    public bool IsResetVisible => ResetsLabel.Length > 0;
+
+    public string AutomationName => IsResetVisible
+        ? $"{WindowText} {UsedText} {ResetsLabel}"
+        : $"{WindowText} {UsedText}";
+}
+
+/// <summary>
+/// One view the card can page to: the overview, or a single vendor.
+/// </summary>
+public sealed record TokenUsagePage
+{
+    public string PageId { get; init; } = string.Empty;
+
+    /// <summary>Localized tab label.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    public IReadOnlyList<TokenUsageMetricRow> Metrics { get; init; } =
+        Array.Empty<TokenUsageMetricRow>();
+
+    public IReadOnlyList<TokenUsageTrendBar> Trend { get; init; } =
+        Array.Empty<TokenUsageTrendBar>();
+
+    public IReadOnlyList<TokenUsageBreakdownRow> Breakdown { get; init; } =
+        Array.Empty<TokenUsageBreakdownRow>();
+
+    public IReadOnlyList<TokenUsageQuotaRow> Quota { get; init; } =
+        Array.Empty<TokenUsageQuotaRow>();
+
+    public string QuotaCreditsText { get; init; } = string.Empty;
+
+    public string QuotaObservedText { get; init; } = string.Empty;
+
+    public bool HasData { get; init; }
 
     /// <summary>
-    /// The trend strip is hidden rather than shown flat when there is nothing in the window:
-    /// a row of minimum-height bars looks like a reading of zero everywhere, which is not the
+    /// The trend strip is hidden rather than shown flat when there is nothing in the window: a
+    /// row of minimum-height bars looks like a reading of zero everywhere, which is not the
     /// same as having no history yet.
     /// </summary>
     public bool IsTrendVisible => Trend.Count > 0 && HasData;
 
-    public bool AreModelsVisible => Models.Count > 0;
+    public bool IsBreakdownVisible => Breakdown.Count > 0;
+
+    /// <summary>
+    /// Only shown for a vendor that actually publishes quota, and only while the reading is
+    /// still current. Absent is not "unknown quota" to be drawn as empty dials.
+    /// </summary>
+    public bool IsQuotaVisible => Quota.Count > 0 || QuotaCreditsText.Length > 0;
+
+    public bool IsCreditsVisible => QuotaCreditsText.Length > 0;
+}
+
+public sealed record TokenUsageCardProjection
+{
+    private TokenUsageCardProjection(IReadOnlyList<TokenUsagePage> pages)
+    {
+        Pages = pages;
+    }
+
+    public IReadOnlyList<TokenUsagePage> Pages { get; }
+
+    /// <summary>True when any page has something to report.</summary>
+    public bool HasData => Pages.Any(page => page.HasData);
+
+    /// <summary>
+    /// The tab strip is pointless with a single page, which is what a board with one vendor
+    /// switched on looks like: the overview would then just repeat that vendor's page.
+    /// </summary>
+    public bool IsPageSwitcherVisible => Pages.Count > 2;
 
     public static TokenUsageCardProjection Empty { get; } =
-        new(
-            Array.Empty<TokenUsageMetricRow>(),
-            Array.Empty<TokenUsageTrendBar>(),
-            Array.Empty<TokenUsageModelRow>(),
-            hasData: false);
+        new(Array.Empty<TokenUsagePage>());
 
     public static TokenUsageCardProjection FromSnapshot(
         CardRuntimeSnapshot snapshot,
@@ -158,31 +230,58 @@ public sealed record TokenUsageCardProjection
         ArgumentNullException.ThrowIfNull(resourceResolver);
 
         JsonElement payload = snapshot.Payload;
-        if (payload.ValueKind != JsonValueKind.Object)
+        if (payload.ValueKind != JsonValueKind.Object ||
+            !payload.TryGetProperty("pages", out JsonElement pages) ||
+            pages.ValueKind != JsonValueKind.Array)
         {
             return Empty;
         }
 
         string emptyText = Resolve(resourceResolver, TokenUsageResourceKeys.EmptyStatus);
-        IReadOnlyList<TokenUsageMetricRow> metrics = ReadMetrics(
-            payload,
-            resourceResolver,
-            emptyText);
-        bool hasData = metrics.Any(metric => metric.HasReading);
+        var result = new List<TokenUsagePage>(pages.GetArrayLength());
+        foreach (JsonElement page in pages.EnumerateArray())
+        {
+            if (page.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
 
-        return new TokenUsageCardProjection(
-            metrics,
-            ReadTrend(payload),
-            ReadModels(payload),
-            hasData);
+            string? pageId = ReadString(page, "pageId");
+            if (string.IsNullOrEmpty(pageId))
+            {
+                continue;
+            }
+
+            IReadOnlyList<TokenUsageMetricRow> metrics = ReadMetrics(
+                page,
+                resourceResolver,
+                emptyText);
+            result.Add(
+                new TokenUsagePage
+                {
+                    PageId = pageId,
+                    Name = Resolve(
+                        resourceResolver,
+                        TokenUsageResourceKeys.GetPageNameKey(pageId)),
+                    Metrics = metrics,
+                    Trend = ReadTrend(page),
+                    Breakdown = ReadBreakdown(page),
+                    Quota = ReadQuota(page, resourceResolver, out string credits, out string observed),
+                    QuotaCreditsText = credits,
+                    QuotaObservedText = observed,
+                    HasData = metrics.Any(metric => metric.HasReading),
+                });
+        }
+
+        return result.Count == 0 ? Empty : new TokenUsageCardProjection(result);
     }
 
     private static TokenUsageMetricRow[] ReadMetrics(
-        JsonElement payload,
+        JsonElement page,
         Func<string, string?> resourceResolver,
         string emptyText)
     {
-        if (!payload.TryGetProperty("metrics", out JsonElement metrics) ||
+        if (!page.TryGetProperty("metrics", out JsonElement metrics) ||
             metrics.ValueKind != JsonValueKind.Array)
         {
             return Array.Empty<TokenUsageMetricRow>();
@@ -210,7 +309,7 @@ public sealed record TokenUsageCardProjection
                     MetricId = metricId,
                     Name = Resolve(
                         resourceResolver,
-                        TokenUsageResourceKeys.GetNameKey(metricId)),
+                        TokenUsageResourceKeys.GetMetricNameKey(metricId)),
                     Status = ReadString(metric, "status") ?? TokenUsageMetricStatus.Empty,
                     PrimaryText = ReadString(metric, "primaryText") ?? "—",
                     SecondaryText = ReadString(metric, "secondaryText") ?? string.Empty,
@@ -222,9 +321,9 @@ public sealed record TokenUsageCardProjection
         return rows.ToArray();
     }
 
-    private static TokenUsageTrendBar[] ReadTrend(JsonElement payload)
+    private static TokenUsageTrendBar[] ReadTrend(JsonElement page)
     {
-        if (!payload.TryGetProperty("trend", out JsonElement trend) ||
+        if (!page.TryGetProperty("trend", out JsonElement trend) ||
             trend.ValueKind != JsonValueKind.Array)
         {
             return Array.Empty<TokenUsageTrendBar>();
@@ -252,36 +351,92 @@ public sealed record TokenUsageCardProjection
         return bars.ToArray();
     }
 
-    private static TokenUsageModelRow[] ReadModels(JsonElement payload)
+    private static TokenUsageBreakdownRow[] ReadBreakdown(JsonElement page)
     {
-        if (!payload.TryGetProperty("models", out JsonElement models) ||
-            models.ValueKind != JsonValueKind.Array)
+        if (!page.TryGetProperty("breakdown", out JsonElement breakdown) ||
+            breakdown.ValueKind != JsonValueKind.Array)
         {
-            return Array.Empty<TokenUsageModelRow>();
+            return Array.Empty<TokenUsageBreakdownRow>();
         }
 
-        var rows = new List<TokenUsageModelRow>(models.GetArrayLength());
-        foreach (JsonElement model in models.EnumerateArray())
+        var rows = new List<TokenUsageBreakdownRow>(breakdown.GetArrayLength());
+        foreach (JsonElement slice in breakdown.EnumerateArray())
         {
-            if (model.ValueKind != JsonValueKind.Object ||
-                rows.Count >= TokenUsageContract.MaxModelRows)
+            if (slice.ValueKind != JsonValueKind.Object ||
+                rows.Count >= TokenUsageContract.MaxBreakdownRows)
             {
                 continue;
             }
 
-            string? name = ReadString(model, "model");
-            if (string.IsNullOrEmpty(name))
+            string? label = ReadString(slice, "label");
+            if (string.IsNullOrEmpty(label))
             {
                 continue;
             }
 
             rows.Add(
-                new TokenUsageModelRow
+                new TokenUsageBreakdownRow
                 {
-                    Model = name,
-                    PrimaryText = ReadString(model, "primaryText") ?? "—",
-                    SecondaryText = ReadString(model, "secondaryText") ?? string.Empty,
-                    Ratio = ReadRatio(model, "ratio") ?? 0d,
+                    Label = label,
+                    PrimaryText = ReadString(slice, "primaryText") ?? "—",
+                    SecondaryText = ReadString(slice, "secondaryText") ?? string.Empty,
+                    Ratio = ReadRatio(slice, "ratio") ?? 0d,
+                });
+        }
+
+        return rows.ToArray();
+    }
+
+    private static TokenUsageQuotaRow[] ReadQuota(
+        JsonElement page,
+        Func<string, string?> resourceResolver,
+        out string creditsText,
+        out string observedText)
+    {
+        creditsText = string.Empty;
+        observedText = string.Empty;
+        if (!page.TryGetProperty("quota", out JsonElement quota) ||
+            quota.ValueKind != JsonValueKind.Object)
+        {
+            return Array.Empty<TokenUsageQuotaRow>();
+        }
+
+        creditsText = ReadString(quota, "creditsText") ?? string.Empty;
+        string observed = ReadString(quota, "observedAtText") ?? string.Empty;
+        if (observed.Length > 0)
+        {
+            observedText = Format(
+                resourceResolver,
+                TokenUsageResourceKeys.QuotaObserved,
+                observed);
+        }
+
+        if (!quota.TryGetProperty("windows", out JsonElement windows) ||
+            windows.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<TokenUsageQuotaRow>();
+        }
+
+        var rows = new List<TokenUsageQuotaRow>(windows.GetArrayLength());
+        foreach (JsonElement window in windows.EnumerateArray())
+        {
+            if (window.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            string resets = ReadString(window, "resetsAtText") ?? string.Empty;
+            rows.Add(
+                new TokenUsageQuotaRow
+                {
+                    WindowId = ReadString(window, "windowId") ?? string.Empty,
+                    WindowText = ReadString(window, "windowText") ?? string.Empty,
+                    UsedText = ReadString(window, "usedText") ?? "—",
+                    ResetsAtText = resets,
+                    ResetsLabel = resets.Length > 0
+                        ? Format(resourceResolver, TokenUsageResourceKeys.QuotaResets, resets)
+                        : string.Empty,
+                    UsedRatio = ReadRatio(window, "usedRatio") ?? 0d,
                 });
         }
 
@@ -311,5 +466,17 @@ public sealed record TokenUsageCardProjection
     {
         string? value = resolver(key);
         return string.IsNullOrWhiteSpace(value) ? key : value;
+    }
+
+    /// <summary>
+    /// Fills one placeholder in a localized template. The broker composes the value and the
+    /// panel composes the sentence around it, which is what keeps word order translatable.
+    /// </summary>
+    private static string Format(Func<string, string?> resolver, string key, string value)
+    {
+        string template = Resolve(resolver, key);
+        return template.Contains("{0}", StringComparison.Ordinal)
+            ? template.Replace("{0}", value, StringComparison.Ordinal)
+            : template + " " + value;
     }
 }

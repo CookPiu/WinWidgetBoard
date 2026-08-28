@@ -34,7 +34,7 @@ public sealed class TokenUsageAggregatorTests
             ],
             Now);
 
-        TokenUsageAggregate aggregate = aggregator.Compute(Now);
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
         Assert.AreEqual(1, aggregate.TodayRequests);
         Assert.AreEqual(100L, aggregate.TodayBilledTokens);
         Assert.AreEqual(3L, aggregator.DuplicateCount);
@@ -54,7 +54,7 @@ public sealed class TokenUsageAggregatorTests
             ],
             Now);
 
-        Assert.AreEqual(2, aggregator.Compute(Now).TodayRequests);
+        Assert.AreEqual(2, Overview(aggregator, Now).TodayRequests);
     }
 
     [TestMethod(DisplayName =
@@ -64,7 +64,7 @@ public sealed class TokenUsageAggregatorTests
         var aggregator = new TokenUsageAggregator(Utc);
         aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 6, billed: 500)], Now);
 
-        IReadOnlyList<TokenUsageHourBucket> trend = aggregator.Compute(Now).Trend;
+        IReadOnlyList<TokenUsageHourBucket> trend = Overview(aggregator, Now).Trend;
 
         Assert.AreEqual(TokenUsageContract.TrendHours, trend.Count);
         // Regression: bucketing by the distance from the start of the current hour floors to
@@ -82,7 +82,7 @@ public sealed class TokenUsageAggregatorTests
         // 07:46, three hours before the 10:00 bucket.
         aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 180, billed: 300)], Now);
 
-        IReadOnlyList<TokenUsageHourBucket> trend = aggregator.Compute(Now).Trend;
+        IReadOnlyList<TokenUsageHourBucket> trend = Overview(aggregator, Now).Trend;
 
         Assert.AreEqual(300L, trend[^4].BilledTokens);
         Assert.AreEqual(new DateTimeOffset(2026, 8, 28, 7, 0, 0, TimeSpan.Zero), trend[^4].HourStartLocal);
@@ -93,10 +93,11 @@ public sealed class TokenUsageAggregatorTests
     public void PeakRateUsesTheRateWindowLength()
     {
         var aggregator = new TokenUsageAggregator(Utc);
-        // One burst, entirely inside a single rate window an hour ago.
+        // One burst, entirely inside a single rate window an hour ago - and inside today,
+        // which is the window the peak is now measured over.
         aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 65, billed: 15_000)], Now);
 
-        TokenUsageAggregate aggregate = aggregator.Compute(Now);
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
 
         // Regression: averaging the peak over an hour while the current rate is averaged over
         // fifteen minutes made a quiet "now" read as four times busier than the busiest burst.
@@ -119,7 +120,7 @@ public sealed class TokenUsageAggregatorTests
             ],
             Now);
 
-        TokenUsageAggregate aggregate = aggregator.Compute(Now);
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
 
         Assert.IsTrue(aggregate.HasCurrentRate);
         Assert.AreEqual(
@@ -135,7 +136,7 @@ public sealed class TokenUsageAggregatorTests
         var aggregator = new TokenUsageAggregator(Utc);
         aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 300, billed: 5_000)], Now);
 
-        TokenUsageAggregate aggregate = aggregator.Compute(Now);
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
 
         Assert.IsFalse(aggregate.HasCurrentRate);
         Assert.AreEqual(0d, aggregate.CurrentRatePerMinute, 0.001d);
@@ -150,6 +151,7 @@ public sealed class TokenUsageAggregatorTests
         aggregator.Ingest(
             [
                 new TranscriptUsageRecord(
+                    TokenUsageContract.ClaudeVendorId,
                     "req_1",
                     "msg_1",
                     "claude-opus-5",
@@ -161,7 +163,7 @@ public sealed class TokenUsageAggregatorTests
             ],
             Now);
 
-        TokenUsageAggregate aggregate = aggregator.Compute(Now);
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
 
         // Output is not input and must not dilute the rate; cache creation counts, because
         // those tokens were sent uncached this time.
@@ -199,7 +201,7 @@ public sealed class TokenUsageAggregatorTests
             ],
             Now);
 
-        TokenUsageAggregate aggregate = aggregator.Compute(Now);
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
 
         Assert.AreEqual(1, aggregate.TodayRequests);
         Assert.AreEqual(300L, aggregate.TodayBilledTokens);
@@ -208,12 +210,12 @@ public sealed class TokenUsageAggregatorTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-030 [USE-006] Models are ranked by billed tokens and capped")]
+        "UT-TOKUSE-030 [USE-006] A vendor page ranks its models by billed tokens and caps them")]
     public void RanksModelsByUsage()
     {
         var aggregator = new TokenUsageAggregator(Utc);
         var records = new List<TranscriptUsageRecord>();
-        for (int i = 0; i < TokenUsageContract.MaxModelRows + 3; i++)
+        for (int i = 0; i < TokenUsageContract.MaxBreakdownRows + 3; i++)
         {
             records.Add(
                 Record($"req_{i}", $"msg_{i}", minutesAgo: 5, billed: 100 * (i + 1))
@@ -221,18 +223,94 @@ public sealed class TokenUsageAggregatorTests
         }
 
         aggregator.Ingest(records, Now);
-        IReadOnlyList<TokenUsageModelTotal> models = aggregator.Compute(Now).Models;
+        IReadOnlyList<TokenUsageSlice> models = aggregator
+            .Compute(Now, TokenUsageContract.VendorIds)
+            .Vendors
+            .Single(vendor => vendor.VendorId == TokenUsageContract.ClaudeVendorId)
+            .Aggregate
+            .Breakdown;
 
-        Assert.AreEqual(TokenUsageContract.MaxModelRows, models.Count);
-        Assert.AreEqual("model-7", models[0].Model);
+        Assert.AreEqual(TokenUsageContract.MaxBreakdownRows, models.Count);
+        Assert.AreEqual("model-7", models[0].Label);
         Assert.IsTrue(models[0].BilledTokens > models[^1].BilledTokens);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-032 [USE-012] The overview splits by vendor, a vendor page by model")]
+    public void OverviewSplitsByVendorAndVendorPageByModel()
+    {
+        var aggregator = new TokenUsageAggregator(Utc);
+        aggregator.Ingest(
+            [
+                Record("req_1", "msg_1", minutesAgo: 5, billed: 300),
+                Record("req_2", "msg_2", minutesAgo: 5, billed: 700)
+                    with { VendorId = TokenUsageContract.CodexVendorId, Model = "gpt-5.6-sol" },
+            ],
+            Now);
+
+        TokenUsageReport report = aggregator.Compute(Now, TokenUsageContract.VendorIds);
+
+        // The two vendors are not interchangeable, so the overview names them rather than
+        // merging their model lists into one ranking that hides which tool spent what.
+        CollectionAssert.AreEquivalent(
+            new[] { TokenUsageContract.ClaudeVendorId, TokenUsageContract.CodexVendorId },
+            report.Overview.Breakdown.Select(slice => slice.Label).ToArray());
+        Assert.AreEqual(1_000L, report.Overview.TodayBilledTokens);
+        Assert.AreEqual(
+            "gpt-5.6-sol",
+            report.Vendors
+                .Single(vendor => vendor.VendorId == TokenUsageContract.CodexVendorId)
+                .Aggregate.Breakdown.Single().Label);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-033 [USE-012] A disabled vendor leaves the totals immediately")]
+    public void DisabledVendorIsExcluded()
+    {
+        var aggregator = new TokenUsageAggregator(Utc);
+        aggregator.Ingest(
+            [
+                Record("req_1", "msg_1", minutesAgo: 5, billed: 300),
+                Record("req_2", "msg_2", minutesAgo: 5, billed: 700)
+                    with { VendorId = TokenUsageContract.CodexVendorId },
+            ],
+            Now);
+
+        TokenUsageReport report = aggregator.Compute(
+            Now,
+            [TokenUsageContract.ClaudeVendorId]);
+
+        Assert.AreEqual(300L, report.Overview.TodayBilledTokens);
+        Assert.AreEqual(1, report.Vendors.Count);
+
+        // Forgetting drops the records outright rather than waiting for them to age out, so a
+        // vendor switched off stops counting on the next tick instead of a day later.
+        aggregator.Forget(TokenUsageContract.CodexVendorId);
+        Assert.AreEqual(1, aggregator.RecordCount);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-034 [USE-012] An enabled vendor with no records still gets a page")]
+    public void EnabledVendorWithoutRecordsStillGetsAPage()
+    {
+        var aggregator = new TokenUsageAggregator(Utc);
+        aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 5, billed: 300)], Now);
+
+        TokenUsageReport report = aggregator.Compute(Now, TokenUsageContract.VendorIds);
+
+        // "Switched on and did nothing today" is a different statement from the page being
+        // absent, and the card has to be able to say it.
+        TokenUsageVendorReport codex = report.Vendors.Single(vendor =>
+            vendor.VendorId == TokenUsageContract.CodexVendorId);
+        Assert.IsFalse(codex.Aggregate.HasAnyRecord);
+        Assert.AreEqual(0, codex.Aggregate.TodayRequests);
     }
 
     [TestMethod(DisplayName =
         "UT-TOKUSE-031 [USE-003] No records at all is an empty aggregate")]
     public void EmptyAggregateWhenNothingIngested()
     {
-        TokenUsageAggregate aggregate = new TokenUsageAggregator(Utc).Compute(Now);
+        TokenUsageAggregate aggregate = Overview(new TokenUsageAggregator(Utc), Now);
 
         Assert.IsFalse(aggregate.HasAnyRecord);
         Assert.AreEqual(0, aggregate.TodayRequests);
@@ -240,12 +318,22 @@ public sealed class TokenUsageAggregatorTests
         Assert.AreEqual(0, aggregate.Trend.Count);
     }
 
+    /// <summary>
+    /// The overview page, which is what every assertion here is about. Vendor pages get their
+    /// own coverage where they differ.
+    /// </summary>
+    private static TokenUsageAggregate Overview(
+        TokenUsageAggregator aggregator,
+        DateTimeOffset nowUtc) =>
+        aggregator.Compute(nowUtc, TokenUsageContract.VendorIds).Overview;
+
     private static TranscriptUsageRecord Record(
         string requestId,
         string messageId,
         int minutesAgo,
         long billed) =>
         new(
+            TokenUsageContract.ClaudeVendorId,
             requestId,
             messageId,
             "claude-opus-5",

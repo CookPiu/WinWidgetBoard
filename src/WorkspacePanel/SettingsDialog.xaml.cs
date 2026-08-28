@@ -13,6 +13,7 @@ public enum SettingsCategory
 {
     Weather = 0,
     SystemMonitor = 1,
+    TokenUsage = 2,
 }
 
 /// <summary>
@@ -24,12 +25,15 @@ public sealed partial class SettingsDialog : ContentDialog
     public SettingsDialog(
         WeatherSettingsViewModel weatherViewModel,
         SystemMonitorSettingsViewModel systemMonitorViewModel,
+        TokenUsageSettingsViewModel tokenUsageViewModel,
         SettingsCategory initialCategory = SettingsCategory.Weather)
     {
         WeatherViewModel = weatherViewModel ??
             throw new ArgumentNullException(nameof(weatherViewModel));
         SystemMonitorViewModel = systemMonitorViewModel ??
             throw new ArgumentNullException(nameof(systemMonitorViewModel));
+        TokenUsageViewModel = tokenUsageViewModel ??
+            throw new ArgumentNullException(nameof(tokenUsageViewModel));
         InitializeComponent();
         SettingsCategoryList.SelectedIndex = (int)initialCategory;
         ApplyCategory((int)initialCategory);
@@ -39,6 +43,8 @@ public sealed partial class SettingsDialog : ContentDialog
     public WeatherSettingsViewModel WeatherViewModel { get; }
 
     public SystemMonitorSettingsViewModel SystemMonitorViewModel { get; }
+
+    public TokenUsageSettingsViewModel TokenUsageViewModel { get; }
 
     private void SettingsCategoryList_SelectionChanged(
         object sender,
@@ -59,19 +65,33 @@ public sealed partial class SettingsDialog : ContentDialog
         if (index < 0 ||
             WeatherSection is null ||
             SystemMonitorSection is null ||
+            TokenUsageSection is null ||
             WeatherFooter is null ||
-            SystemMonitorFooter is null)
+            SystemMonitorFooter is null ||
+            TokenUsageFooter is null)
         {
             return;
         }
 
-        bool weather = index == (int)SettingsCategory.Weather;
-        Visibility forWeather = weather ? Visibility.Visible : Visibility.Collapsed;
-        Visibility forSystemMonitor = weather ? Visibility.Collapsed : Visibility.Visible;
+        Visibility forWeather = Show(index, SettingsCategory.Weather);
+        Visibility forSystemMonitor = Show(index, SettingsCategory.SystemMonitor);
+        Visibility forTokenUsage = Show(index, SettingsCategory.TokenUsage);
         WeatherSection.Visibility = forWeather;
         WeatherFooter.Visibility = forWeather;
         SystemMonitorSection.Visibility = forSystemMonitor;
         SystemMonitorFooter.Visibility = forSystemMonitor;
+        TokenUsageSection.Visibility = forTokenUsage;
+        TokenUsageFooter.Visibility = forTokenUsage;
+    }
+
+    private static Visibility Show(int index, SettingsCategory category) =>
+        index == (int)category ? Visibility.Visible : Visibility.Collapsed;
+
+    private async void TokenUsageSettingsSaveButton_Click(
+        object sender,
+        RoutedEventArgs args)
+    {
+        await TokenUsageViewModel.SaveAsync(CancellationToken.None);
     }
 
     private async void WeatherSettingsSaveButton_Click(object sender, RoutedEventArgs args)
