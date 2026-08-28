@@ -1063,4 +1063,10 @@
   <data name="TokenUsageCost.Unpriced" xml:space="preserve">
     <value>{0} model(s) have no price and are excluded</value>
   </data>
+  <data name="TokenUsageCostLabel.Text" xml:space="preserve">
+    <value>Spent today</value>
+  </data>
+  <data name="TokenUsageQuotaHeader.Text" xml:space="preserve">
+    <value>Quota</value>
+  </data>
 </root>

@@ -37,7 +37,13 @@ public sealed record TokenUsageAggregate
 
     public int TodayRequests { get; init; }
 
-    /// <summary>Billed tokens per minute over the trailing rate window.</summary>
+    /// <summary>
+    /// Billed tokens per minute over the trailing rate window.
+    ///
+    /// No longer shown on the card - the readings there are about spend and volume - but kept
+    /// because it defines the window <see cref="PeakRatePerMinute"/> is measured over, and
+    /// because the tests that pin that windowing assert against it.
+    /// </summary>
     public double CurrentRatePerMinute { get; init; }
 
     /// <summary>
@@ -82,6 +88,18 @@ public sealed record TokenUsageAggregate
     /// report, and the card labels it as an estimate rather than presenting it as an invoice.
     /// </summary>
     public decimal TodayCostUsd { get; init; }
+
+    /// <summary>
+    /// The same total split the way the card reads it, so each row can carry what that row
+    /// costs rather than making the reader apportion one lump sum across five figures.
+    /// <see cref="TodayOutputCostUsd"/> is a part of <see cref="TodayBilledCostUsd"/>, not an
+    /// addition to it - output is one of the three kinds the billed figure covers.
+    /// </summary>
+    public decimal TodayBilledCostUsd { get; init; }
+
+    public decimal TodayCacheReadCostUsd { get; init; }
+
+    public decimal TodayOutputCostUsd { get; init; }
 
     /// <summary>
     /// How many distinct models today's usage included that this build has no verified price
@@ -245,6 +263,9 @@ public sealed class TokenUsageAggregator
         int rateWindowRequests = 0;
         bool any = false;
         decimal todayCost = 0m;
+        decimal todayBilledCost = 0m;
+        decimal todayCacheReadCost = 0m;
+        decimal todayOutputCost = 0m;
         var unpricedModels = new HashSet<string>(StringComparer.Ordinal);
 
         var hourly = new long[TokenUsageContract.TrendHours];
@@ -275,9 +296,22 @@ public sealed class TokenUsageAggregator
                 todayCacheableInput += record.CacheableInputTokens;
                 todayRequests++;
 
-                if (TokenUsagePricing.TryGetCost(record) is { } cost)
+                if (TokenUsagePricing.TryGetRate(record.Model) is { } rate)
                 {
-                    todayCost += cost;
+                    decimal outputCost =
+                        record.OutputTokens * rate.OutputPerMillion / 1_000_000m;
+                    decimal billedCost = outputCost
+                        + (record.InputTokens * rate.InputPerMillion
+                            + record.CacheWrite5mTokens * rate.CacheWrite5mPerMillion
+                            + record.CacheWrite1hTokens * rate.CacheWrite1hPerMillion)
+                        / 1_000_000m;
+                    decimal cacheReadCost =
+                        record.CacheReadTokens * rate.CacheReadPerMillion / 1_000_000m;
+
+                    todayOutputCost += outputCost;
+                    todayBilledCost += billedCost;
+                    todayCacheReadCost += cacheReadCost;
+                    todayCost += billedCost + cacheReadCost;
                 }
                 else
                 {
@@ -377,6 +411,9 @@ public sealed class TokenUsageAggregator
                 ? todayCacheRead / (double)todayCacheableInput
                 : null,
             TodayCostUsd = todayCost,
+            TodayBilledCostUsd = todayBilledCost,
+            TodayCacheReadCostUsd = todayCacheReadCost,
+            TodayOutputCostUsd = todayOutputCost,
             UnpricedModelCount = unpricedModels.Count,
         };
     }

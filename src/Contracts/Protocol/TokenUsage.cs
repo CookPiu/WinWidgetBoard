@@ -96,13 +96,8 @@ public static class TokenUsageContract
     /// <summary>Cache reads over all cacheable input today.</summary>
     public const string CacheHitRate = "usage.cache.hit-rate";
 
-    /// <summary>Billed tokens per minute over the trailing rate window.</summary>
-    public const string CurrentRate = "usage.rate.current";
-
     /// <summary>
-    /// The busiest window of today, as a per-minute rate over a window the same length as
-    /// <see cref="CurrentRate"/>'s so the two can be read against each other, and over the same
-    /// day as the totals it sits beside.
+    /// The busiest fifteen minutes of today, as a per-minute rate.
     ///
     /// This is deliberately not "the speed of the last response". A transcript records only
     /// the timestamp a response completed - there is no duration, latency or first-token
@@ -123,11 +118,10 @@ public static class TokenUsageContract
     public static IReadOnlyList<string> MetricIds { get; } =
     [
         TodayBilledTokens,
-        CurrentRate,
-        CacheHitRate,
-        TodayRequests,
-        TodayOutputTokens,
         TodayCacheReadTokens,
+        TodayRequests,
+        CacheHitRate,
+        TodayOutputTokens,
         PeakRate,
     ];
 

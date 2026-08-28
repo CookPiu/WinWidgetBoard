@@ -134,8 +134,11 @@ public sealed class TokenUsagePricingTests
         {
             HasAnyRecord = true,
             TodayBilledTokens = 1_000_000,
+            TodayCacheReadTokens = 40_000_000,
             TodayRequests = 3,
-            TodayCostUsd = 5m,
+            TodayCostUsd = 25m,
+            TodayBilledCostUsd = 5m,
+            TodayCacheReadCostUsd = 20m,
         };
 
         TokenUsagePageDto page = TokenUsageFormatter.CreatePage(
@@ -145,13 +148,20 @@ public sealed class TokenUsagePricingTests
             Utc,
             Now);
 
-        Assert.AreEqual("≈$5.00", page.CostText);
+        // The page carries the day's total, which the card shows as its headline.
+        Assert.AreEqual("≈$25.00", page.CostText);
         Assert.IsTrue(page.HasCost);
-        TokenUsageMetricDto billed = page.Metrics.Single(metric =>
-            metric.MetricId == TokenUsageContract.TodayBilledTokens);
-        // Shown beside the token count rather than on a line of its own: at L the card has no
-        // line to spare.
-        Assert.AreEqual("≈$5.00", billed.SecondaryText);
+
+        // Each row carries its own share, so the rows add up instead of each repeating the
+        // total. Cache reads are usually the larger of the two by far.
+        Assert.AreEqual(
+            "≈$5.00",
+            page.Metrics.Single(m => m.MetricId == TokenUsageContract.TodayBilledTokens)
+                .SecondaryText);
+        Assert.AreEqual(
+            "≈$20.00",
+            page.Metrics.Single(m => m.MetricId == TokenUsageContract.TodayCacheReadTokens)
+                .SecondaryText);
     }
 
     private static TranscriptUsageRecord Record(

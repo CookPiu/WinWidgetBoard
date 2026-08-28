@@ -25,7 +25,6 @@ public static class TokenUsageResourceKeys
         TokenUsageContract.TodayCacheReadTokens => "TokenUsageMetric.TodayCacheRead",
         TokenUsageContract.TodayRequests => "TokenUsageMetric.TodayRequests",
         TokenUsageContract.CacheHitRate => "TokenUsageMetric.CacheHitRate",
-        TokenUsageContract.CurrentRate => "TokenUsageMetric.CurrentRate",
         TokenUsageContract.PeakRate => "TokenUsageMetric.PeakRate",
         _ => "TokenUsageMetric.Unknown",
     };
@@ -450,7 +449,12 @@ public sealed record TokenUsageCardProjection
             return Array.Empty<TokenUsageQuotaRow>();
         }
 
-        creditsText = ReadString(quota, "creditsText") ?? string.Empty;
+        string credits = ReadString(quota, "creditsText") ?? string.Empty;
+        // Labelled, because an unlabelled number sitting in a row of percentages reads as
+        // another percentage.
+        creditsText = credits.Length > 0
+            ? Format(resourceResolver, TokenUsageResourceKeys.QuotaCredits, credits)
+            : string.Empty;
         string observed = ReadString(quota, "observedAtText") ?? string.Empty;
         if (observed.Length > 0)
         {

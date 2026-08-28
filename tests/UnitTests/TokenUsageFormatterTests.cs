@@ -94,7 +94,7 @@ public sealed class TokenUsageFormatterTests
         // A token count and a rate have no ceiling to draw a bar against; inventing one would
         // make the card assert something the data does not say.
         Assert.IsNull(Metric(payload, TokenUsageContract.TodayBilledTokens).Ratio);
-        Assert.IsNull(Metric(payload, TokenUsageContract.CurrentRate).Ratio);
+        Assert.IsNull(Metric(payload, TokenUsageContract.TodayCacheReadTokens).Ratio);
         Assert.IsNull(Metric(payload, TokenUsageContract.TodayRequests).Ratio);
         Assert.AreEqual(
             0.75d,

@@ -71,14 +71,17 @@ public static class TokenUsageFormatter
             PageId = pageId,
             // Priority order, matching TokenUsageContract.MetricIds: a card too short for all
             // of them shows a prefix, so the most useful readings have to come first.
+            // Priority order, matching TokenUsageContract.MetricIds: a card too short for all
+            // of them shows a prefix, so what the user asked to see first comes first - spend,
+            // then volume. Each token kind carries its own cost, so the reader is not left
+            // apportioning one lump sum across the rows.
             Metrics =
             [
                 FormatBilledTokens(aggregate),
-                FormatCurrentRate(aggregate),
-                FormatCacheHitRate(aggregate),
-                FormatRequests(aggregate),
-                FormatOutputTokens(aggregate),
                 FormatCacheReadTokens(aggregate),
+                FormatRequests(aggregate),
+                FormatCacheHitRate(aggregate),
+                FormatOutputTokens(aggregate),
                 FormatPeakRate(aggregate),
             ],
             Trend = NormalizeTrend(aggregate.Trend),
@@ -281,8 +284,9 @@ public static class TokenUsageFormatter
             TokenUsageContract.TodayBilledTokens,
             FormatTokenCount(aggregate.TodayBilledTokens)) with
         {
-            // The approximation sign is doing real work: this is list price, not a bill.
-            SecondaryText = FormatCost(aggregate),
+            // This row's own share of the spend, not the day's total - the total is the
+            // headline, and repeating it here would make the rows fail to add up.
+            SecondaryText = FormatAmount(aggregate, aggregate.TodayBilledCostUsd),
         };
     }
 
@@ -294,12 +298,22 @@ public static class TokenUsageFormatter
     public static string FormatCost(TokenUsageAggregate aggregate)
     {
         ArgumentNullException.ThrowIfNull(aggregate);
-        if (aggregate.TodayCostUsd <= 0m)
+        return FormatAmount(aggregate, aggregate.TodayCostUsd);
+    }
+
+    /// <summary>
+    /// One amount in the same shape as the headline, so a row's share and the day's total read
+    /// as the same kind of number. The floor marker rides on every amount for the same reason
+    /// it rides on the total: whatever could not be priced is missing from all of them.
+    /// </summary>
+    private static string FormatAmount(TokenUsageAggregate aggregate, decimal value)
+    {
+        if (value <= 0m)
         {
             return string.Empty;
         }
 
-        decimal cost = aggregate.TodayCostUsd;
+        decimal cost = value;
         string amount = cost >= 1000m
             ? cost.ToString("N0", CultureInfo.InvariantCulture)
             : cost.ToString("N2", CultureInfo.InvariantCulture);
@@ -321,6 +335,7 @@ public static class TokenUsageFormatter
             TokenUsageContract.TodayOutputTokens,
             FormatTokenCount(aggregate.TodayOutputTokens)) with
         {
+            SecondaryText = FormatAmount(aggregate, aggregate.TodayOutputCostUsd),
             Ratio = aggregate.TodayBilledTokens > 0
                 ? Math.Clamp(
                     aggregate.TodayOutputTokens / (double)aggregate.TodayBilledTokens,
@@ -330,12 +345,22 @@ public static class TokenUsageFormatter
         };
     }
 
-    private static TokenUsageMetricDto FormatCacheReadTokens(TokenUsageAggregate aggregate) =>
-        HasToday(aggregate)
-            ? Ready(
-                TokenUsageContract.TodayCacheReadTokens,
-                FormatTokenCount(aggregate.TodayCacheReadTokens))
-            : Empty(TokenUsageContract.TodayCacheReadTokens);
+    private static TokenUsageMetricDto FormatCacheReadTokens(TokenUsageAggregate aggregate)
+    {
+        if (!HasToday(aggregate))
+        {
+            return Empty(TokenUsageContract.TodayCacheReadTokens);
+        }
+
+        return Ready(
+            TokenUsageContract.TodayCacheReadTokens,
+            FormatTokenCount(aggregate.TodayCacheReadTokens)) with
+        {
+            // Usually the largest single line of the bill - about three quarters of it on the
+            // reference machine - which is exactly why it carries its own amount.
+            SecondaryText = FormatAmount(aggregate, aggregate.TodayCacheReadCostUsd),
+        };
+    }
 
     private static TokenUsageMetricDto FormatRequests(TokenUsageAggregate aggregate) =>
         HasToday(aggregate)
@@ -357,15 +382,6 @@ public static class TokenUsageFormatter
             Ratio = Math.Clamp(rate, 0d, 1d),
         };
     }
-
-    private static TokenUsageMetricDto FormatCurrentRate(TokenUsageAggregate aggregate) =>
-        aggregate.HasAnyRecord
-            // An idle window reports zero rather than a placeholder: "nothing has run for the
-            // last quarter of an hour" is a reading, and one the user asked to see.
-            ? Ready(
-                TokenUsageContract.CurrentRate,
-                FormatRate(aggregate.CurrentRatePerMinute))
-            : Empty(TokenUsageContract.CurrentRate);
 
     private static TokenUsageMetricDto FormatPeakRate(TokenUsageAggregate aggregate)
     {

@@ -39,7 +39,7 @@ public sealed class TokenUsageCardProjectionTests
         TokenUsagePage page = Overview(Project(ReadyReport()));
 
         Assert.IsFalse(Row(page, TokenUsageContract.TodayBilledTokens).IsMeterVisible);
-        Assert.IsFalse(Row(page, TokenUsageContract.CurrentRate).IsMeterVisible);
+        Assert.IsFalse(Row(page, TokenUsageContract.TodayCacheReadTokens).IsMeterVisible);
         Assert.IsTrue(Row(page, TokenUsageContract.CacheHitRate).IsMeterVisible);
     }
 

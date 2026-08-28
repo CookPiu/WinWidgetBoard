@@ -2003,48 +2003,6 @@
             </Grid>
         </DataTemplate>
 
-        <DataTemplate
-            x:Key="TokenUsageBreakdownTemplate"
-            x:DataType="runtime:TokenUsageBreakdownViewModel">
-            <Grid
-                Padding="0,2"
-                RowSpacing="2"
-                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind Label, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis" />
-                    <TextBlock
-                        Grid.Column="1"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind PrimaryText, Mode=OneWay}" />
-                    <TextBlock
-                        Grid.Column="2"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind SecondaryText, Mode=OneWay}" />
-                </Grid>
-                <ProgressBar
-                    Grid.Row="1"
-                    Height="2"
-                    Minimum="0"
-                    Maximum="100"
-                    Value="{x:Bind MeterPercent, Mode=OneWay}"
-                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                    IsTabStop="False"
-                    automation:AutomationProperties.AccessibilityView="Raw" />
-            </Grid>
-        </DataTemplate>
-
         <!--
             One page tab. A ToggleButton rather than a Pivot or a NavigationView: the card is a
             few grid cells tall, and both of those spend a whole row on chrome before showing
@@ -2195,6 +2153,23 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
+                                <!--
+                                    The day's spend, given the weight the weather card gives
+                                    its temperature. It is the figure this card is opened for,
+                                    and a uniform table of rows would give it no more emphasis
+                                    than the response count. Grouped by type scale and spacing
+                                    rather than by a rule or a box, per the visual spec.
+                                -->
+                                <StackPanel
+                                    Visibility="{x:Bind IsTokenUsageCostVisible, Mode=OneWay}">
+                                    <TextBlock
+                                        x:Uid="TokenUsageCostLabel"
+                                        Style="{StaticResource WwbCardCaptionStyle}" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                        Text="{x:Bind TokenUsageCostText, Mode=OneWay}"
+                                        automation:AutomationProperties.AutomationId="TokenUsageCostText" />
+                                </StackPanel>
                                 <ItemsControl
                                     ItemsSource="{x:Bind TokenUsageMetrics}"
                                     ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
@@ -2218,12 +2193,6 @@
                                 Grid.Column="{x:Bind TokenUsageSideColumn, Mode=OneWay}"
                                 Grid.Row="{x:Bind TokenUsageSideRow, Mode=OneWay}"
                                 Spacing="6">
-                                <ItemsControl
-                                    ItemsSource="{x:Bind TokenUsageBreakdown}"
-                                    ItemTemplate="{StaticResource TokenUsageBreakdownTemplate}"
-                                    IsTabStop="False"
-                                    automation:AutomationProperties.AutomationId="TokenUsageBreakdownList"
-                                    Visibility="{x:Bind IsTokenUsageBreakdownVisible, Mode=OneWay}" />
                                 <!--
                                     Header, balance and observation time share one line. They
                                     were three, which cost eighteen DIP the card does not have:

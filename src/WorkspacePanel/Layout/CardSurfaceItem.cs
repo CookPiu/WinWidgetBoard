@@ -27,7 +27,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         nameof(TokenUsageCurrentPage),
         nameof(HasTokenUsageData),
         nameof(IsTokenUsageTrendVisible),
-        nameof(IsTokenUsageBreakdownVisible),
+        nameof(TokenUsageCostText),
+        nameof(IsTokenUsageCostVisible),
         nameof(IsTokenUsageQuotaVisible),
         nameof(IsTokenUsageCreditsVisible),
         nameof(TokenUsageCreditsText),
@@ -93,7 +94,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsagePages = [];
         TokenUsageMetrics = [];
         TokenUsageTrend = [];
-        TokenUsageBreakdown = [];
         TokenUsageQuota = [];
         MergeTokenUsage(_tokenUsageProjection);
         _visibilityRegistration = visibilityScheduler?.Register(
@@ -273,8 +273,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public ObservableCollection<TokenUsageTrendBarViewModel> TokenUsageTrend { get; }
 
-    public ObservableCollection<TokenUsageBreakdownViewModel> TokenUsageBreakdown { get; }
-
     public ObservableCollection<TokenUsageQuotaViewModel> TokenUsageQuota { get; }
 
     /// <summary>
@@ -322,12 +320,26 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         CardSize.S => 2,
         // 98 DIP less the page tabs.
         CardSize.M or CardSize.W => 2,
-        // 266 DIP, less tabs, trend, breakdown and quota.
-        CardSize.L => 4,
-        // Wide enough to put the breakdown and quota in their own column, which buys back
-        // the height the readings need.
+        // 266 DIP, less tabs (30), the amount (54), the trend (38) and quota (49).
+        CardSize.L => 3,
+        // Wide enough to put the quota in its own column, which buys back the height the
+        // readings need.
         _ => TokenUsageContract.MetricIds.Count,
     };
+
+    /// <summary>
+    /// The day's spend, shown as the card's headline rather than as one row among the
+    /// readings - it is the number the card is read for, and a table gives every figure the
+    /// same weight. Empty when nothing on this page could be priced.
+    /// </summary>
+    public string TokenUsageCostText => TokenUsageCurrentPage?.CostText ?? string.Empty;
+
+    /// <summary>
+    /// The headline needs two rows of height, so it appears only where there are two.
+    /// </summary>
+    public bool IsTokenUsageCostVisible =>
+        TokenUsageCostText.Length > 0 &&
+        Placement.Size is CardSize.L or CardSize.XL;
 
     /// <summary>
     /// Four columns wide: the breakdown and quota move beside the readings instead of under
@@ -355,10 +367,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public bool IsTokenUsageTrendVisible =>
         TokenUsageCurrentPage?.IsTrendVisible == true &&
         Placement.Size is CardSize.L or CardSize.XL;
-
-    public bool IsTokenUsageBreakdownVisible =>
-        TokenUsageCurrentPage?.IsBreakdownVisible == true &&
-        Placement.Size is not (CardSize.S or CardSize.M);
 
     public bool IsTokenUsageQuotaVisible =>
         TokenUsageCurrentPage?.IsQuotaVisible == true &&
@@ -658,9 +666,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsageListMerger.MergeTrend(
             TokenUsageTrend,
             page?.Trend ?? Array.Empty<TokenUsageTrendBar>());
-        TokenUsageListMerger.MergeBreakdown(
-            TokenUsageBreakdown,
-            page?.Breakdown ?? Array.Empty<TokenUsageBreakdownRow>());
         TokenUsageListMerger.MergeQuota(
             TokenUsageQuota,
             page?.Quota ?? Array.Empty<TokenUsageQuotaRow>());

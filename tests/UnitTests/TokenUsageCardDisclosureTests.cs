@@ -26,8 +26,8 @@ public sealed class TokenUsageCardDisclosureTests
     [DataRow(CardSize.S, 2)]
     [DataRow(CardSize.M, 2)]
     [DataRow(CardSize.W, 2)]
-    [DataRow(CardSize.L, 4)]
-    [DataRow(CardSize.XL, 7)]
+    [DataRow(CardSize.L, 3)]
+    [DataRow(CardSize.XL, 6)]
     public void MetricLimitFollowsCardHeight(CardSize size, int expected)
     {
         using CardSurfaceItem card = CreateTokenUsageCard(size);
@@ -53,18 +53,36 @@ public sealed class TokenUsageCardDisclosureTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-092 [USE-015] The breakdown and quota survive at L, which is the default size")]
-    public void BreakdownAndQuotaFitAtTheDefaultSize()
+        "UT-TOKUSE-092 [USE-015] The amount and the quota both survive at L, the default size")]
+    public void AmountAndQuotaFitAtTheDefaultSize()
     {
         using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
         ApplyReadyPayload(card);
         card.SelectTokenUsagePage(TokenUsageContract.CodexVendorId);
 
-        // The regression: at L the readings filled the row and both of these were laid out
-        // past the bottom edge of the card.
-        Assert.IsTrue(card.IsTokenUsageBreakdownVisible);
+        // The regression this size budget exists for: the readings filled the row and
+        // everything below them was laid out past the bottom edge of the card.
+        Assert.IsTrue(card.IsTokenUsageCostVisible);
         Assert.IsTrue(card.IsTokenUsageQuotaVisible);
-        Assert.AreEqual(4, card.TokenUsageMetrics.Count);
+        Assert.AreEqual(3, card.TokenUsageMetrics.Count);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-097 [USE-017] The amount is the headline, and needs two rows to appear")]
+    [DataRow(CardSize.S, false)]
+    [DataRow(CardSize.M, false)]
+    [DataRow(CardSize.W, false)]
+    [DataRow(CardSize.L, true)]
+    [DataRow(CardSize.XL, true)]
+    public void AmountNeedsTwoRows(CardSize size, bool expected)
+    {
+        using CardSurfaceItem card = CreateTokenUsageCard(size);
+        ApplyReadyPayload(card);
+
+        Assert.AreEqual(expected, card.IsTokenUsageCostVisible);
+        // The figure itself is available at every size; only the headline treatment needs
+        // the height.
+        Assert.AreNotEqual(string.Empty, card.TokenUsageCostText);
     }
 
     [TestMethod(DisplayName =
@@ -108,11 +126,14 @@ public sealed class TokenUsageCardDisclosureTests
         ApplyReadyPayload(card);
 
         CollectionAssert.AreEqual(
-            TokenUsageContract.MetricIds.Take(4).ToArray(),
+            TokenUsageContract.MetricIds.Take(3).ToArray(),
             card.TokenUsageMetrics.Select(metric => metric.MetricId).ToArray());
-        // The headline and the live rate are the two a card of any size keeps.
+        // Spend first: the billed total and the cache reads that dominate it are the two a
+        // card of any size keeps.
         Assert.AreEqual(TokenUsageContract.TodayBilledTokens, card.TokenUsageMetrics[0].MetricId);
-        Assert.AreEqual(TokenUsageContract.CurrentRate, card.TokenUsageMetrics[1].MetricId);
+        Assert.AreEqual(
+            TokenUsageContract.TodayCacheReadTokens,
+            card.TokenUsageMetrics[1].MetricId);
     }
 
     [TestMethod(DisplayName =
@@ -121,7 +142,7 @@ public sealed class TokenUsageCardDisclosureTests
     {
         using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
         ApplyReadyPayload(card);
-        Assert.AreEqual(4, card.TokenUsageMetrics.Count);
+        Assert.AreEqual(3, card.TokenUsageMetrics.Count);
 
         // Resizing raises Placement only. A card grown to hold every reading has to fill in
         // the ones it was hiding, rather than waiting for the next refresh to land.

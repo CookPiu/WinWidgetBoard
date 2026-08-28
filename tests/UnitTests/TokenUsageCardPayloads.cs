@@ -61,6 +61,12 @@ internal static class TokenUsageCardPayloads
             Trend = Trend(),
             Breakdown = [new TokenUsageSlice("claude-opus-5", 1_580_000, 279)],
             CacheHitRate = 0.988d,
+            // Costed the way the broker does: the day's total, plus the per-kind shares the
+            // rows carry. Output is part of the billed share, not an addition to it.
+            TodayCostUsd = 108.80m,
+            TodayBilledCostUsd = 26.00m,
+            TodayCacheReadCostUsd = 82.80m,
+            TodayOutputCostUsd = 12.10m,
         };
 
     private static TokenUsageHourBucket[] Trend()
