@@ -120,6 +120,59 @@ public sealed class CardVisibilityUiContractTests
         StringAssert.Contains(initialStart, "RequestOpenMotion();");
     }
 
+    [TestMethod(DisplayName = "UT-CARD-028 [PNL-004/PNL-006] Every panel dismissal uses the shared close motion")]
+    public void EveryPanelDismissalUsesSharedCloseMotion()
+    {
+        string source = File.ReadAllText(GetAssetPath("MainWindow.xaml.cs"));
+
+        foreach (string signature in new[]
+        {
+            "private void MainWindow_Activated(",
+            "private void AppWindow_Closing(",
+            "private void RootGrid_KeyDown(",
+            "private void ClosePanelButton_Click(",
+        })
+        {
+            StringAssert.Contains(
+                GetMethodBody(source, signature),
+                "RequestCloseMotion();",
+                $"{signature} must not bypass the shared panel close animation.");
+        }
+    }
+
+    private static string GetMethodBody(string source, string signature)
+    {
+        int methodStart = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(
+            0,
+            methodStart,
+            $"Method was not found: {signature}");
+
+        int bodyStart = source.IndexOf('{', methodStart);
+        Assert.IsGreaterThanOrEqualTo(
+            0,
+            bodyStart,
+            $"Method body was not found: {signature}");
+
+        int depth = 0;
+        for (int index = bodyStart; index < source.Length; index++)
+        {
+            depth += source[index] switch
+            {
+                '{' => 1,
+                '}' => -1,
+                _ => 0,
+            };
+            if (depth == 0)
+            {
+                return source[bodyStart..(index + 1)];
+            }
+        }
+
+        Assert.Fail($"Method body was not closed: {signature}");
+        return string.Empty;
+    }
+
     private static string GetAssetPath(params string[] segments) =>
         Path.Combine([AppContext.BaseDirectory, "TestAssets", .. segments]);
 }
