@@ -2224,6 +2224,12 @@
                                     IsTabStop="False"
                                     automation:AutomationProperties.AutomationId="TokenUsageBreakdownList"
                                     Visibility="{x:Bind IsTokenUsageBreakdownVisible, Mode=OneWay}" />
+                                <!--
+                                    Header, balance and observation time share one line. They
+                                    were three, which cost eighteen DIP the card does not have:
+                                    at L the quota block ran past the bottom edge and the
+                                    balance was drawn off the card entirely.
+                                -->
                                 <StackPanel
                                     Spacing="2"
                                     Visibility="{x:Bind IsTokenUsageQuotaVisible, Mode=OneWay}">
@@ -2231,13 +2237,19 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock
                                             x:Uid="TokenUsageQuotaHeader"
                                             Style="{StaticResource WwbCardCaptionStyle}" />
                                         <TextBlock
                                             Grid.Column="1"
-                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource WwbCardCaptionStyle}"
+                                            Text="{x:Bind TokenUsageCreditsText, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Visibility="{x:Bind IsTokenUsageCreditsVisible, Mode=OneWay}" />
+                                        <TextBlock
+                                            Grid.Column="2"
                                             Style="{StaticResource WwbCardCaptionStyle}"
                                             Text="{x:Bind TokenUsageQuotaObservedText, Mode=OneWay}"
                                             TextTrimming="CharacterEllipsis" />
@@ -2247,10 +2259,6 @@
                                         ItemTemplate="{StaticResource TokenUsageQuotaTemplate}"
                                         IsTabStop="False"
                                         automation:AutomationProperties.AutomationId="TokenUsageQuotaList" />
-                                    <TextBlock
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        Text="{x:Bind TokenUsageCreditsText, Mode=OneWay}"
-                                        Visibility="{x:Bind IsTokenUsageCreditsVisible, Mode=OneWay}" />
                                 </StackPanel>
                             </StackPanel>
                         </Grid>

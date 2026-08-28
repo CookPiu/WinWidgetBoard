@@ -158,7 +158,8 @@ public sealed class TokenUsageAggregatorTests
                     Now.AddMinutes(-5),
                     InputTokens: 10,
                     OutputTokens: 1_000,
-                    CacheCreationTokens: 10,
+                    CacheWrite5mTokens: 10,
+                    CacheWrite1hTokens: 0,
                     CacheReadTokens: 80),
             ],
             Now);
@@ -340,6 +341,7 @@ public sealed class TokenUsageAggregatorTests
             Now.AddMinutes(-minutesAgo),
             InputTokens: 0,
             OutputTokens: billed,
-            CacheCreationTokens: 0,
+            CacheWrite5mTokens: 0,
+            CacheWrite1hTokens: 0,
             CacheReadTokens: 0);
 }

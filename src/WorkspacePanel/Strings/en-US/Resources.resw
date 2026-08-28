@@ -1028,7 +1028,7 @@
     <value>Token usage</value>
   </data>
   <data name="TokenUsageSettingsDescription.Text" xml:space="preserve">
-    <value>Counted from the session records each tool writes on this machine. Nothing is sent anywhere, and no account or key is needed.</value>
+    <value>Counted from the session records each tool writes on this machine. Nothing is sent anywhere, and no account or key is needed. Amounts are estimated at published API rates and are not a bill - subscription plans bill differently, and a model with no published rate is left out of the total. The amount covers every kind of token, including cache reads, which the token count beside it leaves out.</value>
   </data>
   <data name="TokenUsageVendorUnavailable.Text" xml:space="preserve">
     <value>no records</value>
@@ -1056,5 +1056,11 @@
   </data>
   <data name="TokenUsageSettingsConflictStatus" xml:space="preserve">
     <value>Token usage settings changed elsewhere and were reloaded.</value>
+  </data>
+  <data name="TokenUsageCost.Estimate" xml:space="preserve">
+    <value>Estimated at published API rates, not a bill</value>
+  </data>
+  <data name="TokenUsageCost.Unpriced" xml:space="preserve">
+    <value>{0} model(s) have no price and are excluded</value>
   </data>
 </root>

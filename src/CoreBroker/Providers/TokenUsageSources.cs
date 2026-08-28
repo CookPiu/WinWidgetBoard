@@ -18,9 +18,17 @@ public readonly record struct TranscriptUsageRecord(
     DateTimeOffset TimestampUtc,
     long InputTokens,
     long OutputTokens,
-    long CacheCreationTokens,
+    long CacheWrite5mTokens,
+    long CacheWrite1hTokens,
     long CacheReadTokens)
 {
+    /// <summary>
+    /// Everything written to cache, whatever its lifetime. The two durations are kept apart on
+    /// the record because they are not priced alike - a one-hour write costs twice the base
+    /// input rate against a five-minute write's 1.25x - and the vendors report the split.
+    /// </summary>
+    public long CacheCreationTokens => CacheWrite5mTokens + CacheWrite1hTokens;
+
     /// <summary>
     /// The part charged at the full rate. Cache reads are excluded because they are roughly an
     /// order of magnitude larger and an order of magnitude cheaper; a sum they are folded into
@@ -154,6 +162,9 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
         long input = 0;
         long output = 0;
         long cacheCreation = 0;
+        long cacheWrite5m = 0;
+        long cacheWrite1h = 0;
+        bool hasCacheSplit = false;
         long cacheRead = 0;
 
         try
@@ -196,6 +207,9 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
                         ref input,
                         ref output,
                         ref cacheCreation,
+                        ref cacheWrite5m,
+                        ref cacheWrite1h,
+                        ref hasCacheSplit,
                         ref cacheRead);
                 }
                 else
@@ -222,6 +236,16 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
             return false;
         }
 
+        // The nested "cache_creation" object carries the per-duration split. Where it is
+        // absent - an older transcript, or a build that never wrote it - the flat total is
+        // charged at the five-minute rate, which is the cheaper of the two and therefore the
+        // one that cannot overstate what the usage cost.
+        if (!hasCacheSplit)
+        {
+            cacheWrite5m = cacheCreation;
+            cacheWrite1h = 0;
+        }
+
         record = new TranscriptUsageRecord(
             TokenUsageContract.ClaudeVendorId,
             requestId,
@@ -230,7 +254,8 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
             timestamp.ToUniversalTime(),
             input,
             output,
-            cacheCreation,
+            cacheWrite5m,
+            cacheWrite1h,
             cacheRead);
         return true;
     }
@@ -243,6 +268,9 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
         ref long input,
         ref long output,
         ref long cacheCreation,
+        ref long cacheWrite5m,
+        ref long cacheWrite1h,
+        ref bool hasCacheSplit,
         ref long cacheRead)
     {
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
@@ -269,7 +297,15 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
                 }
 
                 hasUsage = true;
-                ReadUsage(ref reader, ref input, ref output, ref cacheCreation, ref cacheRead);
+                ReadUsage(
+                    ref reader,
+                    ref input,
+                    ref output,
+                    ref cacheCreation,
+                    ref cacheWrite5m,
+                    ref cacheWrite1h,
+                    ref hasCacheSplit,
+                    ref cacheRead);
             }
             else
             {
@@ -285,6 +321,9 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
         ref long input,
         ref long output,
         ref long cacheCreation,
+        ref long cacheWrite5m,
+        ref long cacheWrite1h,
+        ref bool hasCacheSplit,
         ref long cacheRead)
     {
         while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
@@ -305,10 +344,56 @@ public sealed class ClaudeTokenUsageSource : ITokenUsageSource, IJsonlLineConsum
             {
                 cacheRead = JsonScan.ReadCount(ref reader);
             }
+            else if (reader.ValueTextEquals("cache_creation"u8))
+            {
+                reader.Read();
+                if (reader.TokenType != JsonTokenType.StartObject)
+                {
+                    JsonScan.SkipValue(ref reader);
+                    continue;
+                }
+
+                ReadCacheCreation(
+                    ref reader,
+                    ref cacheWrite5m,
+                    ref cacheWrite1h,
+                    ref hasCacheSplit);
+            }
             else
             {
                 // "iterations" repeats the same four counters per internal turn and would
                 // double-count if summed alongside the totals above.
+                reader.Read();
+                JsonScan.SkipValue(ref reader);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The per-duration cache write split. The two lifetimes are priced differently - a
+    /// one-hour write is twice the base input rate where a five-minute write is 1.25x - so
+    /// reading the split is what makes a cost figure exact rather than approximate.
+    /// </summary>
+    private static void ReadCacheCreation(
+        ref Utf8JsonReader reader,
+        ref long cacheWrite5m,
+        ref long cacheWrite1h,
+        ref bool hasCacheSplit)
+    {
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            if (reader.ValueTextEquals("ephemeral_5m_input_tokens"u8))
+            {
+                cacheWrite5m = JsonScan.ReadCount(ref reader);
+                hasCacheSplit = true;
+            }
+            else if (reader.ValueTextEquals("ephemeral_1h_input_tokens"u8))
+            {
+                cacheWrite1h = JsonScan.ReadCount(ref reader);
+                hasCacheSplit = true;
+            }
+            else
+            {
                 reader.Read();
                 JsonScan.SkipValue(ref reader);
             }
@@ -513,7 +598,10 @@ public sealed class CodexTokenUsageSource : ITokenUsageSource, IJsonlLineConsume
                 timestamp.ToUniversalTime(),
                 delta.Input,
                 delta.Output,
+                // Codex reports one cache-write figure and no lifetime, so it is charged at
+                // the cheaper five-minute rate rather than assumed to be the expensive one.
                 delta.CacheWrite,
+                0,
                 delta.CacheRead));
     }
 

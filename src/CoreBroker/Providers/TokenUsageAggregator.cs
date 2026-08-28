@@ -73,6 +73,26 @@ public sealed record TokenUsageAggregate
     /// is no input at all, because a rate over nothing is not zero.
     /// </summary>
     public double? CacheHitRate { get; init; }
+
+    /// <summary>
+    /// What today's usage would have cost at the vendors' published list prices, in USD.
+    ///
+    /// Not a bill. Both tools are normally used on a subscription, where the per-token rate is
+    /// not what the user pays; this is the same "at API rates" figure ccusage and cc-switch
+    /// report, and the card labels it as an estimate rather than presenting it as an invoice.
+    /// </summary>
+    public decimal TodayCostUsd { get; init; }
+
+    /// <summary>
+    /// How many distinct models today's usage included that this build has no verified price
+    /// for. Their tokens are counted; their cost is not, and cannot be.
+    ///
+    /// Reported rather than absorbed: pricing an unknown model at zero would understate the
+    /// total, and an understated total is the one error that cannot be seen by looking at it.
+    /// </summary>
+    public int UnpricedModelCount { get; init; }
+
+    public bool HasCost => TodayCostUsd > 0m;
 }
 
 /// <summary>One vendor's page, plus whatever quota that vendor published.</summary>
@@ -224,6 +244,8 @@ public sealed class TokenUsageAggregator
         long rateWindowBilled = 0;
         int rateWindowRequests = 0;
         bool any = false;
+        decimal todayCost = 0m;
+        var unpricedModels = new HashSet<string>(StringComparer.Ordinal);
 
         var hourly = new long[TokenUsageContract.TrendHours];
         var hourlyRequests = new int[TokenUsageContract.TrendHours];
@@ -252,6 +274,15 @@ public sealed class TokenUsageAggregator
                 todayCacheRead += record.CacheReadTokens;
                 todayCacheableInput += record.CacheableInputTokens;
                 todayRequests++;
+
+                if (TokenUsagePricing.TryGetCost(record) is { } cost)
+                {
+                    todayCost += cost;
+                }
+                else
+                {
+                    unpricedModels.Add(record.Model);
+                }
 
                 string key = label(record);
                 (long billed, int requests) = slices.TryGetValue(
@@ -345,6 +376,8 @@ public sealed class TokenUsageAggregator
             CacheHitRate = todayCacheableInput > 0
                 ? todayCacheRead / (double)todayCacheableInput
                 : null,
+            TodayCostUsd = todayCost,
+            UnpricedModelCount = unpricedModels.Count,
         };
     }
 

@@ -229,6 +229,24 @@ public sealed record TokenUsagePageDto
     /// nothing rather than implying a limit it cannot see.
     /// </summary>
     public TokenUsageQuotaDto? Quota { get; init; }
+
+    /// <summary>
+    /// Today's usage costed at the vendors' published list prices, already composed - for
+    /// example "$12.34". Empty when nothing on this page could be priced.
+    ///
+    /// This is an estimate and the card says so. Both tools are normally used on a
+    /// subscription, where the per-token rate is not what the user actually pays.
+    /// </summary>
+    public string CostText { get; init; } = string.Empty;
+
+    /// <summary>
+    /// How many of this page's models have no verified price in this build. Their tokens are
+    /// in the totals; their cost is not, and the card has to say so rather than presenting a
+    /// figure that quietly omits them.
+    /// </summary>
+    public int UnpricedModelCount { get; init; }
+
+    public bool HasCost => CostText.Length > 0;
 }
 
 public sealed record TokenUsageMetricDto

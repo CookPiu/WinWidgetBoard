@@ -1028,7 +1028,7 @@
     <value>Token 用量</value>
   </data>
   <data name="TokenUsageSettingsDescription.Text" xml:space="preserve">
-    <value>统计各工具在本机写下的会话记录；不发送到任何地方，也不需要账号或密钥。</value>
+    <value>统计各工具在本机写下的会话记录；不发送到任何地方，也不需要账号或密钥。金额按公开 API 价格估算，不是实际账单——订阅制的计费方式不同，没有公开价格的模型不计入总额。金额涵盖全部 token 类型（含缓存读取），而旁边的 token 数不含缓存读取。</value>
   </data>
   <data name="TokenUsageVendorUnavailable.Text" xml:space="preserve">
     <value>无记录</value>
@@ -1056,5 +1056,11 @@
   </data>
   <data name="TokenUsageSettingsConflictStatus" xml:space="preserve">
     <value>Token 用量设置已在别处更改，已重新载入。</value>
+  </data>
+  <data name="TokenUsageCost.Estimate" xml:space="preserve">
+    <value>按公开 API 价格估算，非实际账单</value>
+  </data>
+  <data name="TokenUsageCost.Unpriced" xml:space="preserve">
+    <value>{0} 个模型无价格，未计入</value>
   </data>
 </root>

@@ -84,6 +84,8 @@ public static class TokenUsageFormatter
             Trend = NormalizeTrend(aggregate.Trend),
             Breakdown = FormatBreakdown(aggregate),
             Quota = FormatQuota(quota, timeZone ?? TimeZoneInfo.Local, nowUtc),
+            CostText = FormatCost(aggregate),
+            UnpricedModelCount = aggregate.UnpricedModelCount,
         };
     }
 
@@ -268,12 +270,45 @@ public static class TokenUsageFormatter
             : TimeZoneInfo.ConvertTime(instantUtc, timeZone)
                 .ToString("HH:mm", CultureInfo.InvariantCulture);
 
-    private static TokenUsageMetricDto FormatBilledTokens(TokenUsageAggregate aggregate) =>
-        HasToday(aggregate)
-            ? Ready(
-                TokenUsageContract.TodayBilledTokens,
-                FormatTokenCount(aggregate.TodayBilledTokens))
-            : Empty(TokenUsageContract.TodayBilledTokens);
+    private static TokenUsageMetricDto FormatBilledTokens(TokenUsageAggregate aggregate)
+    {
+        if (!HasToday(aggregate))
+        {
+            return Empty(TokenUsageContract.TodayBilledTokens);
+        }
+
+        return Ready(
+            TokenUsageContract.TodayBilledTokens,
+            FormatTokenCount(aggregate.TodayBilledTokens)) with
+        {
+            // The approximation sign is doing real work: this is list price, not a bill.
+            SecondaryText = FormatCost(aggregate),
+        };
+    }
+
+    /// <summary>
+    /// Today's cost at list price. Two decimal places up to four figures, then whole dollars -
+    /// cents stop meaning anything once the total is in the hundreds, and the card has no room
+    /// for digits that carry nothing.
+    /// </summary>
+    public static string FormatCost(TokenUsageAggregate aggregate)
+    {
+        ArgumentNullException.ThrowIfNull(aggregate);
+        if (aggregate.TodayCostUsd <= 0m)
+        {
+            return string.Empty;
+        }
+
+        decimal cost = aggregate.TodayCostUsd;
+        string amount = cost >= 1000m
+            ? cost.ToString("N0", CultureInfo.InvariantCulture)
+            : cost.ToString("N2", CultureInfo.InvariantCulture);
+        // A trailing plus where some of today's models have no verified price: the figure is
+        // then a floor rather than a total, and saying so costs no height on a card that has
+        // none to spare. Without it the number would quietly omit whatever could not be priced.
+        string floorMarker = aggregate.UnpricedModelCount > 0 ? "+" : string.Empty;
+        return "\u2248$" + amount + floorMarker;
+    }
 
     private static TokenUsageMetricDto FormatOutputTokens(TokenUsageAggregate aggregate)
     {

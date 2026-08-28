@@ -15,6 +15,8 @@ public static class TokenUsageResourceKeys
     public const string QuotaCredits = "TokenUsageQuota.Credits";
     public const string QuotaResets = "TokenUsageQuota.Resets";
     public const string QuotaObserved = "TokenUsageQuota.Observed";
+    public const string CostEstimate = "TokenUsageCost.Estimate";
+    public const string CostUnpriced = "TokenUsageCost.Unpriced";
 
     public static string GetMetricNameKey(string metricId) => metricId switch
     {
@@ -80,11 +82,30 @@ public sealed record TokenUsageMetricRow
 
     public double MeterFraction => Ratio ?? 0d;
 
-    public string AutomationName => HasReading
-        ? IsSecondaryVisible
-            ? $"{Name} {PrimaryText} {SecondaryText}"
-            : $"{Name} {PrimaryText}"
-        : $"{Name} {MetricStatusText}";
+    /// <summary>
+    /// Extra wording a screen reader needs that the visual row conveys by symbol - today's
+    /// cost is shown with an approximation sign, and that is not enough on its own to say the
+    /// figure is an estimate at list price rather than a bill.
+    /// </summary>
+    public string AutomationDetail { get; init; } = string.Empty;
+
+    public string AutomationName
+    {
+        get
+        {
+            if (!HasReading)
+            {
+                return $"{Name} {MetricStatusText}";
+            }
+
+            string reading = IsSecondaryVisible
+                ? $"{Name} {PrimaryText} {SecondaryText}"
+                : $"{Name} {PrimaryText}";
+            return AutomationDetail.Length > 0
+                ? $"{reading} · {AutomationDetail}"
+                : reading;
+        }
+    }
 }
 
 /// <summary>
@@ -181,6 +202,22 @@ public sealed record TokenUsagePage
 
     public string QuotaObservedText { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Today's usage at published list prices, already composed - "≈$12.34", or with a
+    /// trailing "+" when some model could not be priced. Empty when nothing was priceable.
+    /// </summary>
+    public string CostText { get; init; } = string.Empty;
+
+    /// <summary>Models in today's usage this build has no verified price for.</summary>
+    public int UnpricedModelCount { get; init; }
+
+    /// <summary>
+    /// The wording that makes the figure honest: list price, not a bill. It rides on the
+    /// reading's accessible name rather than taking a line of its own, because at L the card
+    /// has no line to give.
+    /// </summary>
+    public string CostNoteText { get; init; } = string.Empty;
+
     public bool HasData { get; init; }
 
     /// <summary>
@@ -252,10 +289,12 @@ public sealed record TokenUsageCardProjection
                 continue;
             }
 
+            string costNote = ReadCostNote(page, resourceResolver);
             IReadOnlyList<TokenUsageMetricRow> metrics = ReadMetrics(
                 page,
                 resourceResolver,
-                emptyText);
+                emptyText,
+                costNote);
             result.Add(
                 new TokenUsagePage
                 {
@@ -269,6 +308,9 @@ public sealed record TokenUsageCardProjection
                     Quota = ReadQuota(page, resourceResolver, out string credits, out string observed),
                     QuotaCreditsText = credits,
                     QuotaObservedText = observed,
+                    CostText = ReadString(page, "costText") ?? string.Empty,
+                    UnpricedModelCount = ReadInt(page, "unpricedModelCount"),
+                    CostNoteText = costNote,
                     HasData = metrics.Any(metric => metric.HasReading),
                 });
         }
@@ -279,7 +321,8 @@ public sealed record TokenUsageCardProjection
     private static TokenUsageMetricRow[] ReadMetrics(
         JsonElement page,
         Func<string, string?> resourceResolver,
-        string emptyText)
+        string emptyText,
+        string costNote)
     {
         if (!page.TryGetProperty("metrics", out JsonElement metrics) ||
             metrics.ValueKind != JsonValueKind.Array)
@@ -315,6 +358,12 @@ public sealed record TokenUsageCardProjection
                     SecondaryText = ReadString(metric, "secondaryText") ?? string.Empty,
                     Ratio = ReadRatio(metric, "ratio"),
                     MetricStatusText = emptyText,
+                    AutomationDetail = string.Equals(
+                        metricId,
+                        TokenUsageContract.TodayBilledTokens,
+                        StringComparison.Ordinal)
+                        ? costNote
+                        : string.Empty,
                 });
         }
 
@@ -442,6 +491,38 @@ public sealed record TokenUsageCardProjection
 
         return rows.ToArray();
     }
+
+    /// <summary>
+    /// The estimate wording for this page: always that the figure is list price rather than a
+    /// bill, and additionally how many models had no price when any did not.
+    /// </summary>
+    private static string ReadCostNote(
+        JsonElement page,
+        Func<string, string?> resourceResolver)
+    {
+        string cost = ReadString(page, "costText") ?? string.Empty;
+        int unpriced = ReadInt(page, "unpricedModelCount");
+        if (cost.Length == 0 && unpriced == 0)
+        {
+            return string.Empty;
+        }
+
+        string note = Resolve(resourceResolver, TokenUsageResourceKeys.CostEstimate);
+        return unpriced > 0
+            ? note + " " + Format(
+                resourceResolver,
+                TokenUsageResourceKeys.CostUnpriced,
+                unpriced.ToString(System.Globalization.CultureInfo.CurrentCulture))
+            : note;
+    }
+
+    private static int ReadInt(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out JsonElement value) &&
+            value.ValueKind == JsonValueKind.Number &&
+            value.TryGetInt32(out int parsed) &&
+            parsed >= 0
+            ? parsed
+            : 0;
 
     private static double? ReadRatio(JsonElement element, string propertyName)
     {
