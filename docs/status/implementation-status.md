@@ -19,7 +19,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 | 基础布局 | 已实现 2/4/6 列、拖动、持久化、恢复和撤销 | 只修缺陷，不扩展复杂编辑 |
 | 便签 | 已实现 CRUD、搜索、Markdown、自动保存和安全删除；编辑区使用内容优先与渐进操作 | 只维护核心旅程 |
 | 天气 | 已实现 Open-Meteo、订阅、手动位置和重启恢复设置；面板关闭时按小时后台刷新，任务栏入口可经 `weather.summary.get` 显示读数 | 自动定位和跨重启 payload 缓存延期 |
-| 硬件监控 | 卡片与任务栏分段显示均已实现，显示项两处独立可配置并落盘；任务栏分段使用固定槽位，读数长度变化不再推动后续栏；公开 API 层覆盖 8 项读数，采样按需进行，任务栏硬件胶囊启用时每秒采样并刷新一次 | 温度、风扇、CPU 频率恒为不可读，不再等待传感器层（[ADR-0029](../adr/0029-drop-the-bundled-sensor-driver.md)） |
+| 硬件监控 | 卡片与任务栏分段显示均已实现，显示项两处独立可配置并落盘；任务栏分段使用固定槽位，读数长度变化不再推动后续栏；公开 API 层覆盖 9 项读数（含 CPU 频率），采样按需进行，任务栏硬件胶囊启用时每秒采样并刷新一次 | 温度与风扇恒为不可读，不再等待传感器层（[ADR-0029](../adr/0029-drop-the-bundled-sensor-driver.md)、[ADR-0031](../adr/0031-cpu-clock-from-per-core-counters.md)） |
 | Token 用量 | 卡片已实现，读 Claude 与 Codex 的本机会话记录：两者格式与口径不同，Claude 按 `(requestId, messageId)` 去重、Codex 取会话累计量的相邻差分；分总览页与厂商页，设置页可启用/禁用厂商；以当日花费为主视觉，下列今日计费/缓存读取/响应数/缓存命中率/输出，各 token 类型带自己那份金额，金额按公开 API 价折算并标 `≈`，无价模型不计入并以 `+` 标为下限，价表带核验日期；24 小时趋势条；内容按卡片格数披露（S/M/W 两项读数，L 起全部）；卡片不可见时完全不读盘 | 不展示订阅配额（本地记录无法判断自身是否仍然成立，见 [ADR-0030](../adr/0030-token-usage-card.md) §2.2）；无请求级延迟；新增厂商的门禁见同一 ADR |
 
 ## 3. 已有基础设施
@@ -38,7 +38,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 当前提交的完成证据：
 
 - UI 评审固定条件：浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文、生产数据，基线提交 `10e7a2c`。Before：天气卡片把体感、湿度、风速排成三个裸数字（`32.4 °C` / `87%` / `1.6 km/h`，没有名称，第一个读作第二个温度），天气描述是硬编码英文（中文面板里显示 `Thunderstorm with hail`），观测时间是孤零零一行 `14:15`，署名是整张卡上最响的强调色链接，`L` 下半张卡是空的；设置浮层与便签独立窗口是系统默认的白底方框。After：次要读数横排三列、名称在上；描述按语言取字；观测时间与署名合成一行安静的页脚；内容按格数披露（见 UX 规范 3.4），`W`/`XL` 把预报并排放进空着的右半；设置浮层与便签窗口改用面板自己的材质、圆角与表面层次。Why：卡片的问题不是缺数据而是这些数字没说自己是什么。实测踩到一处：堆叠布局里预报块留在 `Auto` 列会被按无界宽度测量，日行的最高气温在星号列上被排到裁剪之外——**星期和字形显示，两个温度不显示**；补上 `Grid.ColumnSpan` 才对；
-- Release UnitTests：501/501；
+- Release UnitTests：505/505；
 - 参考机 `3200×2000 @ 165 Hz`、200% DPI：冷开 / 关闭 / 驻留重开的合成帧平均间隔分别为
   `6.03 / 5.98 / 6.04 ms`，最大间隔为 `7.30 / 6.45 / 8.93 ms`；120 ms 中途反向后保持常驻并正常隐藏，
   整段平均 `6.08 ms`、最大 `11.60 ms`。逐帧截图确认 6 张卡片使用不同的放射轴和朝向胶囊的边缘铰点；
@@ -84,7 +84,8 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
   实测安装态入口为 `16,1912 - 240,1992`（112×40 DIP，DPI 192），晴天配色与日轮图形已截图核对；
   同一构建以 `--entry-icon-preview` 输出 192 DPI 对照表，十一种天气 × 深/浅条带逐格评审；
 - 真实桌面 `Test-SystemMonitorInteraction.ps1` 通过（`REAL-SYSMON-PASS`）：卡片经 UIA 播报
-  `内存 60% 18.8 GB / 31.4 GB`，在对话框中切换 `cpu.clock` 后卡片在一个刷新周期内跟随，
+  `内存 63% 19.8 GB / 31.4 GB`，在对话框中切换 `cpu.clock` 后卡片在一个刷新周期内跟随，
+  播报 `CPU 频率 4.37 GHz`（脚本现在断言该行必须给出 GHz/MHz 读数，仅有行名视为失败），
   重启面板后设置从 SQLite 读回；
 - 真实桌面：安装态入口同时显示主胶囊与硬件胶囊，实测窗口 `16,1912 - 656,1992`（320×40 DIP，
   DPI 192），其中主胶囊为时钟、硬件胶囊为 CPU/MEM 与上下行两列；`--entry-icon-preview` 的
@@ -94,8 +95,9 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面 `Test-AddCardInteraction.ps1` 通过（`REAL-ADDCARD-PASS`）：编辑模式外添加按钮不可见，
   进入编辑后出现；全部卡片在板时不弹空对话框；移除计时器卡片后经选择器加回，完成编辑并重启面板后
   仍在布局中；
-- `WinWidgetBoard.CoreBroker.exe --sysmon-smoke-test` 退出码 0，参考机上 8 项读数为 `ready`，
-  温度、风扇、CPU 频率 4 项为 `unavailable`；网速采样改为仅累计具有 IPv4/IPv6 接口索引的
+- `WinWidgetBoard.CoreBroker.exe --sysmon-smoke-test` 退出码 0，参考机上 9 项读数为 `ready`
+  （空载时 `cpu.clock` 为 3.62 GHz，12 线程满载时为 4.59 GHz，同刻独立复核为 4.50 GHz，
+  该型号 P-core 睿频上限 4.9 GHz），CPU 温度、GPU 温度、风扇 3 项为 `unavailable`；网速采样改为仅累计具有 IPv4/IPv6 接口索引的
   IP 层端点，参考机从 17 个原始 `Up` 条目收敛为 4 个逻辑接口；`UT-SYSMON-054/055` 覆盖接口
   加入、移除和历史累计值不得形成尖峰；
 - 验收使用隔离临时数据和独立实例身份，结束后已清理。
@@ -177,12 +179,20 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 - **范围变更**：核心五项变为核心六项。`ADR-0022` 将系统监控列为延期项并要求明确再批准，
   本轮即该再批准的落地；
-- **公开 API 层**覆盖 CPU 占用、内存、GPU 占用与显存、磁盘活动与占用、网络上下行共 8 项，
+- **公开 API 层**覆盖 CPU 占用与频率、内存、GPU 占用与显存、磁盘活动与占用、网络上下行共 9 项，
   全部走 `GetSystemTimes` / `GlobalMemoryStatusEx` / `NetworkInterface` / `DriveInfo` / PDH，
   无新依赖、无驱动、无管理员；PDH 一律用 `PdhAddEnglishCounter`，否则在中文 Windows 上静默失效；
-- **温度、风扇、CPU 频率报 `unavailable`**，等待尚未实现的传感器服务。CPU 频率归入该层是实测结论：
-  `Processor Frequency` 在参考机上恒返回 1.33 GHz（实际约 4.2 GHz），
-  而 `% Processor Performance × ~MHz` 得到 8.18 GHz，因为 `~MHz` 记录的是开机频率而非基准频率；
+- **CPU 频率由每核 PDH 计数器测出**（[ADR-0031](../adr/0031-cpu-clock-from-per-core-counters.md)）：
+  `\Processor Information(*)\Processor Frequency` 是**每颗核的标称频率**（参考机 P-core 1700、
+  E-core 1300、LPE-core 700 MHz），只有 `_Total` 汇总实例跨核类求平均才恒为 1.33 GHz；
+  与同实例的 `% Processor Performance`（APERF/MPERF 比值）相乘即该核的实际平均频率，
+  取最快的一颗上报。超过 10 GHz 的结果整条丢弃，首拍报 `pending`；不画进度条也不画走势图，
+  因为睿频上限在用户态读不到。`CallNtPowerInformation` 与 `Win32_Processor.CurrentClockSpeed`
+  在本机满载与空载都恒等于标称值，已排除；
+- **温度与风扇报 `unavailable`**，读取需要内核驱动，本产品不分发。本轮复核：
+  `MSAcpi_ThermalZoneTemperature` 普通用户仍拒绝访问，
+  `Win32_PerfFormattedData_Counters_ThermalZoneInformation` 只有一个恒 0 的芯片组温区，
+  `Win32_Fan` 不提供转速；
 - **采样按需**：卡片可见或入口近 10 秒内索要过摘要才以 2 秒节奏采样，否则完全休眠，
   唤醒时丢弃增量基线；
 - **网速去重与尖峰保护**：不再把所有 `Up` 的 `NetworkInterface` 累加。WFP、QoS 与抓包过滤层
@@ -219,7 +229,8 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 被拦下的是该库分发的那个具体驱动。
 
 因此不引入第三方运行时依赖、不新增第四个进程、不分发任何 WinRing0 系驱动（含改名变体）。
-温度、风扇、CPU 频率四项恒显示「此电脑无法读取」。
+温度与风扇恒显示「此电脑无法读取」；CPU 频率并不需要驱动，已按
+[ADR-0031](../adr/0031-cpu-clock-from-per-core-counters.md) 改为可读。
 
 上一轮已完成（天气三项优化）：
 

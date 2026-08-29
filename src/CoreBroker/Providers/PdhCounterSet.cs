@@ -9,6 +9,8 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// </summary>
 internal readonly record struct PdhReadings
 {
+    public double? CpuClockMhz { get; init; }
+
     public double? DiskBusyPercent { get; init; }
 
     public double? GpuUsagePercent { get; init; }
@@ -32,6 +34,18 @@ internal sealed class PdhCounterSet : IDisposable
     private const uint ErrorSuccess = 0;
     private const uint PdhMoreData = 0x800007D2;
 
+    // The clock is measured per core and never from the _Total instance. On a hybrid CPU the
+    // nominal frequencies differ by core class - 1.7 GHz, 1.3 GHz and 0.7 GHz on the reference
+    // machine - so _Total's nominal is an average across three different kinds of core, and its
+    // performance ratio is an average over cores that are not comparable. Multiplied together
+    // they describe no core that exists. Per instance the two counters do belong to the same
+    // core, and their product is that core's average frequency over the interval, which is what
+    // the performance ratio measures.
+    private const string CpuNominalFrequencyPath =
+        @"\Processor Information(*)\Processor Frequency";
+    private const string CpuPerformancePath =
+        @"\Processor Information(*)\% Processor Performance";
+
     private const string DiskIdlePath = @"\PhysicalDisk(_Total)\% Idle Time";
     private const string GpuUtilizationPath = @"\GPU Engine(*)\Utilization Percentage";
     // An integrated GPU holds everything in shared memory and reports zero dedicated usage, so
@@ -39,7 +53,17 @@ internal sealed class PdhCounterSet : IDisposable
     private const string GpuDedicatedMemoryPath = @"\GPU Adapter Memory(*)\Dedicated Usage";
     private const string GpuSharedMemoryPath = @"\GPU Adapter Memory(*)\Shared Usage";
 
+    /// <summary>
+    /// Above this the counters are no longer describing this machine. No shipping x86 part runs
+    /// anywhere near it, so a product this large means the nominal frequency or the performance
+    /// ratio is wrong - the failure mode that made the earlier _Total-based attempt report
+    /// 8.18 GHz - and the reading is dropped rather than shown.
+    /// </summary>
+    private const double ImplausibleClockMhz = 10_000d;
+
     private readonly IntPtr _query;
+    private readonly IntPtr _cpuNominalFrequency;
+    private readonly IntPtr _cpuPerformance;
     private readonly IntPtr _diskIdle;
     private readonly IntPtr _gpuUtilization;
     private readonly IntPtr _gpuDedicatedMemory;
@@ -50,12 +74,16 @@ internal sealed class PdhCounterSet : IDisposable
 
     private PdhCounterSet(
         IntPtr query,
+        IntPtr cpuNominalFrequency,
+        IntPtr cpuPerformance,
         IntPtr diskIdle,
         IntPtr gpuUtilization,
         IntPtr gpuDedicatedMemory,
         IntPtr gpuSharedMemory)
     {
         _query = query;
+        _cpuNominalFrequency = cpuNominalFrequency;
+        _cpuPerformance = cpuPerformance;
         _diskIdle = diskIdle;
         _gpuUtilization = gpuUtilization;
         _gpuDedicatedMemory = gpuDedicatedMemory;
@@ -73,12 +101,16 @@ internal sealed class PdhCounterSet : IDisposable
             return null;
         }
 
+        IntPtr cpuNominalFrequency = TryAddCounter(query, CpuNominalFrequencyPath);
+        IntPtr cpuPerformance = TryAddCounter(query, CpuPerformancePath);
         IntPtr diskIdle = TryAddCounter(query, DiskIdlePath);
         IntPtr gpuUtilization = TryAddCounter(query, GpuUtilizationPath);
         IntPtr gpuDedicatedMemory = TryAddCounter(query, GpuDedicatedMemoryPath);
         IntPtr gpuSharedMemory = TryAddCounter(query, GpuSharedMemoryPath);
 
-        if (diskIdle == IntPtr.Zero &&
+        if (cpuNominalFrequency == IntPtr.Zero &&
+            cpuPerformance == IntPtr.Zero &&
+            diskIdle == IntPtr.Zero &&
             gpuUtilization == IntPtr.Zero &&
             gpuDedicatedMemory == IntPtr.Zero &&
             gpuSharedMemory == IntPtr.Zero)
@@ -89,6 +121,8 @@ internal sealed class PdhCounterSet : IDisposable
 
         return new PdhCounterSet(
             query,
+            cpuNominalFrequency,
+            cpuPerformance,
             diskIdle,
             gpuUtilization,
             gpuDedicatedMemory,
@@ -121,6 +155,7 @@ internal sealed class PdhCounterSet : IDisposable
         double? diskIdle = ReadSingle(_diskIdle);
         return new PdhReadings
         {
+            CpuClockMhz = ReadCpuClockMhz(),
             DiskBusyPercent = diskIdle is { } idle
                 ? Math.Clamp(100d - idle, 0d, 100d)
                 : null,
@@ -178,6 +213,64 @@ internal sealed class PdhCounterSet : IDisposable
             ? value.DoubleValue
             : null;
     }
+
+    /// <summary>
+    /// The fastest core's current frequency, or null unless both counters read: one without the
+    /// other is half of a product and cannot be reported on its own.
+    /// The maximum rather than the average is what "CPU frequency" means beside the third-party
+    /// monitors this replaces: on a hybrid part the average is pulled down by efficiency cores
+    /// that are nominally slower or parked, and would read well below the figure every other
+    /// tool on the machine shows for the same moment.
+    /// </summary>
+    private double? ReadCpuClockMhz()
+    {
+        var nominalByCore = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (!ReadArray(
+                _cpuNominalFrequency,
+                (instance, value) =>
+                {
+                    if (IsCoreInstance(instance) && value > 0d)
+                    {
+                        nominalByCore[instance] = value;
+                    }
+                }))
+        {
+            return null;
+        }
+
+        double fastest = 0d;
+        if (!ReadArray(
+                _cpuPerformance,
+                (instance, value) =>
+                {
+                    if (!IsCoreInstance(instance) ||
+                        value <= 0d ||
+                        !nominalByCore.TryGetValue(instance, out double nominalMhz))
+                    {
+                        return;
+                    }
+
+                    double megahertz = nominalMhz * value / 100d;
+                    if (double.IsFinite(megahertz))
+                    {
+                        fastest = Math.Max(fastest, megahertz);
+                    }
+                }))
+        {
+            return null;
+        }
+
+        return fastest > 0d && fastest <= ImplausibleClockMhz ? fastest : null;
+    }
+
+    /// <summary>
+    /// True for a single core's instance. The rollups - <c>_Total</c>, and one <c>N,_Total</c>
+    /// per processor group - average across core classes, so they cannot be paired with a
+    /// nominal frequency that belongs to any one core.
+    /// </summary>
+    private static bool IsCoreInstance(string instanceName) =>
+        instanceName.Length > 0 &&
+        !instanceName.Contains("_total", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Task Manager's GPU figure: instances are summed inside each engine type, and the busiest

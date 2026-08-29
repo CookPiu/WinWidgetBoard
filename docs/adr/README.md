@@ -39,3 +39,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0028](0028-system-monitor-scope-and-sensor-tiers.md) | Accepted | 重新纳入硬件监控，读数分公开 API 层与传感器层 |
 | [0029](0029-drop-the-bundled-sensor-driver.md) | Accepted | 不分发内核传感器驱动，温度类读数保持不可读 |
 | [0030](0030-token-usage-card.md) | Accepted | 纳入 Token 用量卡片，按厂商分别解析本机会话记录且不落库 |
+| [0031](0031-cpu-clock-from-per-core-counters.md) | Accepted | CPU 频率改由每核 PDH 计数器测量，脱离传感器层 |

@@ -82,7 +82,6 @@ public sealed class SystemMonitorFormatterTests
             SystemMonitorContract.CpuTemperature,
             SystemMonitorContract.GpuTemperature,
             SystemMonitorContract.FanSpeed,
-            SystemMonitorContract.CpuClock,
         })
         {
             SystemMonitorMetricDto metric = SystemMonitorFormatter.FormatMetric(
@@ -168,8 +167,50 @@ public sealed class SystemMonitorFormatterTests
         }
     }
 
+    [TestMethod(DisplayName =
+        "UT-SYSMON-010 [MON-001] The clock reads in GHz above a gigahertz and carries no meter")]
+    public void ClockScalesItsUnitAndHasNoRatio()
+    {
+        SystemMonitorMetricDto gigahertz = SystemMonitorFormatter.FormatMetric(
+            Sample(cpuClockMhz: 4392d),
+            SystemMonitorContract.CpuClock,
+            SystemMonitorDetail.Detailed);
+        SystemMonitorMetricDto megahertz = SystemMonitorFormatter.FormatMetric(
+            Sample(cpuClockMhz: 780d),
+            SystemMonitorContract.CpuClock,
+            SystemMonitorDetail.Detailed);
+
+        Assert.AreEqual(SystemMonitorMetricStatus.Ready, gigahertz.Status);
+        Assert.AreEqual("4.39 GHz", gigahertz.PrimaryText);
+        Assert.AreEqual("780 MHz", megahertz.PrimaryText);
+        Assert.IsNull(
+            gigahertz.Ratio,
+            "The turbo ceiling is not readable from user mode, so there is no scale to draw.");
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-011 [MON-001] The clock is pending before a baseline, not unavailable")]
+    public void MissingClockIsPendingBeforeABaseline()
+    {
+        SystemMonitorMetricDto pending = SystemMonitorFormatter.FormatMetric(
+            Sample(hasBaseline: false),
+            SystemMonitorContract.CpuClock,
+            SystemMonitorDetail.Normal);
+        SystemMonitorMetricDto unavailable = SystemMonitorFormatter.FormatMetric(
+            Sample(hasBaseline: true),
+            SystemMonitorContract.CpuClock,
+            SystemMonitorDetail.Normal);
+
+        Assert.AreEqual(
+            SystemMonitorMetricStatus.Pending,
+            pending.Status,
+            "The counters need two collections before the first ratio exists.");
+        Assert.AreEqual(SystemMonitorMetricStatus.Unavailable, unavailable.Status);
+    }
+
     private static SystemMetricSample Sample(
         double? cpuUsagePercent = null,
+        double? cpuClockMhz = null,
         double? memoryUsedBytes = null,
         double? memoryTotalBytes = null,
         double? networkUpBytesPerSecond = null,
@@ -178,6 +219,7 @@ public sealed class SystemMonitorFormatterTests
         new()
         {
             CpuUsagePercent = cpuUsagePercent,
+            CpuClockMhz = cpuClockMhz,
             MemoryUsedBytes = memoryUsedBytes,
             MemoryTotalBytes = memoryTotalBytes,
             NetworkUpBytesPerSecond = networkUpBytesPerSecond,

@@ -189,8 +189,9 @@ public static class SystemMonitorMetricStatus
     public const string Pending = "pending";
 
     /// <summary>
-    /// This machine cannot supply the reading at all. Temperature, clock and fan land here
-    /// until the sensor service is installed.
+    /// This machine cannot supply the reading at all. Temperature and fan land here on every
+    /// machine this ships to, because reading them needs a kernel driver this product does not
+    /// distribute.
     /// </summary>
     public const string Unavailable = "unavailable";
 }

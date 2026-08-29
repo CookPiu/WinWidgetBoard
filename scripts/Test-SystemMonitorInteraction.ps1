@@ -221,17 +221,33 @@ try {
     $expected = if ($after -eq [System.Windows.Automation.ToggleState]::On) { $true } else { $false }
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     $found = $false
+    $clockNames = @()
     do {
         $names = @(Get-Descendants -Root $window |
             ForEach-Object { $_.Current.Name } |
             Where-Object { $_ })
-        $hasClock = @($names | Where-Object { $_ -match 'CPU clock|CPU 频率' }).Count -gt 0
+        $clockNames = @($names | Where-Object { $_ -match 'CPU clock|CPU 频率' })
+        $hasClock = $clockNames.Count -gt 0
         if ($hasClock -eq $expected) { $found = $true; break }
         Start-Sleep -Milliseconds 400
     } while ([DateTime]::UtcNow -lt $deadline)
     if (-not $found) {
         throw "The card did not follow the saved metric list (expected clock present=$expected)."
     }
+
+    # The row being there is not the same as it reading anything. The clock is measured from
+    # per-core performance counters (ADR-0031), so a row announcing "this PC cannot read it"
+    # means the counter pairing broke, not that the machine lacks a sensor.
+    if ($expected) {
+        $clockReading = @($clockNames |
+            Where-Object { $_ -match '\d+(\.\d+)?\s*(GHz|MHz)' })[0]
+        if (-not $clockReading) {
+            throw "The clock row announced $($clockNames -join ' / ') instead of a frequency."
+        }
+
+        Write-Output "SYSMON-CLOCK-READING-PASS $clockReading"
+    }
+
     Write-Output "SYSMON-CARD-FOLLOWS-SETTINGS-PASS clockPresent=$expected"
 
     # Restart only the panel; the broker keeps the same database, so this proves persistence

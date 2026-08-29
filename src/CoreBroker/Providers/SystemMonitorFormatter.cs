@@ -30,6 +30,9 @@ public static class SystemMonitorFormatter
     private static readonly HashSet<string> RateMetrics = new(StringComparer.Ordinal)
     {
         SystemMonitorContract.CpuUsage,
+        // The clock is a ratio the counters accumulate between two collections, so it has the
+        // same first-tick gap the usage readings do.
+        SystemMonitorContract.CpuClock,
         SystemMonitorContract.GpuUsage,
         SystemMonitorContract.GpuMemory,
         SystemMonitorContract.DiskActivity,
@@ -105,8 +108,10 @@ public static class SystemMonitorFormatter
                 Unbounded(sample.NetworkUpBytesPerSecond),
             SystemMonitorContract.NetworkDown =>
                 Unbounded(sample.NetworkDownBytesPerSecond),
-            // Clock, temperature and fan are unavailable on every machine this ships to, and a
-            // temperature has no honest zero to plot from anyway.
+            // The clock is readable but has nothing to plot against: its turbo ceiling is not
+            // exposed to user mode, and against the window's own peak it would be a flat line
+            // near the top whatever the machine was doing. Temperature and fan are unavailable
+            // on every machine this ships to, and a temperature has no honest zero anyway.
             _ => null,
         };
     }
