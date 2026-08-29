@@ -90,8 +90,13 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面：安装态入口同时显示主胶囊与硬件胶囊，实测窗口 `16,1912 - 656,1992`（320×40 DIP，
   DPI 192），其中主胶囊为时钟、硬件胶囊为 CPU/MEM 与上下行两列；`--entry-icon-preview` 的
   192 DPI 对照表新增「单独硬件胶囊」与「主胶囊 + 硬件胶囊」两组，逐格评审字号与走势图；
-- 真实桌面 `Test-LauncherEntryPlacement.ps1`（`--no-broker`，因此没有读数、只画主胶囊）实测
-  `16,1912 - 312,1992`，148×40 DIP；
+- 真实桌面（`--no-broker`，因此没有读数、只画主胶囊）实测 `16,1912 - 360,1992`，172×40 DIP，
+  监视器 3200×2000、工作区高 1904，入口整体落在 1904..2000 的任务栏条带内，上下各留 8 DIP。
+  宽度随主胶囊内容变化，不由几何决定。
+  **未跑**：`Test-LauncherEntryPlacement.ps1` 本身在本机已无法启动——它要求进程达到
+  per-monitor DPI 感知，而 PowerShell 7 在进程创建时已被设为 system 感知（`GetDpiForSystem`
+  与显示器 DPI 同为 192），`SetProcessDpiAwarenessContext` 只能设一次，返回 `ERROR_ACCESS_DENIED`。
+  上面的矩形是在确认「单显示器且显示器 DPI == 系统 DPI，因此坐标不被虚拟化」之后直接量的；
 - 真实桌面 `Test-AddCardInteraction.ps1` 通过（`REAL-ADDCARD-PASS`）：编辑模式外添加按钮不可见，
   进入编辑后出现；全部卡片在板时不弹空对话框；移除计时器卡片后经选择器加回，完成编辑并重启面板后
   仍在布局中；
@@ -172,6 +177,18 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
    多显示器（`Shell_SecondaryTrayWnd`，按入口所在监视器匹配）已实现但本机只有单显示器，未实测。
    其他 topmost 第三方任务栏扩展仍与入口共享层级，真实回归仍须先等待入口占据自身中心点再点击。
 10. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
+11. **入口的 UI 线程不再向 Explorer 发同步消息**。此前 `CaptureMonitorSnapshot` 调用
+    `SHAppBarMessage(ABM_GETSTATE / ABM_GETTASKBARPOS)`，两者都是向 `Shell_TrayWnd` 发的
+    无超时 `SendMessage`。实测两次事故（2026-08-21 10:10:16、2026-08-29 10:23:34）都是
+    `AppHangB1` + `ConsentKey=AppHangXProcB1`（等待链跨进程），且都与 Claude 桌面版 MSIX
+    servicing 同秒发生（`AppXDeploymentServer` 2562 + 服务重装）：servicing 广播
+    `WM_SETTINGCHANGE` → 入口 `ScheduleReposition()` → `SHAppBarMessage` 卡在忙于同一次
+    servicing 的 Explorer 上 → 入口停止泵消息 → Windows 判定无响应并结束进程 → job object
+    连带带走面板与 Broker（用户观感是「面板自己消失」）。
+    两个读数都可以不要：`ABM_GETTASKBARPOS` 只报主任务栏且结果从未被读取；`ABM_GETSTATE`
+    的自动隐藏标志已被几何蕴含——自动隐藏只留下比 `kMinimumTaskbarThicknessPx`(8px) 更薄的
+    唤出带，`DeriveTaskbarStrip` 与 `IsSingleEdgeDifference` 本就会拒绝它。唯一未覆盖的组合
+    是自动隐藏叠加另一个应用恰好占用单侧工作区，那与该侧存在任务栏在几何上不可区分。
 
 ## 6. 当前工作
 

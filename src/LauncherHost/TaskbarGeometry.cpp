@@ -1,7 +1,5 @@
 #include "TaskbarGeometry.h"
 
-#include <shellapi.h>
-
 #include <algorithm>
 #include <array>
 #include <limits>
@@ -497,31 +495,21 @@ bool QueryMonitorSnapshot(
         snapshot.monitorRect,
         snapshot.workArea);
 
-    APPBARDATA stateData{};
-    stateData.cbSize = sizeof(stateData);
-    const UINT_PTR appBarState = SHAppBarMessage(ABM_GETSTATE, &stateData);
-    snapshot.taskbarAutoHide = appBarState != 0 &&
-        (appBarState & ABS_AUTOHIDE) != 0;
-
-    APPBARDATA positionData{};
-    positionData.cbSize = sizeof(positionData);
-    if (SHAppBarMessage(ABM_GETTASKBARPOS, &positionData) != 0 &&
-        IsValidRect(positionData.rc))
-    {
-        const RECT taskbarRect = positionData.rc;
-        const bool intersectsMonitor =
-            taskbarRect.left < snapshot.monitorRect.right &&
-            taskbarRect.right > snapshot.monitorRect.left &&
-            taskbarRect.top < snapshot.monitorRect.bottom &&
-            taskbarRect.bottom > snapshot.monitorRect.top;
-
-        if (intersectsMonitor)
-        {
-            snapshot.taskbarRect = taskbarRect;
-            snapshot.hasTaskbarRect = true;
-        }
-    }
-
+    // Nothing here asks Explorer anything. This runs on the entry's UI thread, and
+    // SHAppBarMessage(ABM_GETSTATE / ABM_GETTASKBARPOS) is a synchronous send into the tray
+    // window with no timeout: while Explorer is busy - an MSIX servicing pass broadcasting
+    // WM_SETTINGCHANGE is one observed case, and that broadcast is itself what schedules this
+    // capture - the send blocks, the entry stops pumping, and Windows kills it as a hung
+    // application. Every child process then dies with it through the job object.
+    //
+    // Neither reading is missed. ABM_GETTASKBARPOS reported only the primary taskbar and its
+    // result was never read. ABM_GETSTATE's auto-hide flag is implied by the geometry already
+    // captured: an auto-hidden taskbar leaves the work area at, or within a pixel or two of,
+    // the whole monitor, which is below kMinimumTaskbarThicknessPx, so both DeriveTaskbarStrip
+    // and IsSingleEdgeDifference already reject it and the entry degrades exactly as before.
+    // The one case the flag covered and geometry cannot: auto-hide combined with some other
+    // application reserving a single work-area edge, which is indistinguishable from a taskbar
+    // on that edge.
     snapshot.hasTaskbarStrip = DeriveTaskbarStrip(
         snapshot.monitorRect,
         snapshot.workArea,
@@ -645,8 +633,7 @@ LauncherPlacement ResolveLauncherPlacement(
     }
 
     if (ResolveAlignmentMode(preferences.placement) ==
-        LauncherPlacementMode::ExactWidgetReplacement &&
-        !snapshot.taskbarAutoHide)
+        LauncherPlacementMode::ExactWidgetReplacement)
     {
         LauncherEntryPlacementPreference alignment = preferences.placement;
         if (alignment == LauncherEntryPlacementPreference::EmbeddedLeft &&
@@ -699,8 +686,9 @@ LauncherPlacement ResolveLauncherPlacement(
         return placement;
     }
 
+    // An auto-hidden taskbar reserves nothing, so no edge clears the thickness floor and this
+    // is false without a separate flag to say so.
     const bool hasReliableTaskbarEdge =
-        !snapshot.taskbarAutoHide &&
         IsSingleEdgeDifference(
             snapshot.monitorRect,
             snapshot.workArea,
@@ -1043,8 +1031,15 @@ static bool RunEmbeddedEntryContractSmokeTest(
     }
 
     // Auto-hide, vertical taskbars and strips too thin for a 32 DIP target must degrade.
-    MonitorSnapshot autoHidden = bottomTaskbar;
-    autoHidden.taskbarAutoHide = true;
+    // Auto-hide is expressed as the geometry it actually produces - a work area that keeps
+    // the whole monitor bar the unhide trigger band - rather than as a flag, because that
+    // band is what the entry now reads.
+    MonitorSnapshot autoHidden{
+        .monitor = reinterpret_cast<HMONITOR>(4),
+        .monitorRect = RECT{0, 0, 1920, 1080},
+        .workArea = RECT{0, 0, 1920, 1079},
+        .inferredTaskbarEdge = TaskbarEdge::Unknown,
+    };
     MonitorSnapshot vertical{
         .monitor = reinterpret_cast<HMONITOR>(2),
         .monitorRect = RECT{0, 0, 1920, 1080},
@@ -1107,9 +1102,6 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
         .monitor = reinterpret_cast<HMONITOR>(1),
         .monitorRect = RECT{0, 0, 1920, 1080},
         .workArea = RECT{0, 0, 1920, 1032},
-        .taskbarRect = RECT{0, 1032, 1920, 1080},
-        .hasTaskbarRect = true,
-        .taskbarAutoHide = false,
         .taskbarStrip = RECT{0, 1032, 1920, 1080},
         .hasTaskbarStrip = true,
         .systemIconsLeftAligned = false,
@@ -1147,8 +1139,13 @@ bool RunGeometryContractSmokeTest(std::wstring& failure)
         return false;
     }
 
+    // An auto-hidden taskbar reserves nothing but the unhide trigger band, which is thinner
+    // than any real taskbar, so no edge is reliable and the entry falls back.
     MonitorSnapshot autoHidden = bottomTaskbar;
-    autoHidden.taskbarAutoHide = true;
+    autoHidden.workArea = RECT{0, 0, 1920, 1079};
+    autoHidden.taskbarStrip = RECT{};
+    autoHidden.hasTaskbarStrip = false;
+    autoHidden.inferredTaskbarEdge = TaskbarEdge::Unknown;
     const LauncherPlacement fallbackPlacement = ResolveLauncherPlacement(
         autoHidden, 96, floatingPreferences, kNoMeasuredContent);
     if (fallbackPlacement.mode != LauncherPlacementMode::EdgeTabFallback ||

@@ -65,11 +65,10 @@ struct MonitorSnapshot
     HMONITOR monitor{};
     RECT monitorRect{};
     RECT workArea{};
-    RECT taskbarRect{};
-    bool hasTaskbarRect{};
-    bool taskbarAutoHide{};
-    // The taskbar strip derived from monitorRect minus workArea. Unlike taskbarRect this
-    // does not depend on ABM_GETTASKBARPOS, which only reports the primary taskbar.
+    // The taskbar strip derived from monitorRect minus workArea, and the only taskbar
+    // geometry the placement uses. Nothing here comes from the shell: ABM_GETTASKBARPOS and
+    // ABM_GETSTATE are synchronous sends into Explorer, and this snapshot is taken on the
+    // entry's UI thread. See CaptureMonitorSnapshot.
     RECT taskbarStrip{};
     bool hasTaskbarStrip{};
     // HKCU TaskbarAl == 0. The Start button then sits at the far left of the strip.
