@@ -198,6 +198,39 @@
                         Style="{StaticResource WwbCardCaptionStyle}"
                         TextWrapping="Wrap" />
 
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="{StaticResource WwbSpace2}">
+                        <ToggleSwitch
+                            x:Name="WeatherSettingsUseDeviceLocationToggle"
+                            x:Uid="WeatherSettingsUseDeviceLocationToggle"
+                            Width="220"
+                            IsOn="{x:Bind WeatherViewModel.UseDeviceLocation, Mode=TwoWay}"
+                            automation:AutomationProperties.AutomationId="WeatherSettingsUseDeviceLocationToggle" />
+                        <Button
+                            x:Name="WeatherSettingsDeviceLocationButton"
+                            x:Uid="WeatherSettingsDeviceLocationButton"
+                            Width="116"
+                            VerticalAlignment="Bottom"
+                            Style="{StaticResource WwbDialogButtonStyle}"
+                            IsEnabled="{x:Bind WeatherViewModel.CanRefreshDeviceLocation, Mode=OneWay}"
+                            Click="WeatherSettingsDeviceLocationButton_Click"
+                            automation:AutomationProperties.AutomationId="WeatherSettingsDeviceLocationButton" />
+                    </StackPanel>
+
+                    <ProgressBar
+                        x:Name="WeatherSettingsDeviceLocationProgress"
+                        IsIndeterminate="True"
+                        Visibility="{x:Bind WeatherViewModel.IsLocating, Mode=OneWay}" />
+
+                    <HyperlinkButton
+                        x:Name="WeatherSettingsLocationPrivacyLink"
+                        x:Uid="WeatherSettingsLocationPrivacyLink"
+                        Padding="0"
+                        HorizontalAlignment="Left"
+                        NavigateUri="ms-settings:privacy-location"
+                        automation:AutomationProperties.AutomationId="WeatherSettingsLocationPrivacyLink" />
+
                     <!--
                         Search replaces hand-typed coordinates. The user names a place; the
                         coordinates come back from the search and are shown read-only below,

@@ -198,6 +198,7 @@ internal sealed class WeatherSettingsCommandHandler
             normalizedLabel,
             payload.Latitude,
             payload.Longitude,
+            payload.UseDeviceLocation,
             payload.ExpectedRevision);
         lock (_gate)
         {
@@ -222,6 +223,7 @@ internal sealed class WeatherSettingsCommandHandler
                     normalizedLabel,
                     payload.Latitude,
                     payload.Longitude,
+                    payload.UseDeviceLocation,
                     payload.ExpectedRevision);
                 var responsePayload = new WeatherSettingsSaveResponse
                 {
@@ -266,6 +268,7 @@ internal sealed class WeatherSettingsCommandHandler
             Label = settings.Label,
             Latitude = settings.Latitude,
             Longitude = settings.Longitude,
+            UseDeviceLocation = settings.UseDeviceLocation,
             Revision = settings.Revision,
             UpdatedAtUtc = settings.UpdatedAtUtc ?? string.Empty,
         };
@@ -322,5 +325,6 @@ internal sealed class WeatherSettingsCommandHandler
         string Label,
         double Latitude,
         double Longitude,
+        bool UseDeviceLocation,
         int ExpectedRevision);
 }

@@ -182,5 +182,16 @@ public static class SqliteSchema
                     ON token_usage_settings(revision);
                 PRAGMA user_version = 6;
                 """),
+            // Existing weather rows opt into the newly approved automatic-location mode.
+            // Windows permission is never persisted here; only the user's mode choice is.
+            new SqliteMigration(
+                7,
+                "persist-weather-device-location-mode",
+                """
+                ALTER TABLE weather_settings
+                    ADD COLUMN use_device_location INTEGER NOT NULL DEFAULT 1
+                        CHECK (use_device_location IN (0, 1));
+                PRAGMA user_version = 7;
+                """),
         };
 }

@@ -43,9 +43,14 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                     longitude >= -180d &&
                     longitude <= 180d &&
                     double.IsFinite(longitude)),
+            new CardSettingDefinition(
+                "useDeviceLocation",
+                [JsonValueKind.True, JsonValueKind.False],
+                CardSettingWritePolicy.CommitOnly),
         ]);
 
     private readonly IWeatherSettingsClient? _client;
+    private readonly IDeviceLocationProvider? _deviceLocationProvider;
     private readonly Func<string, string> _text;
     private CardSettingsDraft? _draft;
     private string _locationLabel = WeatherSettingsContract.DefaultLabel;
@@ -61,13 +66,17 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     private bool _searchUnavailable;
     private int _revision;
     private bool _isBusy;
+    private bool _isLocating;
+    private bool _useDeviceLocation = true;
     private bool _wasSaved;
 
     public WeatherSettingsViewModel(
         IWeatherSettingsClient? client,
-        Func<string, string>? textResolver = null)
+        Func<string, string>? textResolver = null,
+        IDeviceLocationProvider? deviceLocationProvider = null)
     {
         _client = client;
+        _deviceLocationProvider = deviceLocationProvider;
         _text = textResolver ?? (static key => key);
         // Subscribed rather than republished at each call site: SearchResults is cleared and
         // refilled from five places, and one missed site would leave both lists on screen at
@@ -156,7 +165,40 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool CanSave => _client is not null && _draft is not null && !IsBusy;
+    public bool CanSave =>
+        _client is not null && _draft is not null && !IsBusy && !IsLocating;
+
+    public bool UseDeviceLocation
+    {
+        get => _useDeviceLocation;
+        set
+        {
+            if (SetField(ref _useDeviceLocation, value))
+            {
+                OnPropertyChanged(nameof(CanRefreshDeviceLocation));
+            }
+        }
+    }
+
+    public bool IsLocating
+    {
+        get => _isLocating;
+        private set
+        {
+            if (SetField(ref _isLocating, value))
+            {
+                OnPropertyChanged(nameof(CanSave));
+                OnPropertyChanged(nameof(CanRefreshDeviceLocation));
+            }
+        }
+    }
+
+    public bool CanRefreshDeviceLocation =>
+        _client is not null &&
+        _draft is not null &&
+        _deviceLocationProvider is not null &&
+        !IsBusy &&
+        !IsLocating;
 
     public bool WasSaved
     {
@@ -322,6 +364,7 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         LocationLabel = option.Label;
         LatitudeText = option.Latitude.ToString("0.#######", CultureInfo.InvariantCulture);
         LongitudeText = option.Longitude.ToString("0.#######", CultureInfo.InvariantCulture);
+        UseDeviceLocation = false;
         ValidationText = string.Empty;
         SetStatus("WeatherSettingsSearchSelectedStatus");
     }
@@ -396,6 +439,9 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
             _draft.Set(
                 "longitude",
                 JsonSerializer.SerializeToElement(longitude));
+            _draft.Set(
+                "useDeviceLocation",
+                JsonSerializer.SerializeToElement(UseDeviceLocation));
             CardSettingsCommitRequest commit = _draft.BuildCommitRequest();
             var request = new WeatherSettingsSaveRequest
             {
@@ -404,6 +450,9 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 Label = commit.Settings.GetProperty("label").GetString(),
                 Latitude = commit.Settings.GetProperty("latitude").GetDouble(),
                 Longitude = commit.Settings.GetProperty("longitude").GetDouble(),
+                UseDeviceLocation = commit.Settings
+                    .GetProperty("useDeviceLocation")
+                    .GetBoolean(),
                 ExpectedRevision = checked((int)commit.ExpectedRevision),
             };
             WeatherSettingsDto saved = await _client
@@ -446,6 +495,73 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task<bool> RefreshDeviceLocationAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!CanRefreshDeviceLocation || _deviceLocationProvider is null)
+        {
+            SetStatus("WeatherSettingsDeviceLocationUnavailableStatus");
+            return false;
+        }
+
+        IsLocating = true;
+        ValidationText = string.Empty;
+        SetStatus("WeatherSettingsDeviceLocationReadingStatus");
+        try
+        {
+            DeviceLocationResult result = await _deviceLocationProvider
+                .GetCurrentLocationAsync(cancellationToken)
+                .ConfigureAwait(true);
+            if (result.Status == DeviceLocationStatus.Denied)
+            {
+                SetStatus("WeatherSettingsDeviceLocationDeniedStatus");
+                return false;
+            }
+
+            if (result.Status != DeviceLocationStatus.Available ||
+                !WeatherSettingsContract.IsValidCoordinates(
+                    result.Latitude,
+                    result.Longitude))
+            {
+                SetStatus("WeatherSettingsDeviceLocationUnavailableStatus");
+                return false;
+            }
+
+            string automaticLabel = ResolveText("WeatherSettingsAutomaticLocationLabel");
+            bool changed = !UseDeviceLocation ||
+                !string.Equals(LocationLabel, automaticLabel, StringComparison.Ordinal) ||
+                !TryParseCoordinate(LatitudeText, out double currentLatitude) ||
+                !TryParseCoordinate(LongitudeText, out double currentLongitude) ||
+                Math.Abs(currentLatitude - result.Latitude) >= 0.001d ||
+                Math.Abs(currentLongitude - result.Longitude) >= 0.001d;
+            UseDeviceLocation = true;
+            LocationLabel = automaticLabel;
+            LatitudeText = result.Latitude.ToString("0.#######", CultureInfo.InvariantCulture);
+            LongitudeText = result.Longitude.ToString("0.#######", CultureInfo.InvariantCulture);
+            if (changed && !await SaveAsync(cancellationToken))
+            {
+                return false;
+            }
+
+            SetStatus("WeatherSettingsDeviceLocationReadyStatus");
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+            when (exception is InvalidOperationException or TimeoutException)
+        {
+            SetStatus("WeatherSettingsDeviceLocationUnavailableStatus");
+            return false;
+        }
+        finally
+        {
+            IsLocating = false;
+        }
+    }
+
     public void CancelDraft()
     {
         if (_draft?.State == CardSettingsDraftState.Active)
@@ -478,6 +594,7 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         LongitudeText = settings.Longitude.ToString(
             "0.#######",
             CultureInfo.InvariantCulture);
+        UseDeviceLocation = settings.UseDeviceLocation;
         Revision = settings.Revision;
         _draft = CreateDraft(settings, label);
         OnPropertyChanged(nameof(CanSave));
@@ -493,6 +610,7 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 label = normalizedLabel,
                 latitude = settings.Latitude,
                 longitude = settings.Longitude,
+                useDeviceLocation = settings.UseDeviceLocation,
             });
         var snapshot = new CardSettingsSnapshot(
             WeatherSettingsContract.DefaultInstanceId,
@@ -549,7 +667,8 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         OnPropertyChanged(propertyName);
         if (propertyName is nameof(LocationLabel) or
             nameof(LatitudeText) or
-            nameof(LongitudeText))
+            nameof(LongitudeText) or
+            nameof(UseDeviceLocation))
         {
             OnPropertyChanged(nameof(CanSave));
         }

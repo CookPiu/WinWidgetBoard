@@ -17,7 +17,8 @@ public sealed class WeatherSettingsRepository
         ValidateInstanceId(instanceId);
         WeatherSettingsRecord? result = null;
         _repository.Query(
-            "SELECT instance_id, label, latitude, longitude, revision, updated_at_utc " +
+            "SELECT instance_id, label, latitude, longitude, use_device_location, " +
+            "revision, updated_at_utc " +
             "FROM weather_settings WHERE instance_id = @instance;",
             statement => statement.BindText("@instance", instanceId),
             statement => result = ReadRecord(statement));
@@ -29,6 +30,7 @@ public sealed class WeatherSettingsRepository
         string label,
         double latitude,
         double longitude,
+        bool useDeviceLocation,
         int expectedRevision,
         DateTimeOffset? nowUtc = null)
     {
@@ -67,14 +69,17 @@ public sealed class WeatherSettingsRepository
         {
             _repository.Execute(
                 "INSERT INTO weather_settings " +
-                "(instance_id, label, latitude, longitude, revision, updated_at_utc) " +
-                "VALUES (@instance, @label, @latitude, @longitude, @revision, @updated);",
+                "(instance_id, label, latitude, longitude, use_device_location, " +
+                "revision, updated_at_utc) " +
+                "VALUES (@instance, @label, @latitude, @longitude, @automatic, " +
+                "@revision, @updated);",
                 statement =>
                 {
                     statement.BindText("@instance", instanceId);
                     statement.BindText("@label", normalizedLabel);
                     statement.BindDouble("@latitude", latitude);
                     statement.BindDouble("@longitude", longitude);
+                    statement.BindInt("@automatic", useDeviceLocation ? 1 : 0);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
                 });
@@ -83,13 +88,15 @@ public sealed class WeatherSettingsRepository
         {
             int changes = _repository.Execute(
                 "UPDATE weather_settings SET label = @label, latitude = @latitude, " +
-                "longitude = @longitude, revision = @revision, updated_at_utc = @updated " +
+                "longitude = @longitude, use_device_location = @automatic, " +
+                "revision = @revision, updated_at_utc = @updated " +
                 "WHERE instance_id = @instance AND revision = @expected;",
                 statement =>
                 {
                     statement.BindText("@label", normalizedLabel);
                     statement.BindDouble("@latitude", latitude);
                     statement.BindDouble("@longitude", longitude);
+                    statement.BindInt("@automatic", useDeviceLocation ? 1 : 0);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
                     statement.BindText("@instance", instanceId);
@@ -110,6 +117,7 @@ public sealed class WeatherSettingsRepository
             normalizedLabel,
             latitude,
             longitude,
+            useDeviceLocation,
             nextRevision,
             updatedAtUtc);
     }
@@ -120,8 +128,9 @@ public sealed class WeatherSettingsRepository
             statement.ReadText(1) ?? throw new SqliteException(1, "weather_settings.label is NULL."),
             statement.ReadDouble(2),
             statement.ReadDouble(3),
-            statement.ReadInt(4),
-            statement.ReadText(5) ?? throw new SqliteException(1, "weather_settings.updated_at_utc is NULL."));
+            statement.ReadInt(4) != 0,
+            statement.ReadInt(5),
+            statement.ReadText(6) ?? throw new SqliteException(1, "weather_settings.updated_at_utc is NULL."));
 
     private static void ValidateInstanceId(string instanceId)
     {

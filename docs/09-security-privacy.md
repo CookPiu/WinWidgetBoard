@@ -22,6 +22,7 @@
 - 便签标题和正文；
 - 布局和卡片实例；
 - 天气位置标签与坐标；
+- 天气自动/手动定位模式；
 - 用户在设置对话框中输入的地点搜索词；
 - IPC session token；
 - 当前用户数据库和备份；
@@ -42,6 +43,7 @@ flowchart LR
 - LauncherHost 和 WorkspacePanel 是当前用户进程；
 - CoreBroker 只接受当前用户连接和正确 session token；
 - SQLite 是本地用户数据边界；
+- Windows 位置服务是受系统隐私设置控制的 OS 信任边界，只由前台 WorkspacePanel 调用；
 - Open-Meteo 是唯一的外部网络供应商，占两个端点：天气读数与地点搜索。
 
 ## 3.2 会话转录只读面
@@ -119,7 +121,10 @@ Token 用量读取各工具的会话记录：`%USERPROFILE%\.claude\projects` �
 - Scheduler deadline 为 10 秒；
 - 只发送位置标签、纬度、经度、单位和必要天气字段；
 - 不发送账号、设备标识或便签内容；
-- 默认不调用 Windows 自动定位；
+- 首次正常打开面板时在前台 UI 线程调用 Windows `Geolocator.RequestAccessAsync`；
+- 只在自动模式的应用冷启动读取一次位置，不持续跟踪、不在 LauncherHost 或 CoreBroker 中定位；
+- 拒绝、系统定位关闭或无数据时不改现有坐标；设置提供 Windows 位置隐私页入口；
+- SQLite 只保存自动/手动模式和最终坐标，不保存 Windows 权限结果、定位精度或定位历史；
 - 天气 payload 不写入 SQLite；
 - 位置设置本地持久化并受 revision 保护；
 - 日志不得记录完整请求 URL 中的精确坐标。

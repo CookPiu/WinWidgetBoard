@@ -51,6 +51,7 @@ public sealed class WeatherSettingsIpcTests
                 WeatherSettingsContract.DefaultInstanceId,
                 CancellationToken.None);
             Assert.AreEqual(WeatherSettingsContract.DefaultLabel, initial.Label);
+            Assert.IsTrue(initial.UseDeviceLocation);
             Assert.AreEqual(0, initial.Revision);
 
             var request = new WeatherSettingsSaveRequest
@@ -60,6 +61,7 @@ public sealed class WeatherSettingsIpcTests
                 Label = "Tokyo",
                 Latitude = 35.6762,
                 Longitude = 139.6503,
+                UseDeviceLocation = false,
                 ExpectedRevision = initial.Revision,
             };
             WeatherSettingsDto saved = await client.SaveWeatherSettingsAsync(
@@ -69,6 +71,7 @@ public sealed class WeatherSettingsIpcTests
             Assert.AreEqual("Tokyo", saved.Label);
             Assert.AreEqual(35.6762, saved.Latitude, 0.00001);
             Assert.AreEqual(139.6503, saved.Longitude, 0.00001);
+            Assert.IsFalse(saved.UseDeviceLocation);
 
             WeatherSettingsDto duplicate = await client.SaveWeatherSettingsAsync(
                 request,
@@ -82,6 +85,7 @@ public sealed class WeatherSettingsIpcTests
             Assert.AreEqual("Tokyo", loaded.Label);
             Assert.AreEqual(35.6762, loaded.Latitude, 0.00001);
             Assert.AreEqual(139.6503, loaded.Longitude, 0.00001);
+            Assert.IsFalse(loaded.UseDeviceLocation);
 
             CoreBrokerClientException conflict = await Assert.ThrowsAsync<CoreBrokerClientException>(
                 () => client.SaveWeatherSettingsAsync(

@@ -57,6 +57,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" Link="WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\TokenUsageSettingsViewModel.cs" Link="WorkspacePanel\Settings\TokenUsageSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherSettingsViewModel.cs" Link="WorkspacePanel\Settings\WeatherSettingsViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Settings\DeviceLocationContracts.cs" Link="WorkspacePanel\Settings\DeviceLocationContracts.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherLocationOption.cs" Link="WorkspacePanel\Settings\WeatherLocationOption.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\CommonWeatherLocations.cs" Link="WorkspacePanel\Settings\CommonWeatherLocations.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\SystemMonitorSettingsViewModel.cs" Link="WorkspacePanel\Settings\SystemMonitorSettingsViewModel.cs" />

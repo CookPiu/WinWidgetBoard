@@ -152,7 +152,46 @@
     <value>取消</value>
   </data>
   <data name="WeatherSettingsDescription.Text" xml:space="preserve">
-    <value>搜索地点，从列表中选中后保存。经纬度由搜索结果提供。</value>
+    <value>默认自动使用 Windows 位置。关闭后可保留手动选择的地点。</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.Header" xml:space="preserve">
+    <value>自动使用 Windows 位置</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.OnContent" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.OffContent" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>自动使用 Windows 位置</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationButton.Content" xml:space="preserve">
+    <value>立即更新</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>使用这台电脑的位置更新天气</value>
+  </data>
+  <data name="WeatherSettingsLocationPrivacyLink.Content" xml:space="preserve">
+    <value>Windows 位置隐私设置</value>
+  </data>
+  <data name="WeatherSettingsLocationPrivacyLink.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>打开 Windows 位置隐私设置</value>
+  </data>
+  <data name="WeatherSettingsAutomaticLocationLabel" xml:space="preserve">
+    <value>当前位置</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationReadingStatus" xml:space="preserve">
+    <value>正在从 Windows 读取这台电脑的位置…</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationReadyStatus" xml:space="preserve">
+    <value>已根据这台电脑的位置更新天气。</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationDeniedStatus" xml:space="preserve">
+    <value>Windows 位置已关闭或未授权，已保留原有天气位置。</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationUnavailableStatus" xml:space="preserve">
+    <value>Windows 当前无法提供位置，已保留原有天气位置。</value>
   </data>
   <data name="WeatherSettingsLabelBox.Header" xml:space="preserve">
     <value>位置名称</value>

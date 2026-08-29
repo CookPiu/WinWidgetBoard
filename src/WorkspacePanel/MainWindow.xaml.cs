@@ -62,6 +62,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly IntPtr _windowHandle;
     private readonly PanelPlacement _placement;
     private readonly IWeatherSettingsClient? _weatherSettingsClient;
+    private readonly IDeviceLocationProvider _deviceLocationProvider =
+        new WindowsDeviceLocationProvider();
     private readonly ISystemMonitorSettingsClient? _systemMonitorClient;
     private readonly ITokenUsageSettingsClient? _tokenUsageClient;
     private readonly CardSnapshotDispatcher _cardSnapshotDispatcher;
@@ -541,7 +543,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         Interlocked.Increment(ref _statusVersion);
         var weatherViewModel = new WeatherSettingsViewModel(
             _weatherSettingsClient,
-            key => _resources.GetString(key));
+            key => _resources.GetString(key),
+            _deviceLocationProvider);
         var systemMonitorViewModel = new SystemMonitorSettingsViewModel(
             _systemMonitorClient,
             key => _resources.GetString(key.Replace('.', '/')));
@@ -594,6 +597,21 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 });
         }
     }
+
+    public Task RefreshAutomaticWeatherLocationAsync(
+        CancellationToken cancellationToken) =>
+        RunOnUiAsync(async () =>
+        {
+            var weatherViewModel = new WeatherSettingsViewModel(
+                _weatherSettingsClient,
+                key => _resources.GetString(key),
+                _deviceLocationProvider);
+            if (await weatherViewModel.LoadAsync(cancellationToken) &&
+                weatherViewModel.UseDeviceLocation)
+            {
+                await weatherViewModel.RefreshDeviceLocationAsync(cancellationToken);
+            }
+        });
 
     /// <summary>
     /// A save in either section is worth reporting, whichever category the dialog opened on.
@@ -1889,6 +1907,36 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 try
                 {
                     action();
+                    completion.SetResult(null);
+                }
+                catch (Exception exception)
+                {
+                    completion.SetException(exception);
+                }
+            }))
+        {
+            completion.SetException(
+                new InvalidOperationException("The WorkspacePanel UI dispatcher is unavailable."));
+        }
+
+        return completion.Task;
+    }
+
+    private Task RunOnUiAsync(Func<Task> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (_uiDispatcherQueue.HasThreadAccess)
+        {
+            return action();
+        }
+
+        var completion = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_uiDispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    await action();
                     completion.SetResult(null);
                 }
                 catch (Exception exception)

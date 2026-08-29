@@ -80,6 +80,7 @@ public sealed class WeatherProviderRuntime : IDisposable
         string label,
         double latitude,
         double longitude,
+        bool useDeviceLocation,
         int expectedRevision)
     {
         if (!string.Equals(
@@ -100,6 +101,7 @@ public sealed class WeatherProviderRuntime : IDisposable
                 label,
                 latitude,
                 longitude,
+                useDeviceLocation,
                 expectedRevision,
                 _clock.UtcNow);
             ApplyRegistrationLocked(saved);
@@ -277,6 +279,7 @@ public sealed class WeatherProviderRuntime : IDisposable
             location.Label,
             location.Latitude,
             location.Longitude,
+            useDeviceLocation: true,
             revision: 0,
             updatedAtUtc: null);
     }

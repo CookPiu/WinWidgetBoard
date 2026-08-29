@@ -99,6 +99,7 @@ public partial class App : Application, IAsyncDisposable, IDisposable
             _ = StartBrokerSessionAsync(
                 _brokerSession!,
                 (MainWindow)_window,
+                enableAutomaticWeatherLocation: !_isAcceptanceTest,
                 _lifetimeCancellation.Token);
         }
         catch (Exception exception)
@@ -113,6 +114,7 @@ public partial class App : Application, IAsyncDisposable, IDisposable
     private static async Task<bool> StartBrokerSessionAsync(
         CoreBrokerSession session,
         MainWindow? mainWindow,
+        bool enableAutomaticWeatherLocation,
         CancellationToken cancellationToken)
     {
         try
@@ -136,6 +138,26 @@ public partial class App : Application, IAsyncDisposable, IDisposable
                     .ConfigureAwait(false);
                 await mainWindow.InitializeCardSubscriptionAsync(cancellationToken)
                     .ConfigureAwait(false);
+                if (enableAutomaticWeatherLocation)
+                {
+                    try
+                    {
+                        await mainWindow.RefreshAutomaticWeatherLocationAsync(cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                        when (exception is not OutOfMemoryException and
+                            not StackOverflowException and
+                            not AccessViolationException)
+                    {
+                        // Automatic location is an optional weather input. It must never make
+                        // layout, notes or the panel lifetime fail, and diagnostics must not
+                        // include coordinates or the provider's raw message.
+                        Debug.WriteLine(
+                            $"Automatic weather location unavailable: " +
+                            exception.GetType().Name);
+                    }
+                }
             }
 
             return visible;
@@ -152,7 +174,11 @@ public partial class App : Application, IAsyncDisposable, IDisposable
     {
         try
         {
-            bool started = await StartBrokerSessionAsync(session, null, cancellationToken)
+            bool started = await StartBrokerSessionAsync(
+                    session,
+                    null,
+                    enableAutomaticWeatherLocation: false,
+                    cancellationToken)
                 .ConfigureAwait(false);
             await session.DisposeAsync().ConfigureAwait(false);
             Environment.Exit(started ? 0 : BrokerSmokeTestFailedExitCode);

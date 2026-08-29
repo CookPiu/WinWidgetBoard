@@ -152,7 +152,46 @@
     <value>Cancel</value>
   </data>
   <data name="WeatherSettingsDescription.Text" xml:space="preserve">
-    <value>Search for a place, pick it from the list, then save. Coordinates come from the search result.</value>
+    <value>Windows location is used automatically by default. Turn it off to keep a manually selected place.</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.Header" xml:space="preserve">
+    <value>Use Windows location automatically</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.OnContent" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.OffContent" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="WeatherSettingsUseDeviceLocationToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Use Windows location automatically</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationButton.Content" xml:space="preserve">
+    <value>Update now</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Update weather from this device location</value>
+  </data>
+  <data name="WeatherSettingsLocationPrivacyLink.Content" xml:space="preserve">
+    <value>Windows location privacy settings</value>
+  </data>
+  <data name="WeatherSettingsLocationPrivacyLink.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Open Windows location privacy settings</value>
+  </data>
+  <data name="WeatherSettingsAutomaticLocationLabel" xml:space="preserve">
+    <value>Current location</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationReadingStatus" xml:space="preserve">
+    <value>Reading this device's location from Windows…</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationReadyStatus" xml:space="preserve">
+    <value>Weather was updated from this device's location.</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationDeniedStatus" xml:space="preserve">
+    <value>Windows location access is off or denied. The existing weather location was kept.</value>
+  </data>
+  <data name="WeatherSettingsDeviceLocationUnavailableStatus" xml:space="preserve">
+    <value>Windows could not provide a location. The existing weather location was kept.</value>
   </data>
   <data name="WeatherSettingsLabelBox.Header" xml:space="preserve">
     <value>Location label</value>

@@ -84,6 +84,8 @@ public sealed record WeatherSettingsSaveRequest
 
     public double Longitude { get; init; }
 
+    public bool UseDeviceLocation { get; init; } = true;
+
     public int ExpectedRevision { get; init; }
 }
 
@@ -103,6 +105,8 @@ public sealed record WeatherSettingsDto
     public double Latitude { get; init; }
 
     public double Longitude { get; init; }
+
+    public bool UseDeviceLocation { get; init; } = true;
 
     public int Revision { get; init; }
 

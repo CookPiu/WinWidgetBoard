@@ -19,11 +19,13 @@ public sealed class WeatherSettingsTests
             "Tokyo",
             35.6762,
             139.6503,
+            useDeviceLocation: false,
             expectedRevision: 0,
-            timestamp);
+            nowUtc: timestamp);
 
         Assert.AreEqual(1, saved.Revision);
         Assert.AreEqual("Tokyo", saved.Label);
+        Assert.IsFalse(saved.UseDeviceLocation);
         Assert.AreEqual(
             timestamp.ToUniversalTime().UtcDateTime.ToString("O"),
             saved.UpdatedAtUtc);
@@ -40,6 +42,7 @@ public sealed class WeatherSettingsTests
             "Tokyo",
             35.6762,
             139.6503,
+            useDeviceLocation: false,
             expectedRevision: 0);
 
         WeatherSettingsRevisionConflictException conflict =
@@ -48,6 +51,7 @@ public sealed class WeatherSettingsTests
                 "Sydney",
                 -33.8688,
                 151.2093,
+                useDeviceLocation: false,
                 expectedRevision: 0));
 
         Assert.AreEqual(1, conflict.ActualRevision);
@@ -65,6 +69,27 @@ public sealed class WeatherSettingsTests
         Assert.IsFalse(WeatherSettingsContract.IsValidCoordinates(0, 181));
         Assert.IsFalse(WeatherSettingsContract.IsValidCoordinates(double.NaN, 0));
         Assert.IsTrue(WeatherSettingsContract.IsValidCoordinates(0, 0));
+    }
+
+    [TestMethod(DisplayName = "UT-WEA-073 [WEA-001/DAT-001] Existing weather rows migrate to automatic device location")]
+    public async Task ExistingWeatherSettingsEnableDeviceLocationOnMigration()
+    {
+        await using SqliteDatabase database = await SqliteDatabase.OpenAsync(
+            new SqliteDatabaseOptions(":memory:"));
+        var legacy = new SqliteMigrationRunner(SqliteSchema.Migrations.Take(6));
+        Assert.AreEqual(6, await legacy.ApplyAsync(database.Connection, database.Options));
+        database.Connection.ExecuteNonQuery(
+            "INSERT INTO weather_settings " +
+            "(instance_id, label, latitude, longitude, revision, updated_at_utc) " +
+            "VALUES ('demo.weather', 'Tokyo', 35.6762, 139.6503, 1, " +
+            "'2026-08-29T00:00:00.0000000Z');");
+
+        Assert.AreEqual(1, await database.ApplySchemaAsync());
+
+        WeatherSettingsRecord migrated = new WeatherSettingsRepository(database)
+            .Get(WeatherSettingsContract.DefaultInstanceId)!;
+        Assert.IsTrue(migrated.UseDeviceLocation);
+        Assert.AreEqual("Tokyo", migrated.Label);
     }
 
     private static async Task<SqliteDatabase> OpenDatabaseAsync()

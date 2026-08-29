@@ -102,6 +102,13 @@ public sealed partial class SettingsDialog : ContentDialog
         }
     }
 
+    private async void WeatherSettingsDeviceLocationButton_Click(
+        object sender,
+        RoutedEventArgs args)
+    {
+        await WeatherViewModel.RefreshDeviceLocationAsync(CancellationToken.None);
+    }
+
     // Search runs on submit, never per keystroke: every search leaves the machine, and a
     // request per character would send far more of what the user typed than they asked to.
     private async void WeatherSettingsSearchButton_Click(object sender, RoutedEventArgs args)
