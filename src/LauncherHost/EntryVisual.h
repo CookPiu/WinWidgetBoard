@@ -44,6 +44,11 @@ inline constexpr int kEntrySegmentRowHeightLogical = 15;
 // taller than the two rows it sits beside.
 inline constexpr int kEntrySegmentIconSizeLogical = 12;
 inline constexpr int kEntrySegmentIconGapLogical = 4;
+// Every two-row column owns the same slot. Live readings change width constantly - network
+// rates most visibly - and measuring the current string made every later column slide.
+// A fixed slot keeps the instrument's grid stable; text that genuinely needs more room is
+// ellipsized inside its own cell instead of moving its neighbours.
+inline constexpr int kEntrySegmentColumnWidthLogical = 72;
 // Each side of the divider. Tighter than the single-row strip's: with columns half as wide,
 // the old 10 DIP read as a hole rather than as breathing room.
 inline constexpr int kEntrySegmentColumnGapLogical = 6;

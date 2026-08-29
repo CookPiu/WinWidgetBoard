@@ -518,29 +518,19 @@ struct SegmentLayout
     bool hasDivider{};
 };
 
-// The width one segment needs: its glyph and gap when it has one, plus its text.
-int MeasureSegmentCellWidth(
-    const EntrySegment& segment,
-    const TextMeasurer& measurer,
-    const int iconSize,
-    const int iconGap)
-{
-    return (segment.icon != EntryIcon::None ? iconSize + iconGap : 0) +
-        measurer.Measure(segment.text);
-}
-
 // Lays the segments out in columns of two after the indicator. Every cell in a column starts
-// at the same x so the readings line up vertically; the column is as wide as its widest cell.
-// Neighbouring columns are separated by a gap, a hairline spanning both rows, and another gap.
-std::vector<SegmentLayout> ResolveSegmentLayout(
-    const EntryRenderRequest& request,
-    const TextMeasurer& measurer)
+// at the same x so the readings line up vertically; every column owns the same fixed-width
+// slot, so a changing number cannot move any column after it. Neighbouring columns are
+// separated by a gap, a hairline spanning both rows, and another gap.
+std::vector<SegmentLayout> ResolveSegmentLayout(const EntryRenderRequest& request)
 {
     std::vector<SegmentLayout> layouts;
     layouts.reserve(request.segments.size());
 
     const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, request.dpi);
     const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, request.dpi);
+    const int columnWidth =
+        ScaleLogical(kEntrySegmentColumnWidthLogical, request.dpi);
     const int columnGap = ScaleLogical(kEntrySegmentColumnGapLogical, request.dpi);
     const int dividerWidth = ScaleLogical(kEntryDividerWidthLogical, request.dpi);
     const int rowHeight = ScaleLogical(kEntrySegmentRowHeightLogical, request.dpi);
@@ -565,18 +555,6 @@ std::vector<SegmentLayout> ResolveSegmentLayout(
     {
         const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
         const int rowCount = static_cast<int>(past - first);
-
-        int columnWidth = 0;
-        for (size_t index = first; index < past; ++index)
-        {
-            columnWidth = std::max(
-                columnWidth,
-                MeasureSegmentCellWidth(
-                    request.segments[index],
-                    measurer,
-                    iconSize,
-                    iconGap));
-        }
 
         if (!layouts.empty() && cursor + columnWidth > limit)
         {
@@ -1417,13 +1395,7 @@ bool ComposeSegments(
     // does not go through ResolveFontPixelHeight, which serves the single-line modes.
     const int fontPixelHeight =
         ScaleLogical(kEntrySegmentFontSizeLogical, request.dpi);
-    const TextMeasurer measurer(fontPixelHeight, EntryTypeRole::Segment);
-    if (!measurer.IsReady())
-    {
-        return false;
-    }
-
-    const std::vector<SegmentLayout> layouts = ResolveSegmentLayout(request, measurer);
+    const std::vector<SegmentLayout> layouts = ResolveSegmentLayout(request);
 
     DibSurface textMask;
     if (!textMask.Create(canvas.width, canvas.height))
@@ -1466,7 +1438,7 @@ bool ComposeSegments(
             segment.text.c_str(),
             static_cast<int>(segment.text.size()),
             &textRect,
-            DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_LEFT | DT_NOCLIP);
+            DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_LEFT | DT_END_ELLIPSIS);
     }
 
     SelectObject(textMask.deviceContext, previousFont);
@@ -2299,36 +2271,19 @@ int MeasureEntrySegmentsWidthLogical(
         return 0;
     }
 
-    const TextMeasurer measurer(
-        ScaleLogical(kEntrySegmentFontSizeLogical, dpi),
-        EntryTypeRole::Segment);
-    if (!measurer.IsReady())
-    {
-        return 0;
-    }
-
-    const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, dpi);
-    const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, dpi);
-
     // No indicator allowance: that one lives in the main capsule.
     int width = kEntryLeadingPaddingLogical + kEntryTrailingPaddingLogical;
 
-    // Mirrors ResolveSegmentLayout's column packing: a column is as wide as its widest cell,
-    // and only the columns pay for a divider. Measuring per segment instead would ask the
-    // taskbar for roughly twice the width the strip then draws into.
+    // Mirrors ResolveSegmentLayout's fixed-width packing. The result depends on the configured
+    // column count, not on this second's digits, so the capsule and every later column stay put.
+    const int columnWidthLogical = ToLogical(
+        ScaleLogical(kEntrySegmentColumnWidthLogical, dpi),
+        dpi);
     const size_t count = segments.size();
     for (size_t first = 0; first < count; first += kEntrySegmentRowsPerColumn)
     {
         const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
-        int columnWidth = 0;
-        for (size_t index = first; index < past; ++index)
-        {
-            columnWidth = std::max(
-                columnWidth,
-                MeasureSegmentCellWidth(segments[index], measurer, iconSize, iconGap));
-        }
-
-        width += ToLogical(columnWidth, dpi);
+        width += columnWidthLogical;
         if (past < count)
         {
             width += kEntrySegmentColumnGapLogical * 2 + kEntryDividerWidthLogical;
@@ -3384,6 +3339,58 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
         {
             failure = L"a second reading did not share the first reading's column";
             return false;
+        }
+
+        const std::vector<EntrySegment> changingRates = {
+            EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+            EntrySegment{EntryIcon::Memory, L"MEM 61%"},
+            EntrySegment{EntryIcon::NetworkDown, L"1 B/s"},
+            EntrySegment{EntryIcon::NetworkUp, L"999.9 MB/s"},
+            EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
+        };
+        const std::vector<EntrySegment> reversedRates = {
+            EntrySegment{EntryIcon::Cpu, L"CPU 100%"},
+            EntrySegment{EntryIcon::Memory, L"MEM 100%"},
+            EntrySegment{EntryIcon::NetworkDown, L"999.9 MB/s"},
+            EntrySegment{EntryIcon::NetworkUp, L"1 B/s"},
+            EntrySegment{EntryIcon::Gpu, L"GPU 100%"},
+        };
+        if (MeasureEntrySegmentsWidthLogical(changingRates, 96) !=
+            MeasureEntrySegmentsWidthLogical(reversedRates, 96))
+        {
+            failure = L"live readings changed the segmented strip width";
+            return false;
+        }
+
+        EntryRenderRequest changingRequest{};
+        changingRequest.windowSize = SIZE{kWidth, kHeight};
+        changingRequest.monitorCapsule = RECT{0, 0, kWidth, kHeight};
+        changingRequest.hasMonitorCapsule = true;
+        changingRequest.dpi = 96;
+        changingRequest.segments = changingRates;
+        EntryRenderRequest reversedRequest = changingRequest;
+        reversedRequest.segments = reversedRates;
+        const std::vector<SegmentLayout> changingLayout =
+            ResolveSegmentLayout(changingRequest);
+        const std::vector<SegmentLayout> reversedLayout =
+            ResolveSegmentLayout(reversedRequest);
+        if (changingLayout.size() != reversedLayout.size())
+        {
+            failure = L"live readings changed the number of visible segment slots";
+            return false;
+        }
+        for (size_t index = 0; index < changingLayout.size(); ++index)
+        {
+            const SegmentLayout& before = changingLayout[index];
+            const SegmentLayout& after = reversedLayout[index];
+            if (before.iconRect.left != after.iconRect.left ||
+                before.textRect.left != after.textRect.left ||
+                before.textRect.right != after.textRect.right ||
+                before.dividerCenterX != after.dividerCenterX)
+            {
+                failure = L"live readings moved a fixed segment slot";
+                return false;
+            }
         }
 
         // A single segment has no neighbour, so it must draw no divider at all. Comparing the
