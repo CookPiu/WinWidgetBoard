@@ -2212,16 +2212,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        bool east = direction is CardResizeDirection.East or CardResizeDirection.SouthEast;
-        bool south = direction is CardResizeDirection.South or CardResizeDirection.SouthEast;
 
         InterruptDemoNotesCardReturn();
         ResetCardDropPreview();
         _cardResizeFrame = frame;
         _cardResizeId = item.InstanceId;
         _cardResizeStartPlacement = placement;
-        _cardResizeColumns = east;
-        _cardResizeRows = south;
         _cardResizeSize = placement.Size;
         _cardResizePointerId = e.Pointer.PointerId;
         _cardResizePressPoint = GetRootPointer(e);
@@ -2278,8 +2274,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         // Snapping alone leaves the gesture dead between steps: the pointer travels half a
         // card with nothing responding, which reads as the drag having stopped working.
         ShowCardResizeGhost(
-            _cardResizeGhostWidth + (_cardResizeColumns ? point.X - _cardResizePressPoint.X : 0),
-            _cardResizeGhostHeight + (_cardResizeRows ? point.Y - _cardResizePressPoint.Y : 0));
+            _cardResizeGhostWidth + (point.X - _cardResizePressPoint.X),
+            _cardResizeGhostHeight + (point.Y - _cardResizePressPoint.Y));
 
         CardSize target = CardResizeCalculator.GetResizeTarget(
             _cardGridLayout.ColumnCount,
@@ -2290,8 +2286,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             placement,
             point.X - _cardResizePressPoint.X,
             point.Y - _cardResizePressPoint.Y,
-            _cardResizeColumns,
-            _cardResizeRows);
+            resizeColumns: true,
+            resizeRows: true);
         e.Handled = true;
         if (target == _cardResizeSize)
         {
@@ -2372,27 +2368,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     }
 
     /// <summary>
-    /// Which handle a point inside the frame belongs to, or None for the rest of it. The frame
-    /// only takes pointer input on its handles, so this is normally answering "which one"; it
-    /// still reports None honestly, because the same reading drives the hover cursor.
+    /// Whether a point inside the frame is on the corner handle. The frame only takes pointer
+    /// input there, so this is normally confirming what already happened; it still answers
+    /// honestly for the rest of the frame, because the same reading drives the hover cursor.
     /// </summary>
     private static CardResizeDirection ResolveResizeDirection(
         FrameworkElement frame,
         Windows.Foundation.Point local)
     {
-        bool east = local.X >= frame.ActualWidth - CardResizeHandleBand;
-        bool south = local.Y >= frame.ActualHeight - CardResizeHandleBand;
-        if (east && south)
-        {
-            return CardResizeDirection.SouthEast;
-        }
-
-        if (east)
-        {
-            return CardResizeDirection.East;
-        }
-
-        return south ? CardResizeDirection.South : CardResizeDirection.None;
+        return local.X >= frame.ActualWidth - CardResizeHandleBand &&
+            local.Y >= frame.ActualHeight - CardResizeHandleBand
+            ? CardResizeDirection.SouthEast
+            : CardResizeDirection.None;
     }
 
     private void CardResizeFrame_PointerExited(
@@ -2419,6 +2406,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     /// size stops shrinking the band instead of turning it inside out.
     /// </summary>
     private const double CardResizeGhostEdgeThickness = 3;
+    private const double CardResizeGhostCornerSize = 12;
 
     private void ShowCardResizeGhost(double width, double height)
     {
@@ -2446,24 +2434,86 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         eastEdge.TranslateY = top;
         eastEdge.ScaleX = CardResizeGhostEdgeThickness;
         eastEdge.ScaleY = bandHeight;
-        CardResizeGhostEastEdge.Visibility = _cardResizeColumns
-            ? Visibility.Visible
-            : Visibility.Collapsed;
 
         southEdge.TranslateX = left;
         southEdge.TranslateY = top + bandHeight - CardResizeGhostEdgeThickness;
         southEdge.ScaleX = bandWidth;
         southEdge.ScaleY = CardResizeGhostEdgeThickness;
-        CardResizeGhostSouthEdge.Visibility = _cardResizeRows
-            ? Visibility.Visible
-            : Visibility.Collapsed;
 
-        CardResizeGhostLayer.Visibility = Visibility.Visible;
+        // The handle appears to come off the card and travel with the pointer. It is the one
+        // part of the band the eye is already following, so it is the one that has to keep up.
+        if (CardResizeGhostCorner.RenderTransform is CompositeTransform corner)
+        {
+            corner.TranslateX = left + bandWidth - CardResizeGhostCornerSize;
+            corner.TranslateY = top + bandHeight - CardResizeGhostCornerSize;
+            corner.ScaleX = CardResizeGhostCornerSize;
+            corner.ScaleY = CardResizeGhostCornerSize;
+        }
+
+        if (CardResizeGhostLayer.Visibility != Visibility.Visible)
+        {
+            CardResizeGhostLayer.Visibility = Visibility.Visible;
+            FadeCardResizeGhost(1);
+        }
     }
 
+    /// <summary>
+    /// Takes the band off screen. It fades rather than vanishing: the release already moves
+    /// the card underneath it, and two things changing in the same frame reads as a flicker.
+    /// The element is collapsed when the fade lands, so nothing is left composing.
+    /// </summary>
     private void HideCardResizeGhost()
     {
-        CardResizeGhostLayer.Visibility = Visibility.Collapsed;
+        if (CardResizeGhostLayer.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        if (_reducedMotion)
+        {
+            CardResizeGhostLayer.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        Visual visual = ElementCompositionPreview.GetElementVisual(CardResizeGhostLayer);
+        CompositionScopedBatch batch = visual.Compositor.CreateScopedBatch(
+            CompositionBatchTypes.Animation);
+        FadeCardResizeGhost(0);
+        batch.Completed += (_, _) =>
+        {
+            // Another gesture may have started while this one was fading out; it owns the
+            // band now, so the late completion must not pull it off screen.
+            if (_cardResizePointerId is null)
+            {
+                CardResizeGhostLayer.Visibility = Visibility.Collapsed;
+            }
+        };
+        batch.End();
+    }
+
+    /// <summary>
+    /// Compositor-only, and short. The band itself never animates its position or size - a
+    /// resize is direct manipulation and must track the pointer with no added latency - so
+    /// the only thing that moves under an animation here is its opacity.
+    /// </summary>
+    private void FadeCardResizeGhost(float target)
+    {
+        Visual visual = ElementCompositionPreview.GetElementVisual(CardResizeGhostLayer);
+        if (_reducedMotion)
+        {
+            visual.Opacity = target;
+            return;
+        }
+
+        var animation = visual.Compositor.CreateScalarKeyFrameAnimation();
+        animation.Duration = TimeSpan.FromMilliseconds(target > 0 ? 90 : 120);
+        animation.InsertKeyFrame(
+            1,
+            target,
+            visual.Compositor.CreateCubicBezierEasingFunction(
+                new Vector2(0.23f, 1),
+                new Vector2(0.32f, 1)));
+        visual.StartAnimation(nameof(Visual.Opacity), animation);
     }
 
     private void ResetCardResize()
@@ -2473,8 +2523,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardResizeFrame = null;
         _cardResizeId = null;
         _cardResizeStartPlacement = null;
-        _cardResizeColumns = false;
-        _cardResizeRows = false;
     }
 
     private void DemoNotesCardSurface_PointerPressed(
@@ -2706,8 +2754,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private double _cardResizeGhostWidth;
     private double _cardResizeGhostHeight;
     private CardSize _cardResizeSize;
-    private bool _cardResizeColumns;
-    private bool _cardResizeRows;
 
     private bool TryGetDropCell(
         CardPlacement placement,

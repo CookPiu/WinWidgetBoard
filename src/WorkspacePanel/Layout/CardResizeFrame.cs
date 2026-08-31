@@ -4,14 +4,12 @@ using Microsoft.UI.Xaml.Controls;
 namespace WinWidgetBoard.WorkspacePanel.Layout;
 
 /// <summary>
-/// Which way a resize handle stretches the card. The frame reports this from where the
-/// pointer is, and the page turns it into both the cursor and the axes of the gesture.
+/// Whether the pointer is on the card's resize handle. There is one handle and it stretches
+/// both axes at once, so this says "on it" or "not on it" rather than naming a direction.
 /// </summary>
 public enum CardResizeDirection
 {
     None,
-    East,
-    South,
     SouthEast,
 }
 
@@ -28,10 +26,6 @@ public sealed partial class CardResizeFrame : ContentControl
 {
     // Created once. A cursor object per pointer move would allocate on every mouse message
     // along a drag, which is the one place in this UI that must add no work.
-    private static readonly InputCursor EastCursor =
-        InputSystemCursor.Create(InputSystemCursorShape.SizeWestEast);
-    private static readonly InputCursor SouthCursor =
-        InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth);
     private static readonly InputCursor SouthEastCursor =
         InputSystemCursor.Create(InputSystemCursorShape.SizeNorthwestSoutheast);
 
@@ -50,12 +44,8 @@ public sealed partial class CardResizeFrame : ContentControl
         }
 
         _cursorDirection = direction;
-        ProtectedCursor = direction switch
-        {
-            CardResizeDirection.East => EastCursor,
-            CardResizeDirection.South => SouthCursor,
-            CardResizeDirection.SouthEast => SouthEastCursor,
-            _ => null,
-        };
+        ProtectedCursor = direction == CardResizeDirection.SouthEast
+            ? SouthEastCursor
+            : null;
     }
 }

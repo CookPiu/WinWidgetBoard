@@ -325,45 +325,19 @@
                             CornerRadius="{StaticResource WwbCardCornerRadius}"
                             IsHitTestVisible="False" />
                         <!--
-                            Each handle is a transparent grab area with the painted square
-                            inside it. The square is 12 DIP because that is what reads at a
-                            glance; the area around it is 28 because a handle that has to be
-                            hit exactly is a handle the user gives up on. Only these three
-                            take pointer input - the frame's middle stays transparent to it,
-                            so pressing the card still starts a move.
+                            One handle, on the corner. Separate edge handles were two ways of
+                            reaching the same five sizes: the grid has three column steps and
+                            two row steps, so almost every size change is a change of both, and
+                            an edge handle could only ever get halfway there. One corner also
+                            leaves the card's edges alone, which is what keeps the rest of the
+                            frame quiet enough to sit on eight cards at once.
+
+                            The painted square is 12 DIP; the transparent area around it is 28,
+                            because a handle that has to be hit exactly is a handle the user
+                            gives up on. It is the only part of the frame that takes pointer
+                            input - the middle stays transparent to it, so pressing the card
+                            still starts a move.
                         -->
-                        <Border
-                            Width="28"
-                            Height="28"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
-                            Margin="0,0,-14,0"
-                            Background="Transparent">
-                            <Rectangle
-                                Width="{StaticResource WwbCardResizeHandleSize}"
-                                Height="{StaticResource WwbCardResizeHandleSize}"
-                                RadiusX="3"
-                                RadiusY="3"
-                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                Stroke="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                                StrokeThickness="1" />
-                        </Border>
-                        <Border
-                            Width="28"
-                            Height="28"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            Margin="0,0,0,-14"
-                            Background="Transparent">
-                            <Rectangle
-                                Width="{StaticResource WwbCardResizeHandleSize}"
-                                Height="{StaticResource WwbCardResizeHandleSize}"
-                                RadiusX="3"
-                                RadiusY="3"
-                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                Stroke="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                                StrokeThickness="1" />
-                        </Border>
                         <Border
                             Width="28"
                             Height="28"
