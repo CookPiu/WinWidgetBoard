@@ -2033,6 +2033,17 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
+        // Leaving the panel abandons an unfinished edit. Editing is a mode, and a mode the
+        // user cannot see is one they will not remember being in: the panel used to hide with
+        // the mode still on, so the next time it opened - possibly hours later - it opened
+        // into a half-finished arrangement nobody had asked for. Nothing is lost that was
+        // ever committed; only this session's uncommitted moves go, which is what "close
+        // without saving" means. A save already in flight owns the layout and is left alone.
+        if (_cardEdit.IsEditing && !_isSavingLayout)
+        {
+            CancelLayoutEdit();
+        }
+
         _isHiddenForResidency = true;
         StartupTrace.Mark("residency-hide");
         _appWindow.Hide();
