@@ -459,6 +459,39 @@ TaskbarEdge InferTaskbarEdge(const RECT& monitorRect, const RECT& workArea)
         : TaskbarEdge::Unknown;
 }
 
+bool IsWindows11OrLater() noexcept
+{
+    // RtlGetVersion reports the real OS. GetVersionExW would lie here: without a
+    // supportedOS manifest entry it caps the answer at an older version, and tying a
+    // placement decision to the manifest would make it change silently with build settings.
+    using RtlGetVersionFn = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
+    static const bool isWindows11OrLater = []() noexcept {
+        const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        if (ntdll == nullptr)
+        {
+            return false;
+        }
+
+        const auto rtlGetVersion = reinterpret_cast<RtlGetVersionFn>(
+            GetProcAddress(ntdll, "RtlGetVersion"));
+        if (rtlGetVersion == nullptr)
+        {
+            return false;
+        }
+
+        RTL_OSVERSIONINFOW info{};
+        info.dwOSVersionInfoSize = sizeof(info);
+        if (rtlGetVersion(&info) != 0)
+        {
+            return false;
+        }
+
+        return info.dwMajorVersion > 10 ||
+            (info.dwMajorVersion == 10 && info.dwBuildNumber >= 22000);
+    }();
+    return isWindows11OrLater;
+}
+
 bool QueryMonitorSnapshot(
     const HMONITOR monitor,
     MonitorSnapshot& snapshot,
@@ -516,6 +549,10 @@ bool QueryMonitorSnapshot(
         snapshot.inferredTaskbarEdge,
         snapshot.taskbarStrip);
     snapshot.systemIconsLeftAligned = QuerySystemIconsLeftAligned();
+    // The Windows 10 taskbar fills its strip with window buttons this geometry cannot see;
+    // embedding there would cover them, which SYS-003 forbids. The strip is only trusted to
+    // have hostable free space on the Windows 11 taskbar shape.
+    snapshot.taskbarStripTrusted = IsWindows11OrLater();
 
     return true;
 }
@@ -632,7 +669,8 @@ LauncherPlacement ResolveLauncherPlacement(
         return placement;
     }
 
-    if (ResolveAlignmentMode(preferences.placement) ==
+    if (snapshot.taskbarStripTrusted &&
+        ResolveAlignmentMode(preferences.placement) ==
         LauncherPlacementMode::ExactWidgetReplacement)
     {
         LauncherEntryPlacementPreference alignment = preferences.placement;
@@ -720,7 +758,9 @@ LauncherPlacement ResolveLauncherPlacement(
         return placement;
     }
 
-    placement.reason = hasReliableTaskbarEdge
+    placement.reason = !snapshot.taskbarStripTrusted
+        ? L"pre-Windows-11 taskbar owns its strip; embedded placement disabled, entry stays in the work area"
+        : hasReliableTaskbarEdge
         ? L"taskbar edge inferred from monitor/work-area difference; entry stays in the work area"
         : L"taskbar edge is ambiguous or auto-hidden; using work-area edge fallback";
     return placement;
@@ -874,6 +914,22 @@ static bool RunEmbeddedEntryContractSmokeTest(
         if (failure.empty())
         {
             failure = L"embedded entry did not scale with DPI";
+        }
+        return false;
+    }
+
+    // A pre-Windows-11 taskbar fills its strip with window buttons the geometry cannot see,
+    // so an untrusted strip must never host an embedded entry - only the work-area slot.
+    MonitorSnapshot untrustedStrip = bottomTaskbar;
+    untrustedStrip.taskbarStripTrusted = false;
+    const LauncherPlacement untrusted =
+        ResolveLauncherPlacement(untrustedStrip, 96, embeddedLeft, 160);
+    if (untrusted.mode != LauncherPlacementMode::SafeTaskbarSlot ||
+        !CheckPlacement(untrustedStrip, untrusted, failure))
+    {
+        if (failure.empty())
+        {
+            failure = L"untrusted taskbar strip still embedded the entry";
         }
         return false;
     }

@@ -73,6 +73,12 @@ struct MonitorSnapshot
     bool hasTaskbarStrip{};
     // HKCU TaskbarAl == 0. The Start button then sits at the far left of the strip.
     bool systemIconsLeftAligned{};
+    // False before Windows 11 (build 22000). The Windows 10 taskbar fills its strip with
+    // window buttons the geometry cannot see, so an embedded entry would sit on top of them;
+    // placement never attempts the embedded mode while this is false. Defaults to true so the
+    // synthetic geometry contracts keep exercising the embedded mode; QueryMonitorSnapshot
+    // always sets it from the running OS.
+    bool taskbarStripTrusted{true};
     TaskbarEdge inferredTaskbarEdge{TaskbarEdge::Unknown};
 };
 
@@ -126,6 +132,10 @@ int ResolveMonitorWidthLogical(int measuredMonitorWidthLogical);
 // oscillating reading does not re-place the window every couple of seconds.
 bool TryRefitEntryWidth(int measuredLogical, int& reservedLogical);
 bool TryRefitMonitorWidth(int measuredLogical, int& reservedLogical);
+
+// True on Windows 11 (build 22000) or later, read through RtlGetVersion so the answer does
+// not depend on this process's compatibility manifest.
+bool IsWindows11OrLater() noexcept;
 
 bool QueryMonitorSnapshot(
     HMONITOR monitor,
