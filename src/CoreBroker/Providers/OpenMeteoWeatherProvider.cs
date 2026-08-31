@@ -304,9 +304,16 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             [
                 $"latitude={FormatDouble(location.Latitude)}",
                 $"longitude={FormatDouble(location.Longitude)}",
-                $"current={Uri.EscapeDataString(CurrentVariables)}",
-                $"hourly={Uri.EscapeDataString(HourlyVariables)}",
-                $"daily={Uri.EscapeDataString(DailyVariables)}",
+                // The variable lists go in unescaped. They are comma-separated names, and
+                // Open-Meteo does not accept a percent-encoded comma in them: given "%2C" it
+                // reads the whole list as one unknown variable, answers with the time axis
+                // and no variables at all, and every parse then fails as an invalid response.
+                // The three constants are literals in this file made of [a-z0-9_,], so there
+                // is nothing here that needs escaping - and nothing user-supplied either.
+                // The location and the units below are escaped as usual.
+                $"current={CurrentVariables}",
+                $"hourly={HourlyVariables}",
+                $"daily={DailyVariables}",
                 $"forecast_days={ForecastDays.ToString(CultureInfo.InvariantCulture)}",
                 "timezone=auto",
                 "temperature_unit=celsius",

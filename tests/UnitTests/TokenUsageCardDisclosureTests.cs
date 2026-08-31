@@ -22,15 +22,20 @@ namespace WinWidgetBoard.UnitTests;
 public sealed class TokenUsageCardDisclosureTests
 {
     [TestMethod(DisplayName =
-        "UT-TOKUSE-090 [USE-015] Each card size shows as many readings as it can hold")]
-    [DataRow(CardSize.S, 2)]
-    [DataRow(CardSize.M, 2)]
-    [DataRow(CardSize.W, 2)]
+        "UT-TOKUSE-090 [USE-015] Readings take what is left after the spend and the tabs")]
+    // One row is 98 DIP. The spend costs 54 of it everywhere, so a one-cell card has 44 left
+    // and fits one reading; add the page tabs at two cells across and 14 remain, which fits
+    // none - the card is then its title, the tabs and the number, which is what it is for.
+    [DataRow(CardSize.S, 1)]
+    [DataRow(CardSize.M, 0)]
+    [DataRow(CardSize.W, 0)]
+    // 266 less the spend, the tabs and the trend leaves 144: every reading there is.
     [DataRow(CardSize.L, 5)]
     [DataRow(CardSize.XL, 5)]
     public void MetricLimitFollowsCardHeight(CardSize size, int expected)
     {
         using CardSurfaceItem card = CreateTokenUsageCard(size);
+        ApplyReadyPayload(card);
 
         Assert.AreEqual(expected, card.TokenUsageMetricLimit);
     }
@@ -67,20 +72,21 @@ public sealed class TokenUsageCardDisclosureTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-097 [USE-017] The amount is the headline, and needs two rows to appear")]
-    [DataRow(CardSize.S, false)]
-    [DataRow(CardSize.M, false)]
-    [DataRow(CardSize.W, false)]
-    [DataRow(CardSize.L, true)]
-    [DataRow(CardSize.XL, true)]
-    public void AmountNeedsTwoRows(CardSize size, bool expected)
+        "UT-TOKUSE-097 [USE-017] The amount is the headline at every size")]
+    [DataRow(CardSize.S)]
+    [DataRow(CardSize.M)]
+    [DataRow(CardSize.W)]
+    [DataRow(CardSize.L)]
+    [DataRow(CardSize.XL)]
+    public void AmountShowsAtEverySize(CardSize size)
     {
         using CardSurfaceItem card = CreateTokenUsageCard(size);
         ApplyReadyPayload(card);
 
-        Assert.AreEqual(expected, card.IsTokenUsageCostVisible);
-        // The figure itself is available at every size; only the headline treatment needs
-        // the height.
+        // It used to need two rows, which put a table of counts on the small cards and left
+        // the number they are read for off them. The height is spent on the number first now,
+        // and the readings are what give way.
+        Assert.IsTrue(card.IsTokenUsageCostVisible);
         Assert.AreNotEqual(string.Empty, card.TokenUsageCostText);
     }
 

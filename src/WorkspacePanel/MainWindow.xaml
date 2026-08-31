@@ -1186,6 +1186,7 @@
                                     <TextBlock
                                         x:Uid="WeatherHighLabel"
                                         Style="{StaticResource WwbCardCaptionStyle}"
+                                        Visibility="{x:Bind IsWeatherHighLowLabelVisible, Mode=OneWay}"
                                         VerticalAlignment="Center" />
                                     <TextBlock
                                         automation:AutomationProperties.AutomationId="WeatherHighTemperatureText"
@@ -1194,9 +1195,20 @@
                                         Text="{x:Bind WeatherHighTemperatureText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis"
                                         VerticalAlignment="Center" />
+                                    <!--
+                                        Stands in for the two labels on a one-cell card, which
+                                        is not wide enough to name them.
+                                    -->
+                                    <TextBlock
+                                        Margin="0,0,4,0"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="/"
+                                        Visibility="{x:Bind IsWeatherHighLowSeparatorVisible, Mode=OneWay}"
+                                        VerticalAlignment="Center" />
                                     <TextBlock
                                         x:Uid="WeatherLowLabel"
                                         Style="{StaticResource WwbCardCaptionStyle}"
+                                        Visibility="{x:Bind IsWeatherHighLowLabelVisible, Mode=OneWay}"
                                         VerticalAlignment="Center" />
                                     <TextBlock
                                         automation:AutomationProperties.AutomationId="WeatherLowTemperatureText"

@@ -55,6 +55,23 @@ public sealed class OpenMeteoWeatherProviderTests
         StringAssert.Contains(capturedRequest!.RequestUri!.Query, "latitude=1.3521");
         StringAssert.Contains(capturedRequest.RequestUri.Query, "longitude=103.8198");
         StringAssert.Contains(capturedRequest.RequestUri.Query, "weather_code");
+        // The variable lists must reach the API with real commas. Percent-encoding them makes
+        // Open-Meteo read each list as one unknown variable: it answers with the time axis and
+        // no variables at all, every parse then fails as weather.invalid-response, and the
+        // card lives on its last good payload until someone notices the forecast is gone.
+        StringAssert.Contains(
+            capturedRequest.RequestUri.Query,
+            "current=temperature_2m,relative_humidity_2m,apparent_temperature," +
+            "weather_code,wind_speed_10m,is_day");
+        StringAssert.Contains(
+            capturedRequest.RequestUri.Query,
+            "hourly=temperature_2m,weather_code,is_day");
+        StringAssert.Contains(
+            capturedRequest.RequestUri.Query,
+            "daily=weather_code,temperature_2m_max,temperature_2m_min");
+        Assert.IsFalse(
+            capturedRequest.RequestUri.Query.Contains("%2C", StringComparison.OrdinalIgnoreCase),
+            "A percent-encoded comma in the query means the API returns no variables.");
         Assert.AreEqual(15, (result.ValidUntilUtc!.Value - InitialUtc).TotalMinutes);
         Assert.AreEqual(
             31.2,

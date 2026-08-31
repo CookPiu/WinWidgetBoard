@@ -27,6 +27,8 @@ public sealed class WeatherCardDisclosureTests
             "windSpeedKmh": 1.6,
             "weatherCode": 96,
             "conditionIconId": "thunderstorm",
+            "todayHighTemperatureC": 28.9,
+            "todayLowTemperatureC": 16.6,
             "observedAtLocal": "2026-08-25T14:15"
           },
           "hourly": [
@@ -48,16 +50,23 @@ public sealed class WeatherCardDisclosureTests
         using CardSurfaceItem item = CreateWeatherItem(noteEditor, CardSize.S);
         ApplyPayload(item);
 
-        // One cell: the place, the number and the sky. A fourth line pushes one of the three
-        // out, so the named readings start at M.
+        // One cell: the place, the number, the sky and today's range - about 80 DIP of the 98
+        // a one-row card has. The named readings cost 34 more and do not fit.
+        Assert.IsTrue(item.HasWeatherHighLow);
         Assert.IsFalse(item.HasWeatherSecondary);
         Assert.IsFalse(item.HasWeatherHours);
         Assert.IsFalse(item.HasWeatherDays);
         Assert.IsFalse(item.HasWeatherFooter);
+        // Too narrow to name the two ends; the values carry a slash between them instead.
+        Assert.IsFalse(item.IsWeatherHighLowLabelVisible);
+        Assert.IsTrue(item.IsWeatherHighLowSeparatorVisible);
 
-        // Two cells across, one down: room for the readings, none for a trend under them.
+        // Two cells across, one down. Still one row of height, so the named readings still do
+        // not fit - the width only buys room to name the range.
         item.UpdatePlacement(Place(CardSize.M));
-        Assert.IsTrue(item.HasWeatherSecondary);
+        Assert.IsFalse(item.HasWeatherSecondary);
+        Assert.IsTrue(item.IsWeatherHighLowLabelVisible);
+        Assert.IsFalse(item.IsWeatherHighLowSeparatorVisible);
         Assert.IsFalse(item.HasWeatherHours);
         Assert.IsFalse(item.HasWeatherDays);
 
@@ -65,6 +74,7 @@ public sealed class WeatherCardDisclosureTests
         // reading rather than under it; the days would need a second row and do not.
         item.UpdatePlacement(Place(CardSize.W));
         Assert.IsTrue(item.IsWeatherWideLayout);
+        Assert.IsFalse(item.HasWeatherSecondary);
         Assert.IsTrue(item.HasWeatherHours);
         Assert.IsFalse(item.HasWeatherDays);
 
@@ -72,12 +82,35 @@ public sealed class WeatherCardDisclosureTests
         // This is the size the card ships at, and it showed no days at all before.
         item.UpdatePlacement(Place(CardSize.L));
         Assert.IsFalse(item.IsWeatherWideLayout);
+        Assert.IsTrue(item.HasWeatherSecondary);
         Assert.IsTrue(item.HasWeatherHours);
         Assert.IsTrue(item.HasWeatherDays);
         Assert.IsTrue(item.HasWeatherFooter);
 
         item.UpdatePlacement(Place(CardSize.XL));
         Assert.IsTrue(item.IsWeatherWideLayout);
+        Assert.IsTrue(item.HasWeatherHours);
+        Assert.IsTrue(item.HasWeatherDays);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-WEA-029 [WEA-001] Shrinking and growing again brings the forecast back")]
+    public async Task ShrinkingAndGrowingAgainBringsTheForecastBack()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        using CardSurfaceItem item = CreateWeatherItem(noteEditor, CardSize.L);
+        ApplyPayload(item);
+        Assert.IsTrue(item.HasWeatherHours);
+        Assert.IsTrue(item.HasWeatherDays);
+
+        // A resize is not a refresh: the projection is untouched, so what a size took away a
+        // size has to give back. If this only came back on the next snapshot, a card resized
+        // between two provider ticks would sit there without its forecast for a quarter hour.
+        item.UpdatePlacement(Place(CardSize.M));
+        Assert.IsFalse(item.HasWeatherHours);
+        Assert.IsFalse(item.HasWeatherDays);
+
+        item.UpdatePlacement(Place(CardSize.L));
         Assert.IsTrue(item.HasWeatherHours);
         Assert.IsTrue(item.HasWeatherDays);
     }

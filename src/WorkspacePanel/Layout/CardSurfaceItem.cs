@@ -206,12 +206,27 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         Placement.Size is CardSize.L or CardSize.XL;
 
     /// <summary>
-    /// The secondary readings - felt temperature, humidity, wind. The smallest card is one
-    /// cell: it holds the place, the number and what the sky is doing, and a fourth line
-    /// would push one of those three out.
+    /// The secondary readings - felt temperature, humidity, wind. They need the second grid
+    /// row, and the arithmetic says why: a one-row card has about 98 DIP of content, and the
+    /// reading (40), the condition (20) and today's range (20) already spend 80 of it. These
+    /// cost 34 more, so on a one-row card they were drawn through the card's own clip - which
+    /// is what adding the range line did to the M card without re-checking the ladder it was
+    /// joining.
     /// </summary>
     public bool HasWeatherSecondary =>
-        HasWeatherData && Placement.Size is not CardSize.S;
+        HasWeatherData && Placement.Size is CardSize.L or CardSize.XL;
+
+    /// <summary>
+    /// Whether today's range names its two ends. One cell is about 170 DIP wide and
+    /// "最高 28.9 °C  最低 16.6 °C" does not fit across it; the two values alone, separated by
+    /// a slash, do. The labels come back as soon as the card is two cells wide.
+    /// </summary>
+    public bool IsWeatherHighLowLabelVisible =>
+        HasWeatherHighLow && Placement.Size is not CardSize.S;
+
+    /// <summary>The separator that stands in for the labels on the narrowest card.</summary>
+    public bool IsWeatherHighLowSeparatorVisible =>
+        HasWeatherHighLow && Placement.Size is CardSize.S;
 
     /// <summary>
     /// When the observation time and the attribution have a line to sit on. Both are context
@@ -309,26 +324,53 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public bool HasTokenUsageData => TokenUsageCurrentPage?.HasData == true;
 
     /// <summary>
-    /// How many readings this card is tall enough to show, out of the priority-ordered list
-    /// the broker sends.
-    ///
-    /// A card is a fixed number of grid rows tall and clips what does not fit rather than
-    /// scrolling it, so the readings past this point are not merely cramped - they are
-    /// invisible, and so is everything laid out below them. The numbers come from the real
-    /// budget: a row is 160 DIP with an 8 DIP gap, so a two-row card has 328 DIP, and after
-    /// 12 DIP padding twice, a 32 DIP header and 6 DIP spacing that leaves 266 DIP for
-    /// content. One reading costs about 23 DIP, or 26 with a meter.
+    /// The height this card has for content: a grid row is 160 DIP with an 8 DIP gap, so two
+    /// rows are 328, and 12 DIP of padding twice, a 32 DIP header and 6 DIP of spacing leave
+    /// 266. One row leaves 98.
     /// </summary>
-    public int TokenUsageMetricLimit => Placement.Size switch
+    private double TokenUsageContentBudget => Placement.Size switch
     {
-        // 98 DIP of content: two readings and nothing else fits.
-        CardSize.S => 2,
-        // 98 DIP less the page tabs leaves 68, and a reading costs about 24.
-        CardSize.M or CardSize.W => 2,
-        // 266 DIP, less tabs (30), the amount (54) and the trend (38), leaves 144 - which is
-        // every reading there is. Nothing is hidden at the card's default size.
-        _ => TokenUsageContract.MetricIds.Count,
+        CardSize.S or CardSize.M or CardSize.W => 98,
+        _ => 266,
     };
+
+    /// <summary>
+    /// How many readings are left over once the parts that outrank them have been paid for.
+    ///
+    /// A card clips what does not fit rather than scrolling it, so a reading past this point
+    /// is not cramped - it is invisible, and so is everything below it. The order of payment
+    /// is the order of the card's purpose: the day's spend first, then the page tabs that say
+    /// whose spend it is, then the trend, and the readings take what is left. That is a change
+    /// from counting two readings at every small size and showing the spend only at two rows:
+    /// the readings were being paid for before the number the card exists to show.
+    /// </summary>
+    public int TokenUsageMetricLimit
+    {
+        get
+        {
+            double budget = TokenUsageContentBudget;
+            if (IsTokenUsageCostVisible)
+            {
+                budget -= 54;
+            }
+
+            if (IsTokenUsagePageSwitcherVisible)
+            {
+                budget -= 30;
+            }
+
+            if (IsTokenUsageTrendVisible)
+            {
+                budget -= 38;
+            }
+
+            // A reading costs about 24 DIP - a label and its value on one line.
+            return Math.Clamp(
+                (int)(budget / 24),
+                0,
+                TokenUsageContract.MetricIds.Count);
+        }
+    }
 
     /// <summary>
     /// The day's spend, shown as the card's headline rather than as one row among the
@@ -338,11 +380,11 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string TokenUsageCostText => TokenUsageCurrentPage?.CostText ?? string.Empty;
 
     /// <summary>
-    /// The headline needs two rows of height, so it appears only where there are two.
+    /// The day's spend shows at every size. It is the number the card is read for - a usage
+    /// card without it is a table of counts - so it is what the height is spent on first and
+    /// the readings are what give way, not the other way round.
     /// </summary>
-    public bool IsTokenUsageCostVisible =>
-        TokenUsageCostText.Length > 0 &&
-        Placement.Size is CardSize.L or CardSize.XL;
+    public bool IsTokenUsageCostVisible => TokenUsageCostText.Length > 0;
 
     /// <summary>
     /// One grid row tall. The trend is the first thing to go: it is the tallest single block
@@ -467,6 +509,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherSecondary)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsWeatherHighLowLabelVisible)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsWeatherHighLowSeparatorVisible)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherFooter)));
