@@ -2246,65 +2246,50 @@
                         scaled with the shape and come out thick on one axis and thin on the
                         other.
                     -->
-                    <Grid
+                    <!--
+                        The resize preview. A Canvas, not a Grid: the band's size changes on
+                        every pointer move, and a Canvas neither measures its children against
+                        itself nor re-measures its siblings, so writing it costs nothing to the
+                        card grid sharing this space.
+
+                        It is a real rounded, stroked rectangle rather than the scaled
+                        primitives it replaces. Those could not carry a corner radius or an
+                        even stroke - both distort the moment the two axes scale by different
+                        amounts - and a preview of a rounded card drawn as a hard-edged
+                        wireframe reads as a debug overlay rather than as the card it stands in
+                        for.
+                    -->
+                    <Canvas
                         x:Name="CardResizeGhostLayer"
                         IsHitTestVisible="False"
                         Visibility="Collapsed">
-                        <Rectangle
+                        <Border
                             x:Name="CardResizeGhost"
-                            Width="1"
-                            Height="1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Opacity="0.24"
-                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
-                            <Rectangle.RenderTransform>
-                                <CompositeTransform />
-                            </Rectangle.RenderTransform>
-                        </Rectangle>
+                            CornerRadius="{StaticResource WwbCardCornerRadius}"
+                            BorderThickness="1.5"
+                            BorderBrush="{ThemeResource AccentFillColorSecondaryBrush}"
+                            Translation="0,0,18">
+                            <Border.Shadow>
+                                <ThemeShadow />
+                            </Border.Shadow>
+                            <Rectangle
+                                Opacity="0.12"
+                                Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                        </Border>
                         <!--
-                            The two edges the handles actually move, drawn as bars rather than
-                            as a stroke around the region: a stroke on a rectangle stretched by
-                            different amounts on each axis comes out thick on one side and thin
-                            on the other. Each bar is scaled only along its own length, so its
-                            thickness stays 3 DIP however far the drag goes. Only the bar for
-                            an axis being dragged is shown - it is the answer to "where is this
-                            edge right now".
+                            The handle, travelling with the pointer. It is the same ring the
+                            frame paints, so the thing that was picked up looks like the thing
+                            being carried.
                         -->
-                        <Rectangle
-                            x:Name="CardResizeGhostEastEdge"
-                            Width="1"
-                            Height="1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
-                            <Rectangle.RenderTransform>
-                                <CompositeTransform />
-                            </Rectangle.RenderTransform>
-                        </Rectangle>
-                        <Rectangle
-                            x:Name="CardResizeGhostSouthEdge"
-                            Width="1"
-                            Height="1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
-                            <Rectangle.RenderTransform>
-                                <CompositeTransform />
-                            </Rectangle.RenderTransform>
-                        </Rectangle>
-                        <Rectangle
+                        <Border
                             x:Name="CardResizeGhostCorner"
-                            Width="1"
-                            Height="1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
-                            <Rectangle.RenderTransform>
-                                <CompositeTransform />
-                            </Rectangle.RenderTransform>
-                        </Rectangle>
-                    </Grid>
+                            Width="{StaticResource WwbCardResizeHandleSize}"
+                            Height="{StaticResource WwbCardResizeHandleSize}"
+                            CornerRadius="{StaticResource WwbCardResizeHandleRadius}"
+                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            BorderThickness="2"
+                            BorderBrush="{ThemeResource SolidBackgroundFillColorBaseBrush}" />
+                    </Canvas>
                 </Grid>
             </ScrollViewer>
 

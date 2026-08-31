@@ -2405,50 +2405,31 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     /// The floor is a third of the card it started from, so dragging far past the smallest
     /// size stops shrinking the band instead of turning it inside out.
     /// </summary>
-    private const double CardResizeGhostEdgeThickness = 3;
-    private const double CardResizeGhostCornerSize = 12;
+    private const double CardResizeGhostCornerSize = 14;
 
     private void ShowCardResizeGhost(double width, double height)
     {
-        if (CardResizeGhost.RenderTransform is not CompositeTransform region ||
-            CardResizeGhostEastEdge.RenderTransform is not CompositeTransform eastEdge ||
-            CardResizeGhostSouthEdge.RenderTransform is not CompositeTransform southEdge)
-        {
-            return;
-        }
-
         // The floor keeps the band a band. Dragging far past the smallest card would otherwise
         // take it through zero and turn it inside out.
-        double minimum = 24;
+        double minimum = 48;
         double bandWidth = Math.Max(minimum, width);
         double bandHeight = Math.Max(minimum, height);
         double left = _cardResizeGhostOrigin.X;
         double top = _cardResizeGhostOrigin.Y;
 
-        region.TranslateX = left;
-        region.TranslateY = top;
-        region.ScaleX = bandWidth;
-        region.ScaleY = bandHeight;
+        Canvas.SetLeft(CardResizeGhost, left);
+        Canvas.SetTop(CardResizeGhost, top);
+        CardResizeGhost.Width = bandWidth;
+        CardResizeGhost.Height = bandHeight;
 
-        eastEdge.TranslateX = left + bandWidth - CardResizeGhostEdgeThickness;
-        eastEdge.TranslateY = top;
-        eastEdge.ScaleX = CardResizeGhostEdgeThickness;
-        eastEdge.ScaleY = bandHeight;
-
-        southEdge.TranslateX = left;
-        southEdge.TranslateY = top + bandHeight - CardResizeGhostEdgeThickness;
-        southEdge.ScaleX = bandWidth;
-        southEdge.ScaleY = CardResizeGhostEdgeThickness;
-
-        // The handle appears to come off the card and travel with the pointer. It is the one
-        // part of the band the eye is already following, so it is the one that has to keep up.
-        if (CardResizeGhostCorner.RenderTransform is CompositeTransform corner)
-        {
-            corner.TranslateX = left + bandWidth - CardResizeGhostCornerSize;
-            corner.TranslateY = top + bandHeight - CardResizeGhostCornerSize;
-            corner.ScaleX = CardResizeGhostCornerSize;
-            corner.ScaleY = CardResizeGhostCornerSize;
-        }
+        // The handle appears to come off the card and travel with the pointer. It is the part
+        // of the band the eye is already following, so it is the one that has to keep up.
+        Canvas.SetLeft(
+            CardResizeGhostCorner,
+            left + bandWidth - (CardResizeGhostCornerSize / 2));
+        Canvas.SetTop(
+            CardResizeGhostCorner,
+            top + bandHeight - (CardResizeGhostCornerSize / 2));
 
         if (CardResizeGhostLayer.Visibility != Visibility.Visible)
         {
