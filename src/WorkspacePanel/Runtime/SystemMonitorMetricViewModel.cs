@@ -16,6 +16,7 @@ namespace WinWidgetBoard.WorkspacePanel.Runtime;
 public sealed class SystemMonitorMetricViewModel : INotifyPropertyChanged
 {
     private SystemMonitorMetricRow _row;
+    private bool _isWithinCardLimit = true;
 
     public SystemMonitorMetricViewModel(SystemMonitorMetricRow row)
     {
@@ -23,6 +24,29 @@ public sealed class SystemMonitorMetricViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// Whether the card is tall enough to reach this reading. The list is priority-ordered by
+    /// the broker, so the ones held back are the ones the user ranked last; a card clips what
+    /// does not fit rather than scrolling it, and a row that is half-drawn at the card's edge
+    /// is worse than one that is honestly absent.
+    /// </summary>
+    public bool IsWithinCardLimit
+    {
+        get => _isWithinCardLimit;
+        internal set
+        {
+            if (_isWithinCardLimit == value)
+            {
+                return;
+            }
+
+            _isWithinCardLimit = value;
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsWithinCardLimit)));
+        }
+    }
 
     public string MetricId => _row.MetricId;
 

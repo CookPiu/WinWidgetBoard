@@ -380,7 +380,8 @@
                             <StackPanel
                                 Grid.Column="2"
                                 Orientation="Horizontal"
-                                Spacing="2">
+                                Spacing="2"
+                                Visibility="{x:Bind AreNoteToolsVisible, Mode=OneWay}">
                                 <Button
                                     x:Name="ListNotesButton"
                                     x:Uid="ListNotesButton"
@@ -1706,6 +1707,7 @@
             <Grid
                 Padding="0,3"
                 RowSpacing="3"
+                Visibility="{x:Bind IsWithinCardLimit, Mode=OneWay}"
                 automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -1786,6 +1788,7 @@
                             x:Uid="SysMonSettingsButton"
                             Grid.Column="1"
                             Style="{StaticResource WwbCardIconButtonStyle}"
+                            Visibility="{x:Bind AreCardActionsVisible, Mode=OneWay}"
                             Click="SysMonSettingsButton_Click"
                             automation:AutomationProperties.AutomationId="SysMonSettingsButton">
                             <FontIcon FontSize="14" Glyph="&#xE713;" />
@@ -1985,6 +1988,7 @@
                             x:Uid="TokenUsageSettingsButton"
                             Grid.Column="1"
                             Style="{StaticResource WwbCardIconButtonStyle}"
+                            Visibility="{x:Bind AreCardActionsVisible, Mode=OneWay}"
                             Click="TokenUsageSettingsButton_Click"
                             automation:AutomationProperties.AutomationId="TokenUsageSettingsButton">
                             <FontIcon FontSize="14" Glyph="&#xE713;" />

@@ -81,6 +81,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         SystemMonitorMetricListMerger.Merge(
             SystemMonitorMetrics,
             _systemMonitorProjection.Metrics);
+        ApplySystemMonitorMetricLimit();
         _tokenUsageProjection = TokenUsageCardProjection.FromSnapshot(
             Runtime.Snapshot,
             _runtimeResourceResolver);
@@ -388,6 +389,45 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public bool IsEditing => _editMode.IsEditing;
 
+    /// <summary>
+    /// A card's own actions - its settings button, the note tools - are hidden while the
+    /// layout is being edited. Edit mode is about where a card sits and how big it is, not
+    /// about what it is configured to show, and the two sets of controls were competing for
+    /// the same corner: the remove badge sits exactly where a card puts its gear.
+    /// </summary>
+    public bool AreCardActionsVisible => !_editMode.IsEditing;
+
+    /// <summary>
+    /// The height a card of this size has for readings, after its padding, header and the
+    /// spacing between them. Same budget the token usage card works from.
+    /// </summary>
+    private double SystemMonitorContentBudget => Placement.Size switch
+    {
+        CardSize.S or CardSize.M or CardSize.W => 98,
+        _ => 266,
+    };
+
+    /// <summary>
+    /// A reading's height, measured off the real card rather than guessed: rows sit about
+    /// 29 DIP apart, and a second line of detail - memory's "21.8 GB / 31.4 GB" - adds about
+    /// 18 more. A meter costs nothing extra; it is a thin bar inside the row it belongs to.
+    ///
+    /// This is per row rather than a count because the rows differ. A flat count of three put
+    /// CPU, memory and GPU on a one-row card and drew the third half inside the clip; costing
+    /// the meter separately then held back a reading a two-row card had room for.
+    /// </summary>
+    private static double SystemMonitorRowCost(SystemMonitorMetricViewModel metric) =>
+        29 + (metric.SecondaryText.Length > 0 ? 18 : 0);
+
+    /// <summary>
+    /// The note tools - list, pop out, new, more - on a card with room for a row of them. The
+    /// one-cell card is the note itself and nothing else; the tools are all reachable from a
+    /// larger card, and none of them is the reason the card is on the board.
+    /// </summary>
+    public bool AreNoteToolsVisible =>
+        AreCardActionsVisible && Placement.Size is not CardSize.S;
+
+
     public string NoteStatusText => _statusFormatter(NoteEditor.Status);
 
     internal bool UpdatePlacement(CardPlacement placement)
@@ -445,6 +485,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherForecastColumnSpan)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(AreNoteToolsVisible)));
+            // The hardware readings are held back per row rather than by rebuilding the list:
+            // the rows are updated in place twice a second, and replacing them on a resize
+            // would throw away that identity for no gain.
+            ApplySystemMonitorMetricLimit();
             // The token usage card discloses by size too, and its reading count is one of the
             // things that changes - so the bound collection is rebuilt, not just re-announced.
             MergeTokenUsage(TokenUsageProjection);
@@ -452,6 +499,32 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Spends the card's height down the priority-ordered list and stops at the first reading
+    /// that does not fit. Everything after it is held back too, even if it would have fitted:
+    /// the order is the user's ranking, and skipping over a tall reading to show a short one
+    /// behind it would quietly re-rank their list.
+    /// </summary>
+    private void ApplySystemMonitorMetricLimit()
+    {
+        double budget = SystemMonitorContentBudget;
+        double used = 0;
+        bool exhausted = false;
+        foreach (SystemMonitorMetricViewModel metric in SystemMonitorMetrics)
+        {
+            double cost = SystemMonitorRowCost(metric);
+            if (exhausted || used + cost > budget)
+            {
+                exhausted = true;
+                metric.IsWithinCardLimit = false;
+                continue;
+            }
+
+            used += cost;
+            metric.IsWithinCardLimit = true;
+        }
     }
 
     public void Dispose()
@@ -516,6 +589,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(IsEditing)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(AreCardActionsVisible)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(AreNoteToolsVisible)));
         }
     }
 
@@ -538,9 +617,13 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                     Runtime.Snapshot,
                     _runtimeResourceResolver);
             Interlocked.Exchange(ref _systemMonitorProjection, systemMonitor);
-            _uiInvoker(() => SystemMonitorMetricListMerger.Merge(
-                SystemMonitorMetrics,
-                systemMonitor.Metrics));
+            _uiInvoker(() =>
+            {
+                SystemMonitorMetricListMerger.Merge(
+                    SystemMonitorMetrics,
+                    systemMonitor.Metrics);
+                ApplySystemMonitorMetricLimit();
+            });
             TokenUsageCardProjection tokenUsage =
                 TokenUsageCardProjection.FromSnapshot(
                     Runtime.Snapshot,
