@@ -208,6 +208,50 @@ public sealed class CardLayoutSurfaceViewModelTests
             surface.Items.Single(item => item.InstanceId == "demo.calendar").Placement);
     }
 
+    [TestMethod(DisplayName =
+        "UT-GRID-067 [LYT-003] A resize preview moves the card being resized, unlike a drop preview")]
+    public async Task ResizePreviewIncludesTheCardBeingResized()
+    {
+        await using var noteEditor = new NoteEditorViewModel(null);
+        var layout = new CardLayoutViewModel(
+            4,
+            [
+                new CardLayoutItem("demo.notes", CardSize.L),
+                new CardLayoutItem("demo.timer", CardSize.M),
+                new CardLayoutItem("demo.todo", CardSize.M),
+            ]);
+        var editMode = new CardLayoutEditViewModel(layout);
+        using var surface = new CardLayoutSurfaceViewModel(
+            editMode,
+            noteEditor,
+            new NoteSearchViewModel(null),
+            status => status.ToString());
+        editMode.BeginEdit();
+        Assert.IsTrue(editMode.TryPreviewResize(
+            "demo.timer",
+            CardSize.L,
+            out IReadOnlyList<CardPlacement> projected));
+
+        // A drop preview pins the dragged card to its committed placement, because a move
+        // carries it with a transform. A resize has nothing to carry, so pinning it left the
+        // gesture with no feedback at all: the card the pointer was stretching never changed.
+        Assert.IsTrue(surface.ApplyDropPreview("demo.timer", projected));
+        Assert.AreEqual(
+            1,
+            surface.Items.Single(item => item.InstanceId == "demo.timer").Placement.RowSpan);
+
+        Assert.IsTrue(surface.ApplyResizePreview(projected));
+        Assert.AreEqual(
+            2,
+            surface.Items.Single(item => item.InstanceId == "demo.timer").Placement.RowSpan);
+        Assert.IsFalse(surface.ApplyResizePreview(projected));
+
+        Assert.IsTrue(surface.ResetDropPreview());
+        Assert.AreEqual(
+            1,
+            surface.Items.Single(item => item.InstanceId == "demo.timer").Placement.RowSpan);
+    }
+
     [TestMethod(DisplayName = "UT-GRID-032 [LYT-004] Placement reorder keeps stable surface indices")]
     public async Task PlacementReorderKeepsStableSurfaceIndices()
     {

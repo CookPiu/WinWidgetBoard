@@ -2204,16 +2204,16 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        // Which handle was grabbed is read from where inside the frame the press landed. The
-        // frame paints its handles but takes no input in the middle, so a press that arrives
-        // here is on one of them; the geometry only has to say which.
-        Windows.Foundation.Point local = e.GetCurrentPoint(frame).Position;
-        bool east = local.X >= frame.ActualWidth - CardResizeHandleBand;
-        bool south = local.Y >= frame.ActualHeight - CardResizeHandleBand;
-        if (!east && !south)
+        CardResizeDirection direction = ResolveResizeDirection(
+            frame,
+            e.GetCurrentPoint(frame).Position);
+        if (direction == CardResizeDirection.None)
         {
             return;
         }
+
+        bool east = direction is CardResizeDirection.East or CardResizeDirection.SouthEast;
+        bool south = direction is CardResizeDirection.South or CardResizeDirection.SouthEast;
 
         InterruptDemoNotesCardReturn();
         ResetCardDropPreview();
@@ -2238,6 +2238,19 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         object sender,
         PointerRoutedEventArgs e)
     {
+        // Hovering is its own job: the pointer has to say which way a handle will stretch the
+        // card before anyone presses it, otherwise the only way to find a handle is to try.
+        if (_cardResizePointerId is null)
+        {
+            if (sender is CardResizeFrame hovered)
+            {
+                hovered.ShowResizeCursor(
+                    ResolveResizeDirection(hovered, e.GetCurrentPoint(hovered).Position));
+            }
+
+            return;
+        }
+
         if (_cardResizePointerId != e.Pointer.PointerId ||
             _cardResizeId is not string instanceId ||
             _cardResizeStartPlacement is not CardPlacement placement)
@@ -2280,7 +2293,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 target,
                 out IReadOnlyList<CardPlacement> placements))
         {
-            ApplyCardDropPreview(instanceId, placements);
+            ApplyCardResizePreview(placements);
         }
         else
         {
@@ -2342,6 +2355,48 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
         ResetCardResize();
         ResetCardDropPreview();
+    }
+
+    /// <summary>
+    /// Which handle a point inside the frame belongs to, or None for the rest of it. The frame
+    /// only takes pointer input on its handles, so this is normally answering "which one"; it
+    /// still reports None honestly, because the same reading drives the hover cursor.
+    /// </summary>
+    private static CardResizeDirection ResolveResizeDirection(
+        FrameworkElement frame,
+        Windows.Foundation.Point local)
+    {
+        bool east = local.X >= frame.ActualWidth - CardResizeHandleBand;
+        bool south = local.Y >= frame.ActualHeight - CardResizeHandleBand;
+        if (east && south)
+        {
+            return CardResizeDirection.SouthEast;
+        }
+
+        if (east)
+        {
+            return CardResizeDirection.East;
+        }
+
+        return south ? CardResizeDirection.South : CardResizeDirection.None;
+    }
+
+    private void CardResizeFrame_PointerExited(
+        object sender,
+        PointerRoutedEventArgs e)
+    {
+        if (_cardResizePointerId is null && sender is CardResizeFrame frame)
+        {
+            frame.ShowResizeCursor(CardResizeDirection.None);
+        }
+    }
+
+    private void ApplyCardResizePreview(IReadOnlyList<CardPlacement> placements)
+    {
+        if (_cardSurface.ApplyResizePreview(placements))
+        {
+            _cardGridLayout.InvalidatePlacements();
+        }
     }
 
     private void ResetCardResize()

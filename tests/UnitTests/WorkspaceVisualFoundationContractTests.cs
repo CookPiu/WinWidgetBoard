@@ -152,8 +152,12 @@ public sealed class WorkspaceVisualFoundationContractTests
 
             // Edit mode is a frame drawn over the card, not a bar occupying a row of it.
             XElement resizeFrame = template
-                .Descendants(Presentation + "ContentControl")
+                .Descendants()
                 .Single(element =>
+                    string.Equals(
+                        element.Name.LocalName,
+                        "CardResizeFrame",
+                        StringComparison.Ordinal) &&
                     string.Equals(
                         (string?)element.Attribute("Style"),
                         "{StaticResource WwbCardResizeFrameStyle}",

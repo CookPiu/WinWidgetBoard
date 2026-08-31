@@ -84,9 +84,15 @@ public sealed class CardTemplateDragContractTests
             "UnknownCardResizeFrame",
         ];
 
+        // The frame is its own control type - only a subclass can set ProtectedCursor - so
+        // it is matched by local name rather than by the presentation namespace.
         string[] actualNames = document
-            .Descendants(presentation + "ContentControl")
+            .Descendants()
             .Where(element =>
+                string.Equals(
+                    element.Name.LocalName,
+                    "CardResizeFrame",
+                    StringComparison.Ordinal) &&
                 string.Equals(
                     (string?)element.Attribute(xaml + "Uid"),
                     "CardResizeFrame",

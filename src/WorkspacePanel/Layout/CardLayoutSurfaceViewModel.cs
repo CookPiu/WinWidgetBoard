@@ -109,6 +109,39 @@ public sealed class CardLayoutSurfaceViewModel : INotifyPropertyChanged, IDispos
         return changed;
     }
 
+    /// <summary>
+    /// Shows a candidate layout with every card at its projected placement, including the one
+    /// the gesture is acting on.
+    ///
+    /// That is the whole difference from <see cref="ApplyDropPreview"/>, and it is why this is
+    /// a second method rather than a flag: a move carries its card with a transform, so the
+    /// card must keep its committed placement or it would jump out from under the pointer. A
+    /// resize has nothing to carry - the card itself is what changes - so pinning it is
+    /// exactly the wrong thing, and doing so left the drag with no visible feedback at all.
+    /// </summary>
+    public bool ApplyResizePreview(IReadOnlyList<CardPlacement> projectedPlacements)
+    {
+        ArgumentNullException.ThrowIfNull(projectedPlacements);
+
+        Dictionary<string, CardPlacement> projectedById =
+            CreatePlacementMap(projectedPlacements, nameof(projectedPlacements));
+        if (projectedById.Count != _items.Count ||
+            _items.Any(item => !projectedById.ContainsKey(item.InstanceId)))
+        {
+            throw new ArgumentException(
+                "Preview placements must contain exactly one placement for each card.",
+                nameof(projectedPlacements));
+        }
+
+        bool changed = false;
+        foreach (CardSurfaceItem item in _items)
+        {
+            changed |= item.UpdatePlacement(projectedById[item.InstanceId]);
+        }
+
+        return changed;
+    }
+
     public bool ResetDropPreview()
     {
         Dictionary<string, CardPlacement> committedById =

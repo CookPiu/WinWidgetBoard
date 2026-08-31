@@ -690,7 +690,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -703,7 +703,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -1344,7 +1346,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -1357,7 +1359,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -1423,7 +1427,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -1436,7 +1440,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -1502,7 +1508,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -1515,7 +1521,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -1581,7 +1589,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -1594,7 +1602,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -1655,7 +1665,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -1668,7 +1678,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -1800,7 +1812,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -1813,7 +1825,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
@@ -2042,7 +2056,7 @@
                         on the surface edge; its middle takes no pointer input, which is what
                         leaves the existing move drag and the interactive-content guard alone.
                     -->
-                    <ContentControl
+                    <layout:CardResizeFrame
                         x:Uid="CardResizeFrame"
                         Grid.Row="0"
                         Grid.RowSpan="9"
@@ -2055,7 +2069,9 @@
                         PointerMoved="CardResizeFrame_PointerMoved"
                         PointerReleased="CardResizeFrame_PointerReleased"
                         PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
-                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                        PointerCanceled="CardResizeFrame_PointerCanceled"
+                        PointerEntered="CardResizeFrame_PointerMoved"
+                        PointerExited="CardResizeFrame_PointerExited" />
                     <Button
                         x:Uid="RemoveCardButton"
                         Grid.Row="0"
