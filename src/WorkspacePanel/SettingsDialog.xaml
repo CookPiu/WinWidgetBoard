@@ -180,12 +180,25 @@
         <Grid RowSpacing="{StaticResource WwbSpace3}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <!--
+                    The commit row reserves its height even for a category that has none, so
+                    switching to General does not pull the sheet's bottom edge up by a button.
+                -->
+                <RowDefinition Height="Auto" MinHeight="32" />
             </Grid.RowDefinitions>
+            <!--
+                Height, not MaxHeight. With a maximum, every category sized the sheet to its
+                own content: picking General after Hardware collapsed the dialog by most of
+                its height, and the rail the pointer was aiming at moved out from under it.
+                A settings sheet is a fixed frame with changing content, so the frame is
+                stated once here and the content scrolls inside it. This is also what makes
+                the section transition legible - nothing can be crossfading and resizing at
+                the same time.
+            -->
             <ScrollViewer
                 Width="440"
                 HorizontalAlignment="Left"
-                MaxHeight="400"
+                Height="400"
                 HorizontalScrollMode="Disabled"
                 HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">

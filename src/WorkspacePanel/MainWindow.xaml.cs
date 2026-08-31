@@ -561,7 +561,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 return;
             }
 
-            var dialog = new SettingsDialog(
+            using var dialog = new SettingsDialog(
                 generalViewModel,
                 weatherViewModel,
                 systemMonitorViewModel,

@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.UI.ViewManagement;
+using WinWidgetBoard.WorkspacePanel.Motion;
 using WinWidgetBoard.WorkspacePanel.Settings;
 
 namespace WinWidgetBoard.WorkspacePanel;
@@ -21,7 +23,7 @@ public enum SettingsCategory
 /// The one settings surface. Every card's settings live here as a section; a card that offers
 /// its own settings button deep-links into its section instead of opening a dialog of its own.
 /// </summary>
-public sealed partial class SettingsDialog : ContentDialog
+public sealed partial class SettingsDialog : ContentDialog, IDisposable
 {
     public SettingsDialog(
         GeneralSettingsViewModel generalViewModel,
@@ -39,10 +41,18 @@ public sealed partial class SettingsDialog : ContentDialog
         TokenUsageViewModel = tokenUsageViewModel ??
             throw new ArgumentNullException(nameof(tokenUsageViewModel));
         InitializeComponent();
+        _surfaceMotion = new SurfaceMotionCoordinator(
+            reducedMotion: !new UISettings().AnimationsEnabled,
+            highContrast: new AccessibilitySettings().HighContrast);
         SettingsCategoryList.SelectedIndex = (int)initialCategory;
-        ApplyCategory((int)initialCategory);
+        // The first category is placed, not animated: the dialog is still playing its own
+        // entrance, and a section fading in inside a sheet that is itself fading in reads as
+        // a stutter rather than as two things happening.
+        ApplyCategory((int)initialCategory, animate: false);
         Closed += SettingsDialog_Closed;
     }
+
+    private readonly SurfaceMotionCoordinator _surfaceMotion;
 
     public GeneralSettingsViewModel GeneralViewModel { get; }
 
@@ -58,11 +68,11 @@ public sealed partial class SettingsDialog : ContentDialog
     {
         if (sender is ListView list)
         {
-            ApplyCategory(list.SelectedIndex);
+            ApplyCategory(list.SelectedIndex, animate: true);
         }
     }
 
-    private void ApplyCategory(int index)
+    private void ApplyCategory(int index, bool animate)
     {
         // A negative index means the list cleared its selection, which happens while the
         // dialog is being torn down. Leave whatever is on screen rather than blanking both.
@@ -80,20 +90,59 @@ public sealed partial class SettingsDialog : ContentDialog
             return;
         }
 
-        GeneralSection.Visibility = Show(index, SettingsCategory.General);
-        Visibility forWeather = Show(index, SettingsCategory.Weather);
-        Visibility forSystemMonitor = Show(index, SettingsCategory.SystemMonitor);
-        Visibility forTokenUsage = Show(index, SettingsCategory.TokenUsage);
-        WeatherSection.Visibility = forWeather;
-        WeatherFooter.Visibility = forWeather;
-        SystemMonitorSection.Visibility = forSystemMonitor;
-        SystemMonitorFooter.Visibility = forSystemMonitor;
-        TokenUsageSection.Visibility = forTokenUsage;
-        TokenUsageFooter.Visibility = forTokenUsage;
+        SetSection(index, SettingsCategory.General, animate, GeneralSection);
+        SetSection(
+            index,
+            SettingsCategory.Weather,
+            animate,
+            WeatherSection,
+            WeatherFooter);
+        SetSection(
+            index,
+            SettingsCategory.SystemMonitor,
+            animate,
+            SystemMonitorSection,
+            SystemMonitorFooter);
+        SetSection(
+            index,
+            SettingsCategory.TokenUsage,
+            animate,
+            TokenUsageSection,
+            TokenUsageFooter);
     }
 
-    private static Visibility Show(int index, SettingsCategory category) =>
-        index == (int)category ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// Shows or hides one category's parts. The outgoing category is dropped in one frame
+    /// rather than faded out: its section and the incoming one share the same cell, and two
+    /// pages of dense text dissolving through each other reads as a rendering fault. What
+    /// carries the change is the incoming section fading up - the same short compositor-only
+    /// transition every other progressive-disclosure surface in the panel uses, so it is
+    /// interruptible when the rail is clicked through quickly and flattens under reduced
+    /// motion.
+    /// </summary>
+    private void SetSection(
+        int index,
+        SettingsCategory category,
+        bool animate,
+        params FrameworkElement[] parts)
+    {
+        bool visible = index == (int)category;
+        foreach (FrameworkElement part in parts)
+        {
+            if (!visible)
+            {
+                _surfaceMotion.HideImmediately(part);
+            }
+            else if (animate)
+            {
+                _surfaceMotion.Show(part, SurfaceMotionAnchor.Top);
+            }
+            else
+            {
+                part.Visibility = Visibility.Visible;
+            }
+        }
+    }
 
     private async void TokenUsageSettingsSaveButton_Click(
         object sender,
@@ -200,11 +249,19 @@ public sealed partial class SettingsDialog : ContentDialog
         return true;
     }
 
+    /// <summary>
+    /// Releases the section transition's state. Closing the dialog does this on its own; the
+    /// interface is here so a caller that never got to show it - the dialog is built before
+    /// its sections are loaded - still cleans up.
+    /// </summary>
+    public void Dispose() => _surfaceMotion.Dispose();
+
     private void SettingsDialog_Closed(
         ContentDialog sender,
         ContentDialogClosedEventArgs args)
     {
         WeatherViewModel.CancelDraft();
+        Dispose();
         Closed -= SettingsDialog_Closed;
     }
 }
