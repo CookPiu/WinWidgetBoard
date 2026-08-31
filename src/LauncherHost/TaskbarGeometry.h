@@ -51,6 +51,28 @@ enum class LauncherContentMode : unsigned char
     Weather,
 };
 
+// The global shortcut that opens and closes the panel. Presets rather than a free
+// modifier/key pair: the entry has no text input surface to capture a chord with, the value
+// stays one DWORD like every other preference, and a menu of four is what a user of a taskbar
+// entry will actually read. Every combination here is one Windows does not reserve and that
+// applications rarely bind, because a global hotkey takes the chord away from everything else.
+enum class LauncherHotkeyPreference : unsigned char
+{
+    Disabled,
+    CtrlAltB,
+    CtrlAltD,
+    CtrlAltQ,
+};
+
+// The Win32 registration a preset resolves to. Zero modifiers means "do not register".
+struct LauncherHotkeyBinding
+{
+    UINT modifiers{};
+    UINT virtualKey{};
+};
+
+[[nodiscard]] LauncherHotkeyBinding ToHotkeyBinding(LauncherHotkeyPreference hotkey);
+
 struct LauncherEntryPreferences
 {
     LauncherEntryPlacementPreference placement{
@@ -58,6 +80,7 @@ struct LauncherEntryPreferences
     LauncherLeftAlignFallback leftAlignFallback{LauncherLeftAlignFallback::Floating};
     LauncherContentMode content{LauncherContentMode::DateTime};
     bool showSystemMonitor{};
+    LauncherHotkeyPreference hotkey{LauncherHotkeyPreference::CtrlAltB};
 };
 
 struct MonitorSnapshot
@@ -153,6 +176,7 @@ const wchar_t* ToString(TaskbarEdge edge);
 const wchar_t* ToString(LauncherPlacementMode mode);
 const wchar_t* ToString(LauncherEntryPlacementPreference placement);
 const wchar_t* ToString(LauncherContentMode content);
+const wchar_t* ToString(LauncherHotkeyPreference hotkey);
 
 // This exercises the placement invariants with synthetic monitor layouts. It
 // deliberately does not inspect or modify the current desktop.

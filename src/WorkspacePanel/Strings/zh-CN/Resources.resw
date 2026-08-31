@@ -892,6 +892,42 @@
   <data name="SettingsDialog.CloseButtonText" xml:space="preserve">
     <value>关闭</value>
   </data>
+  <data name="SettingsCategoryGeneral.Content" xml:space="preserve">
+    <value>常规</value>
+  </data>
+  <data name="SettingsCategoryGeneral.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>常规设置</value>
+  </data>
+  <data name="GeneralSettingsDescription.Text" xml:space="preserve">
+    <value>应用本身的设置。这里的改动立即生效，没有保存按钮。</value>
+  </data>
+  <data name="GeneralAutostartToggle.Header" xml:space="preserve">
+    <value>开机自启</value>
+  </data>
+  <data name="GeneralAutostartToggle.OnContent" xml:space="preserve">
+    <value>登录后自动启动</value>
+  </data>
+  <data name="GeneralAutostartToggle.OffContent" xml:space="preserve">
+    <value>手动启动</value>
+  </data>
+  <data name="GeneralAutostartToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>开机自启</value>
+  </data>
+  <data name="GeneralHotkeyHint.Text" xml:space="preserve">
+    <value>快捷键：默认 Ctrl + Alt + B 打开或关闭面板；在任务栏入口上点右键可以更换或关闭。</value>
+  </data>
+  <data name="GeneralAutostartEnabledStatus" xml:space="preserve">
+    <value>已设置为登录后自动启动。</value>
+  </data>
+  <data name="GeneralAutostartDisabledStatus" xml:space="preserve">
+    <value>已取消开机自启。</value>
+  </data>
+  <data name="GeneralAutostartUnavailableStatus" xml:space="preserve">
+    <value>当前是从构建输出直接运行的，没有可用的开始菜单快捷方式，无法设置开机自启。</value>
+  </data>
+  <data name="GeneralAutostartFailedStatus" xml:space="preserve">
+    <value>设置开机自启失败，启动文件夹可能不可写。</value>
+  </data>
   <data name="SettingsCategoryWeather.Content" xml:space="preserve">
     <value>天气</value>
   </data>

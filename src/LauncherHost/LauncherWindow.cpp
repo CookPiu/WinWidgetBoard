@@ -59,7 +59,15 @@ enum ContextMenuCommand : UINT
     MenuFallbackFloating = 1030,
     MenuFallbackCenter = 1031,
     MenuFallbackRight = 1032,
+    MenuHotkeyDisabled = 1040,
+    MenuHotkeyCtrlAltB = 1041,
+    MenuHotkeyCtrlAltD = 1042,
+    MenuHotkeyCtrlAltQ = 1043,
 };
+
+// One registration, so re-applying a preference can always unregister what it replaces
+// without tracking which chord is currently held.
+constexpr int kPanelHotkeyId = 1;
 
 int ScaleLogical(const int logicalPixels, const UINT dpi)
 {
@@ -277,6 +285,7 @@ bool LauncherWindow::Create(
     }
 
     ApplyContentMode();
+    ApplyHotkey();
     _coreBroker.Poll();
     return true;
 }
@@ -575,8 +584,38 @@ void LauncherWindow::ApplyPreferences(const LauncherEntryPreferences& preference
     }
 
     ApplyContentMode();
+    ApplyHotkey();
     RefreshContent();
     Reposition();
+}
+
+void LauncherWindow::ApplyHotkey()
+{
+    if (_window == nullptr)
+    {
+        return;
+    }
+
+    if (_hotkeyRegistered)
+    {
+        UnregisterHotKey(_window, kPanelHotkeyId);
+        _hotkeyRegistered = false;
+    }
+
+    const LauncherHotkeyBinding binding = ToHotkeyBinding(_preferences.hotkey);
+    if (binding.modifiers == 0)
+    {
+        Log(L"panel hotkey disabled");
+        return;
+    }
+
+    _hotkeyRegistered = RegisterHotKey(
+        _window,
+        kPanelHotkeyId,
+        binding.modifiers,
+        binding.virtualKey) != FALSE;
+    Log(std::wstring(L"panel hotkey ") + ToString(_preferences.hotkey) +
+        (_hotkeyRegistered ? L" registered" : L" unavailable"));
 }
 
 // Asking the broker for a hardware summary is also what keeps it sampling, so the request and
@@ -771,6 +810,46 @@ void LauncherWindow::ShowContextMenu(const POINT screenPoint)
             L"入口位置");
     }
 
+    HMENU hotkeyMenu = CreatePopupMenu();
+    if (hotkeyMenu != nullptr)
+    {
+        AppendRadioItem(
+            hotkeyMenu,
+            MenuHotkeyDisabled,
+            L"\u5173\u95ed",
+            _preferences.hotkey == LauncherHotkeyPreference::Disabled);
+        AppendRadioItem(
+            hotkeyMenu,
+            MenuHotkeyCtrlAltB,
+            L"Ctrl + Alt + B",
+            _preferences.hotkey == LauncherHotkeyPreference::CtrlAltB);
+        AppendRadioItem(
+            hotkeyMenu,
+            MenuHotkeyCtrlAltD,
+            L"Ctrl + Alt + D",
+            _preferences.hotkey == LauncherHotkeyPreference::CtrlAltD);
+        AppendRadioItem(
+            hotkeyMenu,
+            MenuHotkeyCtrlAltQ,
+            L"Ctrl + Alt + Q",
+            _preferences.hotkey == LauncherHotkeyPreference::CtrlAltQ);
+        // A chord another application already owns registers as nothing at all, and the only
+        // symptom is that pressing it does nothing. The menu title is the one place that can
+        // say so, so it says so instead of leaving the user to guess.
+        const bool wanted = _preferences.hotkey != LauncherHotkeyPreference::Disabled;
+        std::wstring hotkeyTitle = L"\u5feb\u6377\u952e";
+        if (wanted && !_hotkeyRegistered)
+        {
+            hotkeyTitle += L"\uff08\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528\uff09";
+        }
+
+        AppendMenuW(
+            menu,
+            MF_STRING | MF_POPUP,
+            reinterpret_cast<UINT_PTR>(hotkeyMenu),
+            hotkeyTitle.c_str());
+    }
+
     HMENU fallbackMenu = CreatePopupMenu();
     if (fallbackMenu != nullptr)
     {
@@ -852,6 +931,22 @@ void LauncherWindow::HandleMenuCommand(const UINT command)
     {
         LauncherEntryPreferences updated = _preferences;
         updated.showSystemMonitor = !updated.showSystemMonitor;
+        ApplyPreferences(updated);
+        break;
+    }
+    case MenuHotkeyDisabled:
+    case MenuHotkeyCtrlAltB:
+    case MenuHotkeyCtrlAltD:
+    case MenuHotkeyCtrlAltQ:
+    {
+        LauncherEntryPreferences updated = _preferences;
+        updated.hotkey = command == MenuHotkeyDisabled
+            ? LauncherHotkeyPreference::Disabled
+            : command == MenuHotkeyCtrlAltD
+                ? LauncherHotkeyPreference::CtrlAltD
+                : command == MenuHotkeyCtrlAltQ
+                    ? LauncherHotkeyPreference::CtrlAltQ
+                    : LauncherHotkeyPreference::CtrlAltB;
         ApplyPreferences(updated);
         break;
     }
@@ -1265,6 +1360,15 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         }
         return 0;
 
+    case WM_HOTKEY:
+        if (wParam == kPanelHotkeyId)
+        {
+            self->TogglePanelRequested();
+            return 0;
+        }
+
+        return DefWindowProcW(window, message, wParam, lParam);
+
     case WM_RBUTTONUP:
     case WM_CONTEXTMENU:
     {
@@ -1352,6 +1456,12 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         return 0;
 
     case WM_DESTROY:
+        if (self->_hotkeyRegistered)
+        {
+            UnregisterHotKey(window, kPanelHotkeyId);
+            self->_hotkeyRegistered = false;
+        }
+
         KillTimer(window, kVisibilityTimerId);
         KillTimer(window, kContentTimerId);
         KillTimer(window, kAnimationTimerId);

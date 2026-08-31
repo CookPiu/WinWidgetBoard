@@ -146,6 +146,9 @@
                 SelectionChanged="SettingsCategoryList_SelectionChanged"
                 automation:AutomationProperties.AutomationId="SettingsCategoryList">
                 <ListViewItem
+                    x:Uid="SettingsCategoryGeneral"
+                    automation:AutomationProperties.AutomationId="SettingsCategoryGeneral" />
+                <ListViewItem
                     x:Uid="SettingsCategoryWeather"
                     automation:AutomationProperties.AutomationId="SettingsCategoryWeather" />
                 <ListViewItem
@@ -198,6 +201,44 @@
                     above - grow them only together with it.
                 -->
                 <Grid Width="416" HorizontalAlignment="Left">
+                <!--
+                    The application's own settings, not a card's. This section has no commit
+                    row: the switch asks the shell to add or remove a shortcut, which either
+                    happened or did not, and the line under it says which.
+                -->
+                <StackPanel
+                    x:Name="GeneralSection"
+                    Spacing="{StaticResource WwbSpace3}"
+                    Visibility="Collapsed">
+                    <TextBlock
+                        x:Uid="GeneralSettingsDescription"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        TextWrapping="Wrap" />
+                    <ToggleSwitch
+                        x:Name="GeneralAutostartToggle"
+                        x:Uid="GeneralAutostartToggle"
+                        IsEnabled="{x:Bind GeneralViewModel.IsAutostartAvailable}"
+                        IsOn="{x:Bind GeneralViewModel.IsAutostartEnabled, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="GeneralAutostartToggle" />
+                    <TextBlock
+                        x:Name="GeneralSettingsStatusText"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind GeneralViewModel.StatusText, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind GeneralViewModel.HasStatusText, Mode=OneWay}"
+                        automation:AutomationProperties.AutomationId="GeneralSettingsStatusText" />
+                    <!--
+                        The panel shortcut is registered by the taskbar entry, which owns both
+                        the chord and the window it opens; this line only tells the reader
+                        where the switch for it is, rather than mirroring a setting that lives
+                        in another process.
+                    -->
+                    <TextBlock
+                        x:Uid="GeneralHotkeyHint"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
                 <StackPanel
                     x:Name="WeatherSection"
                     Spacing="{StaticResource WwbSpace3}">

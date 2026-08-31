@@ -61,6 +61,10 @@ private:
     [[nodiscard]] int MeasureContentWidthLogical() const;
     [[nodiscard]] int MeasureMonitorWidthLogical() const;
     void ApplyContentMode();
+    // Registers, re-registers or drops the global shortcut to match the preference. Failure
+    // is a state the entry carries rather than an error it swallows: another application
+    // holding the chord is ordinary, and the menu has to be able to say so.
+    void ApplyHotkey();
     [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
     void HandleMenuCommand(UINT command);
@@ -109,6 +113,8 @@ private:
     bool _hiddenForFullscreen{};
     bool _animating{};
     bool _reducedMotion{};
+    // True only while a chord is actually registered with Windows.
+    bool _hotkeyRegistered{};
     LONGLONG _animationTick{};
     LONGLONG _performanceFrequency{};
     RECT _localHitRect{};

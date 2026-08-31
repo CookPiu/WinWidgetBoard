@@ -530,7 +530,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
-        ShowSettingsDialog(SettingsCategory.Weather);
+        ShowSettingsDialog(SettingsCategory.General);
 
     /// <summary>
     /// Opens the one settings surface on the requested category. Both entry points land here:
@@ -541,6 +541,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private async void ShowSettingsDialog(SettingsCategory category)
     {
         Interlocked.Increment(ref _statusVersion);
+        var generalViewModel = new GeneralSettingsViewModel(
+            StartupShortcut.ForCurrentUser(),
+            key => _resources.GetString(key));
         var weatherViewModel = new WeatherSettingsViewModel(
             _weatherSettingsClient,
             key => _resources.GetString(key),
@@ -559,6 +562,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             }
 
             var dialog = new SettingsDialog(
+                generalViewModel,
                 weatherViewModel,
                 systemMonitorViewModel,
                 tokenUsageViewModel,
@@ -577,6 +581,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             Interlocked.Increment(ref _statusVersion);
             StatusText.Text = ResolveSettingsStatus(
                 category,
+                generalViewModel,
                 weatherViewModel,
                 systemMonitorViewModel,
                 tokenUsageViewModel);
@@ -620,6 +625,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     /// </summary>
     private string ResolveSettingsStatus(
         SettingsCategory category,
+        GeneralSettingsViewModel general,
         WeatherSettingsViewModel weather,
         SystemMonitorSettingsViewModel systemMonitor,
         TokenUsageSettingsViewModel tokenUsage)
@@ -631,6 +637,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         return category switch
         {
+            SettingsCategory.General => general.StatusText,
             SettingsCategory.SystemMonitor => systemMonitor.StatusText,
             SettingsCategory.TokenUsage => tokenUsage.StatusText,
             _ => weather.StatusText,

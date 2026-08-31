@@ -828,6 +828,47 @@ const wchar_t* ToString(const LauncherContentMode content)
     }
 }
 
+const wchar_t* ToString(const LauncherHotkeyPreference hotkey)
+{
+    switch (hotkey)
+    {
+    case LauncherHotkeyPreference::Disabled:
+        return L"disabled";
+    case LauncherHotkeyPreference::CtrlAltD:
+        return L"ctrl-alt-d";
+    case LauncherHotkeyPreference::CtrlAltQ:
+        return L"ctrl-alt-q";
+    case LauncherHotkeyPreference::CtrlAltB:
+    default:
+        return L"ctrl-alt-b";
+    }
+}
+
+LauncherHotkeyBinding ToHotkeyBinding(const LauncherHotkeyPreference hotkey)
+{
+    // MOD_NOREPEAT everywhere: holding the chord down has to open the panel once, not once
+    // per keyboard repeat. The Windows key is deliberately absent from every preset - the
+    // shell owns most of that space and takes more of it in updates.
+    //
+    // Every preset is a letter rather than a punctuation or space key. Punctuation moves
+    // between layouts, so the menu would print a chord the keyboard cannot produce; and the
+    // obvious candidates there are already taken - on the reference machine Ctrl+Alt+Space is
+    // the Microsoft IME's half-width toggle and Ctrl+Alt+W is held by another application,
+    // both of which registered as nothing at all when they were the presets here.
+    switch (hotkey)
+    {
+    case LauncherHotkeyPreference::CtrlAltB:
+        return {MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'B'};
+    case LauncherHotkeyPreference::CtrlAltD:
+        return {MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'D'};
+    case LauncherHotkeyPreference::CtrlAltQ:
+        return {MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'Q'};
+    case LauncherHotkeyPreference::Disabled:
+    default:
+        return {};
+    }
+}
+
 // Exercises the embedded-entry invariants with synthetic layouts. Like the rest of this
 // smoke test it never inspects the live desktop.
 static bool RunEmbeddedEntryContractSmokeTest(

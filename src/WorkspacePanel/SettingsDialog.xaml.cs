@@ -11,9 +11,10 @@ namespace WinWidgetBoard.WorkspacePanel;
 /// </summary>
 public enum SettingsCategory
 {
-    Weather = 0,
-    SystemMonitor = 1,
-    TokenUsage = 2,
+    General = 0,
+    Weather = 1,
+    SystemMonitor = 2,
+    TokenUsage = 3,
 }
 
 /// <summary>
@@ -23,11 +24,14 @@ public enum SettingsCategory
 public sealed partial class SettingsDialog : ContentDialog
 {
     public SettingsDialog(
+        GeneralSettingsViewModel generalViewModel,
         WeatherSettingsViewModel weatherViewModel,
         SystemMonitorSettingsViewModel systemMonitorViewModel,
         TokenUsageSettingsViewModel tokenUsageViewModel,
-        SettingsCategory initialCategory = SettingsCategory.Weather)
+        SettingsCategory initialCategory = SettingsCategory.General)
     {
+        GeneralViewModel = generalViewModel ??
+            throw new ArgumentNullException(nameof(generalViewModel));
         WeatherViewModel = weatherViewModel ??
             throw new ArgumentNullException(nameof(weatherViewModel));
         SystemMonitorViewModel = systemMonitorViewModel ??
@@ -39,6 +43,8 @@ public sealed partial class SettingsDialog : ContentDialog
         ApplyCategory((int)initialCategory);
         Closed += SettingsDialog_Closed;
     }
+
+    public GeneralSettingsViewModel GeneralViewModel { get; }
 
     public WeatherSettingsViewModel WeatherViewModel { get; }
 
@@ -63,6 +69,7 @@ public sealed partial class SettingsDialog : ContentDialog
         // The null check is not defensive padding: SelectionChanged fires while the rail is
         // still being parsed, before the sections further down the tree exist.
         if (index < 0 ||
+            GeneralSection is null ||
             WeatherSection is null ||
             SystemMonitorSection is null ||
             TokenUsageSection is null ||
@@ -73,6 +80,7 @@ public sealed partial class SettingsDialog : ContentDialog
             return;
         }
 
+        GeneralSection.Visibility = Show(index, SettingsCategory.General);
         Visibility forWeather = Show(index, SettingsCategory.Weather);
         Visibility forSystemMonitor = Show(index, SettingsCategory.SystemMonitor);
         Visibility forTokenUsage = Show(index, SettingsCategory.TokenUsage);

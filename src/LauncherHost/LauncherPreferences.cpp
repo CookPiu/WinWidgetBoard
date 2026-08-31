@@ -11,6 +11,7 @@ constexpr wchar_t kPlacementValue[] = L"Placement";
 constexpr wchar_t kLeftAlignFallbackValue[] = L"LeftAlignFallback";
 constexpr wchar_t kContentValue[] = L"Content";
 constexpr wchar_t kShowSystemMonitorValue[] = L"ShowSystemMonitor";
+constexpr wchar_t kHotkeyValue[] = L"Hotkey";
 
 // The value Content used to carry when the hardware monitor was a third content mode rather
 // than its own capsule. A profile written by that build is read once and split into the two
@@ -104,6 +105,38 @@ DWORD FromLeftAlignFallback(const LauncherLeftAlignFallback fallback)
     }
 }
 
+LauncherHotkeyPreference ToHotkey(const DWORD value)
+{
+    switch (value)
+    {
+    case 0:
+        return LauncherHotkeyPreference::Disabled;
+    case 2:
+        return LauncherHotkeyPreference::CtrlAltD;
+    case 3:
+        return LauncherHotkeyPreference::CtrlAltQ;
+    case 1:
+    default:
+        return LauncherHotkeyPreference::CtrlAltB;
+    }
+}
+
+DWORD FromHotkey(const LauncherHotkeyPreference hotkey)
+{
+    switch (hotkey)
+    {
+    case LauncherHotkeyPreference::Disabled:
+        return 0u;
+    case LauncherHotkeyPreference::CtrlAltD:
+        return 2u;
+    case LauncherHotkeyPreference::CtrlAltQ:
+        return 3u;
+    case LauncherHotkeyPreference::CtrlAltB:
+    default:
+        return 1u;
+    }
+}
+
 DWORD FromContent(const LauncherContentMode content)
 {
     switch (content)
@@ -155,6 +188,12 @@ LauncherEntryPreferences LoadLauncherPreferences()
     {
         preferences.showSystemMonitor = value != 0u;
     }
+    // Absent means the default, which is on: a shortcut nobody is told about is a shortcut
+    // nobody uses, and the context menu both names the chord and can switch it off.
+    if (TryReadDword(kHotkeyValue, value))
+    {
+        preferences.hotkey = ToHotkey(value);
+    }
 
     return preferences;
 }
@@ -186,7 +225,8 @@ bool SaveLauncherPreferences(const LauncherEntryPreferences& preferences)
         WriteDword(
             key,
             kShowSystemMonitorValue,
-            preferences.showSystemMonitor ? 1u : 0u);
+            preferences.showSystemMonitor ? 1u : 0u) &&
+        WriteDword(key, kHotkeyValue, FromHotkey(preferences.hotkey));
     RegCloseKey(key);
     return saved;
 }

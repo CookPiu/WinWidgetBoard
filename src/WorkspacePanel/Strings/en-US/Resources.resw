@@ -892,6 +892,42 @@
   <data name="SettingsDialog.CloseButtonText" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="SettingsCategoryGeneral.Content" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="SettingsCategoryGeneral.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>General settings</value>
+  </data>
+  <data name="GeneralSettingsDescription.Text" xml:space="preserve">
+    <value>The application's own settings. Changes here take effect immediately; there is no save button.</value>
+  </data>
+  <data name="GeneralAutostartToggle.Header" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="GeneralAutostartToggle.OnContent" xml:space="preserve">
+    <value>Starts after sign-in</value>
+  </data>
+  <data name="GeneralAutostartToggle.OffContent" xml:space="preserve">
+    <value>Started manually</value>
+  </data>
+  <data name="GeneralAutostartToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="GeneralHotkeyHint.Text" xml:space="preserve">
+    <value>Shortcut: Ctrl + Alt + B opens and closes the panel. Right-click the taskbar entry to change it or switch it off.</value>
+  </data>
+  <data name="GeneralAutostartEnabledStatus" xml:space="preserve">
+    <value>WinWidgetBoard will start after you sign in.</value>
+  </data>
+  <data name="GeneralAutostartDisabledStatus" xml:space="preserve">
+    <value>WinWidgetBoard no longer starts by itself.</value>
+  </data>
+  <data name="GeneralAutostartUnavailableStatus" xml:space="preserve">
+    <value>This build is running straight from its build output, which has no Start-menu shortcut to copy, so it cannot be started with Windows.</value>
+  </data>
+  <data name="GeneralAutostartFailedStatus" xml:space="preserve">
+    <value>Could not change the setting; the Startup folder may not be writable.</value>
+  </data>
   <data name="SettingsCategoryWeather.Content" xml:space="preserve">
     <value>Weather</value>
   </data>
