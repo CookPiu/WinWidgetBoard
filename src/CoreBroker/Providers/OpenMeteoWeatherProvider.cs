@@ -358,7 +358,8 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             isDay != 0,
             timezone,
             ReadHourly(root, observedAtLocal),
-            ReadDaily(root));
+            ReadDaily(root),
+            ReadTodayRange(root));
     }
 
     /// <summary>
@@ -436,25 +437,19 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
     }
 
     /// <summary>
-    /// The days after today. Index 0 is today, which the current reading already covers, so it
-    /// is skipped rather than shown twice with a different number on it.
+    /// The days after today. Index 0 is today, which the forecast rows skip - it would read as
+    /// a second, disagreeing statement of the reading the card already shows - and which
+    /// <see cref="ReadTodayRange"/> publishes instead as today's high and low.
     /// </summary>
     private static List<WeatherDailyEntry> ReadDaily(JsonElement root)
     {
-        if (!root.TryGetProperty("daily", out JsonElement daily) ||
-            daily.ValueKind != JsonValueKind.Object ||
-            !TryReadArray(daily, "time", out JsonElement dates) ||
-            !TryReadArray(daily, "weather_code", out JsonElement codes) ||
-            !TryReadArray(daily, "temperature_2m_max", out JsonElement highs) ||
-            !TryReadArray(daily, "temperature_2m_min", out JsonElement lows))
-        {
-            return [];
-        }
-
-        int count = dates.GetArrayLength();
-        if (codes.GetArrayLength() < count ||
-            highs.GetArrayLength() < count ||
-            lows.GetArrayLength() < count)
+        if (!TryReadDailyArrays(
+            root,
+            out JsonElement dates,
+            out JsonElement codes,
+            out JsonElement highs,
+            out JsonElement lows,
+            out int count))
         {
             return [];
         }
@@ -476,6 +471,71 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// Today's high and low, from the daily array's index 0. The current reading says what the
+    /// temperature is now, which is not what a reader asking "how cold does it get tonight"
+    /// needs; the range comes with the daily request either way, so it costs no extra call.
+    /// Null when the day is absent or malformed - the card then simply leaves the line out.
+    /// </summary>
+    private static WeatherTodayRange? ReadTodayRange(JsonElement root)
+    {
+        if (!TryReadDailyArrays(
+            root,
+            out _,
+            out _,
+            out JsonElement highs,
+            out JsonElement lows,
+            out int count) ||
+            count < 1 ||
+            !TryReadFiniteDouble(highs[0], out double high) ||
+            !TryReadFiniteDouble(lows[0], out double low))
+        {
+            return null;
+        }
+
+        return new WeatherTodayRange(high, low);
+    }
+
+    /// <summary>
+    /// The daily block's four parallel arrays, or nothing. They are read together because a
+    /// day is only usable when all four agree on length: a shorter one would otherwise be
+    /// indexed past its end for every entry after the first missing value.
+    /// </summary>
+    private static bool TryReadDailyArrays(
+        JsonElement root,
+        out JsonElement dates,
+        out JsonElement codes,
+        out JsonElement highs,
+        out JsonElement lows,
+        out int count)
+    {
+        dates = default;
+        codes = default;
+        highs = default;
+        lows = default;
+        count = 0;
+        if (!root.TryGetProperty("daily", out JsonElement daily) ||
+            daily.ValueKind != JsonValueKind.Object ||
+            !TryReadArray(daily, "time", out dates) ||
+            !TryReadArray(daily, "weather_code", out codes) ||
+            !TryReadArray(daily, "temperature_2m_max", out highs) ||
+            !TryReadArray(daily, "temperature_2m_min", out lows))
+        {
+            return false;
+        }
+
+        count = dates.GetArrayLength();
+        if (codes.GetArrayLength() < count ||
+            highs.GetArrayLength() < count ||
+            lows.GetArrayLength() < count)
+        {
+            count = 0;
+            return false;
+        }
+
+        return true;
     }
 
     private static bool TryReadArray(
@@ -541,6 +601,11 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                     conditionIconId = WeatherConditionContract.FromWeatherCode(
                         response.WeatherCode,
                         response.IsDay),
+                    // Today's range travels with the current reading rather than in the
+                    // forecast list: it describes the day the reading belongs to, and the
+                    // forecast rows deliberately start tomorrow.
+                    todayHighTemperatureC = response.Today?.HighTemperatureC,
+                    todayLowTemperatureC = response.Today?.LowTemperatureC,
                 },
                 // Both lists may be empty: the forecast is supplementary, and a card that has
                 // the current reading is still a working card. The panel decides what to draw
@@ -713,7 +778,8 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         bool IsDay,
         string Timezone,
         IReadOnlyList<WeatherHourlyEntry> Hourly,
-        IReadOnlyList<WeatherDailyEntry> Daily);
+        IReadOnlyList<WeatherDailyEntry> Daily,
+        WeatherTodayRange? Today);
 
     private sealed record WeatherHourlyEntry(
         string TimeLocal,
@@ -726,6 +792,10 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         double HighTemperatureC,
         double LowTemperatureC,
         int WeatherCode);
+
+    private sealed record WeatherTodayRange(
+        double HighTemperatureC,
+        double LowTemperatureC);
 }
 
 public sealed record WeatherLocation

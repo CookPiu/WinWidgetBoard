@@ -18,8 +18,16 @@
             <SolidColorBrush x:Key="WwbWeatherSkyWetBrush" Color="#5480A8" Opacity="0.22" />
             <SolidColorBrush x:Key="WwbWeatherSkySnowBrush" Color="#9CC4E4" Opacity="0.20" />
             <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="#5B5488" Opacity="0.26" />
-            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#FFFFFF" Opacity="0.10" />
-            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#FFFFFF" Opacity="0.20" />
+            <!--
+                The motif brushes are opaque on purpose. Every illustration draws its shapes
+                inside one group that carries WwbWeatherMotifOpacity, so a cloud in front of
+                the sun hides it instead of adding a second layer of alpha to it; the wash is
+                then the same strength wherever two shapes met, which is what stopped the
+                backdrop from showing bright seams along every overlap.
+            -->
+            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#93A9BE" />
+            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#FFFFFF" />
+            <x:Double x:Key="WwbWeatherMotifOpacity">0.18</x:Double>
             <LinearGradientBrush
                 x:Key="WwbPanelAccentWashBrush"
                 StartPoint="0,0"
@@ -58,8 +66,9 @@
             <SolidColorBrush x:Key="WwbWeatherSkyWetBrush" Color="#3E6E96" Opacity="0.20" />
             <SolidColorBrush x:Key="WwbWeatherSkySnowBrush" Color="#7FAED4" Opacity="0.20" />
             <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="#4A4276" Opacity="0.22" />
-            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#173A5E" Opacity="0.12" />
-            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#173A5E" Opacity="0.22" />
+            <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#5A7B9C" />
+            <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#10304E" />
+            <x:Double x:Key="WwbWeatherMotifOpacity">0.16</x:Double>
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <Thickness x:Key="WwbSurfaceBorderThickness">1</Thickness>
@@ -76,6 +85,7 @@
             <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="Transparent" />
             <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="Transparent" />
             <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="Transparent" />
+            <x:Double x:Key="WwbWeatherMotifOpacity">0</x:Double>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

@@ -301,14 +301,18 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 
 ```json
 {
+  "current": { "temperatureC": 30.9, "todayHighTemperatureC": 33.4, "todayLowTemperatureC": 25.1 },
   "hourly": [ { "timeLocal": "2026-08-25T09:00", "temperatureC": 30.9, "weatherCode": 3, "isDay": true, "conditionIconId": "cloudy" } ],
   "daily":  [ { "dateLocal": "2026-08-26", "highTemperatureC": 24.6, "lowTemperatureC": 19.2, "weatherCode": 61, "conditionIconId": "rain" } ]
 }
 ```
 
+- `current.todayHighTemperatureC` / `todayLowTemperatureC` 是**今天**的最高与最低气温，取自
+  daily 下标 0；缺失或畸形时为 `null`。它们随实况走而不是进预报列表：讲的是实况所属的那一天，
+  而预报列表从明天起算。卡片要么两端都显示，要么一端也不显示——只有最高温会被读成第二个实况温度；
 - `hourly` 最多 **12** 条，自**当前观测小时**起算。Open-Meteo 的 `hourly.time` 从当地零点开始，
   因此窗口按与 `current.time` 比较定位，而不是取数组开头——取开头会把今天早上当成预报；
-- `daily` 最多 **3** 条，跳过下标 0（今天，实况已覆盖），即「明天起的三天」；
+- `daily` 最多 **3** 条，跳过下标 0（今天，已由 `current` 的今日区间覆盖），即「明天起的三天」；
 - `daily` 的 `conditionIconId` 一律按白天取：一整天的概括用夜间字形会读成「今晚」而不是「周三」；
 - 单条畸形即截断该列表，不影响实况——实况才是这张卡片的职责。
 

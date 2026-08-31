@@ -1009,6 +1009,12 @@
   <data name="WeatherWindLabel.Text" xml:space="preserve">
     <value>风速</value>
   </data>
+  <data name="WeatherHighLabel.Text" xml:space="preserve">
+    <value>最高</value>
+  </data>
+  <data name="WeatherLowLabel.Text" xml:space="preserve">
+    <value>最低</value>
+  </data>
   <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
     <value>更新于</value>
   </data>

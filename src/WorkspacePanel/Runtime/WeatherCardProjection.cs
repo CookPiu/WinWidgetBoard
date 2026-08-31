@@ -14,6 +14,8 @@ public sealed record WeatherCardProjection
         string locationLabel,
         string temperatureText,
         string apparentTemperatureText,
+        string highTemperatureText,
+        string lowTemperatureText,
         string conditionText,
         string conditionResourceKey,
         string conditionIconId,
@@ -29,6 +31,8 @@ public sealed record WeatherCardProjection
         LocationLabel = locationLabel;
         TemperatureText = temperatureText;
         ApparentTemperatureText = apparentTemperatureText;
+        HighTemperatureText = highTemperatureText;
+        LowTemperatureText = lowTemperatureText;
         ConditionText = conditionText;
         ConditionResourceKey = conditionResourceKey;
         ConditionIconId = conditionIconId;
@@ -47,6 +51,14 @@ public sealed record WeatherCardProjection
     public string TemperatureText { get; }
 
     public string ApparentTemperatureText { get; }
+
+    /// <summary>
+    /// Today's high, already formatted. The provider publishes it beside the current reading
+    /// because it describes the same day; the forecast rows start tomorrow.
+    /// </summary>
+    public string HighTemperatureText { get; }
+
+    public string LowTemperatureText { get; }
 
     public string ConditionText { get; }
 
@@ -91,6 +103,13 @@ public sealed record WeatherCardProjection
     public bool HasDays => Days.Count > 0;
 
     /// <summary>
+    /// True only when both ends of today's range are readable. Half a range - a high with no
+    /// low - reads as a second current temperature, so the card shows the pair or neither.
+    /// </summary>
+    public bool HasHighLow =>
+        HighTemperatureText != "—" && LowTemperatureText != "—";
+
+    /// <summary>
     /// The label is empty rather than a placeholder word. It used to fall back to the literal
     /// "Weather", which is an English string in a localized UI and, worse, reads as a location:
     /// the card's location line said "Weather" until the first fetch came back. Empty lets the
@@ -98,6 +117,8 @@ public sealed record WeatherCardProjection
     /// </summary>
     public static WeatherCardProjection Empty { get; } = new(
         string.Empty,
+        "—",
+        "—",
         "—",
         "—",
         "—",
@@ -149,6 +170,8 @@ public sealed record WeatherCardProjection
                 "—",
                 "—",
                 "—",
+                "—",
+                "—",
                 string.Empty,
                 WeatherConditionContract.Unknown,
                 "—",
@@ -171,6 +194,8 @@ public sealed record WeatherCardProjection
             locationLabel,
             temperatureText,
             FormatTemperature(current, "apparentTemperatureC", imperial),
+            FormatTemperature(current, "todayHighTemperatureC", imperial),
+            FormatTemperature(current, "todayLowTemperatureC", imperial),
             DescribeWeatherCode(ReadInt32(current, "weatherCode")),
             ResolveConditionResourceKey(ReadInt32(current, "weatherCode")),
             ReadConditionIconId(current),

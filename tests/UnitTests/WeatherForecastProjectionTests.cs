@@ -18,7 +18,9 @@ public sealed class WeatherForecastProjectionTests
             "windSpeedKmh": 9.4,
             "weatherCode": 3,
             "conditionIconId": "cloudy",
-            "observedAtLocal": "2026-08-25T09:00"
+            "observedAtLocal": "2026-08-25T09:00",
+            "todayHighTemperatureC": 33.4,
+            "todayLowTemperatureC": 25.1
           },
           "hourly": [
             { "timeLocal": "2026-08-25T09:00", "temperatureC": 30.9, "conditionIconId": "cloudy" },
@@ -50,6 +52,40 @@ public sealed class WeatherForecastProjectionTests
         Assert.AreEqual("clear-day", projection.Days[1].ConditionIconId);
         Assert.IsTrue(projection.Days[0].HighTemperatureText.Contains("24.6", StringComparison.Ordinal));
         Assert.IsTrue(projection.Days[0].LowTemperatureText.Contains("19.2", StringComparison.Ordinal));
+    }
+
+    [TestMethod(DisplayName =
+        "UT-WEA-024 [WEA-001] Today's high and low ride with the current reading")]
+    public void TodaysHighAndLowRideWithTheCurrentReading()
+    {
+        WeatherCardProjection projection = Project(PayloadWithForecast);
+
+        // The forecast rows start tomorrow on purpose, so today's range has to arrive beside
+        // the reading; without it the card can say 30.9 now and never say how cold tonight is.
+        Assert.IsTrue(projection.HasHighLow);
+        Assert.IsTrue(projection.HighTemperatureText.Contains("33.4", StringComparison.Ordinal));
+        Assert.IsTrue(projection.LowTemperatureText.Contains("25.1", StringComparison.Ordinal));
+    }
+
+    [TestMethod(DisplayName =
+        "UT-WEA-025 [WEA-001] Half a range is no range")]
+    public void HalfARangeIsNoRange()
+    {
+        WeatherCardProjection projection = Project("""
+            {
+              "location": { "label": "Beijing" },
+              "current": {
+                "temperatureC": 30.9,
+                "observedAtLocal": "2026-08-25T09:00",
+                "todayHighTemperatureC": 33.4
+              }
+            }
+            """);
+
+        // A high with no low reads as a second current temperature, so the card shows the
+        // pair or neither.
+        Assert.IsTrue(projection.HasData);
+        Assert.IsFalse(projection.HasHighLow);
     }
 
     [TestMethod(DisplayName =

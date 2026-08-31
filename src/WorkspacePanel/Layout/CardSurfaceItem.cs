@@ -132,6 +132,20 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public string WeatherApparentTemperatureText =>
         WeatherProjection.ApparentTemperatureText;
 
+    public string WeatherHighTemperatureText =>
+        WeatherProjection.HighTemperatureText;
+
+    public string WeatherLowTemperatureText =>
+        WeatherProjection.LowTemperatureText;
+
+    /// <summary>
+    /// Today's range earns its line on every size. It is the one secondary reading that
+    /// changes what the reader does next - a 32-degree afternoon that drops to 18 tonight is
+    /// a different day from one that stays at 30 - and it is a single short line, so even the
+    /// one-cell card can carry it under the condition.
+    /// </summary>
+    public bool HasWeatherHighLow => WeatherProjection.HasHighLow;
+
     /// <summary>
     /// The condition, localized. The projection is WinUI-free and names the string rather
     /// than resolving it; the English description it also carries is the fallback for a code
@@ -554,6 +568,15 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherApparentTemperatureText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherHighTemperatureText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherLowTemperatureText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherHighLow)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherConditionText)));

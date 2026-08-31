@@ -44,6 +44,7 @@ public sealed class WeatherCardProjectionTests
             "{\"unitSystem\":\"imperial\",\"location\":{\"label\":\"New York\"}," +
             "\"current\":{\"temperatureC\":20,\"apparentTemperatureC\":25," +
             "\"relativeHumidityPercent\":50,\"windSpeedKmh\":16.09344,\"weatherCode\":0," +
+            "\"todayHighTemperatureC\":30,\"todayLowTemperatureC\":0," +
             "\"observedAtLocal\":\"2026-08-31T09:00\"}," +
             "\"hourly\":[{\"timeLocal\":\"2026-08-31T10:00\",\"temperatureC\":10}]," +
             "\"daily\":[{\"dateLocal\":\"2026-09-01\",\"highTemperatureC\":30,\"lowTemperatureC\":0}]}");
@@ -64,6 +65,8 @@ public sealed class WeatherCardProjectionTests
         Assert.AreEqual("68 °F", projection.TemperatureText);
         Assert.AreEqual("77 °F", projection.ApparentTemperatureText);
         Assert.AreEqual("10 mph", projection.WindText);
+        Assert.AreEqual("86 °F", projection.HighTemperatureText);
+        Assert.AreEqual("32 °F", projection.LowTemperatureText);
         Assert.AreEqual("50 °F", projection.Hours[0].TemperatureText);
         // The trend geometry still plots the metric number - the curve's shape is unit-free.
         Assert.AreEqual(10d, projection.Hours[0].TemperatureCelsius);

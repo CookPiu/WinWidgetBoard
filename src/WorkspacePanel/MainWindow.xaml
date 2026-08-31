@@ -113,9 +113,17 @@
             QuoteTemplate="{StaticResource NoteMarkdownQuoteTemplate}"
             CodeTemplate="{StaticResource NoteMarkdownCodeTemplate}" />
         <!--
-            Compact condition glyphs for the hourly and daily rows, drawn from discs and
-            rectangles rather than an icon font: the card already composes its backdrop from
-            primitives, and a font would add an availability dependency for eight shapes.
+            Compact condition glyphs for the hourly and daily rows, drawn as geometry rather
+            than from an icon font: the card already composes its backdrop from primitives,
+            and a font would add an availability dependency for eight shapes.
+
+            Each glyph is a single Path with a non-zero fill rule (the leading "F1"), not a
+            stack of ellipses. The stack was the visible defect: the glyph brush is itself
+            translucent, so every place two discs met came out a shade darker than the rest of
+            the cloud, and at 18 DIP a cloud with three seams in it reads as noise. One
+            geometry unions its own subpaths before anything is painted, so the mark is flat.
+            Subpaths therefore have to wind the same way - every circle is drawn clockwise,
+            with sweep flag 1 - or the overlap would punch a hole instead of filling.
 
             The cloud keeps to the upper two thirds and the precipitation marks to the lower
             third. Sharing the same band turned rain into one dark blob at 18 DIP, which is the
@@ -128,217 +136,64 @@
         <DataTemplate x:Key="WeatherGlyphClearTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
                 <Ellipse
-                    Width="10"
-                    Height="10"
-                    Margin="4,4,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                    Width="10.4"
+                    Height="10.4"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherGlyphPartlyCloudyTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Ellipse
-                    Width="6"
-                    Height="6"
-                    Margin="11,0,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="7"
-                    Height="7"
-                    Margin="0,7,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="9"
-                    Height="9"
-                    Margin="4,4,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="6"
-                    Height="6"
-                    Margin="10,8,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                <Path
+                    Stretch="None"
+                    Data="F1 M 9.0,5.4 A 3.6,3.6 0 1 1 16.2,5.4 A 3.6,3.6 0 1 1 9.0,5.4 Z M 0.7,10.6 A 2.9,2.9 0 1 1 6.5,10.6 A 2.9,2.9 0 1 1 0.7,10.6 Z M 4.1,9.0 A 3.9,3.9 0 1 1 11.9,9.0 A 3.9,3.9 0 1 1 4.1,9.0 Z M 9.5,10.8 A 2.7,2.7 0 1 1 14.9,10.8 A 2.7,2.7 0 1 1 9.5,10.8 Z M 3.6,10.6 L 12.2,10.6 L 12.2,13.5 L 3.6,13.5 Z"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherGlyphCloudyTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Ellipse
-                    Width="7"
-                    Height="7"
-                    Margin="0,5,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="9"
-                    Height="9"
-                    Margin="4,2,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="6"
-                    Height="6"
-                    Margin="10,6,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                <Path
+                    Stretch="None"
+                    Data="F1 M 1.0,10.2 A 3.2,3.2 0 1 1 7.4,10.2 A 3.2,3.2 0 1 1 1.0,10.2 Z M 4.7,8.4 A 4.3,4.3 0 1 1 13.3,8.4 A 4.3,4.3 0 1 1 4.7,8.4 Z M 10.8,10.4 A 3.0,3.0 0 1 1 16.8,10.4 A 3.0,3.0 0 1 1 10.8,10.4 Z M 4.2,10.2 L 13.8,10.2 L 13.8,13.4 L 4.2,13.4 Z"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherGlyphFogTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Rectangle
-                    Width="14"
-                    Height="2"
-                    RadiusX="1"
-                    RadiusY="1"
-                    Margin="2,4,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Rectangle
-                    Width="14"
-                    Height="2"
-                    RadiusX="1"
-                    RadiusY="1"
-                    Margin="2,8,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Rectangle
-                    Width="10"
-                    Height="2"
-                    RadiusX="1"
-                    RadiusY="1"
-                    Margin="2,12,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                <Path
+                    Stretch="None"
+                    Data="F1 M 1.0,8.0 A 3.2,3.2 0 1 1 7.4,8.0 A 3.2,3.2 0 1 1 1.0,8.0 Z M 4.7,6.2 A 4.3,4.3 0 1 1 13.3,6.2 A 4.3,4.3 0 1 1 4.7,6.2 Z M 10.8,8.2 A 3.0,3.0 0 1 1 16.8,8.2 A 3.0,3.0 0 1 1 10.8,8.2 Z M 4.2,8.0 L 13.8,8.0 L 13.8,11.2 L 4.2,11.2 Z M 3.9,12.5 L 14.1,12.5 A 0.9,0.9 0 0 1 14.1,14.3 L 3.9,14.3 A 0.9,0.9 0 0 1 3.9,12.5 Z M 6.3,15.5 L 11.7,15.5 A 0.9,0.9 0 0 1 11.7,17.3 L 6.3,17.3 A 0.9,0.9 0 0 1 6.3,15.5 Z"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherGlyphRainTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Ellipse
-                    Width="7"
-                    Height="7"
-                    Margin="0,5,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="9"
-                    Height="9"
-                    Margin="4,2,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="6"
-                    Height="6"
-                    Margin="10,6,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Rectangle
-                    Width="2"
-                    Height="4"
-                    RadiusX="1"
-                    RadiusY="1"
-                    Margin="5,13,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Rectangle
-                    Width="2"
-                    Height="4"
-                    RadiusX="1"
-                    RadiusY="1"
-                    Margin="10,13,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                <Path
+                    Stretch="None"
+                    Data="F1 M 1.0,8.0 A 3.2,3.2 0 1 1 7.4,8.0 A 3.2,3.2 0 1 1 1.0,8.0 Z M 4.7,6.2 A 4.3,4.3 0 1 1 13.3,6.2 A 4.3,4.3 0 1 1 4.7,6.2 Z M 10.8,8.2 A 3.0,3.0 0 1 1 16.8,8.2 A 3.0,3.0 0 1 1 10.8,8.2 Z M 4.2,8.0 L 13.8,8.0 L 13.8,11.2 L 4.2,11.2 Z M 4.55,13.2 A 0.85,0.85 0 0 1 6.25,13.2 L 6.25,16.0 A 0.85,0.85 0 0 1 4.55,16.0 Z M 8.15,12.8 A 0.85,0.85 0 0 1 9.85,12.8 L 9.85,15.6 A 0.85,0.85 0 0 1 8.15,15.6 Z M 11.75,13.2 A 0.85,0.85 0 0 1 13.45,13.2 L 13.45,16.0 A 0.85,0.85 0 0 1 11.75,16.0 Z"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherGlyphSnowTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Ellipse
-                    Width="7"
-                    Height="7"
-                    Margin="0,5,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="9"
-                    Height="9"
-                    Margin="4,2,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="6"
-                    Height="6"
-                    Margin="10,6,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="3"
-                    Height="3"
-                    Margin="5,13,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="3"
-                    Height="3"
-                    Margin="10,13,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                <Path
+                    Stretch="None"
+                    Data="F1 M 1.0,8.0 A 3.2,3.2 0 1 1 7.4,8.0 A 3.2,3.2 0 1 1 1.0,8.0 Z M 4.7,6.2 A 4.3,4.3 0 1 1 13.3,6.2 A 4.3,4.3 0 1 1 4.7,6.2 Z M 10.8,8.2 A 3.0,3.0 0 1 1 16.8,8.2 A 3.0,3.0 0 1 1 10.8,8.2 Z M 4.2,8.0 L 13.8,8.0 L 13.8,11.2 L 4.2,11.2 Z M 4.15,14.2 A 1.25,1.25 0 1 1 6.65,14.2 A 1.25,1.25 0 1 1 4.15,14.2 Z M 7.75,15.4 A 1.25,1.25 0 1 1 10.25,15.4 A 1.25,1.25 0 1 1 7.75,15.4 Z M 11.35,14.2 A 1.25,1.25 0 1 1 13.85,14.2 A 1.25,1.25 0 1 1 11.35,14.2 Z"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherGlyphStormTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Ellipse
-                    Width="7"
-                    Height="7"
-                    Margin="0,5,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="9"
-                    Height="9"
-                    Margin="4,2,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Ellipse
-                    Width="6"
-                    Height="6"
-                    Margin="10,6,0,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Polygon
-                    Points="10,11 6,15 8,15 7,18 11,14 9,14 11,11"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
+                <Path
+                    Stretch="None"
+                    Data="F1 M 1.0,8.0 A 3.2,3.2 0 1 1 7.4,8.0 A 3.2,3.2 0 1 1 1.0,8.0 Z M 4.7,6.2 A 4.3,4.3 0 1 1 13.3,6.2 A 4.3,4.3 0 1 1 4.7,6.2 Z M 10.8,8.2 A 3.0,3.0 0 1 1 16.8,8.2 A 3.0,3.0 0 1 1 10.8,8.2 Z M 4.2,8.0 L 13.8,8.0 L 13.8,11.2 L 4.2,11.2 Z M 10.4,11.0 L 6.2,15.2 L 8.7,15.2 L 7.8,17.6 L 11.9,13.2 L 9.4,13.2 Z"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
@@ -870,236 +725,305 @@
             </Border>
         </DataTemplate>
 
+        <!--
+            The condition backdrops. Each one is a flat sky wash with a single motif group
+            over it, and that structure is the point: the group carries the whole
+            illustration's opacity, so its shapes are painted opaque against each other and a
+            cloud in front of the sun hides the part it covers. Drawing each shape at its own
+            low opacity instead - which is what these did - turned every overlap into a
+            brighter patch than either shape forming it, so the sun showed through the cloud
+            and the two-cloud backdrop had a seam down its middle. There are now at most two
+            translucent layers anywhere on the card: the sky, and the motif over it.
+
+            The motifs sit bottom-right and bleed off the corner, because the card's text runs
+            down the left. Sizes are in DIP and deliberately larger than the smallest card:
+            being clipped by the card's own rounded corner is the intended look, not overflow.
+        -->
         <DataTemplate x:Key="WeatherBackdropClearDayTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyClearBrush}" />
-                <Ellipse
-                    Width="96"
-                    Height="96"
-                    Margin="0,0,-26,-30"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <!--
+                        Halo and disc are concentric. The halo is what separates a clear sky
+                        from a plain wash on a card too small to show much of the disc.
+                    -->
+                    <Ellipse
+                        Width="152"
+                        Height="152"
+                        Margin="0,0,-52,-56"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Ellipse
+                        Width="96"
+                        Height="96"
+                        Margin="0,0,-24,-28"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropClearNightTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyNightBrush}" />
-                <Path
-                    Width="86"
-                    Height="86"
-                    Margin="0,0,-20,-24"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 52,6 A 44,44 0 1 0 52,94 A 34,34 0 1 1 52,6 Z"
-                    Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Ellipse
+                        Width="10"
+                        Height="10"
+                        Margin="0,0,84,74"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Ellipse
+                        Width="7"
+                        Height="7"
+                        Margin="0,0,116,44"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Ellipse
+                        Width="6"
+                        Height="6"
+                        Margin="0,0,66,104"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Path
+                        Width="86"
+                        Height="86"
+                        Margin="0,0,-18,-22"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 52,6 A 44,44 0 1 0 52,94 A 34,34 0 1 1 52,6 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropPartlyCloudyDayTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyClearBrush}" />
-                <Ellipse
-                    Width="68"
-                    Height="68"
-                    Margin="0,0,44,46"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
-                <Path
-                    Width="120"
-                    Height="76"
-                    Margin="0,0,-18,-6"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Ellipse
+                        Width="70"
+                        Height="70"
+                        Margin="0,0,16,16"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Path
+                        Width="136"
+                        Height="86"
+                        Margin="0,0,-24,-16"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropPartlyCloudyNightTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyNightBrush}" />
-                <Path
-                    Width="62"
-                    Height="62"
-                    Margin="0,0,46,48"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 52,6 A 44,44 0 1 0 52,94 A 34,34 0 1 1 52,6 Z"
-                    Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
-                <Path
-                    Width="120"
-                    Height="76"
-                    Margin="0,0,-18,-6"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Path
+                        Width="64"
+                        Height="64"
+                        Margin="0,0,18,20"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 52,6 A 44,44 0 1 0 52,94 A 34,34 0 1 1 52,6 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Path
+                        Width="136"
+                        Height="86"
+                        Margin="0,0,-24,-16"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropCloudyTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyCloudyBrush}" />
-                <Path
-                    Width="138"
-                    Height="88"
-                    Margin="0,0,-24,-10"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Path
-                    Width="92"
-                    Height="58"
-                    Margin="0,0,72,46"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <!--
+                        The far cloud takes the other tone. Two clouds in one tone merge into a
+                        single silhouette once they are painted opaque against each other, and
+                        the near one's edge is the only thing that makes the pair read as two.
+                    -->
+                    <Path
+                        Width="94"
+                        Height="60"
+                        Margin="0,0,56,38"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Path
+                        Width="142"
+                        Height="90"
+                        Margin="0,0,-26,-12"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropFogTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyCloudyBrush}" />
-                <Path
-                    Width="122"
-                    Height="78"
-                    Margin="0,0,-18,34"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Rectangle
-                    Width="94"
-                    Height="7"
-                    Margin="0,0,14,22"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    RadiusX="3.5"
-                    RadiusY="3.5"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Rectangle
-                    Width="66"
-                    Height="7"
-                    Margin="0,0,42,6"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    RadiusX="3.5"
-                    RadiusY="3.5"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Path
+                        Width="126"
+                        Height="80"
+                        Margin="0,0,-18,40"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Rectangle
+                        Width="104"
+                        Height="8"
+                        Margin="0,0,14,24"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        RadiusX="4"
+                        RadiusY="4"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Rectangle
+                        Width="72"
+                        Height="8"
+                        Margin="0,0,46,6"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        RadiusX="4"
+                        RadiusY="4"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropRainTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyWetBrush}" />
-                <Path
-                    Width="120"
-                    Height="76"
-                    Margin="0,0,-16,32"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Path
-                    Width="15"
-                    Height="15"
-                    Margin="0,0,22,10"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 50,4 C 50,4 82,44 82,64 A 32,32 0 1 1 18,64 C 18,44 50,4 50,4 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Path
-                    Width="15"
-                    Height="15"
-                    Margin="0,0,52,22"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 50,4 C 50,4 82,44 82,64 A 32,32 0 1 1 18,64 C 18,44 50,4 50,4 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Path
-                    Width="15"
-                    Height="15"
-                    Margin="0,0,82,4"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 50,4 C 50,4 82,44 82,64 A 32,32 0 1 1 18,64 C 18,44 50,4 50,4 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Path
+                        Width="126"
+                        Height="80"
+                        Margin="0,0,-18,34"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Path
+                        Width="16"
+                        Height="16"
+                        Margin="0,0,24,10"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 50,4 C 50,4 82,44 82,64 A 32,32 0 1 1 18,64 C 18,44 50,4 50,4 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Path
+                        Width="16"
+                        Height="16"
+                        Margin="0,0,56,24"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 50,4 C 50,4 82,44 82,64 A 32,32 0 1 1 18,64 C 18,44 50,4 50,4 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Path
+                        Width="16"
+                        Height="16"
+                        Margin="0,0,88,4"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 50,4 C 50,4 82,44 82,64 A 32,32 0 1 1 18,64 C 18,44 50,4 50,4 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropSnowTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkySnowBrush}" />
-                <Path
-                    Width="120"
-                    Height="76"
-                    Margin="0,0,-16,32"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Ellipse
-                    Width="13"
-                    Height="13"
-                    Margin="0,0,24,12"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Ellipse
-                    Width="10"
-                    Height="10"
-                    Margin="0,0,54,24"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Ellipse
-                    Width="11"
-                    Height="11"
-                    Margin="0,0,84,6"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Path
+                        Width="126"
+                        Height="80"
+                        Margin="0,0,-18,34"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Ellipse
+                        Width="14"
+                        Height="14"
+                        Margin="0,0,24,12"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Ellipse
+                        Width="11"
+                        Height="11"
+                        Margin="0,0,56,26"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                    <Ellipse
+                        Width="12"
+                        Height="12"
+                        Margin="0,0,88,6"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="WeatherBackdropThunderstormTemplate">
             <Grid>
                 <Rectangle Fill="{ThemeResource WwbWeatherSkyStormBrush}" />
-                <Path
-                    Width="124"
-                    Height="79"
-                    Margin="0,0,-18,30"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
-                    Fill="{ThemeResource WwbWeatherMotifBrush}" />
-                <Path
-                    Width="44"
-                    Height="44"
-                    Margin="0,0,54,-6"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Stretch="Uniform"
-                    Data="M 58,4 L 22,54 L 46,54 L 38,96 L 78,42 L 52,42 Z"
-                    Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                <Grid Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                    <Path
+                        Width="130"
+                        Height="83"
+                        Margin="0,0,-20,32"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 14,62 A 14,14 0 0 1 22,36 A 22,22 0 0 1 66,30 A 15,15 0 0 1 88,50 A 12,12 0 0 1 86,62 Z"
+                        Fill="{ThemeResource WwbWeatherMotifBrush}" />
+                    <Path
+                        Width="46"
+                        Height="46"
+                        Margin="0,0,52,-4"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Stretch="Uniform"
+                        Data="M 58,4 L 22,54 L 46,54 L 38,96 L 78,42 L 52,42 Z"
+                        Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
@@ -1248,6 +1172,41 @@
                                         automation:AutomationProperties.Name="{x:Bind WeatherConditionText, Mode=OneWay}"
                                         Style="{StaticResource WwbCardBodyStyle}"
                                         Text="{x:Bind WeatherConditionText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <!--
+                                    Today's range, under the condition rather than among the
+                                    secondary readings: it is the one number pair that changes
+                                    what the reader does next, and it stays on the smallest
+                                    card, where felt temperature, humidity and wind do not.
+                                    High and low are separate runs so a screen reader says
+                                    which is which instead of reading two numbers in a row.
+                                -->
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Spacing="{StaticResource WwbSpace1}"
+                                    Visibility="{x:Bind HasWeatherHighLow, Mode=OneWay}">
+                                    <TextBlock
+                                        x:Uid="WeatherHighLabel"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock
+                                        automation:AutomationProperties.AutomationId="WeatherHighTemperatureText"
+                                        Margin="0,0,4,0"
+                                        Style="{StaticResource WwbCardBodyStyle}"
+                                        Text="{x:Bind WeatherHighTemperatureText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock
+                                        x:Uid="WeatherLowLabel"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock
+                                        automation:AutomationProperties.AutomationId="WeatherLowTemperatureText"
+                                        Style="{StaticResource WwbCardBodyStyle}"
+                                        Text="{x:Bind WeatherLowTemperatureText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis"
                                         VerticalAlignment="Center" />
                                 </StackPanel>

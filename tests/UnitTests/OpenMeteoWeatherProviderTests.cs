@@ -208,6 +208,40 @@ public sealed class OpenMeteoWeatherProviderTests
             result.Payload.GetProperty("unitSystem").GetString());
     }
 
+    [TestMethod(DisplayName =
+        "UT-WEA-076 [WEA-001] Today's high and low are published with the current reading")]
+    public async Task TodaysRangeTravelsWithTheCurrentReading()
+    {
+        using var handler = new StubHandler(_ => JsonResponse(
+            "{\"timezone\":\"Asia/Singapore\"," +
+            "\"current\":{\"time\":\"2026-08-15T18:00\",\"temperature_2m\":31.2," +
+            "\"relative_humidity_2m\":72,\"apparent_temperature\":36.4," +
+            "\"weather_code\":2,\"wind_speed_10m\":11.5,\"is_day\":1}," +
+            "\"daily\":{\"time\":[\"2026-08-15\",\"2026-08-16\"]," +
+            "\"weather_code\":[2,61],\"temperature_2m_max\":[33.4,29.1]," +
+            "\"temperature_2m_min\":[25.1,24.0]}}"));
+        using var client = new HttpClient(handler);
+        var provider = new OpenMeteoWeatherProvider(
+            client,
+            new Uri("https://weather.test/v1/forecast"),
+            () => InitialUtc);
+
+        ProviderRefreshResult result = await provider.FetchAsync(
+            CreateRequest(provider, OpenMeteoWeatherProvider.DefaultLocation, 1),
+            CancellationToken.None);
+
+        Assert.AreEqual(ProviderRefreshResultKind.Success, result.Kind);
+        JsonElement current = result.Payload.GetProperty("current");
+        Assert.AreEqual(33.4, current.GetProperty("todayHighTemperatureC").GetDouble(), 0.0001);
+        Assert.AreEqual(25.1, current.GetProperty("todayLowTemperatureC").GetDouble(), 0.0001);
+
+        // The forecast rows still start tomorrow: today is stated once, as a range beside the
+        // reading, not twice with two different numbers on it.
+        JsonElement daily = result.Payload.GetProperty("daily");
+        Assert.AreEqual(1, daily.GetArrayLength());
+        Assert.AreEqual("2026-08-16", daily[0].GetProperty("dateLocal").GetString());
+    }
+
     private static ProviderRefreshRequest CreateRequest(
         OpenMeteoWeatherProvider provider,
         WeatherLocation location,

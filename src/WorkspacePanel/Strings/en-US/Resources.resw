@@ -1009,6 +1009,12 @@
   <data name="WeatherWindLabel.Text" xml:space="preserve">
     <value>Wind</value>
   </data>
+  <data name="WeatherHighLabel.Text" xml:space="preserve">
+    <value>High</value>
+  </data>
+  <data name="WeatherLowLabel.Text" xml:space="preserve">
+    <value>Low</value>
+  </data>
   <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
     <value>Updated</value>
   </data>
