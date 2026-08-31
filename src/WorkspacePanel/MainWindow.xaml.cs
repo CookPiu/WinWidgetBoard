@@ -2225,11 +2225,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _cardResizeSize = placement.Size;
         _cardResizePointerId = e.Pointer.PointerId;
         _cardResizePressPoint = GetRootPointer(e);
+        _cardResizeGhostOrigin = frame
+            .TransformToVisual(CardGridHost)
+            .TransformPoint(new Windows.Foundation.Point(0, 0));
+        _cardResizeGhostWidth = frame.ActualWidth;
+        _cardResizeGhostHeight = frame.ActualHeight;
         if (!frame.CapturePointer(e.Pointer))
         {
             ResetCardResize();
             return;
         }
+
+        ShowCardResizeGhost(_cardResizeGhostWidth, _cardResizeGhostHeight);
 
         e.Handled = true;
     }
@@ -2266,6 +2273,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         {
             return;
         }
+
+        // The band follows the pointer on every move, not only when a threshold is crossed.
+        // Snapping alone leaves the gesture dead between steps: the pointer travels half a
+        // card with nothing responding, which reads as the drag having stopped working.
+        ShowCardResizeGhost(
+            _cardResizeGhostWidth + (_cardResizeColumns ? point.X - _cardResizePressPoint.X : 0),
+            _cardResizeGhostHeight + (_cardResizeRows ? point.Y - _cardResizePressPoint.Y : 0));
 
         CardSize target = CardResizeCalculator.GetResizeTarget(
             _cardGridLayout.ColumnCount,
@@ -2399,8 +2413,62 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Draws the rubber band at the card's origin with the size the pointer is asking for.
+    /// The floor is a third of the card it started from, so dragging far past the smallest
+    /// size stops shrinking the band instead of turning it inside out.
+    /// </summary>
+    private const double CardResizeGhostEdgeThickness = 3;
+
+    private void ShowCardResizeGhost(double width, double height)
+    {
+        if (CardResizeGhost.RenderTransform is not CompositeTransform region ||
+            CardResizeGhostEastEdge.RenderTransform is not CompositeTransform eastEdge ||
+            CardResizeGhostSouthEdge.RenderTransform is not CompositeTransform southEdge)
+        {
+            return;
+        }
+
+        // The floor keeps the band a band. Dragging far past the smallest card would otherwise
+        // take it through zero and turn it inside out.
+        double minimum = 24;
+        double bandWidth = Math.Max(minimum, width);
+        double bandHeight = Math.Max(minimum, height);
+        double left = _cardResizeGhostOrigin.X;
+        double top = _cardResizeGhostOrigin.Y;
+
+        region.TranslateX = left;
+        region.TranslateY = top;
+        region.ScaleX = bandWidth;
+        region.ScaleY = bandHeight;
+
+        eastEdge.TranslateX = left + bandWidth - CardResizeGhostEdgeThickness;
+        eastEdge.TranslateY = top;
+        eastEdge.ScaleX = CardResizeGhostEdgeThickness;
+        eastEdge.ScaleY = bandHeight;
+        CardResizeGhostEastEdge.Visibility = _cardResizeColumns
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        southEdge.TranslateX = left;
+        southEdge.TranslateY = top + bandHeight - CardResizeGhostEdgeThickness;
+        southEdge.ScaleX = bandWidth;
+        southEdge.ScaleY = CardResizeGhostEdgeThickness;
+        CardResizeGhostSouthEdge.Visibility = _cardResizeRows
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        CardResizeGhostLayer.Visibility = Visibility.Visible;
+    }
+
+    private void HideCardResizeGhost()
+    {
+        CardResizeGhostLayer.Visibility = Visibility.Collapsed;
+    }
+
     private void ResetCardResize()
     {
+        HideCardResizeGhost();
         _cardResizePointerId = null;
         _cardResizeFrame = null;
         _cardResizeId = null;
@@ -2630,6 +2698,13 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private string? _cardResizeId;
     private CardPlacement? _cardResizeStartPlacement;
     private DragPoint _cardResizePressPoint;
+    // Where the card started and how big it was, in the grid's coordinate space. The rubber
+    // band is drawn from these rather than from the card's live bounds: the board reflows
+    // underneath while the gesture runs, and a band that re-read those bounds would chase the
+    // snapping instead of following the pointer.
+    private Windows.Foundation.Point _cardResizeGhostOrigin;
+    private double _cardResizeGhostWidth;
+    private double _cardResizeGhostHeight;
     private CardSize _cardResizeSize;
     private bool _cardResizeColumns;
     private bool _cardResizeRows;

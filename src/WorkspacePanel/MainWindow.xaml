@@ -2234,6 +2234,66 @@
                         ElementPrepared="CardItemsRepeater_ElementPrepared"
                         ElementClearing="CardItemsRepeater_ElementClearing"
                         ItemTemplate="{StaticResource CardTemplateSelector}" />
+                    <!--
+                        The resize rubber band. It sits in the cards' own coordinate space so
+                        it scrolls with them, and above the repeater so it is not covered by
+                        the card it describes.
+
+                        It is a 1x1 rectangle moved and stretched by a render transform rather
+                        than an element that is measured: a drag sets this on every pointer
+                        move, and re-running layout for a rectangle at that rate would be paid
+                        for by the grid underneath it. Fill only, no stroke - a stroke would be
+                        scaled with the shape and come out thick on one axis and thin on the
+                        other.
+                    -->
+                    <Grid
+                        x:Name="CardResizeGhostLayer"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed">
+                        <Rectangle
+                            x:Name="CardResizeGhost"
+                            Width="1"
+                            Height="1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Opacity="0.24"
+                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
+                            <Rectangle.RenderTransform>
+                                <CompositeTransform />
+                            </Rectangle.RenderTransform>
+                        </Rectangle>
+                        <!--
+                            The two edges the handles actually move, drawn as bars rather than
+                            as a stroke around the region: a stroke on a rectangle stretched by
+                            different amounts on each axis comes out thick on one side and thin
+                            on the other. Each bar is scaled only along its own length, so its
+                            thickness stays 3 DIP however far the drag goes. Only the bar for
+                            an axis being dragged is shown - it is the answer to "where is this
+                            edge right now".
+                        -->
+                        <Rectangle
+                            x:Name="CardResizeGhostEastEdge"
+                            Width="1"
+                            Height="1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
+                            <Rectangle.RenderTransform>
+                                <CompositeTransform />
+                            </Rectangle.RenderTransform>
+                        </Rectangle>
+                        <Rectangle
+                            x:Name="CardResizeGhostSouthEdge"
+                            Width="1"
+                            Height="1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Fill="{ThemeResource AccentFillColorDefaultBrush}">
+                            <Rectangle.RenderTransform>
+                                <CompositeTransform />
+                            </Rectangle.RenderTransform>
+                        </Rectangle>
+                    </Grid>
                 </Grid>
             </ScrollViewer>
 
