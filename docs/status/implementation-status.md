@@ -315,6 +315,18 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 方向已定（2026-08-31）：目标是成为一个优秀的**开源工具**，面向公开发布。由此新增的发布前置项：许可证选择与依赖许可证复核、面向外部读者的 README、可工作的发布产物（`PublishReadyToRun` / `resources.pri` 发布配置仍是坏的，见 §4.2）、贡献与安全报告说明。
 
+同日完成一轮**适配性审计**（产品原则 7），结论并入发布前置项：
+
+- **单位制硬编码**：天气请求固定 `temperature_unit=celsius`、`wind_speed_unit=kmh`（`OpenMeteoWeatherProvider.BuildRequestUri`），华氏/英里用户无法切换，需要单位设置；
+- **无 Windows 版本门槛**：LauncherHost 不检查系统版本。条带推导假设 Windows 11 任务栏形态，Windows 10 满排按钮的任务栏上不成立，会错位或盖住按钮；需启动时显式检查并降级（悬浮或拒绝，说明原因）。第三方任务栏改造（ExplorerPatcher 类）依赖既有 fail-closed，未实测；
+- **语言仅 en-US / zh-CN**：`DefaultLanguage` 为 en-US，其他区域回退英文；Broker 组的读数字符串一律 `InvariantCulture`（小数点恒为 `.`），金额恒为 USD。可接受为初始状态，翻译列为贡献面；
+- **常用地点列表以中国大陆城市为主**（19/33）：有搜索与自动定位兜底，低优先；
+- **仅 x64**：Arm64 Windows 依赖 x64 仿真，未验证；Arm64 原生构建列为已知限制与贡献面；
+- **价格表随发布物老化**：`TokenUsagePricing.VerifiedOn` 已入库但不用于展示；发布物比源码活得久，价表过老时卡片应有提示；
+- 显示矩阵（多显示器、100%～200% DPI、自动隐藏/垂直任务栏）仍是发布候选门禁，开源用户环境的第一波缺陷预计来自这里。
+
+审计确认已适配良好、无需改动的部分：`PdhAddEnglishCounter`（非英文 Windows）；缺失计数器与传感器逐项降级为明确状态；GPU 按 engine type 取最大、iGPU 共享显存合计；时钟与日期经 `GetTimeFormatEx`/`GetDateFormatEx` 随用户区域；入口零可翻译文本；天气描述按语言取资源键；Token 厂商目录可用性探测、无价模型计数不瞒报；网卡枚举过滤与尖峰保护；定位拒绝/无数据降级且验收路径不请求位置。
+
 仍待用户决定：
 
 - 正式名称与图标；
