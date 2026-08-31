@@ -2181,12 +2181,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             MidpointRounding.AwayFromZero);
 
     /// <summary>
-    /// How far from the frame's trailing edge a press still counts as that handle. It matches
-    /// the grab area drawn by the frame template - 28 DIP straddling the edge, so 14 of it
-    /// falls inside - with a little slack, because the only presses that arrive here are on a
-    /// handle in the first place: the frame's middle takes no pointer input.
+    /// How far from the frame's trailing edge a press still counts as the handle. It covers
+    /// the grab area the frame template draws - 36 DIP reaching 30 back from the corner - with
+    /// a little slack, because the only presses that arrive here are on the handle in the
+    /// first place: the frame's middle takes no pointer input.
     /// </summary>
-    private const double CardResizeHandleBand = 24;
+    private const double CardResizeHandleBand = 32;
 
     private void CardResizeFrame_PointerPressed(
         object sender,
@@ -2405,7 +2405,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     /// The floor is a third of the card it started from, so dragging far past the smallest
     /// size stops shrinking the band instead of turning it inside out.
     /// </summary>
-    private const double CardResizeGhostCornerSize = 14;
+    private const double CardResizeGhostCornerSize = 20;
 
     private void ShowCardResizeGhost(double width, double height)
     {

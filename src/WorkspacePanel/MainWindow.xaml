@@ -791,7 +791,7 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom"
                         Stretch="Uniform"
-                        Data="M 52,6 A 44,44 0 1 0 52,94 A 34,34 0 1 1 52,6 Z"
+                        Data="M 10,50 A 40,40 0 1 1 90,50 A 40,40 0 1 1 10,50 Z M 25,50 A 32,32 0 1 1 89,50 A 32,32 0 1 1 25,50 Z"
                         Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
                 </Grid>
             </Grid>
@@ -832,7 +832,7 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom"
                         Stretch="Uniform"
-                        Data="M 52,6 A 44,44 0 1 0 52,94 A 34,34 0 1 1 52,6 Z"
+                        Data="M 10,50 A 40,40 0 1 1 90,50 A 40,40 0 1 1 10,50 Z M 25,50 A 32,32 0 1 1 89,50 A 32,32 0 1 1 25,50 Z"
                         Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
                     <Path
                         Width="136"

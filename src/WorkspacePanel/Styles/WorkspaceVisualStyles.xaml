@@ -307,8 +307,8 @@
         a west or north handle would be asking the packer to honour a position it is free to
         re-pack; every handle here changes the span and leaves the origin alone.
     -->
-    <x:Double x:Key="WwbCardResizeHandleSize">14</x:Double>
-    <CornerRadius x:Key="WwbCardResizeHandleRadius">7</CornerRadius>
+    <x:Double x:Key="WwbCardResizeHandleSize">20</x:Double>
+    <CornerRadius x:Key="WwbCardResizeHandleRadius">10</CornerRadius>
 
     <Style
         x:Key="WwbCardResizeFrameStyle"
@@ -339,12 +339,19 @@
                             input - the middle stays transparent to it, so pressing the card
                             still starts a move.
                         -->
+                        <!--
+                            The grab area sits just inside the corner, not centred on it. The
+                            card clips its own contents at the padding edge, so a handle
+                            centred on the corner loses three quarters of itself to the clip
+                            and what reaches the screen is a wedge - which is exactly how it
+                            looked before this margin was pulled back in.
+                        -->
                         <Border
-                            Width="28"
-                            Height="28"
+                            Width="36"
+                            Height="36"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Bottom"
-                            Margin="0,0,-14,-14"
+                            Margin="0,0,-6,-6"
                             Background="Transparent">
                             <!--
                                 A ring, not a flat chip. The grabber has to read as something
@@ -358,7 +365,7 @@
                                 Height="{StaticResource WwbCardResizeHandleSize}"
                                 CornerRadius="{StaticResource WwbCardResizeHandleRadius}"
                                 Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                BorderThickness="2"
+                                BorderThickness="3"
                                 BorderBrush="{ThemeResource SolidBackgroundFillColorBaseBrush}" />
                         </Border>
                     </Grid>
