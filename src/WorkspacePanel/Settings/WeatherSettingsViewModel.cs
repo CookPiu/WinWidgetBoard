@@ -229,7 +229,7 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     /// action as picking a search result, so nothing downstream has to tell them apart.
     /// </summary>
     public IReadOnlyList<WeatherLocationOption> CommonLocations { get; } =
-        CommonWeatherLocations.All;
+        CommonWeatherLocations.ForCulture(CultureInfo.CurrentUICulture);
 
     /// <summary>
     /// The two lists never show at once: results answer a question the user just asked, and

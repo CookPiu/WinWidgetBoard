@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace WinWidgetBoard.WorkspacePanel.Settings;
 
 /// <summary>
@@ -10,6 +12,12 @@ namespace WinWidgetBoard.WorkspacePanel.Settings;
 /// cities most users actually pick, and every entry ends up in exactly the same saved shape a
 /// search result does.
 ///
+/// There are two lists, chosen by the panel's UI language rather than by any locale database:
+/// a Chinese-language panel gets the mainland-China-weighted list, every other language gets a
+/// world-major-cities list. The language is a deliberate proxy - it is the one signal about
+/// the user the panel already has, and guessing geography any harder (IP, region settings)
+/// would be collecting a datum this feature does not need.
+///
 /// Coordinates are city-centre points to four decimal places. Open-Meteo resolves to a grid
 /// several kilometres wide, so this is far finer than the forecast it feeds; the dialog also
 /// shows them read-only before saving, which is what keeps "what gets sent" visible.
@@ -20,7 +28,7 @@ namespace WinWidgetBoard.WorkspacePanel.Settings;
 /// </summary>
 public static class CommonWeatherLocations
 {
-    public static IReadOnlyList<WeatherLocationOption> All { get; } =
+    public static IReadOnlyList<WeatherLocationOption> ChineseMarket { get; } =
     [
         Create("Beijing", "Beijing", "China", 39.9042, 116.4074, "Asia/Shanghai"),
         Create("Shanghai", "Shanghai", "China", 31.2304, 121.4737, "Asia/Shanghai"),
@@ -60,6 +68,51 @@ public static class CommonWeatherLocations
         Create("Los Angeles", "California", "United States", 34.0522, -118.2437, "America/Los_Angeles"),
         Create("Toronto", "Ontario", "Canada", 43.6532, -79.3832, "America/Toronto"),
     ];
+
+    public static IReadOnlyList<WeatherLocationOption> International { get; } =
+    [
+        Create("New York", "New York", "United States", 40.7128, -74.0060, "America/New_York"),
+        Create("Los Angeles", "California", "United States", 34.0522, -118.2437, "America/Los_Angeles"),
+        Create("Chicago", "Illinois", "United States", 41.8781, -87.6298, "America/Chicago"),
+        Create("Toronto", "Ontario", "Canada", 43.6532, -79.3832, "America/Toronto"),
+        Create("Mexico City", "", "Mexico", 19.4326, -99.1332, "America/Mexico_City"),
+        Create("São Paulo", "São Paulo", "Brazil", -23.5505, -46.6333, "America/Sao_Paulo"),
+        Create("London", "England", "United Kingdom", 51.5074, -0.1278, "Europe/London"),
+        Create("Paris", "Île-de-France", "France", 48.8566, 2.3522, "Europe/Paris"),
+        Create("Berlin", "Berlin", "Germany", 52.5200, 13.4050, "Europe/Berlin"),
+        Create("Madrid", "Madrid", "Spain", 40.4168, -3.7038, "Europe/Madrid"),
+        Create("Rome", "Lazio", "Italy", 41.9028, 12.4964, "Europe/Rome"),
+        Create("Amsterdam", "North Holland", "Netherlands", 52.3676, 4.9041, "Europe/Amsterdam"),
+        Create("Moscow", "Moscow", "Russia", 55.7558, 37.6173, "Europe/Moscow"),
+        Create("Istanbul", "", "Turkey", 41.0082, 28.9784, "Europe/Istanbul"),
+        Create("Cairo", "", "Egypt", 30.0444, 31.2357, "Africa/Cairo"),
+        Create("Dubai", "", "United Arab Emirates", 25.2048, 55.2708, "Asia/Dubai"),
+        Create("Delhi", "Delhi", "India", 28.6139, 77.2090, "Asia/Kolkata"),
+        Create("Mumbai", "Maharashtra", "India", 19.0760, 72.8777, "Asia/Kolkata"),
+        Create("Singapore", "", "Singapore", 1.3521, 103.8198, "Asia/Singapore"),
+        Create("Bangkok", "", "Thailand", 13.7563, 100.5018, "Asia/Bangkok"),
+        Create("Jakarta", "", "Indonesia", -6.2088, 106.8456, "Asia/Jakarta"),
+        Create("Hong Kong", "", "", 22.3193, 114.1694, "Asia/Hong_Kong"),
+        Create("Beijing", "Beijing", "China", 39.9042, 116.4074, "Asia/Shanghai"),
+        Create("Shanghai", "Shanghai", "China", 31.2304, 121.4737, "Asia/Shanghai"),
+        Create("Tokyo", "", "Japan", 35.6895, 139.6917, "Asia/Tokyo"),
+        Create("Seoul", "", "South Korea", 37.5665, 126.9780, "Asia/Seoul"),
+        Create("Sydney", "New South Wales", "Australia", -33.8688, 151.2093, "Australia/Sydney"),
+        Create("Auckland", "", "New Zealand", -36.8485, 174.7633, "Pacific/Auckland"),
+    ];
+
+    /// <summary>
+    /// The list matching the given UI culture. Chinese gets the mainland-weighted list; every
+    /// other language gets the world list. Both are reachable by search either way, so this
+    /// only decides what saves a few keystrokes, never what is possible.
+    /// </summary>
+    public static IReadOnlyList<WeatherLocationOption> ForCulture(CultureInfo? culture) =>
+        string.Equals(
+            culture?.TwoLetterISOLanguageName,
+            "zh",
+            StringComparison.OrdinalIgnoreCase)
+            ? ChineseMarket
+            : International;
 
     private static WeatherLocationOption Create(
         string name,
