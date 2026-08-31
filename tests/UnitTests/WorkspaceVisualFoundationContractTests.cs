@@ -150,16 +150,17 @@ public sealed class WorkspaceVisualFoundationContractTests
                 "{StaticResource WwbCardSurfaceStyle}",
                 (string?)cardSurface.Attribute("Style"));
 
-            XElement editToolbar = template
-                .Descendants(Presentation + "Border")
+            // Edit mode is a frame drawn over the card, not a bar occupying a row of it.
+            XElement resizeFrame = template
+                .Descendants(Presentation + "ContentControl")
                 .Single(element =>
                     string.Equals(
                         (string?)element.Attribute("Style"),
-                        "{StaticResource WwbEditToolbarSurfaceStyle}",
+                        "{StaticResource WwbCardResizeFrameStyle}",
                         StringComparison.Ordinal));
             Assert.AreEqual(
                 "{x:Bind IsEditing, Mode=OneWay}",
-                (string?)editToolbar.Attribute("Visibility"));
+                (string?)resizeFrame.Attribute("Visibility"));
 
             string runtimeStatusName = templateKey switch
             {
@@ -194,9 +195,14 @@ public sealed class WorkspaceVisualFoundationContractTests
                             "{StaticResource WwbCardActionButtonStyle}",
                             StringComparison.Ordinal)),
                     $"{templateKey} must not expose an unimplemented business action.");
+                // The frame is laid over the card rather than given a row of its own, which
+                // is what returned that row's height to the card's content.
                 Assert.AreEqual(
-                    "3",
-                    (string?)editToolbar.Attribute("Grid.Row"));
+                    "0",
+                    (string?)resizeFrame.Attribute("Grid.Row"));
+                Assert.AreEqual(
+                    "9",
+                    (string?)resizeFrame.Attribute("Grid.RowSpan"));
             }
         }
     }

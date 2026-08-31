@@ -181,7 +181,7 @@ try {
     Start-Sleep -Milliseconds 500
     Assert-ElementHiddenByAutomationId `
         -Root $window `
-        -AutomationId 'TimerCardDragHandle' `
+        -AutomationId 'TimerCardResizeFrame' `
         -Because 'must be gone once its card is removed'
 
     Invoke-Element -Element (Wait-VisibleElementByAutomationId `
@@ -207,7 +207,7 @@ try {
 
     [void](Wait-VisibleElementByAutomationId `
         -Root $window `
-        -AutomationId 'TimerCardDragHandle' `
+        -AutomationId 'TimerCardResizeFrame' `
         -Timeout $timeout)
     Write-Output 'ADDCARD-ROUNDTRIP-PASS remove-then-add'
 
@@ -237,7 +237,7 @@ try {
     Enter-EditMode -Window $window
     [void](Wait-VisibleElementByAutomationId `
         -Root $window `
-        -AutomationId 'TimerCardDragHandle' `
+        -AutomationId 'TimerCardResizeFrame' `
         -Timeout $timeout)
     Write-Output 'ADDCARD-RESTART-PASS added-card-persisted'
     Write-Output 'REAL-ADDCARD-PASS disclosure+picker+roundtrip+persistence'

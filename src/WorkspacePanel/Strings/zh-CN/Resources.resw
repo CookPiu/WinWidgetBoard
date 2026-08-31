@@ -676,20 +676,14 @@
   <data name="LayoutEditCanceledStatus" xml:space="preserve">
     <value>布局编辑已取消，已恢复进入编辑模式前的布局。</value>
   </data>
-  <data name="DecreaseCardButton.Content" xml:space="preserve">
-    <value>缩小</value>
-  </data>
-  <data name="DecreaseCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>缩小卡片</value>
-  </data>
-  <data name="IncreaseCardButton.Content" xml:space="preserve">
-    <value>放大</value>
-  </data>
-  <data name="IncreaseCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>放大卡片</value>
+  <data name="CardResizeFrame.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>调整卡片大小</value>
   </data>
   <data name="RemoveCardButton.Content" xml:space="preserve">
-    <value>移除</value>
+    <value>✕</value>
+  </data>
+  <data name="RemoveCardButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>移除卡片</value>
   </data>
   <data name="RemoveCardButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>移除卡片</value>
@@ -699,12 +693,6 @@
   </data>
   <data name="CardRemovedStatus" xml:space="preserve">
     <value>卡片已移除；取消编辑可恢复。</value>
-  </data>
-  <data name="DragCardHandle.Text" xml:space="preserve">
-    <value>⋮⋮</value>
-  </data>
-  <data name="DragCardHandle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>拖动卡片</value>
   </data>
   <data name="DemoCardDropCommittedStatus" xml:space="preserve">
     <value>卡片已放置到新的网格位置。</value>

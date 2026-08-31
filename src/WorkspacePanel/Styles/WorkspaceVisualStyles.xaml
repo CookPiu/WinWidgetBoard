@@ -292,6 +292,129 @@
             Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
     </Style>
 
+    <!--
+        The edit-mode resize frame. It replaces the bar that used to sit along the bottom of
+        every card in edit mode: a bar states what can be done in words and costs a row of the
+        card to do it, while a frame states it in the shape of the thing being edited, which is
+        how every other resizable object on a desktop behaves.
+
+        The frame's own root has NO background, so only the three drawn handles take pointer
+        input. That is what keeps the card's middle behaving exactly as before - pressing it
+        still starts a move, and an interactive control inside the card still wins over the
+        drag - instead of the frame swallowing the whole card the moment edit mode turns on.
+
+        Only east, south and south-east exist. A card's origin comes from first-fit packing, so
+        a west or north handle would be asking the packer to honour a position it is free to
+        re-pack; every handle here changes the span and leaves the origin alone.
+    -->
+    <x:Double x:Key="WwbCardResizeHandleSize">12</x:Double>
+
+    <Style
+        x:Key="WwbCardResizeFrameStyle"
+        TargetType="ContentControl">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Border
+                            BorderThickness="1"
+                            BorderBrush="{ThemeResource AccentFillColorSecondaryBrush}"
+                            CornerRadius="{StaticResource WwbCardCornerRadius}"
+                            IsHitTestVisible="False" />
+                        <!--
+                            Each handle is a transparent grab area with the painted square
+                            inside it. The square is 12 DIP because that is what reads at a
+                            glance; the area around it is 28 because a handle that has to be
+                            hit exactly is a handle the user gives up on. Only these three
+                            take pointer input - the frame's middle stays transparent to it,
+                            so pressing the card still starts a move.
+                        -->
+                        <Border
+                            Width="28"
+                            Height="28"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,0,-14,0"
+                            Background="Transparent">
+                            <Rectangle
+                                Width="{StaticResource WwbCardResizeHandleSize}"
+                                Height="{StaticResource WwbCardResizeHandleSize}"
+                                RadiusX="3"
+                                RadiusY="3"
+                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                Stroke="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                StrokeThickness="1" />
+                        </Border>
+                        <Border
+                            Width="28"
+                            Height="28"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Margin="0,0,0,-14"
+                            Background="Transparent">
+                            <Rectangle
+                                Width="{StaticResource WwbCardResizeHandleSize}"
+                                Height="{StaticResource WwbCardResizeHandleSize}"
+                                RadiusX="3"
+                                RadiusY="3"
+                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                Stroke="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                StrokeThickness="1" />
+                        </Border>
+                        <Border
+                            Width="28"
+                            Height="28"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Bottom"
+                            Margin="0,0,-14,-14"
+                            Background="Transparent">
+                            <Rectangle
+                                Width="{StaticResource WwbCardResizeHandleSize}"
+                                Height="{StaticResource WwbCardResizeHandleSize}"
+                                RadiusX="3"
+                                RadiusY="3"
+                                Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                Stroke="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                StrokeThickness="1" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The card's own close affordance, on the frame's top-right corner the way a selected
+        object carries one. It stays a real button rather than another hit-tested region of the
+        frame: removing a card is the one destructive action here, and it needs a name, a
+        tooltip and an automation id of its own.
+    -->
+    <Style
+        x:Key="WwbCardRemoveBadgeStyle"
+        TargetType="Button"
+        BasedOn="{StaticResource WwbDestructiveActionButtonStyle}">
+        <Setter Property="MinWidth" Value="28" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Margin" Value="0,-10,-10,0" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter
+            Property="Background"
+            Value="{ThemeResource SolidBackgroundFillColorBaseBrush}" />
+        <Setter
+            Property="BorderBrush"
+            Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
     <Style
         x:Key="WwbDragHandleStyle"
         TargetType="Border">

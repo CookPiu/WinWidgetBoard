@@ -58,8 +58,8 @@ public sealed class CardTemplateDragContractTests
         }
     }
 
-    [TestMethod(DisplayName = "UT-GRID-039 [LYT-003/NFR-A11Y-002] Every card drag handle has a stable unique automation ID")]
-    public void EveryCardDragHandleHasStableUniqueAutomationId()
+    [TestMethod(DisplayName = "UT-GRID-039 [LYT-003/NFR-A11Y-002] Every card resize frame has a stable unique automation ID")]
+    public void EveryCardResizeFrameHasStableUniqueAutomationId()
     {
         string xamlPath = Path.Combine(
             AppContext.BaseDirectory,
@@ -70,25 +70,29 @@ public sealed class CardTemplateDragContractTests
             "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XNamespace xaml =
             "http://schemas.microsoft.com/winfx/2006/xaml";
+        // The bar that used to carry a drag handle per card is gone; the resize frame is now
+        // the per-card anchor, and the real-desktop scripts drive the card through it.
+        XNamespace automation = "using:Microsoft.UI.Xaml.Automation";
         string[] expectedNames = [
-            "NotesCardDragHandle",
-            "WeatherCardDragHandle",
-            "TimerCardDragHandle",
-            "TodoCardDragHandle",
-            "CalendarCardDragHandle",
-            "SystemMonitorCardDragHandle",
-            "TokenUsageCardDragHandle",
-            "UnknownCardDragHandle",
+            "NotesCardResizeFrame",
+            "WeatherCardResizeFrame",
+            "TimerCardResizeFrame",
+            "TodoCardResizeFrame",
+            "CalendarCardResizeFrame",
+            "SystemMonitorCardResizeFrame",
+            "TokenUsageCardResizeFrame",
+            "UnknownCardResizeFrame",
         ];
 
         string[] actualNames = document
-            .Descendants(presentation + "TextBlock")
+            .Descendants(presentation + "ContentControl")
             .Where(element =>
                 string.Equals(
                     (string?)element.Attribute(xaml + "Uid"),
-                    "DragCardHandle",
+                    "CardResizeFrame",
                     StringComparison.Ordinal))
-            .Select(element => (string?)element.Attribute(xaml + "Name"))
+            .Select(element =>
+                (string?)element.Attribute(automation + "AutomationProperties.AutomationId"))
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Cast<string>()
             .ToArray();
@@ -134,8 +138,6 @@ public sealed class CardTemplateDragContractTests
                     StringComparison.Ordinal));
         string[] allowedButtonUids =
         [
-            "DecreaseCardButton",
-            "IncreaseCardButton",
             "RemoveCardButton",
         ];
         string[] actualButtonUids = unknownTemplate
@@ -181,23 +183,23 @@ public sealed class CardTemplateDragContractTests
     {
         string code = LoadMainWindowCodeBehind();
         int handlerStart = code.IndexOf(
-            "private void ResizeCard",
+            "private void CardResizeFrame_PointerPressed",
             StringComparison.Ordinal);
         int handlerEnd = code.IndexOf(
-            "private void RemoveCardButton_Click",
+            "private void CardResizeFrame_PointerMoved",
             handlerStart,
             StringComparison.Ordinal);
 
         Assert.IsTrue(handlerStart >= 0);
         Assert.IsTrue(handlerEnd > handlerStart);
         string handler = code[handlerStart..handlerEnd];
+        // The card being resized is resolved from the realized repeater element, never from a
+        // root Tag that recycling may have left pointing at another card.
         StringAssert.Contains(
             handler,
-            "ResolveCurrentCardSurfaceItem(sender)");
-        StringAssert.Contains(
-            handler,
-            "_cardEdit.TryStepCardSize(");
+            "ResolveCurrentCardSurfaceItem(frame)");
         StringAssert.Contains(handler, "item.InstanceId");
+        StringAssert.Contains(handler, "_cardLayout.TryGetPlacement(");
         Assert.IsFalse(
             handler.Contains(
                 "element.Tag",

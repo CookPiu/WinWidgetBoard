@@ -203,13 +203,13 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(5))
     Assert-ElementHiddenByAutomationId `
         -Root $window `
-        -AutomationId 'TimerCardDragHandle'
+        -AutomationId 'TimerCardResizeFrame'
     Invoke-Element -Element $editButton
     Start-Sleep -Milliseconds 500
 
     [void](Wait-VisibleElementByAutomationId `
         -Root $window `
-        -AutomationId 'TimerCardDragHandle' `
+        -AutomationId 'TimerCardResizeFrame' `
         -Timeout ([TimeSpan]::FromSeconds(5)))
     $undoButton = Wait-VisibleElementByAutomationId `
         -Root $window `

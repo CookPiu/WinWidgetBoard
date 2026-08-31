@@ -47,14 +47,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private const uint SwpFrameChanged = 0x0020;
     private const int DwmwaWindowCornerPreference = 33;
     private const int DwmwcpRound = 2;
-    private static readonly CardSize[] EditableCardSizes = [
-        CardSize.S,
-        CardSize.M,
-        CardSize.L,
-        CardSize.W,
-        CardSize.XL,
-    ];
-
     private readonly AppWindow _appWindow;
     // The popped-out note, while one is open. Null is the normal state; the panel does not
     // keep a closed window around because the editor it edits lives on this side anyway.
@@ -847,31 +839,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         ResetCardDropPreview();
         StatusText.Text = _resources.GetString("LayoutRedoStatus");
         return true;
-    }
-
-    private void DecreaseCardSizeButton_Click(object sender, RoutedEventArgs e)
-    {
-        ResizeCard(sender, -1);
-    }
-
-    private void IncreaseCardSizeButton_Click(object sender, RoutedEventArgs e)
-    {
-        ResizeCard(sender, 1);
-    }
-
-    private void ResizeCard(object sender, int direction)
-    {
-        if (_isSavingLayout ||
-            ResolveCurrentCardSurfaceItem(sender) is not CardSurfaceItem item ||
-            !_cardEdit.TryStepCardSize(
-                item.InstanceId,
-                direction,
-                EditableCardSizes))
-        {
-            return;
-        }
-
-        StatusText.Text = _resources.GetString("CardResizedStatus");
     }
 
     private CardSurfaceItem? ResolveCurrentCardSurfaceItem(object sender)
@@ -2213,6 +2180,180 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             logicalPixels * _placement.Dpi / 96.0,
             MidpointRounding.AwayFromZero);
 
+    /// <summary>
+    /// How far from the frame's trailing edge a press still counts as that handle. It matches
+    /// the grab area drawn by the frame template - 28 DIP straddling the edge, so 14 of it
+    /// falls inside - with a little slack, because the only presses that arrive here are on a
+    /// handle in the first place: the frame's middle takes no pointer input.
+    /// </summary>
+    private const double CardResizeHandleBand = 24;
+
+    private void CardResizeFrame_PointerPressed(
+        object sender,
+        PointerRoutedEventArgs e)
+    {
+        if (!_cardEdit.IsEditing ||
+            _isSavingLayout ||
+            _cardResizePointerId is not null ||
+            _demoNotesCardPointerId is not null ||
+            sender is not FrameworkElement frame ||
+            ResolveCurrentCardSurfaceItem(frame) is not CardSurfaceItem item ||
+            !e.GetCurrentPoint(frame).Properties.IsLeftButtonPressed ||
+            !_cardLayout.TryGetPlacement(item.InstanceId, out CardPlacement placement))
+        {
+            return;
+        }
+
+        // Which handle was grabbed is read from where inside the frame the press landed. The
+        // frame paints its handles but takes no input in the middle, so a press that arrives
+        // here is on one of them; the geometry only has to say which.
+        Windows.Foundation.Point local = e.GetCurrentPoint(frame).Position;
+        bool east = local.X >= frame.ActualWidth - CardResizeHandleBand;
+        bool south = local.Y >= frame.ActualHeight - CardResizeHandleBand;
+        if (!east && !south)
+        {
+            return;
+        }
+
+        InterruptDemoNotesCardReturn();
+        ResetCardDropPreview();
+        _cardResizeFrame = frame;
+        _cardResizeId = item.InstanceId;
+        _cardResizeStartPlacement = placement;
+        _cardResizeColumns = east;
+        _cardResizeRows = south;
+        _cardResizeSize = placement.Size;
+        _cardResizePointerId = e.Pointer.PointerId;
+        _cardResizePressPoint = GetRootPointer(e);
+        if (!frame.CapturePointer(e.Pointer))
+        {
+            ResetCardResize();
+            return;
+        }
+
+        e.Handled = true;
+    }
+
+    private void CardResizeFrame_PointerMoved(
+        object sender,
+        PointerRoutedEventArgs e)
+    {
+        if (_cardResizePointerId != e.Pointer.PointerId ||
+            _cardResizeId is not string instanceId ||
+            _cardResizeStartPlacement is not CardPlacement placement)
+        {
+            return;
+        }
+
+        DragPoint point = GetRootPointer(e);
+        double availableWidth = CardItemsRepeater.ActualWidth > 0
+            ? CardItemsRepeater.ActualWidth
+            : CardGridHost.ActualWidth;
+        if (!double.IsFinite(availableWidth) || availableWidth <= 0)
+        {
+            return;
+        }
+
+        CardSize target = CardResizeCalculator.GetResizeTarget(
+            _cardGridLayout.ColumnCount,
+            availableWidth,
+            _cardGridLayout.ColumnGap,
+            _cardGridLayout.RowHeight,
+            _cardGridLayout.RowGap,
+            placement,
+            point.X - _cardResizePressPoint.X,
+            point.Y - _cardResizePressPoint.Y,
+            _cardResizeColumns,
+            _cardResizeRows);
+        e.Handled = true;
+        if (target == _cardResizeSize)
+        {
+            return;
+        }
+
+        // The drag previews and the release commits. Applying each threshold as it is crossed
+        // would push one undo entry per threshold, so taking back a single gesture would take
+        // three undos.
+        _cardResizeSize = target;
+        if (_cardEdit.TryPreviewResize(
+                instanceId,
+                target,
+                out IReadOnlyList<CardPlacement> placements))
+        {
+            ApplyCardDropPreview(instanceId, placements);
+        }
+        else
+        {
+            ResetCardDropPreview();
+        }
+    }
+
+    private void CardResizeFrame_PointerReleased(
+        object sender,
+        PointerRoutedEventArgs e)
+    {
+        if (_cardResizePointerId != e.Pointer.PointerId)
+        {
+            return;
+        }
+
+        string? instanceId = _cardResizeId;
+        CardSize target = _cardResizeSize;
+        CardPlacement? start = _cardResizeStartPlacement;
+        (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
+        ResetCardResize();
+        ResetCardDropPreview();
+        if (instanceId is not null &&
+            start is CardPlacement placement &&
+            target != placement.Size &&
+            !_isSavingLayout &&
+            _cardEdit.TryResizeCard(instanceId, target))
+        {
+            StatusText.Text = _resources.GetString("CardResizedStatus");
+        }
+
+        e.Handled = true;
+    }
+
+    private void CardResizeFrame_PointerCaptureLost(
+        object sender,
+        PointerRoutedEventArgs e)
+    {
+        if (_cardResizePointerId != e.Pointer.PointerId)
+        {
+            return;
+        }
+
+        // Capture can be taken away mid-gesture; the size the user was aiming at was never
+        // committed, so the board goes back to what it actually holds.
+        ResetCardResize();
+        ResetCardDropPreview();
+    }
+
+    private void CardResizeFrame_PointerCanceled(
+        object sender,
+        PointerRoutedEventArgs e)
+    {
+        if (_cardResizePointerId != e.Pointer.PointerId)
+        {
+            return;
+        }
+
+        (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
+        ResetCardResize();
+        ResetCardDropPreview();
+    }
+
+    private void ResetCardResize()
+    {
+        _cardResizePointerId = null;
+        _cardResizeFrame = null;
+        _cardResizeId = null;
+        _cardResizeStartPlacement = null;
+        _cardResizeColumns = false;
+        _cardResizeRows = false;
+    }
+
     private void DemoNotesCardSurface_PointerPressed(
         object sender,
         PointerRoutedEventArgs e)
@@ -2425,6 +2566,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 new Vector3(0, 0, dragging ? 16 : 4);
         }
     }
+
+    // The resize gesture. It is deliberately separate from the move drag's state: the two
+    // cannot run at once, and sharing one set of fields would make "which gesture is this
+    // pointer in" a question the handlers have to answer instead of a fact they hold.
+    private uint? _cardResizePointerId;
+    private FrameworkElement? _cardResizeFrame;
+    private string? _cardResizeId;
+    private CardPlacement? _cardResizeStartPlacement;
+    private DragPoint _cardResizePressPoint;
+    private CardSize _cardResizeSize;
+    private bool _cardResizeColumns;
+    private bool _cardResizeRows;
 
     private bool TryGetDropCell(
         CardPlacement placement,

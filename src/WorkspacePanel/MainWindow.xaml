@@ -684,43 +684,35 @@
                             </Grid>
                         </Grid>
                     </ScrollViewer>
-                    <Border
-                        Grid.Row="2"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                        <StackPanel
-                            Orientation="Horizontal"
-                            Spacing="8">
-                            <Border
-                                Tag="{x:Bind InstanceId}"
-                                Style="{StaticResource WwbDragHandleStyle}">
-                                <TextBlock
-                                    x:Name="NotesCardDragHandle"
-                                    x:Uid="DragCardHandle"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                            </Border>
-                            <Button
-                                x:Uid="DecreaseCardButton"
-                                automation:AutomationProperties.AutomationId="NotesCardDecreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="DecreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="IncreaseCardButton"
-                                automation:AutomationProperties.AutomationId="NotesCardIncreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="IncreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="RemoveCardButton"
-                                automation:AutomationProperties.AutomationId="NotesCardRemoveButton"
-                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="RemoveCardButton_Click" />
-                        </StackPanel>
-                    </Border>
+                    <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="NotesCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="NotesCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -1346,44 +1338,35 @@
                             NavigateUri="https://open-meteo.com/"
                             VerticalAlignment="Center" />
                     </StackPanel>
-                    <Border
-                        Grid.Row="3"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                        <StackPanel
-                            Orientation="Horizontal"
-                            Spacing="8">
-                            <Border
-                                Tag="{x:Bind InstanceId}"
-                                Style="{StaticResource WwbDragHandleStyle}">
-                                <TextBlock
-                                    x:Name="WeatherCardDragHandle"
-                                    x:Uid="DragCardHandle"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                            </Border>
-                            <Button
-                                x:Uid="DecreaseCardButton"
-                                automation:AutomationProperties.AutomationId="WeatherCardDecreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="DecreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="IncreaseCardButton"
-                                automation:AutomationProperties.AutomationId="WeatherCardIncreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="IncreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="RemoveCardButton"
-                                automation:AutomationProperties.AutomationId="WeatherCardRemoveButton"
-                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="RemoveCardButton_Click" />
-                        </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="WeatherCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="WeatherCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -1434,44 +1417,35 @@
                         Style="{StaticResource WwbCardBodyStyle}"
                         TextWrapping="Wrap"
                         Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
-                    <Border
-                        Grid.Row="3"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                            <StackPanel
-                                Orientation="Horizontal"
-                                Spacing="8">
-                                <Border
-                                    Tag="{x:Bind InstanceId}"
-                                    Style="{StaticResource WwbDragHandleStyle}">
-                                    <TextBlock
-                                        x:Name="TimerCardDragHandle"
-                                        x:Uid="DragCardHandle"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" />
-                                </Border>
-                                <Button
-                                    x:Uid="DecreaseCardButton"
-                                    automation:AutomationProperties.AutomationId="TimerCardDecreaseButton"
-                                    Style="{StaticResource WwbEditActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="DecreaseCardSizeButton_Click" />
-                                <Button
-                                    x:Uid="IncreaseCardButton"
-                                    automation:AutomationProperties.AutomationId="TimerCardIncreaseButton"
-                                    Style="{StaticResource WwbEditActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="IncreaseCardSizeButton_Click" />
-                                <Button
-                                    x:Uid="RemoveCardButton"
-                                    automation:AutomationProperties.AutomationId="TimerCardRemoveButton"
-                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="RemoveCardButton_Click" />
-                            </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="TimerCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="TimerCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -1522,44 +1496,35 @@
                         Style="{StaticResource WwbCardBodyStyle}"
                         TextWrapping="Wrap"
                         Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
-                    <Border
-                        Grid.Row="3"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                            <StackPanel
-                                Orientation="Horizontal"
-                                Spacing="8">
-                                <Border
-                                    Tag="{x:Bind InstanceId}"
-                                    Style="{StaticResource WwbDragHandleStyle}">
-                                    <TextBlock
-                                        x:Name="TodoCardDragHandle"
-                                        x:Uid="DragCardHandle"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" />
-                                </Border>
-                                <Button
-                                    x:Uid="DecreaseCardButton"
-                                    automation:AutomationProperties.AutomationId="TodoCardDecreaseButton"
-                                    Style="{StaticResource WwbEditActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="DecreaseCardSizeButton_Click" />
-                                <Button
-                                    x:Uid="IncreaseCardButton"
-                                    automation:AutomationProperties.AutomationId="TodoCardIncreaseButton"
-                                    Style="{StaticResource WwbEditActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="IncreaseCardSizeButton_Click" />
-                                <Button
-                                    x:Uid="RemoveCardButton"
-                                    automation:AutomationProperties.AutomationId="TodoCardRemoveButton"
-                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="RemoveCardButton_Click" />
-                            </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="TodoCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="TodoCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -1610,44 +1575,35 @@
                         Style="{StaticResource WwbCardBodyStyle}"
                         TextWrapping="Wrap"
                         Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
-                    <Border
-                        Grid.Row="3"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                            <StackPanel
-                                Orientation="Horizontal"
-                                Spacing="8">
-                                <Border
-                                    Tag="{x:Bind InstanceId}"
-                                    Style="{StaticResource WwbDragHandleStyle}">
-                                    <TextBlock
-                                        x:Name="CalendarCardDragHandle"
-                                        x:Uid="DragCardHandle"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" />
-                                </Border>
-                                <Button
-                                    x:Uid="DecreaseCardButton"
-                                    automation:AutomationProperties.AutomationId="CalendarCardDecreaseButton"
-                                    Style="{StaticResource WwbEditActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="DecreaseCardSizeButton_Click" />
-                                <Button
-                                    x:Uid="IncreaseCardButton"
-                                    automation:AutomationProperties.AutomationId="CalendarCardIncreaseButton"
-                                    Style="{StaticResource WwbEditActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="IncreaseCardSizeButton_Click" />
-                                <Button
-                                    x:Uid="RemoveCardButton"
-                                    automation:AutomationProperties.AutomationId="CalendarCardRemoveButton"
-                                    Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                    Tag="{x:Bind InstanceId}"
-                                    Click="RemoveCardButton_Click" />
-                            </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="CalendarCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="CalendarCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -1693,44 +1649,35 @@
                             TextWrapping="Wrap"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
                     </StackPanel>
-                    <Border
-                        Grid.Row="2"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                        <StackPanel
-                            Orientation="Horizontal"
-                            Spacing="8">
-                            <Border
-                                Tag="{x:Bind InstanceId}"
-                                Style="{StaticResource WwbDragHandleStyle}">
-                                <TextBlock
-                                    x:Name="UnknownCardDragHandle"
-                                    x:Uid="DragCardHandle"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                            </Border>
-                            <Button
-                                x:Uid="DecreaseCardButton"
-                                automation:AutomationProperties.AutomationId="UnknownCardDecreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="DecreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="IncreaseCardButton"
-                                automation:AutomationProperties.AutomationId="UnknownCardIncreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="IncreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="RemoveCardButton"
-                                automation:AutomationProperties.AutomationId="UnknownCardRemoveButton"
-                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="RemoveCardButton_Click" />
-                        </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="UnknownCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="UnknownCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -1847,44 +1794,35 @@
                             automation:AutomationProperties.AutomationId="SystemMonitorMetricList"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
                     </Grid>
-                    <Border
-                        Grid.Row="2"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                        <StackPanel
-                            Orientation="Horizontal"
-                            Spacing="8">
-                            <Border
-                                Tag="{x:Bind InstanceId}"
-                                Style="{StaticResource WwbDragHandleStyle}">
-                                <TextBlock
-                                    x:Name="SystemMonitorCardDragHandle"
-                                    x:Uid="DragCardHandle"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                            </Border>
-                            <Button
-                                x:Uid="DecreaseCardButton"
-                                automation:AutomationProperties.AutomationId="SystemMonitorCardDecreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="DecreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="IncreaseCardButton"
-                                automation:AutomationProperties.AutomationId="SystemMonitorCardIncreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="IncreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="RemoveCardButton"
-                                automation:AutomationProperties.AutomationId="SystemMonitorCardRemoveButton"
-                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="RemoveCardButton_Click" />
-                        </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="SystemMonitorCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="SystemMonitorCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -2098,44 +2036,35 @@
                                 </ItemsControl>
                         </StackPanel>
                     </Grid>
-                    <Border
-                        Grid.Row="2"
-                        HorizontalAlignment="Left"
-                        Padding="{StaticResource WwbCompactToolbarPadding}"
-                        Style="{StaticResource WwbEditToolbarSurfaceStyle}"
-                        Visibility="{x:Bind IsEditing, Mode=OneWay}">
-                        <StackPanel
-                            Orientation="Horizontal"
-                            Spacing="8">
-                            <Border
-                                Tag="{x:Bind InstanceId}"
-                                Style="{StaticResource WwbDragHandleStyle}">
-                                <TextBlock
-                                    x:Name="TokenUsageCardDragHandle"
-                                    x:Uid="DragCardHandle"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                            </Border>
-                            <Button
-                                x:Uid="DecreaseCardButton"
-                                automation:AutomationProperties.AutomationId="TokenUsageCardDecreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="DecreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="IncreaseCardButton"
-                                automation:AutomationProperties.AutomationId="TokenUsageCardIncreaseButton"
-                                Style="{StaticResource WwbEditActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="IncreaseCardSizeButton_Click" />
-                            <Button
-                                x:Uid="RemoveCardButton"
-                                automation:AutomationProperties.AutomationId="TokenUsageCardRemoveButton"
-                                Style="{StaticResource WwbDestructiveActionButtonStyle}"
-                                Tag="{x:Bind InstanceId}"
-                                Click="RemoveCardButton_Click" />
-                        </StackPanel>
-                    </Border>
+                                        <!--
+                        Edit mode draws a resize frame over the card instead of a bar under it.
+                        It spans every row and reaches past the card padding, so the handles sit
+                        on the surface edge; its middle takes no pointer input, which is what
+                        leaves the existing move drag and the interactive-content guard alone.
+                    -->
+                    <ContentControl
+                        x:Uid="CardResizeFrame"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        Margin="-12"
+                        automation:AutomationProperties.AutomationId="TokenUsageCardResizeFrame"
+                        Style="{StaticResource WwbCardResizeFrameStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        PointerPressed="CardResizeFrame_PointerPressed"
+                        PointerMoved="CardResizeFrame_PointerMoved"
+                        PointerReleased="CardResizeFrame_PointerReleased"
+                        PointerCaptureLost="CardResizeFrame_PointerCaptureLost"
+                        PointerCanceled="CardResizeFrame_PointerCanceled" />
+                    <Button
+                        x:Uid="RemoveCardButton"
+                        Grid.Row="0"
+                        Grid.RowSpan="9"
+                        automation:AutomationProperties.AutomationId="TokenUsageCardRemoveButton"
+                        Style="{StaticResource WwbCardRemoveBadgeStyle}"
+                        Tag="{x:Bind InstanceId}"
+                        Visibility="{x:Bind IsEditing, Mode=OneWay}"
+                        Click="RemoveCardButton_Click" />
                 </Grid>
             </Border>
         </DataTemplate>

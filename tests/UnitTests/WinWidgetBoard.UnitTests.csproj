@@ -38,6 +38,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutEditViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutEditViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardDragPlacementProjector.cs" Link="WorkspacePanel\Layout\CardDragPlacementProjector.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardGridDropTargetCalculator.cs" Link="WorkspacePanel\Layout\CardGridDropTargetCalculator.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Layout\CardResizeCalculator.cs" Link="WorkspacePanel\Layout\CardResizeCalculator.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardGridRealizationPlanner.cs" Link="WorkspacePanel\Layout\CardGridRealizationPlanner.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardSurfaceItem.cs" Link="WorkspacePanel\Layout\CardSurfaceItem.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Layout\CardLayoutSurfaceViewModel.cs" Link="WorkspacePanel\Layout\CardLayoutSurfaceViewModel.cs" />

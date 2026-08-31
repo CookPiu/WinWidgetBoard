@@ -215,6 +215,48 @@ public sealed class CardLayoutEditViewModel : INotifyPropertyChanged
         return true;
     }
 
+    /// <summary>
+    /// What the board would look like at a candidate size, without changing anything. A
+    /// resize drag crosses several sizes on its way, and applying each one would push a
+    /// history entry per threshold: the user would then need three undos to take back one
+    /// gesture. The drag previews, and only the release commits.
+    /// </summary>
+    public bool TryPreviewResize(
+        string instanceId,
+        CardSize size,
+        out IReadOnlyList<CardPlacement> placements)
+    {
+        placements = [];
+        if (!_isEditing)
+        {
+            return false;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+        var items = new List<CardLayoutItem>(_layout.Items.Count);
+        bool found = false;
+        foreach (CardLayoutItem item in _layout.Items)
+        {
+            if (string.Equals(item.InstanceId, instanceId, StringComparison.Ordinal))
+            {
+                found = true;
+                items.Add(item with { Size = size });
+            }
+            else
+            {
+                items.Add(item);
+            }
+        }
+
+        if (!found)
+        {
+            return false;
+        }
+
+        placements = ResponsiveGridLayout.Pack(_layout.ColumnCount, items);
+        return true;
+    }
+
     public bool TryPreviewDrop(
         string instanceId,
         GridCell requestedCell,

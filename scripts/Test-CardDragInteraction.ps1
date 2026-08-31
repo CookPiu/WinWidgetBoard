@@ -381,18 +381,18 @@ function Get-CommonAncestorScore {
     return [int]::MaxValue
 }
 
-function Get-DragHandleForTitle {
+function Get-CardFrameForTitle {
     param(
         [System.Windows.Automation.AutomationElement]$Root,
         [System.Windows.Automation.AutomationElement]$Title
     )
 
     $handleAutomationId = switch ($Title.Current.Name) {
-        { $_ -in @('便签', 'Notes') } { 'NotesCardDragHandle'; break }
-        { $_ -in @('计时器', 'Timer') } { 'TimerCardDragHandle'; break }
-        { $_ -in @('待办', 'To-do') } { 'TodoCardDragHandle'; break }
+        { $_ -in @('便签', 'Notes') } { 'NotesCardResizeFrame'; break }
+        { $_ -in @('计时器', 'Timer') } { 'TimerCardResizeFrame'; break }
+        { $_ -in @('待办', 'To-do') } { 'TodoCardResizeFrame'; break }
         { $_ -in @('本地日历', 'Local calendar') } {
-            'CalendarCardDragHandle'
+            'CalendarCardResizeFrame'
             break
         }
         default { $null }
@@ -680,7 +680,7 @@ function Test-CardDragAndUndo {
     $sourceStart = Get-ElementCenter -Element $sourceTitle
     $dragStart = if ($Mode -eq 'Handle') {
         Get-ElementCenter -Element (
-            Get-DragHandleForTitle -Root $Root -Title $sourceTitle)
+            Get-CardFrameForTitle -Root $Root -Title $sourceTitle)
     }
     else {
         $sourceStart
@@ -730,11 +730,11 @@ function Assert-UniqueCardHandles {
 
     $all = @(Get-Descendants -Root $Root)
     foreach ($automationId in @(
-        'NotesCardDragHandle',
-        'WeatherCardDragHandle',
-        'TimerCardDragHandle',
-        'TodoCardDragHandle',
-        'CalendarCardDragHandle'
+        'NotesCardResizeFrame',
+        'WeatherCardResizeFrame',
+        'TimerCardResizeFrame',
+        'TodoCardResizeFrame',
+        'CalendarCardResizeFrame'
     )) {
         $count = @(
             $all |
@@ -761,7 +761,7 @@ function Test-CardResizeDragCombination {
     $notesTitle = Get-ElementByNames -Root $Root -Names $notesNames
     $timerStart = Get-ElementCenter -Element $timerTitle
     $firstDragStart = Get-ElementCenter -Element (
-        Get-DragHandleForTitle -Root $Root -Title $timerTitle)
+        Get-CardFrameForTitle -Root $Root -Title $timerTitle)
     $firstDragEnd = Get-ElementCenter -Element $notesTitle
     Assert-PanelOwnsPoint `
         -Point $firstDragStart `
@@ -799,7 +799,7 @@ function Test-CardResizeDragCombination {
 
     $calendarTitle = Get-ElementByNames -Root $Root -Names $calendarNames
     $secondDragStart = Get-ElementCenter -Element (
-        Get-DragHandleForTitle -Root $Root -Title $timerTitle)
+        Get-CardFrameForTitle -Root $Root -Title $timerTitle)
     $secondDragEnd = Get-ElementCenter -Element $calendarTitle
     Assert-PanelOwnsPoint `
         -Point $secondDragStart `
@@ -1247,11 +1247,11 @@ try {
         -Root $window `
         -Names @('便签', 'Notes')
     $timerStart = Get-ElementCenter -Element $timerTitle
-    $timerHandle = Get-DragHandleForTitle `
+    $timerFrame = Get-CardFrameForTitle `
         -Root $window `
         -Title $timerTitle
     Invoke-MouseDragAndCancel `
-        -Start (Get-ElementCenter -Element $timerHandle) `
+        -Start (Get-ElementCenter -Element $timerFrame) `
         -End (Get-ElementCenter -Element $notesTitle)
     Start-Sleep -Milliseconds 750
     $timerTitle = Get-ElementByNames `
