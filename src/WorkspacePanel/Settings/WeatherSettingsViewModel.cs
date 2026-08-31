@@ -47,6 +47,11 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 "useDeviceLocation",
                 [JsonValueKind.True, JsonValueKind.False],
                 CardSettingWritePolicy.CommitOnly),
+            new CardSettingDefinition(
+                "unitSystem",
+                JsonValueKind.String,
+                CardSettingWritePolicy.CommitOnly,
+                value => WeatherSettingsContract.IsValidUnitSystem(value.GetString())),
         ]);
 
     private readonly IWeatherSettingsClient? _client;
@@ -68,6 +73,7 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     private bool _isBusy;
     private bool _isLocating;
     private bool _useDeviceLocation = true;
+    private bool _useImperialUnits;
     private bool _wasSaved;
 
     public WeatherSettingsViewModel(
@@ -178,6 +184,16 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(CanRefreshDeviceLocation));
             }
         }
+    }
+
+    /// <summary>
+    /// Bound as a boolean because the choice is binary today; the wire keeps the open-ended
+    /// unit-system token so a third system would be a new value, not a schema change.
+    /// </summary>
+    public bool UseImperialUnits
+    {
+        get => _useImperialUnits;
+        set => SetField(ref _useImperialUnits, value);
     }
 
     public bool IsLocating
@@ -442,6 +458,12 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
             _draft.Set(
                 "useDeviceLocation",
                 JsonSerializer.SerializeToElement(UseDeviceLocation));
+            _draft.Set(
+                "unitSystem",
+                JsonSerializer.SerializeToElement(
+                    UseImperialUnits
+                        ? WeatherSettingsContract.ImperialUnitSystem
+                        : WeatherSettingsContract.MetricUnitSystem));
             CardSettingsCommitRequest commit = _draft.BuildCommitRequest();
             var request = new WeatherSettingsSaveRequest
             {
@@ -453,6 +475,7 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 UseDeviceLocation = commit.Settings
                     .GetProperty("useDeviceLocation")
                     .GetBoolean(),
+                UnitSystem = commit.Settings.GetProperty("unitSystem").GetString(),
                 ExpectedRevision = checked((int)commit.ExpectedRevision),
             };
             WeatherSettingsDto saved = await _client
@@ -595,6 +618,10 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
             "0.#######",
             CultureInfo.InvariantCulture);
         UseDeviceLocation = settings.UseDeviceLocation;
+        UseImperialUnits = string.Equals(
+            settings.UnitSystem,
+            WeatherSettingsContract.ImperialUnitSystem,
+            StringComparison.Ordinal);
         Revision = settings.Revision;
         _draft = CreateDraft(settings, label);
         OnPropertyChanged(nameof(CanSave));
@@ -611,6 +638,9 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 latitude = settings.Latitude,
                 longitude = settings.Longitude,
                 useDeviceLocation = settings.UseDeviceLocation,
+                unitSystem = WeatherSettingsContract.IsValidUnitSystem(settings.UnitSystem)
+                    ? settings.UnitSystem
+                    : WeatherSettingsContract.MetricUnitSystem,
             });
         var snapshot = new CardSettingsSnapshot(
             WeatherSettingsContract.DefaultInstanceId,

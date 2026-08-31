@@ -233,6 +233,7 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
     "label": "Tokyo",
     "latitude": 35.6762,
     "longitude": 139.6503,
+    "unitSystem": "metric",
     "expectedRevision": 0
   }
 }
@@ -243,7 +244,12 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 - label 最长 80 字符，不含控制字符；
 - latitude 为有限数值且在 `[-90, 90]`；
 - longitude 为有限数值且在 `[-180, 180]`；
+- `unitSystem` 取 `metric` / `imperial`，缺省视为 `metric`——单位字段出现之前的客户端保持原义；
 - revision 冲突返回 `conflict.weather-settings-revision`。
+
+单位制只是**显示指令**：对 Open-Meteo 的请求恒为公制，卡片载荷的字段名（`temperatureC`、
+`windSpeedKmh`）继续承诺公制数值；载荷顶层多一个 `unitSystem` 标记，由面板投影与
+`weather.summary.get` 的组装方在格式化时换算（°F、mph）。改单位与改位置走同一条注册置换路径。
 
 未保存时返回 Singapore 默认值和 revision `0`，读取不会写数据库。
 

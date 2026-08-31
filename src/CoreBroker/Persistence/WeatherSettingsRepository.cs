@@ -18,7 +18,7 @@ public sealed class WeatherSettingsRepository
         WeatherSettingsRecord? result = null;
         _repository.Query(
             "SELECT instance_id, label, latitude, longitude, use_device_location, " +
-            "revision, updated_at_utc " +
+            "unit_system, revision, updated_at_utc " +
             "FROM weather_settings WHERE instance_id = @instance;",
             statement => statement.BindText("@instance", instanceId),
             statement => result = ReadRecord(statement));
@@ -31,6 +31,7 @@ public sealed class WeatherSettingsRepository
         double latitude,
         double longitude,
         bool useDeviceLocation,
+        string unitSystem,
         int expectedRevision,
         DateTimeOffset? nowUtc = null)
     {
@@ -48,6 +49,13 @@ public sealed class WeatherSettingsRepository
             throw new ArgumentOutOfRangeException(
                 nameof(latitude),
                 "Weather coordinates are outside the valid geographic range.");
+        }
+
+        if (!WeatherSettingsContract.IsValidUnitSystem(unitSystem))
+        {
+            throw new ArgumentException(
+                "Weather settings unit system is invalid.",
+                nameof(unitSystem));
         }
 
         ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
@@ -70,9 +78,9 @@ public sealed class WeatherSettingsRepository
             _repository.Execute(
                 "INSERT INTO weather_settings " +
                 "(instance_id, label, latitude, longitude, use_device_location, " +
-                "revision, updated_at_utc) " +
+                "unit_system, revision, updated_at_utc) " +
                 "VALUES (@instance, @label, @latitude, @longitude, @automatic, " +
-                "@revision, @updated);",
+                "@units, @revision, @updated);",
                 statement =>
                 {
                     statement.BindText("@instance", instanceId);
@@ -80,6 +88,7 @@ public sealed class WeatherSettingsRepository
                     statement.BindDouble("@latitude", latitude);
                     statement.BindDouble("@longitude", longitude);
                     statement.BindInt("@automatic", useDeviceLocation ? 1 : 0);
+                    statement.BindText("@units", unitSystem);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
                 });
@@ -89,7 +98,7 @@ public sealed class WeatherSettingsRepository
             int changes = _repository.Execute(
                 "UPDATE weather_settings SET label = @label, latitude = @latitude, " +
                 "longitude = @longitude, use_device_location = @automatic, " +
-                "revision = @revision, updated_at_utc = @updated " +
+                "unit_system = @units, revision = @revision, updated_at_utc = @updated " +
                 "WHERE instance_id = @instance AND revision = @expected;",
                 statement =>
                 {
@@ -97,6 +106,7 @@ public sealed class WeatherSettingsRepository
                     statement.BindDouble("@latitude", latitude);
                     statement.BindDouble("@longitude", longitude);
                     statement.BindInt("@automatic", useDeviceLocation ? 1 : 0);
+                    statement.BindText("@units", unitSystem);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
                     statement.BindText("@instance", instanceId);
@@ -118,6 +128,7 @@ public sealed class WeatherSettingsRepository
             latitude,
             longitude,
             useDeviceLocation,
+            unitSystem,
             nextRevision,
             updatedAtUtc);
     }
@@ -129,8 +140,9 @@ public sealed class WeatherSettingsRepository
             statement.ReadDouble(2),
             statement.ReadDouble(3),
             statement.ReadInt(4) != 0,
-            statement.ReadInt(5),
-            statement.ReadText(6) ?? throw new SqliteException(1, "weather_settings.updated_at_utc is NULL."));
+            statement.ReadText(5) ?? throw new SqliteException(1, "weather_settings.unit_system is NULL."),
+            statement.ReadInt(6),
+            statement.ReadText(7) ?? throw new SqliteException(1, "weather_settings.updated_at_utc is NULL."));
 
     private static void ValidateInstanceId(string instanceId)
     {

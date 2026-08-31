@@ -81,6 +81,7 @@ public sealed class WeatherProviderRuntime : IDisposable
         double latitude,
         double longitude,
         bool useDeviceLocation,
+        string unitSystem,
         int expectedRevision)
     {
         if (!string.Equals(
@@ -102,6 +103,7 @@ public sealed class WeatherProviderRuntime : IDisposable
                 latitude,
                 longitude,
                 useDeviceLocation,
+                unitSystem,
                 expectedRevision,
                 _clock.UtcNow);
             ApplyRegistrationLocked(saved);
@@ -138,6 +140,7 @@ public sealed class WeatherProviderRuntime : IDisposable
                 JsonSerializer.SerializeToElement(
                     new
                     {
+                        unitSystem = settings.UnitSystem,
                         location = new
                         {
                             label = settings.Label,
@@ -173,7 +176,8 @@ public sealed class WeatherProviderRuntime : IDisposable
         var location = new WeatherLocation(
             settings.Label,
             settings.Latitude,
-            settings.Longitude);
+            settings.Longitude,
+            settings.UnitSystem);
         var provider = new OpenMeteoWeatherProvider(
             _httpClient,
             utcNow: () => _clock.UtcNow);
@@ -235,12 +239,24 @@ public sealed class WeatherProviderRuntime : IDisposable
             return;
         }
 
+        // The payload's numbers are metric; the unitSystem tag says what the reader wants.
+        bool imperial = snapshot.Payload.TryGetProperty(
+                "unitSystem",
+                out JsonElement unitSystem) &&
+            unitSystem.ValueKind == JsonValueKind.String &&
+            string.Equals(
+                unitSystem.GetString(),
+                WeatherSettingsContract.ImperialUnitSystem,
+                StringComparison.Ordinal);
+        double displayTemperature = imperial
+            ? (temperatureC * 9d / 5d) + 32d
+            : temperatureC;
         var summary = new WeatherSummaryDto
         {
             InstanceId = snapshot.InstanceId,
             Label = label.GetString() ?? string.Empty,
             TemperatureText =
-                Math.Round(temperatureC, MidpointRounding.AwayFromZero)
+                Math.Round(displayTemperature, MidpointRounding.AwayFromZero)
                     .ToString("0", CultureInfo.InvariantCulture),
             ConditionIconId = ReadConditionIconId(current),
             ObservedAtUtc = snapshot.GeneratedAtUtc.ToString("O", CultureInfo.InvariantCulture),
@@ -280,6 +296,7 @@ public sealed class WeatherProviderRuntime : IDisposable
             location.Latitude,
             location.Longitude,
             useDeviceLocation: true,
+            WeatherSettingsContract.MetricUnitSystem,
             revision: 0,
             updatedAtUtc: null);
     }

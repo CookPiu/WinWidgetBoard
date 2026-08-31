@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Providers;
 
 namespace WinWidgetBoard.UnitTests;
@@ -156,6 +157,55 @@ public sealed class OpenMeteoWeatherProviderTests
 
         Assert.AreEqual(ProviderRefreshResultKind.RateLimited, result.Kind);
         Assert.AreEqual(TimeSpan.FromSeconds(9), result.RetryAfter);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-WEA-075 [WEA-001] Unit system rides the arguments but never the fetch")]
+    public async Task UnitSystemChangesKeyAndPayloadTagOnly()
+    {
+        WeatherLocation metric = OpenMeteoWeatherProvider.DefaultLocation;
+        var imperial = new WeatherLocation(
+            metric.Label,
+            metric.Latitude,
+            metric.Longitude,
+            WeatherSettingsContract.ImperialUnitSystem);
+
+        // Changing the display units swaps the registration cleanly, like a location change.
+        Assert.AreNotEqual(
+            OpenMeteoWeatherProvider.CreateRequestKey(metric),
+            OpenMeteoWeatherProvider.CreateRequestKey(imperial));
+
+        // The choice survives the arguments roundtrip, and silence still means metric.
+        Assert.IsTrue(WeatherLocation.TryParse(
+            OpenMeteoWeatherProvider.CreateArguments(imperial),
+            out WeatherLocation? parsed));
+        Assert.AreEqual(WeatherSettingsContract.ImperialUnitSystem, parsed!.UnitSystem);
+
+        HttpRequestMessage? capturedRequest = null;
+        using var handler = new StubHandler(request =>
+        {
+            capturedRequest = request;
+            return JsonResponse(
+                "{\"timezone\":\"Asia/Singapore\",\"current\":{\"time\":\"2026-08-15T18:00\",\"temperature_2m\":31.2,\"relative_humidity_2m\":72,\"apparent_temperature\":36.4,\"weather_code\":2,\"wind_speed_10m\":11.5,\"is_day\":1}}");
+        });
+        using var client = new HttpClient(handler);
+        var provider = new OpenMeteoWeatherProvider(
+            client,
+            new Uri("https://weather.test/v1/forecast"),
+            () => InitialUtc);
+
+        ProviderRefreshResult result = await provider.FetchAsync(
+            CreateRequest(provider, imperial, 1),
+            CancellationToken.None);
+
+        // The fetch stays metric - the payload's field names promise Celsius and km/h -
+        // and the tag alone tells the composers what the reader wants.
+        Assert.AreEqual(ProviderRefreshResultKind.Success, result.Kind);
+        StringAssert.Contains(capturedRequest!.RequestUri!.Query, "temperature_unit=celsius");
+        StringAssert.Contains(capturedRequest.RequestUri.Query, "wind_speed_unit=kmh");
+        Assert.AreEqual(
+            WeatherSettingsContract.ImperialUnitSystem,
+            result.Payload.GetProperty("unitSystem").GetString());
     }
 
     private static ProviderRefreshRequest CreateRequest(

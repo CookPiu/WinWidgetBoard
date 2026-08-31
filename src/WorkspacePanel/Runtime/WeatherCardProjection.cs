@@ -122,6 +122,12 @@ public sealed record WeatherCardProjection
             return Empty;
         }
 
+        // The payload's numbers are always metric; this tag is the reader's chosen units,
+        // applied here because formatting is the last moment a number is still a number.
+        bool imperial = string.Equals(
+            ReadString(payload, "unitSystem"),
+            WeatherSettingsContract.ImperialUnitSystem,
+            StringComparison.Ordinal);
         string locationLabel = ReadString(
                 payload,
                 "location",
@@ -157,31 +163,34 @@ public sealed record WeatherCardProjection
 
         string temperatureText = FormatTemperature(
             current,
-            "temperatureC");
+            "temperatureC",
+            imperial);
         bool hasData = temperatureText != "—";
 
         return new WeatherCardProjection(
             locationLabel,
             temperatureText,
-            FormatTemperature(current, "apparentTemperatureC"),
+            FormatTemperature(current, "apparentTemperatureC", imperial),
             DescribeWeatherCode(ReadInt32(current, "weatherCode")),
             ResolveConditionResourceKey(ReadInt32(current, "weatherCode")),
             ReadConditionIconId(current),
             FormatPercentage(current, "relativeHumidityPercent"),
-            FormatSpeed(current, "windSpeedKmh"),
+            FormatSpeed(current, "windSpeedKmh", imperial),
             FormatObservedAt(ReadString(current, "observedAtLocal")),
             attributionText,
             attributionUrl,
             hasData,
-            ReadHours(payload),
-            ReadDays(payload));
+            ReadHours(payload, imperial),
+            ReadDays(payload, imperial));
     }
 
     /// <summary>
     /// The hourly trend. A malformed entry ends the list rather than failing the projection:
     /// the current reading is the card's job, and a broken trend must not take it down with it.
     /// </summary>
-    private static List<WeatherHourProjection> ReadHours(JsonElement payload)
+    private static List<WeatherHourProjection> ReadHours(
+        JsonElement payload,
+        bool imperial)
     {
         var hours = new List<WeatherHourProjection>();
         if (!payload.TryGetProperty("hourly", out JsonElement hourly) ||
@@ -201,7 +210,7 @@ public sealed record WeatherCardProjection
             hours.Add(
                 new WeatherHourProjection(
                     FormatHourLabel(ReadString(entry, "timeLocal")),
-                    FormatTemperature(entry, "temperatureC"),
+                    FormatTemperature(entry, "temperatureC", imperial),
                     celsius,
                     ReadConditionIconId(entry)));
         }
@@ -209,7 +218,9 @@ public sealed record WeatherCardProjection
         return hours;
     }
 
-    private static List<WeatherDayProjection> ReadDays(JsonElement payload)
+    private static List<WeatherDayProjection> ReadDays(
+        JsonElement payload,
+        bool imperial)
     {
         var days = new List<WeatherDayProjection>();
         if (!payload.TryGetProperty("daily", out JsonElement daily) ||
@@ -225,8 +236,8 @@ public sealed record WeatherCardProjection
                 break;
             }
 
-            string high = FormatTemperature(entry, "highTemperatureC");
-            string low = FormatTemperature(entry, "lowTemperatureC");
+            string high = FormatTemperature(entry, "highTemperatureC", imperial);
+            string low = FormatTemperature(entry, "lowTemperatureC", imperial);
             if (high == "—" || low == "—")
             {
                 break;
@@ -322,11 +333,21 @@ public sealed record WeatherCardProjection
 
     private static string FormatTemperature(
         JsonElement current,
-        string propertyName)
+        string propertyName,
+        bool imperial)
     {
-        return TryReadFiniteDouble(current, propertyName, out double number)
-            ? $"{number.ToString("0.#", CultureInfo.CurrentCulture)} °C"
-            : "—";
+        if (!TryReadFiniteDouble(current, propertyName, out double number))
+        {
+            return "—";
+        }
+
+        if (imperial)
+        {
+            number = (number * 9d / 5d) + 32d;
+        }
+
+        string unit = imperial ? "°F" : "°C";
+        return $"{number.ToString("0.#", CultureInfo.CurrentCulture)} {unit}";
     }
 
     private static string FormatPercentage(
@@ -340,11 +361,21 @@ public sealed record WeatherCardProjection
 
     private static string FormatSpeed(
         JsonElement current,
-        string propertyName)
+        string propertyName,
+        bool imperial)
     {
-        return TryReadFiniteDouble(current, propertyName, out double number)
-            ? $"{number.ToString("0.#", CultureInfo.CurrentCulture)} km/h"
-            : "—";
+        if (!TryReadFiniteDouble(current, propertyName, out double number))
+        {
+            return "—";
+        }
+
+        if (imperial)
+        {
+            number /= 1.609344d;
+        }
+
+        string unit = imperial ? "mph" : "km/h";
+        return $"{number.ToString("0.#", CultureInfo.CurrentCulture)} {unit}";
     }
 
     private static string? ReadString(

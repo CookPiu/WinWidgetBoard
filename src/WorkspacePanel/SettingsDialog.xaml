@@ -232,6 +232,17 @@
                         automation:AutomationProperties.AutomationId="WeatherSettingsLocationPrivacyLink" />
 
                     <!--
+                        A binary display choice, so a toggle rather than a two-item list. The
+                        unit glyphs (°C, km/h, °F, mph) are language-independent and live in
+                        the localized header/on/off strings.
+                    -->
+                    <ToggleSwitch
+                        x:Name="WeatherSettingsImperialUnitsToggle"
+                        x:Uid="WeatherSettingsImperialUnitsToggle"
+                        IsOn="{x:Bind WeatherViewModel.UseImperialUnits, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="WeatherSettingsImperialUnitsToggle" />
+
+                    <!--
                         Search replaces hand-typed coordinates. The user names a place; the
                         coordinates come back from the search and are shown read-only below,
                         so what will be saved is visible without being editable.

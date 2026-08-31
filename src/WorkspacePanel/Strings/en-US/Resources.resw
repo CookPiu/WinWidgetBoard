@@ -166,6 +166,18 @@
   <data name="WeatherSettingsUseDeviceLocationToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Use Windows location automatically</value>
   </data>
+  <data name="WeatherSettingsImperialUnitsToggle.Header" xml:space="preserve">
+    <value>Use Fahrenheit and miles (°F, mph)</value>
+  </data>
+  <data name="WeatherSettingsImperialUnitsToggle.OnContent" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="WeatherSettingsImperialUnitsToggle.OffContent" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="WeatherSettingsImperialUnitsToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Use Fahrenheit and miles (°F, mph)</value>
+  </data>
   <data name="WeatherSettingsDeviceLocationButton.Content" xml:space="preserve">
     <value>Update now</value>
   </data>

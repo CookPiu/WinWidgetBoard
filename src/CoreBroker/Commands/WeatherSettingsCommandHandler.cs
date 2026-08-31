@@ -188,6 +188,9 @@ internal sealed class WeatherSettingsCommandHandler
             !WeatherSettingsContract.IsValidCoordinates(
                 payload.Latitude,
                 payload.Longitude) ||
+            !WeatherSettingsContract.TryNormalizeUnitSystem(
+                payload.UnitSystem,
+                out string unitSystem) ||
             payload.ExpectedRevision < 0)
         {
             return ErrorResponse(request, "validation.invalid-argument", "validation");
@@ -199,6 +202,7 @@ internal sealed class WeatherSettingsCommandHandler
             payload.Latitude,
             payload.Longitude,
             payload.UseDeviceLocation,
+            unitSystem,
             payload.ExpectedRevision);
         lock (_gate)
         {
@@ -224,6 +228,7 @@ internal sealed class WeatherSettingsCommandHandler
                     payload.Latitude,
                     payload.Longitude,
                     payload.UseDeviceLocation,
+                    unitSystem,
                     payload.ExpectedRevision);
                 var responsePayload = new WeatherSettingsSaveResponse
                 {
@@ -269,6 +274,7 @@ internal sealed class WeatherSettingsCommandHandler
             Latitude = settings.Latitude,
             Longitude = settings.Longitude,
             UseDeviceLocation = settings.UseDeviceLocation,
+            UnitSystem = settings.UnitSystem,
             Revision = settings.Revision,
             UpdatedAtUtc = settings.UpdatedAtUtc ?? string.Empty,
         };
@@ -326,5 +332,6 @@ internal sealed class WeatherSettingsCommandHandler
         double Latitude,
         double Longitude,
         bool UseDeviceLocation,
+        string UnitSystem,
         int ExpectedRevision);
 }

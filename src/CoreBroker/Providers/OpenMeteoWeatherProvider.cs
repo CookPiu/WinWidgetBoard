@@ -131,7 +131,7 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                 label = location.Label,
                 latitude = location.Latitude,
                 longitude = location.Longitude,
-                units = "metric",
+                units = location.UnitSystem,
             },
             ContractJson.Options);
     }
@@ -519,6 +519,9 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                 sourceDomain = DataSourceKey,
                 attribution = AttributionText,
                 attributionUrl = AttributionUrl,
+                // A composition instruction, not a data unit: every number below stays
+                // metric, and the card converts as it formats.
+                unitSystem = location.UnitSystem,
                 location = new
                 {
                     label = location.Label,
@@ -727,8 +730,19 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
 
 public sealed record WeatherLocation
 {
-    public WeatherLocation(string label, double latitude, double longitude)
+    public WeatherLocation(
+        string label,
+        double latitude,
+        double longitude,
+        string unitSystem = WeatherSettingsContract.MetricUnitSystem)
     {
+        if (!WeatherSettingsContract.IsValidUnitSystem(unitSystem))
+        {
+            throw new ArgumentException(
+                "Weather location unit system is invalid.",
+                nameof(unitSystem));
+        }
+
         if (string.IsNullOrWhiteSpace(label) ||
             label.Length > 80 ||
             label.Any(char.IsControl))
@@ -757,6 +771,7 @@ public sealed record WeatherLocation
         Label = label.Trim();
         Latitude = latitude;
         Longitude = longitude;
+        UnitSystem = unitSystem;
     }
 
     public string Label { get; }
@@ -764,6 +779,13 @@ public sealed record WeatherLocation
     public double Latitude { get; }
 
     public double Longitude { get; }
+
+    /// <summary>
+    /// Display units. The fetch itself always asks Open-Meteo for metric values - the
+    /// payload's field names promise Celsius and km/h - so this only rides along as the
+    /// composition instruction the card and the entry summary convert by.
+    /// </summary>
+    public string UnitSystem { get; }
 
     public string ArgumentsFingerprint
     {
@@ -775,6 +797,7 @@ public sealed record WeatherLocation
                     Label,
                     Latitude.ToString("0.######", CultureInfo.InvariantCulture),
                     Longitude.ToString("0.######", CultureInfo.InvariantCulture),
+                    UnitSystem,
                 ]);
             byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
             return $"sha256:{Convert.ToHexString(hash).ToLowerInvariant()}";
@@ -797,12 +820,24 @@ public sealed record WeatherLocation
             return false;
         }
 
+        // Arguments written before the unit system existed carry "metric" or nothing;
+        // both mean what they always meant.
+        string? units = arguments.TryGetProperty("units", out JsonElement unitsValue) &&
+            unitsValue.ValueKind == JsonValueKind.String
+            ? unitsValue.GetString()
+            : null;
+        if (!WeatherSettingsContract.TryNormalizeUnitSystem(units, out string unitSystem))
+        {
+            return false;
+        }
+
         try
         {
             location = new WeatherLocation(
                 labelValue.GetString() ?? string.Empty,
                 latitude,
-                longitude);
+                longitude,
+                unitSystem);
             return true;
         }
         catch (ArgumentOutOfRangeException)

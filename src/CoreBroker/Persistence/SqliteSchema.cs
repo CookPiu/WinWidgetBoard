@@ -193,5 +193,17 @@ public static class SqliteSchema
                         CHECK (use_device_location IN (0, 1));
                 PRAGMA user_version = 7;
                 """),
+            // Display units only. The stored default keeps every existing row metric, which
+            // is what those rows already meant; payload numbers stay metric on the wire and
+            // are converted at composition time.
+            new SqliteMigration(
+                8,
+                "persist-weather-unit-system",
+                """
+                ALTER TABLE weather_settings
+                    ADD COLUMN unit_system TEXT NOT NULL DEFAULT 'metric'
+                        CHECK (unit_system IN ('metric', 'imperial'));
+                PRAGMA user_version = 8;
+                """),
         };
 }

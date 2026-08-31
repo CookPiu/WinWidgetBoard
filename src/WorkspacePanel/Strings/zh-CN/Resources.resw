@@ -166,6 +166,18 @@
   <data name="WeatherSettingsUseDeviceLocationToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>自动使用 Windows 位置</value>
   </data>
+  <data name="WeatherSettingsImperialUnitsToggle.Header" xml:space="preserve">
+    <value>使用英制单位（°F、mph）</value>
+  </data>
+  <data name="WeatherSettingsImperialUnitsToggle.OnContent" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="WeatherSettingsImperialUnitsToggle.OffContent" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="WeatherSettingsImperialUnitsToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>使用英制单位（°F、mph）</value>
+  </data>
   <data name="WeatherSettingsDeviceLocationButton.Content" xml:space="preserve">
     <value>立即更新</value>
   </data>

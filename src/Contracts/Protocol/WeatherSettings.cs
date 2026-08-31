@@ -19,6 +19,38 @@ public static class WeatherSettingsContract
 
     public const int MaxTemperatureTextLength = 16;
 
+    // Display units. The payload's numbers stay metric on the wire - "temperatureC" keeps
+    // meaning Celsius no matter what the user reads - and both composers (the broker's entry
+    // summary and the panel's card projection) convert at the last moment. Metric is the
+    // default because it is what every existing row and every older client means by silence.
+    public const string MetricUnitSystem = "metric";
+    public const string ImperialUnitSystem = "imperial";
+
+    public static bool IsValidUnitSystem(string? value) =>
+        string.Equals(value, MetricUnitSystem, StringComparison.Ordinal) ||
+        string.Equals(value, ImperialUnitSystem, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Missing means metric: an older client that has never heard of units keeps meaning
+    /// exactly what it meant before the field existed. Anything else must be a known token.
+    /// </summary>
+    public static bool TryNormalizeUnitSystem(string? value, out string normalized)
+    {
+        normalized = MetricUnitSystem;
+        if (value is null)
+        {
+            return true;
+        }
+
+        if (!IsValidUnitSystem(value))
+        {
+            return false;
+        }
+
+        normalized = value;
+        return true;
+    }
+
     public static IReadOnlyList<string> Methods { get; } =
     [
         GetMethod,
@@ -86,6 +118,9 @@ public sealed record WeatherSettingsSaveRequest
 
     public bool UseDeviceLocation { get; init; } = true;
 
+    // Null means metric, so a request from before this field existed keeps its meaning.
+    public string? UnitSystem { get; init; }
+
     public int ExpectedRevision { get; init; }
 }
 
@@ -107,6 +142,8 @@ public sealed record WeatherSettingsDto
     public double Longitude { get; init; }
 
     public bool UseDeviceLocation { get; init; } = true;
+
+    public string UnitSystem { get; init; } = WeatherSettingsContract.MetricUnitSystem;
 
     public int Revision { get; init; }
 

@@ -14,6 +14,7 @@ public sealed record WeatherSettingsRecord
         double latitude,
         double longitude,
         bool useDeviceLocation,
+        string unitSystem,
         int revision,
         string? updatedAtUtc)
     {
@@ -39,6 +40,13 @@ public sealed record WeatherSettingsRecord
                 "Weather coordinates are outside the valid geographic range.");
         }
 
+        if (!WeatherSettingsContract.IsValidUnitSystem(unitSystem))
+        {
+            throw new ArgumentException(
+                "Weather settings unit system is invalid.",
+                nameof(unitSystem));
+        }
+
         ArgumentOutOfRangeException.ThrowIfNegative(revision);
         if (updatedAtUtc is not null)
         {
@@ -51,6 +59,7 @@ public sealed record WeatherSettingsRecord
         Latitude = latitude;
         Longitude = longitude;
         UseDeviceLocation = useDeviceLocation;
+        UnitSystem = unitSystem;
         Revision = revision;
         UpdatedAtUtc = updatedAtUtc;
     }
@@ -64,6 +73,8 @@ public sealed record WeatherSettingsRecord
     public double Longitude { get; }
 
     public bool UseDeviceLocation { get; }
+
+    public string UnitSystem { get; }
 
     public int Revision { get; }
 
