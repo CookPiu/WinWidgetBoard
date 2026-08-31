@@ -2,9 +2,9 @@
 
 文档状态：已批准
 协议版本：1.0
-日期：2026-08-15
+日期：2026-08-31
 
-本文只描述当前核心五项实际使用的本地协议。插件、云同步、通用权限和声明式 UI Schema 不属于当前契约。
+本文只描述当前核心能力实际使用的本地协议。插件、云同步、通用权限和声明式 UI Schema 不属于当前契约。
 
 ## 1. 帧与 Envelope
 
@@ -77,6 +77,8 @@ Envelope：
 | `sysmon.settings.get` | 读取硬件监控显示项 | 否 |
 | `sysmon.settings.save` | 保存硬件监控显示项 | 是 |
 | `sysmon.summary.get` | 读取任务栏入口用的已排版读数分段 | 否 |
+| `tokenusage.settings.get` | 读取 Token 用量厂商启用设置 | 否 |
+| `tokenusage.settings.save` | 保存 Token 用量厂商启用设置 | 是 |
 
 写操作使用 `clientOperationId` 防止重试扩大副作用。相同 ID 和相同 payload 返回第一次结果；相同 ID 搭配不同 payload 返回 `validation.invalid-argument`。
 
@@ -286,6 +288,24 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 
 该方法供任务栏入口在面板关闭时显示天气，配合 [ADR-0024](adr/0024-background-provider-keepalive.md) 的每小时后台刷新。
 
+### 天气卡片预报载荷
+
+天气卡片载荷在 `current` 之外还带两段预报，均可为空数组——预报是补充信息，只有实况的卡片仍是
+可用的卡片，面板据「有没有」决定画不画，而不是另设一个「有预报」标志位：
+
+```json
+{
+  "hourly": [ { "timeLocal": "2026-08-25T09:00", "temperatureC": 30.9, "weatherCode": 3, "isDay": true, "conditionIconId": "cloudy" } ],
+  "daily":  [ { "dateLocal": "2026-08-26", "highTemperatureC": 24.6, "lowTemperatureC": 19.2, "weatherCode": 61, "conditionIconId": "rain" } ]
+}
+```
+
+- `hourly` 最多 **12** 条，自**当前观测小时**起算。Open-Meteo 的 `hourly.time` 从当地零点开始，
+  因此窗口按与 `current.time` 比较定位，而不是取数组开头——取开头会把今天早上当成预报；
+- `daily` 最多 **3** 条，跳过下标 0（今天，实况已覆盖），即「明天起的三天」；
+- `daily` 的 `conditionIconId` 一律按白天取：一整天的概括用夜间字形会读成「今晚」而不是「周三」；
+- 单条畸形即截断该列表，不影响实况——实况才是这张卡片的职责。
+
 ### weather.locations.search
 
 将用户输入的地名解析为可选位置。该方法是**唯一会把用户输入的文本发往远端的方法**（[ADR-0027](adr/0027-weather-location-search.md)），也是唯一的异步命令：它不占用路由器全局锁，因为它不读写任何共享状态。
@@ -325,22 +345,6 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 ## 9.1 硬件监控
 
 三个方法，一个内置实例 `demo.sysmon`。
-
-天气卡片载荷在 `current` 之外还带两段预报，均可为空数组——预报是补充信息，只有实况的卡片仍是
-可用的卡片，面板据「有没有」决定画不画，而不是另设一个「有预报」标志位：
-
-```json
-{
-  "hourly": [ { "timeLocal": "2026-08-25T09:00", "temperatureC": 30.9, "weatherCode": 3, "isDay": true, "conditionIconId": "cloudy" } ],
-  "daily":  [ { "dateLocal": "2026-08-26", "highTemperatureC": 24.6, "lowTemperatureC": 19.2, "weatherCode": 61, "conditionIconId": "rain" } ]
-}
-```
-
-- `hourly` 最多 **12** 条，自**当前观测小时**起算。Open-Meteo 的 `hourly.time` 从当地零点开始，
-  因此窗口按与 `current.time` 比较定位，而不是取数组开头——取开头会把今天早上当成预报；
-- `daily` 最多 **3** 条，跳过下标 0（今天，实况已覆盖），即「明天起的三天」；
-- `daily` 的 `conditionIconId` 一律按白天取：一整天的概括用夜间字形会读成「今晚」而不是「周三」；
-- 单条畸形即截断该列表，不影响实况——实况才是这张卡片的职责。
 
 ### sysmon.settings.get / sysmon.settings.save
 
@@ -423,6 +427,39 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
 **索要摘要本身就是需求信号**：Provider 仅在卡片可见、或近 10 秒内有过一次
 `sysmon.summary.get` 时才采样，两者皆无时休眠（[ADR-0028](adr/0028-system-monitor-scope-and-sensor-tiers.md)）。
 
+## 9.2 Token 用量
+
+两个方法，一个内置实例 `demo.tokenusage`（[ADR-0030](adr/0030-token-usage-card.md)）。
+用量数据本身经 `cards.snapshot` 下发，载荷按页组织：第 0 页恒为总览，其后是已启用厂商各一页；
+每页含读数（已排版文本）、按厂商或模型的拆分、归一化到 0..1 的 24 小时趋势和已排版金额估算。
+聚合结果只存在于 Broker 进程内，不写入 SQLite；该 Provider 不产生任何网络流量。
+
+`tokenusage.settings.get` 请求只带 `instanceId`；响应在 `settings` 之外还带一份 `vendors`：
+
+```json
+{
+  "settings": {
+    "instanceId": "demo.tokenusage",
+    "enabledVendors": ["claude", "codex"],
+    "revision": 1,
+    "updatedAtUtc": "2026-08-28T06:00:00.0000000Z"
+  },
+  "vendors": [
+    { "vendorId": "claude", "isAvailable": true },
+    { "vendorId": "codex", "isAvailable": true }
+  ]
+}
+```
+
+- 厂商 ID 限于本构建收录的清单（当前 `claude`、`codex`），未收录一律 `validation.invalid-argument`；
+- `enabledVendors` 不允许重复；**空列表合法**，表示卡片整体关闭；未保存时默认全部启用；
+- `vendors` **不落盘**：它描述本机此刻有哪些厂商目录，与 `sysmon` 的 `networkInterfaces` 同一纪律——
+  保存时记下的可用性下次打开就已经过时；
+- `tokenusage.settings.save` 必须带 `clientOperationId` 与 `expectedRevision`，
+  冲突返回 `conflict.tokenusage-settings-revision`；
+- 落盘的只有厂商启用设置，不含任何用量数字或会话内容（约束见
+  [09-security-privacy.md](09-security-privacy.md) 会话转录只读面一节）。
+
 ## 10. 天气 Provider
 
 当前唯一网络 Provider：
@@ -455,9 +492,14 @@ conflict.notes-revision
 conflict.layout-revision
 conflict.weather-settings-revision
 conflict.sysmon-settings-revision
+conflict.tokenusage-settings-revision
 provider.timeout
 provider.failed
+provider.invalid-result
+provider.update-failed
 storage.migration-failed
+storage.read-failed
+storage.write-failed
 internal.error
 ```
 
@@ -478,7 +520,7 @@ internal.error
 - 分片 frame、零长度和超限；
 - 畸形 JSON、未知版本和缺少字段；
 - 写操作幂等冲突；
-- layout/note/weather revision 冲突；
+- 各领域 revision 冲突（layout、note、weather、sysmon、tokenusage）；
 - 快照乱序；
 - 慢客户端背压；
 - 错误不泄露秘密。

@@ -31,7 +31,7 @@
 
 | 层级 | 权威来源 | 用途 |
 | --- | --- | --- |
-| 产品边界 | `docs/01-product-requirements.md` | 判断功能是否属于核心五项 |
+| 产品边界 | `docs/01-product-requirements.md` | 判断功能是否属于核心能力范围 |
 | UI 规范 | 本文 | 判断结构、密度、视觉、动效和验收方式 |
 | 设计 token 与样式 | `src/WorkspacePanel/Styles/WorkspaceVisualStyles.xaml` | 颜色、间距、圆角、字号和控件尺寸 |
 | 布局算法 | `src/WorkspacePanel/Layout/CardGridLayout.cs` | 列数、间距、行高和卡片跨度 |

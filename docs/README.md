@@ -4,7 +4,7 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| [01-product-requirements.md](01-product-requirements.md) | 当前核心五项范围和验收边界 |
+| [01-product-requirements.md](01-product-requirements.md) | 当前核心能力范围和验收边界 |
 | [02-ux-design-spec.md](02-ux-design-spec.md) | 当前 UI、视觉、密度、组件结构和动效权威规范 |
 | [templates/ui-change-template.md](templates/ui-change-template.md) | 后续 UI 变更的设计、评审与验收检查表 |
 | [03-technical-architecture.md](03-technical-architecture.md) | 当前进程、IPC、存储和复杂度边界 |

@@ -158,7 +158,7 @@ User → LauncherHost (C++/Win32)  ──spawns──→  WorkspacePanel (C#/Win
 Boundaries that must not erode:
 
 - **LauncherHost** never links WinUI, SQLite, HTTP, or a managed UI runtime. It talks to CoreBroker through its own minimal native client (`src/LauncherHost/CoreBrokerClient.cpp`, ADR 0008). No DLL injection, hooks, or private Explorer XAML/visual-tree names; when taskbar geometry is ambiguous it hides or degrades rather than guessing.
-- **WorkspacePanel** never opens SQLite and never hand-assembles low-level envelopes. It goes through `CoreBrokerSession` (`src/WorkspacePanel/Ipc/`), which owns handshake, heartbeat, reconnect, and exposes typed clients: `.Notes`, `.Layout`, `.Cards`, `.WeatherSettings`.
+- **WorkspacePanel** never opens SQLite and never hand-assembles low-level envelopes. It goes through `CoreBrokerSession` (`src/WorkspacePanel/Ipc/`), which owns handshake, heartbeat, reconnect, and exposes typed clients: `.Notes`, `.Layout`, `.Cards`, `.WeatherSettings`, `.SystemMonitor`, `.TokenUsage`.
 - **CoreBroker** never references WinUI. It validates every IPC input and owns the database, network access, and scheduling. Queues, retries, timeouts, and releases are all bounded.
 - Process wiring flows through env vars: `WINWIDGETBOARD_COREBROKER_SESSION_TOKEN` (or `--session-token`) and `WINWIDGETBOARD_WORKSPACE_PANEL`. Tokens must never reach logs.
 
@@ -175,6 +175,8 @@ Each domain guards concurrency with its own token, and each has a distinct confl
 | Layout | `expectedRevision` | `conflict.layout-revision` |
 | Notes | `expectedUpdatedAtUtc` | `conflict.notes-revision` |
 | Weather settings | `expectedRevision` | `conflict.weather-settings-revision` |
+| Sysmon settings | `expectedRevision` | `conflict.sysmon-settings-revision` |
+| Token usage settings | `expectedRevision` | `conflict.tokenusage-settings-revision` |
 
 ### Card snapshot pipeline
 
@@ -204,7 +206,7 @@ Touching the card fold additionally requires `scripts/Test-CardFoldHitTest.ps1`.
 
 ### Weather
 
-Open-Meteo is the only network provider (`app.winwidgetboard.weather.open-meteo`, 15-minute visible cadence, 10-second deadline). Requests carry label, lat/long, and units — no account, device ID, or auto-location. Location label and coordinates persist to SQLite; **weather payloads never do** — they stay in the broker process, and failures degrade to Offline/Stale/Error while keeping the last in-process success (ADR 0020, 0021). Saving a location swaps the provider request key at runtime via `WeatherProviderRuntime` and publishes a Loading snapshot.
+Open-Meteo is the only network provider (`app.winwidgetboard.weather.open-meteo`, 15-minute visible cadence, 10-second deadline), across two endpoints: weather readings (`api.open-meteo.com`) and location search (`geocoding-api.open-meteo.com`, ADR 0027 — the only path that sends user-typed text off the machine, and only on explicit submit). Requests carry label, lat/long, and units — no account or device ID. The location itself comes from Windows device location (one read per cold start in auto mode, first-run foreground consent, ADR 0032) or from manual search. Location label and coordinates persist to SQLite; **weather payloads never do** — they stay in the broker process, and failures degrade to Offline/Stale/Error while keeping the last in-process success (ADR 0020, 0021). Saving a location swaps the provider request key at runtime via `WeatherProviderRuntime` and publishes a Loading snapshot.
 
 ## A XAML-referenced type must not use an expression-bodied `as`-plus-`switch`
 
@@ -248,11 +250,11 @@ The same csproj also copies `App.xaml`, `MainWindow.xaml`, `WorkspaceVisualStyle
 
 ## Scope guardrails
 
-The project deliberately shrank to a "lightweight core" of five capabilities (ADR 0022): taskbar entry, panel, basic responsive layout, local notes, weather + manual location. Timers, todos, clipboard, calendar, system monitoring, plugins, accounts, cloud sync, and telemetry are **deferred** — existing placeholder cards and base contracts stay as-is and must not be extended without explicit re-approval. Default rejections: new card types, new provider/plugin platforms, abstractions for a hypothetical second implementation, performance rewrites without measurements.
+The project deliberately shrank to a "lightweight core" (ADR 0022), since re-approved up to seven capabilities: taskbar entry, panel, basic responsive layout, local notes, weather (device location + search), system monitor (ADR 0028), and token usage (ADR 0030). Timers, todos, clipboard, calendar, plugins, accounts, cloud sync, and telemetry are **deferred** — existing placeholder cards and base contracts stay as-is and must not be extended without explicit re-approval. Default rejections: new card types, new provider/plugin platforms, abstractions for a hypothetical second implementation, performance rewrites without measurements.
 
-Two files are known debt and must not absorb unrelated responsibilities — extract a coordinator first, then add behavior: `src/WorkspacePanel/MainWindow.xaml.cs` (~2150 lines) and `src/CoreBroker/Providers/ProviderRefreshScheduler.cs` (~1690). XAML code-behind holds only view events, focus, and coordination; state belongs in a ViewModel or service.
+Two files are known debt and must not absorb unrelated responsibilities — extract a coordinator first, then add behavior: `src/WorkspacePanel/MainWindow.xaml.cs` (~2700 lines) and `src/CoreBroker/Providers/ProviderRefreshScheduler.cs` (~1690). The same rule covers `src/LauncherHost/EntryVisual.cpp` (~3600 lines, the largest file in the repo). XAML code-behind holds only view events, focus, and coordination; state belongs in a ViewModel or service.
 
-`src/CoreBroker/Commands/CoreBrokerCommandRouter.cs` is now dispatch only: `session.ping`, a `Contract.Methods` lookup per domain, and connection release. Each domain owns a handler in the same directory (`NoteCommandHandler`, `LayoutCommandHandler`, `WeatherSettingsCommandHandler`, `CardSubscriptionCommandHandler`, `PanelVisibilityCommandHandler`), all constructed with the router's single `_gate` so cross-domain serialization is unchanged. A new command goes in the matching handler, never back into the router.
+`src/CoreBroker/Commands/CoreBrokerCommandRouter.cs` is now dispatch only: `session.ping`, a `Contract.Methods` lookup per domain, and connection release. Each domain owns a handler in the same directory (`NoteCommandHandler`, `LayoutCommandHandler`, `WeatherSettingsCommandHandler`, `CardSubscriptionCommandHandler`, `PanelVisibilityCommandHandler`, `SystemMonitorCommandHandler`, `TokenUsageCommandHandler`), all constructed with the router's single `_gate` so cross-domain serialization is unchanged. A new command goes in the matching handler, never back into the router.
 
 ## Verification: pick the risk tier, don't run everything
 
@@ -279,7 +281,7 @@ Practical rules that get violated most often:
 - Search boxes, single button groups, and steady-state status must not occupy their own permanent row. Low-frequency actions use progressive disclosure; content space wins.
 - Animate only compositor properties (`Opacity`, `Scale`, `Translation`) — never `Width`/`Height`/`Margin`. Every animation must be interruptible, must resume from the current displayed value on reversal, and must degrade under reduced motion. High-frequency click/type/drag/resize gets zero added latency. No `RepositionThemeTransition` in the card grid: it breaks 1:1 pointer projection during drag.
 - Every icon button needs a localized tooltip, a readable automation name, and a stable unique `AutomationId` — the UIA scripts depend on those IDs. Hit targets stay logical (32 DIP header buttons); never hard-code physical pixels.
-- User-visible strings go in **both** `src/WorkspacePanel/Strings/en-US/Resources.resw` and `zh-CN/Resources.resw`; they must stay in sync (301 entries each today).
+- User-visible strings go in **both** `src/WorkspacePanel/Strings/en-US/Resources.resw` and `zh-CN/Resources.resw`; they must stay in sync — the two files' entry counts must match.
 
 ## Documentation
 
@@ -289,7 +291,7 @@ Who owns what:
 
 | Fact | Authority |
 | --- | --- |
-| Current scope of the five capabilities | `docs/01-product-requirements.md` |
+| Current scope of the seven core capabilities | `docs/01-product-requirements.md` |
 | UI structure, density, visuals, motion | `docs/02-ux-design-spec.md` |
 | Processes, IPC, storage, complexity budget | `docs/03-technical-architecture.md` |
 | IPC methods, limits, error codes | `docs/07-api-contracts.md` |

@@ -1,12 +1,12 @@
 # WinWidgetBoard 当前技术架构
 
 文档状态：已批准
-版本：0.2
-日期：2026-08-15
+版本：0.3
+日期：2026-08-31
 
 ## 1. 架构目标
 
-当前架构只服务入口、面板、基础布局、便签和天气。核心目标是：
+当前架构只服务七项核心能力：入口、面板、基础布局、便签、天气、硬件监控和 Token 用量。核心目标是：
 
 - 入口常驻路径尽可能小；
 - 面板按需运行；
@@ -31,9 +31,9 @@ flowchart LR
 | 组件 | 技术 | 当前职责 |
 | --- | --- | --- |
 | `LauncherHost` | C++/Win32 | 入口窗口、公开几何、输入、进程树生命周期 |
-| `WorkspacePanel` | C#/.NET 10/WinUI 3 | 面板、布局、便签、天气和设置 UI |
+| `WorkspacePanel` | C#/.NET 10/WinUI 3 | 面板、布局、便签、天气、硬件监控、Token 用量和设置 UI |
 | `CoreBroker.Client` | C# | 面向 UI 的高层 Named Pipe 客户端 |
-| `CoreBroker` | C# Worker | SQLite、IPC、天气 Provider 和调度 |
+| `CoreBroker` | C# Worker | SQLite、IPC、Provider（天气、硬件监控、Token 用量）和调度 |
 | `Contracts` | C# / JSON | Envelope、DTO、限制和协议版本 |
 
 `PluginHost`、独立卡片 SDK、云同步进程和硬件服务不属于当前架构。
@@ -106,7 +106,9 @@ flowchart LR
 - 布局读取和保存；
 - 便签 CRUD 与搜索；
 - 卡片快照订阅；
-- 天气位置读取和保存。
+- 天气位置读取和保存、天气摘要与地点搜索；
+- 硬件监控显示项设置与入口摘要；
+- Token 用量厂商启用设置。
 
 详细约束见 [07-api-contracts.md](07-api-contracts.md)。
 
@@ -117,7 +119,9 @@ CoreBroker 使用 Windows 系统 `winsqlite3.dll`。当前数据库保存：
 - schema migrations；
 - 布局；
 - 便签；
-- 天气位置设置。
+- 天气位置设置；
+- 硬件监控显示项设置；
+- Token 用量厂商启用设置。
 
 规则：
 
@@ -186,7 +190,9 @@ WeatherSettingsDialog
 
 天气只请求当前显示所需字段。位置标签和坐标写入 SQLite；天气 payload 只保留在当前 Broker 进程内。
 
-自动定位、城市搜索、多天气实例和跨重启天气缓存延期。
+位置来源有两个：Windows 设备定位（首次前台授权后，每次自动模式冷启动读取一次，
+[ADR-0032](adr/0032-windows-device-weather-location.md)）与地点搜索
+（[ADR-0027](adr/0027-weather-location-search.md)）。多天气实例和跨重启天气 payload 缓存延期。
 
 ## 9.1 硬件监控
 
@@ -258,13 +264,7 @@ provider 的请求键从不变化。
 
 ## 12. 当前技术债务
 
-| 区域 | 问题 | 处理方向 |
-| --- | --- | --- |
-| `MainWindow.xaml.cs` | 同时协调布局、便签、订阅、动效和拖动 | 按行为提取协调器 |
-| `ProviderRefreshScheduler.cs` | 单文件状态机过大 | 保持行为不变后分解内部职责 |
-| `scripts/Test-*.ps1` | UIA 基础函数重复 | 提取共享模块 |
-| 文档 | 历史和当前状态重复 | Git 保存历史，状态页只写当前事实 |
-
+债务清单与处理进度以[实施状态](status/implementation-status.md)为准，本文不再维护一份副本。
 重构必须保持现有行为，不借机增加新卡片或新平台能力。
 
 ## 13. 延期架构

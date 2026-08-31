@@ -1,6 +1,6 @@
 # 实施状态
 
-最后更新：2026-08-29
+最后更新：2026-08-31
 当前策略：轻量核心版
 当前代码基线：本文件所在提交
 
@@ -49,7 +49,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - 真实桌面 `WinWidgetBoard.LauncherHost.exe --smoke-test` / `--panel-launch-smoke-test` / `--panel-lifecycle-smoke-test`（均配 `--no-broker`，指向新构建的 Release x64 面板）退出码均为 0：分层弹簧改造后，面板仍能展开、收起后在阀值内隐藏并保持常驻、再次展开为同一进程；
 - 真实桌面 `Test-CardDragInteraction.ps1 -WithBroker` 通过（`REAL-DRAG-PASS`）：四种卡片的拖动柄、卡面、交互控件隔离和 `Esc` 取消经真实鼠标验证，握手、`cards.subscribe`、面板可见性上报和 `layout.save` 全部经真实命名管道走重构后的分发路径；
 - **`Test-WeatherSettingsInteraction.ps1` 与 `Test-SystemMonitorInteraction.ps1` 目前不通过，且与本轮改动无关**——已用 `git stash` 回退到 `759b6ac` 和 `eba4d0d` 分别复跑，失败点完全相同。设置流程本身通过：搜索 Tokyo、选中候选、填入只读经纬度、保存并等到 `StatusText` 出现「天气位置已保存」全部走通；卡住的是其后「卡片的位置文字变为 Tokyo」这一步（30 s 内不出现，把等待放宽到 150 s 时通过一次，120 s 时又失败，属于偶发）。已定位到的事实：Broker 在切换位置时确实发布了带新 `location.label` 的 Loading 快照（`WeatherProviderRuntime.ApplyRegistrationLocked`），且新旧注册共用同一个序号计数器，因此不是序号被判旧；而 `WeatherCardProjection` 当时在读不到 `location.label` 时回退到硬编码英文字面量 `"Weather"`，那既是卡片显示的内容，也违反「用户可见字符串只放在 resw」——该回退已改为空串（没有地点就不画那一行），天气描述也已改为由投影给出资源键、卡片按语言取字。硬件监控脚本卡在更早的「卡片出现百分比读数」一步，同样在两个历史提交上复现。两者都留待天气阶段一并处理；
-- CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、380/380 单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
+- CI（`windows-2025-vs2026` 托管镜像）Debug 与 Release 双配置全绿：整解决方案 `msbuild` 构建、全部单测、LauncherHost 与 WorkspacePanel 的 `--smoke-test` 全部通过；
 - **首次启动时 provider 卡片一直「正在加载」已修复**（`COLDSTART-PASS`）。成因：`CardSubscriptionLifecycleCoordinator.RequestRefresh` 在尚未初始化时直接返回，而冷启动路径上面板变可见的时刻早于首次订阅完成，那次请求被丢弃——订阅因此带着「布局之前的视口」生效，即一张卡片都没有，天气与硬件就停在加载态，直到下一次打开才重新请求。现在把该请求记下并在初始化完成后补发（并 marshal 回 UI 线程，`DispatcherQueueTimer` 只接受 UI 线程）。实机 A/B：不打补丁时首次打开 90 秒内两张卡片都不离开加载态；打补丁后 **1 秒**内就绪；
 - **动效帧率已定位并修复**。折页的几何原先逐帧写 6 张卡片的 `CompositeTransform`，这就是全部代价。逐项隔离测量（隔离面板，`3200×2000 @ 165 Hz`、200% DPI，帧预算 `6.06 ms`）：
 
@@ -158,12 +158,13 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 1. `MainWindow.xaml.cs` 仍同时协调便签删除/编辑、拖动和设置；卡片订阅、布局持久化、便签列表和动效已提取。
 2. `CoreBrokerCommandRouter.cs` 只保留 `session.ping`、方法分发和连接释放；便签、布局、天气设置、卡片订阅和面板可见性各自成为领域 handler，共用同一把锁与同一份操作缓存上限。
 3. `ProviderRefreshScheduler.cs` 单文件状态机过大。
-4. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；查找一律限定在目标进程自己的顶层窗口内，并对可重试的 UIA COM 故障退避重试。
-5. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
-6. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。
-7. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
-8. 完整显示、无障碍、性能和发布矩阵尚未执行。
-9. **入口已改为任务栏窗口的 owned window**（`GWLP_HWNDPARENT`），不再与任务栏争 topmost。
+4. `EntryVisual.cpp`（约 3600 行，仓库最大单文件）同时承担自绘、动效、两枚胶囊排版、天气插画和走势图；与 `MainWindow.xaml.cs` 同一策略——下次真要改其行为时先按职责拆，不单独开一轮。
+5. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；查找一律限定在目标进程自己的顶层窗口内，并对可重试的 UIA COM 故障退避重试。
+6. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
+7. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。
+8. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
+9. 完整显示、无障碍、性能和发布矩阵尚未执行。
+10. **入口已改为任务栏窗口的 owned window**（`GWLP_HWNDPARENT`），不再与任务栏争 topmost。
    成因：Explorer 在处理窗口激活时会把 `Shell_TrayWnd` 重新提到 topmost 顶端，短暂盖住入口，
    表现为「从任务栏打开最大化窗口时胶囊闪一下」；不是可见性也不是重定位，实测入口始终
    `IsWindowVisible=True`、矩形不变，只是 z-order 被压下去。
@@ -177,8 +178,8 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
    `TaskbarCreated` 上重新挂到新任务栏——实测 owner 由 `65934` 更新为 `6557024`，重排后仍 0/5。
    多显示器（`Shell_SecondaryTrayWnd`，按入口所在监视器匹配）已实现但本机只有单显示器，未实测。
    其他 topmost 第三方任务栏扩展仍与入口共享层级，真实回归仍须先等待入口占据自身中心点再点击。
-10. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
-11. **入口的 UI 线程不再向 Explorer 发同步消息**。此前 `CaptureMonitorSnapshot` 调用
+11. 计时器、待办和日历以延期占位卡保留在默认工作区，已确认维持现状；它们只作为布局占位，不增加业务行为，也不再作为待决问题。
+12. **入口的 UI 线程不再向 Explorer 发同步消息**。此前 `CaptureMonitorSnapshot` 调用
     `SHAppBarMessage(ABM_GETSTATE / ABM_GETTASKBARPOS)`，两者都是向 `Shell_TrayWnd` 发的
     无超时 `SendMessage`。实测两次事故（2026-08-21 10:10:16、2026-08-29 10:23:34）都是
     `AppHangB1` + `ConsentKey=AppHangXProcB1`（等待链跨进程），且都与 Claude 桌面版 MSIX
@@ -288,7 +289,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 ## 7. 下一步
 
-核心五项已全部具备真实桌面证据，远程与 CI 已建立。当前优先级由「继续改代码」转为「靠真实使用暴露问题」：
+七项核心能力已全部具备真实桌面证据，远程与 CI 已建立。当前优先级由「继续改代码」转为「靠真实使用暴露问题」：
 
 1. 补 ADR-0001 的显示矩阵：多显示器、100%～200% DPI、任务栏自动隐藏与左对齐、Explorer 重启、全屏。本轮只验证了参考机的底部居中任务栏。
    同时补跑 `scripts/Test-LauncherEntryPlacement.ps1` 的点击一段：本轮该机拒绝一切合成输入（`SetCursorPos` 返回 `FALSE` 且不设错误码，
@@ -310,7 +311,11 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 延期项不得作为当前“下一步”自动实施。
 
-## 9. 待用户决定
+## 9. 方向与待用户决定
+
+方向已定（2026-08-31）：目标是成为一个优秀的**开源工具**，面向公开发布。由此新增的发布前置项：许可证选择与依赖许可证复核、面向外部读者的 README、可工作的发布产物（`PublishReadyToRun` / `resources.pri` 发布配置仍是坏的，见 §4.2）、贡献与安全报告说明。
+
+仍待用户决定：
 
 - 正式名称与图标；
 - 最终许可证；
