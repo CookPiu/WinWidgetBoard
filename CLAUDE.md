@@ -219,6 +219,15 @@ protected override DataTemplate? SelectTemplateCore(object item) =>
 
 made the compiler report `WMC0001: Unknown type` for that selector — and then, because it bails, `Cannot resolve DataType` for **every** type later in the file, including ones that had compiled for months. The C# itself is valid and builds fine on its own. Use a block body with an `is` pattern instead. If a wave of `WMC0909` errors appears after adding one type, fix the first `WMC0001` and ignore the rest; they are all cascade.
 
+## A ContentDialog's width is clamped by the `ContentDialogMaxWidth` theme resource
+
+Setting `MaxWidth` on the ContentDialog control does nothing: the template sizes itself from
+the `ContentDialogMaxWidth` resource (default **548**), and any content wider than what's left
+after padding is **silently clipped at the card's rounded edge** — trailing buttons vanish
+without any error. `SettingsDialog.xaml` overrides the resource (672) and states every fixed
+lane width to fit inside it; grow them only together. The same family exists for height
+(`ContentDialogMaxHeight`).
+
 ## An `x:Bind` property must not share a name with an `x:Name` on the same page
 
 A `DataTemplate` in `MainWindow.xaml` bound `Text="{x:Bind StatusText}"` against its own

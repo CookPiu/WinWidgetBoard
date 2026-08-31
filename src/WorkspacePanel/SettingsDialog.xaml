@@ -30,6 +30,13 @@
         -->
         <CornerRadius x:Key="OverlayCornerRadius">16</CornerRadius>
         <!--
+            The dialog's width is clamped by this template resource, NOT by MaxWidth on the
+            control - the default is 548, and everything wider was silently clipped at the
+            card's rounded edge. That clip is what ate the trailing buttons: 132 rail + 16
+            gap + 440 scroll lane + card padding + dialog padding needs the full 672.
+        -->
+        <x:Double x:Key="ContentDialogMaxWidth">672</x:Double>
+        <!--
             One row template serves both metric lists. Every automation ID carries the surface
             it belongs to, because the same twelve metrics appear twice and a script has to be
             able to say which copy it means.
@@ -43,17 +50,17 @@
                 <!--
                     Every column is stated. A star column here measures against infinity and
                     pushes the trailing reorder button past the list's right edge, which is
-                    the same clip that hid the weather search button.
+                    the same clip that once hid the weather search button.
 
-                    The budget is what is left of the section's 344 after the list's border
-                    and the ListViewItem's own padding - roughly 310 - so these four columns
-                    plus their gaps have to stay under it. Widening the detail box to fit
-                    "数值与进度条" without taking it back off the name column clipped the
-                    move-down button straight off the row.
+                    The budget is what is left of the section's 416 after the list's border
+                    and the ListViewItem's own padding - roughly 390 - so these four columns
+                    plus their gaps (376 in all) have to stay under it. The detail box is
+                    wide enough for "数值与进度条" without taking anything off the name
+                    column or clipping the move-down button off the row.
                 -->
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="96" />
                     <ColumnDefinition Width="128" />
+                    <ColumnDefinition Width="168" />
                     <ColumnDefinition Width="28" />
                     <ColumnDefinition Width="28" />
                 </Grid.ColumnDefinitions>
@@ -151,34 +158,31 @@
         </Border>
 
         <!--
-            The section width is stated, not inherited from a star column. Inside a
-            ContentDialog the section is measured unbounded, so a star column hands the first
-            child whatever it asks for and the rest of the row is arranged past the clip - the
-            weather search button ended up outside the dialog and reported itself offscreen to
-            automation while still being in the tree. An explicit width makes the measure
-            finite, which is what lets the inner grids resolve their own columns.
+            One card per view: the scrollable body and the pinned commit row live on the SAME
+            surface. They used to be two stacked cards, which produced two defects at once -
+            the body card rendered as a stray empty bar for any section that (wrongly) lived
+            in the footer card, and the commit controls read as a separate, unrelated card.
         -->
         <!--
-            The body scrolls; the commit controls do not. A save button that scrolls out of
-            reach is the same defect as one that is clipped - the section is taller than any
-            dialog this panel can host, so the button has to be pinned rather than merely
-            placed last.
+            The body is the ONLY scroll region. A save button that scrolls out of reach is
+            the same defect as one that is clipped, so the commit row is pinned below the
+            ScrollViewer rather than placed last inside it.
         -->
-        <Grid
+        <Border
             Grid.Column="1"
-            RowSpacing="{StaticResource WwbSpace3}">
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Padding="{StaticResource WwbCompactCardPadding}"
+            Style="{StaticResource WwbCardSurfaceStyle}">
+        <Grid RowSpacing="{StaticResource WwbSpace3}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Border
-                HorizontalAlignment="Left"
-                Padding="{StaticResource WwbCompactCardPadding}"
-                Style="{StaticResource WwbCardSurfaceStyle}">
             <ScrollViewer
-                Width="368"
+                Width="440"
                 HorizontalAlignment="Left"
-                MaxHeight="330"
+                MaxHeight="400"
                 HorizontalScrollMode="Disabled"
                 HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">
@@ -187,9 +191,13 @@
                     ContentDialog the content is measured unbounded; MaxWidth only clamps the
                     result, so a star column still measures its first child against infinity
                     and arranges the Auto column past the clip. One bounded container makes
-                    every grid below it resolve correctly.
+                    every grid below it resolve correctly - which is also what lets the rows
+                    below use star columns safely. The 24 DIP between this width and the
+                    grid's is the scrollbar's lane: the overlay bar must never sit on top of
+                    a trailing button again. Both widths fit inside ContentDialogMaxWidth
+                    above - grow them only together with it.
                 -->
-                <Grid Width="344" HorizontalAlignment="Left">
+                <Grid Width="416" HorizontalAlignment="Left">
                 <StackPanel
                     x:Name="WeatherSection"
                     Spacing="{StaticResource WwbSpace3}">
@@ -198,25 +206,32 @@
                         Style="{StaticResource WwbCardCaptionStyle}"
                         TextWrapping="Wrap" />
 
-                    <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="{StaticResource WwbSpace2}">
+                    <!--
+                        Star plus Auto, not stated widths: the bounded 456 grid above makes
+                        this measure finite, so the button can never be arranged past the
+                        clip the way the fixed 220+116 pair was.
+                    -->
+                    <Grid ColumnSpacing="{StaticResource WwbSpace2}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <ToggleSwitch
                             x:Name="WeatherSettingsUseDeviceLocationToggle"
                             x:Uid="WeatherSettingsUseDeviceLocationToggle"
-                            Width="220"
                             IsOn="{x:Bind WeatherViewModel.UseDeviceLocation, Mode=TwoWay}"
                             automation:AutomationProperties.AutomationId="WeatherSettingsUseDeviceLocationToggle" />
                         <Button
                             x:Name="WeatherSettingsDeviceLocationButton"
                             x:Uid="WeatherSettingsDeviceLocationButton"
-                            Width="116"
+                            Grid.Column="1"
+                            MinWidth="96"
                             VerticalAlignment="Bottom"
                             Style="{StaticResource WwbDialogButtonStyle}"
                             IsEnabled="{x:Bind WeatherViewModel.CanRefreshDeviceLocation, Mode=OneWay}"
                             Click="WeatherSettingsDeviceLocationButton_Click"
                             automation:AutomationProperties.AutomationId="WeatherSettingsDeviceLocationButton" />
-                    </StackPanel>
+                    </Grid>
 
                     <ProgressBar
                         x:Name="WeatherSettingsDeviceLocationProgress"
@@ -247,21 +262,14 @@
                         coordinates come back from the search and are shown read-only below,
                         so what will be saved is visible without being editable.
                     -->
-                    <!--
-                        Stated widths in a horizontal stack, not a star column. Content inside
-                        a ContentDialog is measured unbounded, and under that a star column
-                        hands the text box every pixel it asks for and arranges the button past
-                        the clip - the button then reports a zero rectangle and reads as
-                        offscreen to automation while still sitting in the tree. Nothing here
-                        needs to be elastic, so nothing is.
-                    -->
-                    <StackPanel
-                        Orientation="Horizontal"
-                        Spacing="{StaticResource WwbSpace2}">
+                    <Grid ColumnSpacing="{StaticResource WwbSpace2}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <TextBox
                             x:Name="WeatherSettingsSearchBox"
                             x:Uid="WeatherSettingsSearchBox"
-                            Width="228"
                             Style="{StaticResource WwbSearchBoxStyle}"
                             Text="{x:Bind WeatherViewModel.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             KeyDown="WeatherSettingsSearchBox_KeyDown"
@@ -269,12 +277,14 @@
                         <Button
                             x:Name="WeatherSettingsSearchButton"
                             x:Uid="WeatherSettingsSearchButton"
+                            Grid.Column="1"
+                            MinWidth="72"
                             VerticalAlignment="Bottom"
                             Style="{StaticResource WwbDialogButtonStyle}"
                             IsEnabled="{x:Bind WeatherViewModel.CanSearch, Mode=OneWay}"
                             Click="WeatherSettingsSearchButton_Click"
                             automation:AutomationProperties.AutomationId="WeatherSettingsSearchButton" />
-                    </StackPanel>
+                    </Grid>
 
                     <ProgressBar
                         x:Name="WeatherSettingsSearchProgress"
@@ -326,6 +336,24 @@
                         Visibility="{x:Bind WeatherViewModel.ShowSearchResults, Mode=OneWay}"
                         automation:AutomationProperties.AutomationId="WeatherSettingsResultsList" />
 
+                    <!--
+                        What will be saved, shown as content rather than pinned: only the
+                        commit action itself needs to stay reachable without scrolling. The
+                        coordinates stay visible but read-only - they are what actually gets
+                        stored and sent to the weather provider, and hiding them would make
+                        that invisible.
+                    -->
+                    <TextBox
+                        x:Name="WeatherSettingsLabelBox"
+                        x:Uid="WeatherSettingsLabelBox"
+                        Text="{x:Bind WeatherViewModel.LocationLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        automation:AutomationProperties.AutomationId="WeatherSettingsLabelBox" />
+                    <TextBox
+                        x:Name="WeatherSettingsCoordinatesBox"
+                        x:Uid="WeatherSettingsCoordinatesBox"
+                        IsReadOnly="True"
+                        Text="{x:Bind WeatherViewModel.CoordinatesText, Mode=OneWay}"
+                        automation:AutomationProperties.AutomationId="WeatherSettingsCoordinatesBox" />
                 </StackPanel>
 
                 <StackPanel
@@ -340,6 +368,11 @@
                     <TextBlock
                         x:Uid="SysMonCardSectionHeader"
                         Style="{StaticResource WwbCardTitleStyle}" />
+                    <!--
+                        The lists do not scroll themselves: the section's ScrollViewer is the
+                        one scroll region. A nested MaxHeight used to cut a row in half and
+                        stack a second scrollbar inside the first.
+                    -->
                     <ListView
                         x:Name="SysMonCardList"
                         Padding="4,2"
@@ -349,7 +382,8 @@
                         CornerRadius="{StaticResource WwbControlCornerRadius}"
                         ScrollViewer.HorizontalScrollMode="Disabled"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        MaxHeight="228"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Hidden"
                         SelectionMode="None"
                         ItemsSource="{x:Bind SystemMonitorViewModel.CardOptions, Mode=OneWay}"
                         ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
@@ -386,7 +420,8 @@
                         CornerRadius="{StaticResource WwbControlCornerRadius}"
                         ScrollViewer.HorizontalScrollMode="Disabled"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        MaxHeight="228"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Hidden"
                         SelectionMode="None"
                         ItemsSource="{x:Bind SystemMonitorViewModel.EntryOptions, Mode=OneWay}"
                         ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
@@ -400,16 +435,7 @@
                         automation:AutomationProperties.AutomationId="SysMonSettingsValidationText" />
 
                 </StackPanel>
-                </Grid>
-            </ScrollViewer>
-            </Border>
 
-            <Border
-                Grid.Row="1"
-                HorizontalAlignment="Left"
-                Padding="{StaticResource WwbCompactCardPadding}"
-                Style="{StaticResource WwbCardSurfaceStyle}">
-            <Grid Width="344" HorizontalAlignment="Left">
                 <StackPanel
                     x:Name="TokenUsageSection"
                     Spacing="{StaticResource WwbSpace3}"
@@ -448,40 +474,35 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
+                </Grid>
+            </ScrollViewer>
 
+            <!--
+                One commit row per view, pinned under the scroll region on the same card.
+                The button does not own the row: the status and validation lines sit beside
+                it, so a save's outcome appears where the eye already is.
+            -->
+            <Grid
+                x:Name="WeatherFooter"
+                Grid.Row="1"
+                Width="440"
+                HorizontalAlignment="Left"
+                ColumnSpacing="{StaticResource WwbSpace3}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button
+                    x:Name="WeatherSettingsSaveButton"
+                    x:Uid="WeatherSettingsSaveButton"
+                    VerticalAlignment="Top"
+                    Style="{StaticResource WwbPrimaryDialogButtonStyle}"
+                    IsEnabled="{x:Bind WeatherViewModel.CanSave, Mode=OneWay}"
+                    Click="WeatherSettingsSaveButton_Click" />
                 <StackPanel
-                    x:Name="WeatherFooter"
-                    Width="344"
-                    HorizontalAlignment="Left"
-                    Spacing="{StaticResource WwbSpace2}">
-                    <TextBox
-                        x:Name="WeatherSettingsLabelBox"
-                        Width="292"
-                        HorizontalAlignment="Left"
-                        x:Uid="WeatherSettingsLabelBox"
-                        Text="{x:Bind WeatherViewModel.LocationLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        automation:AutomationProperties.AutomationId="WeatherSettingsLabelBox" />
-
-                    <!--
-                        Kept visible but read-only: the coordinates are what actually gets
-                        stored and sent to the weather provider, and hiding them would make
-                        that invisible.
-                    -->
-                    <TextBox
-                        x:Name="WeatherSettingsCoordinatesBox"
-                        Width="292"
-                        HorizontalAlignment="Left"
-                        x:Uid="WeatherSettingsCoordinatesBox"
-                        IsReadOnly="True"
-                        Text="{x:Bind WeatherViewModel.CoordinatesText, Mode=OneWay}"
-                        automation:AutomationProperties.AutomationId="WeatherSettingsCoordinatesBox" />
-                    <Button
-                        x:Name="WeatherSettingsSaveButton"
-                        x:Uid="WeatherSettingsSaveButton"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource WwbPrimaryDialogButtonStyle}"
-                        IsEnabled="{x:Bind WeatherViewModel.CanSave, Mode=OneWay}"
-                        Click="WeatherSettingsSaveButton_Click" />
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Spacing="{StaticResource WwbSpace1}">
                     <TextBlock
                         x:Name="WeatherSettingsValidationText"
                         Style="{StaticResource WwbCardCaptionStyle}"
@@ -496,52 +517,66 @@
                         TextWrapping="Wrap"
                         automation:AutomationProperties.AutomationId="WeatherSettingsStatusText" />
                 </StackPanel>
-
-                <StackPanel
-                    x:Name="SystemMonitorFooter"
-                    Width="344"
-                    HorizontalAlignment="Left"
-                    Spacing="{StaticResource WwbSpace2}"
-                    Visibility="Collapsed">
-                    <Button
-                        x:Name="SysMonSettingsSaveButton"
-                        x:Uid="SysMonSettingsSaveButton"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource WwbPrimaryDialogButtonStyle}"
-                        IsEnabled="{x:Bind SystemMonitorViewModel.CanSave, Mode=OneWay}"
-                        Click="SysMonSettingsSaveButton_Click"
-                        automation:AutomationProperties.AutomationId="SysMonSettingsSaveButton" />
-                    <TextBlock
-                        x:Name="SysMonSettingsStatusText"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind SystemMonitorViewModel.StatusText, Mode=OneWay}"
-                        TextWrapping="Wrap"
-                        automation:AutomationProperties.AutomationId="SysMonSettingsStatusText" />
-                </StackPanel>
-
-                <StackPanel
-                    x:Name="TokenUsageFooter"
-                    Width="344"
-                    HorizontalAlignment="Left"
-                    Spacing="{StaticResource WwbSpace2}"
-                    Visibility="Collapsed">
-                    <Button
-                        x:Name="TokenUsageSettingsSaveButton"
-                        x:Uid="TokenUsageSettingsSaveButton"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource WwbPrimaryDialogButtonStyle}"
-                        IsEnabled="{x:Bind TokenUsageViewModel.CanSave, Mode=OneWay}"
-                        Click="TokenUsageSettingsSaveButton_Click"
-                        automation:AutomationProperties.AutomationId="TokenUsageSettingsSaveButton" />
-                    <TextBlock
-                        x:Name="TokenUsageSettingsStatusText"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind TokenUsageViewModel.StatusText, Mode=OneWay}"
-                        TextWrapping="Wrap"
-                        automation:AutomationProperties.AutomationId="TokenUsageSettingsStatusText" />
-                </StackPanel>
             </Grid>
-            </Border>
+
+            <Grid
+                x:Name="SystemMonitorFooter"
+                Grid.Row="1"
+                Width="440"
+                HorizontalAlignment="Left"
+                ColumnSpacing="{StaticResource WwbSpace3}"
+                Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button
+                    x:Name="SysMonSettingsSaveButton"
+                    x:Uid="SysMonSettingsSaveButton"
+                    VerticalAlignment="Top"
+                    Style="{StaticResource WwbPrimaryDialogButtonStyle}"
+                    IsEnabled="{x:Bind SystemMonitorViewModel.CanSave, Mode=OneWay}"
+                    Click="SysMonSettingsSaveButton_Click"
+                    automation:AutomationProperties.AutomationId="SysMonSettingsSaveButton" />
+                <TextBlock
+                    x:Name="SysMonSettingsStatusText"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource WwbCardCaptionStyle}"
+                    Text="{x:Bind SystemMonitorViewModel.StatusText, Mode=OneWay}"
+                    TextWrapping="Wrap"
+                    automation:AutomationProperties.AutomationId="SysMonSettingsStatusText" />
+            </Grid>
+
+            <Grid
+                x:Name="TokenUsageFooter"
+                Grid.Row="1"
+                Width="440"
+                HorizontalAlignment="Left"
+                ColumnSpacing="{StaticResource WwbSpace3}"
+                Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button
+                    x:Name="TokenUsageSettingsSaveButton"
+                    x:Uid="TokenUsageSettingsSaveButton"
+                    VerticalAlignment="Top"
+                    Style="{StaticResource WwbPrimaryDialogButtonStyle}"
+                    IsEnabled="{x:Bind TokenUsageViewModel.CanSave, Mode=OneWay}"
+                    Click="TokenUsageSettingsSaveButton_Click"
+                    automation:AutomationProperties.AutomationId="TokenUsageSettingsSaveButton" />
+                <TextBlock
+                    x:Name="TokenUsageSettingsStatusText"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource WwbCardCaptionStyle}"
+                    Text="{x:Bind TokenUsageViewModel.StatusText, Mode=OneWay}"
+                    TextWrapping="Wrap"
+                    automation:AutomationProperties.AutomationId="TokenUsageSettingsStatusText" />
+            </Grid>
         </Grid>
+        </Border>
     </Grid>
 </controls:ContentDialog>
