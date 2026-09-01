@@ -522,6 +522,78 @@ struct SegmentLayout
 // at the same x so the readings line up vertically; every column owns the same fixed-width
 // slot, so a changing number cannot move any column after it. Neighbouring columns are
 // separated by a gap, a hairline spanning both rows, and another gap.
+// One column's logical width for the pair of readings it holds: content-measured, plus
+// slack, quantized up, floored at the old fixed slot and capped. Layout and measurement
+// both derive from this, which is what keeps the reserved capsule width and the painted
+// strip in exact agreement - a one-pixel disagreement here drops a whole column.
+std::vector<int> ResolveSegmentColumnWidthsLogical(
+    const std::vector<EntrySegment>& segments,
+    const UINT dpi)
+{
+    const size_t count = segments.size();
+    std::vector<int> widths;
+    widths.reserve((count + kEntrySegmentRowsPerColumn - 1) / kEntrySegmentRowsPerColumn);
+
+    const HDC screen = GetDC(nullptr);
+    HFONT font = screen == nullptr
+        ? nullptr
+        : CreateEntryFont(
+              ScaleLogical(kEntrySegmentFontSizeLogical, dpi),
+              EntryTypeRole::Segment);
+    const HGDIOBJ previousFont =
+        font == nullptr ? nullptr : SelectObject(screen, font);
+
+    const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, dpi);
+    const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, dpi);
+    for (size_t first = 0; first < count; first += kEntrySegmentRowsPerColumn)
+    {
+        const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
+        int contentDevice = 0;
+        for (size_t index = first; index < past; ++index)
+        {
+            const EntrySegment& segment = segments[index];
+            int rowDevice = segment.icon == EntryIcon::None ? 0 : iconSize + iconGap;
+            SIZE extent{};
+            if (font != nullptr &&
+                !segment.text.empty() &&
+                GetTextExtentPoint32W(
+                    screen,
+                    segment.text.c_str(),
+                    static_cast<int>(segment.text.size()),
+                    &extent) != FALSE)
+            {
+                rowDevice += extent.cx;
+            }
+
+            contentDevice = std::max(contentDevice, rowDevice);
+        }
+
+        // Measurement failure (no DC, no font) leaves content at the icon alone; the floor
+        // then hands back the old fixed slot, so a degraded machine degrades to the old look.
+        int logical = ToLogical(contentDevice, dpi) + kEntrySegmentColumnSlackLogical;
+        logical = ((logical + kEntrySegmentColumnQuantumLogical - 1) /
+                      kEntrySegmentColumnQuantumLogical) *
+            kEntrySegmentColumnQuantumLogical;
+        widths.push_back(std::clamp(
+            logical,
+            kEntrySegmentColumnWidthLogical,
+            kEntrySegmentColumnMaxWidthLogical));
+    }
+
+    if (font != nullptr)
+    {
+        SelectObject(screen, previousFont);
+        DeleteObject(font);
+    }
+
+    if (screen != nullptr)
+    {
+        ReleaseDC(nullptr, screen);
+    }
+
+    return widths;
+}
+
 std::vector<SegmentLayout> ResolveSegmentLayout(const EntryRenderRequest& request)
 {
     std::vector<SegmentLayout> layouts;
@@ -529,8 +601,8 @@ std::vector<SegmentLayout> ResolveSegmentLayout(const EntryRenderRequest& reques
 
     const int iconSize = ScaleLogical(kEntrySegmentIconSizeLogical, request.dpi);
     const int iconGap = ScaleLogical(kEntrySegmentIconGapLogical, request.dpi);
-    const int columnWidth =
-        ScaleLogical(kEntrySegmentColumnWidthLogical, request.dpi);
+    const std::vector<int> columnWidthsLogical =
+        ResolveSegmentColumnWidthsLogical(request.segments, request.dpi);
     const int columnGap = ScaleLogical(kEntrySegmentColumnGapLogical, request.dpi);
     const int dividerWidth = ScaleLogical(kEntryDividerWidthLogical, request.dpi);
     const int rowHeight = ScaleLogical(kEntrySegmentRowHeightLogical, request.dpi);
@@ -555,6 +627,9 @@ std::vector<SegmentLayout> ResolveSegmentLayout(const EntryRenderRequest& reques
     {
         const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
         const int rowCount = static_cast<int>(past - first);
+        const int columnWidth = ScaleLogical(
+            columnWidthsLogical[first / kEntrySegmentRowsPerColumn],
+            request.dpi);
 
         if (!layouts.empty() && cursor + columnWidth > limit)
         {
@@ -2274,16 +2349,15 @@ int MeasureEntrySegmentsWidthLogical(
     // No indicator allowance: that one lives in the main capsule.
     int width = kEntryLeadingPaddingLogical + kEntryTrailingPaddingLogical;
 
-    // Mirrors ResolveSegmentLayout's fixed-width packing. The result depends on the configured
-    // column count, not on this second's digits, so the capsule and every later column stay put.
-    const int columnWidthLogical = ToLogical(
-        ScaleLogical(kEntrySegmentColumnWidthLogical, dpi),
-        dpi);
+    // Mirrors ResolveSegmentLayout exactly - both derive their columns from the same
+    // quantized content measurement, so the reserved capsule and the painted strip agree.
+    const std::vector<int> columnWidthsLogical =
+        ResolveSegmentColumnWidthsLogical(segments, dpi);
     const size_t count = segments.size();
     for (size_t first = 0; first < count; first += kEntrySegmentRowsPerColumn)
     {
         const size_t past = std::min(first + kEntrySegmentRowsPerColumn, count);
-        width += columnWidthLogical;
+        width += columnWidthsLogical[first / kEntrySegmentRowsPerColumn];
         if (past < count)
         {
             width += kEntrySegmentColumnGapLogical * 2 + kEntryDividerWidthLogical;
@@ -3341,24 +3415,47 @@ bool RunEntryVisualSmokeTest(std::wstring& failure)
             return false;
         }
 
+        // Digit flicker - the same character count with different digits, or the wide
+        // reading swapping rows within its column - must not move a slot: the slack and the
+        // quantum exist to absorb it. Growth is different and asserted separately below.
         const std::vector<EntrySegment> changingRates = {
             EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
             EntrySegment{EntryIcon::Memory, L"MEM 61%"},
-            EntrySegment{EntryIcon::NetworkDown, L"1 B/s"},
+            EntrySegment{EntryIcon::NetworkDown, L"131.2 KB/s"},
             EntrySegment{EntryIcon::NetworkUp, L"999.9 MB/s"},
             EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
         };
         const std::vector<EntrySegment> reversedRates = {
-            EntrySegment{EntryIcon::Cpu, L"CPU 100%"},
-            EntrySegment{EntryIcon::Memory, L"MEM 100%"},
+            EntrySegment{EntryIcon::Cpu, L"CPU 42%"},
+            EntrySegment{EntryIcon::Memory, L"MEM 16%"},
             EntrySegment{EntryIcon::NetworkDown, L"999.9 MB/s"},
-            EntrySegment{EntryIcon::NetworkUp, L"1 B/s"},
-            EntrySegment{EntryIcon::Gpu, L"GPU 100%"},
+            EntrySegment{EntryIcon::NetworkUp, L"131.2 KB/s"},
+            EntrySegment{EntryIcon::Gpu, L"GPU 8%"},
         };
         if (MeasureEntrySegmentsWidthLogical(changingRates, 96) !=
             MeasureEntrySegmentsWidthLogical(reversedRates, 96))
         {
-            failure = L"live readings changed the segmented strip width";
+            failure = L"digit flicker changed the segmented strip width";
+            return false;
+        }
+
+        // Growth reflows immediately: a reading that genuinely no longer fits its column
+        // widens it rather than losing its unit to the ellipsis. This is the failure the
+        // fixed slot used to ship - "CPU 4.48 GHz" rendered as "CPU 4.48...".
+        if (MeasureEntrySegmentsWidthLogical(
+                {
+                    EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+                    EntrySegment{EntryIcon::Cpu, L"CPU 4.48 GHz"},
+                },
+                96) <=
+            MeasureEntrySegmentsWidthLogical(
+                {
+                    EntrySegment{EntryIcon::Cpu, L"CPU 24%"},
+                    EntrySegment{EntryIcon::Cpu, L"CPU 26%"},
+                },
+                96))
+        {
+            failure = L"a wider reading did not widen its own column";
             return false;
         }
 
