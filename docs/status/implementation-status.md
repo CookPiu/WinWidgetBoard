@@ -304,6 +304,23 @@ CPU 频率并不需要驱动，已按 [ADR-0031](../adr/0031-cpu-clock-from-per-
 温度与风扇已按 [ADR-0033](../adr/0033-hwinfo-shared-memory-sensor-source.md) 改为读取 HWiNFO 的共享内存，
 读不到时的文案由「此电脑无法读取」改为「需运行 HWiNFO」。
 
+**四条免驱动替代路径已在参考机上逐条验证，全部为否**（2026-09-01，只读探测，未安装任何东西）。
+记在这里是为了不再重试：
+
+| 路径 | 结果 |
+| --- | --- |
+| ACPI 热区（`Win32_PerfFormattedData_Counters_ThermalZoneInformation` / `MSAcpi_ThermalZoneTemperature`） | 热区 `\_TZ.TZ00` 存在，但 `CurrentTemperature` 恒为 0（提权后仍是 0，即 −273.2 °C），只有临界点 383.2 K 是真的 |
+| 联想厂商 WMI（`LENOVO_GAMEZONE_DATA`） | 实例存在（`ACPI\PNP0C14\GMZN_0`），但 `GetCPUTemp`／`GetGPUTemp`／连 `GetVersion` 在内的**每一个方法**都返回「无效的对象」；CIM 与旧版 WMI 两种调用形态、提权与非提权都试过。类是驱动注册的，固件没有实现 |
+| 联想风扇 WMI（`LENOVO_FAN_METHOD` / `LENOVO_FAN_TEST_DATA`） | 只有 `Fan_Get_Table` / `Fan_Set_Table` 与一张静态的最大／最小转速表（两把风扇 4300/4600 与 1700/1200 RPM），**没有当前转速** |
+| MSI Afterburner 共享内存（`MAHMSharedMemory`，本机常驻） | 非提权可读、布局解析正确（`MAHM`／`0x00020000`／entry 1324 B），9 条读数全是 GPU 占用、显存、核心频率、功耗、CPU 占用、内存、帧率——**没有任何温度或转速**（与 [ADR-0029](../adr/0029-drop-the-bundled-sensor-driver.md) 当时的观察一致） |
+
+即：这台机器上除了内核驱动，没有第二条通往 CPU 温度的路。TrafficMonitor 之所以能显示温度，
+靠的正是它的「硬件监控插件」加载 LibreHardwareMonitor 释放的 WinRing0 系驱动（服务 `R0TrafficMonitor`、
+文件 `TrafficMonitor.sys`），并因此要求管理员运行——那是 [ADR-0029](../adr/0029-drop-the-bundled-sensor-driver.md)
+第 2 款明确拒绝分发的东西，不是本产品可以照搬的部分。本机现存的两个同族驱动
+（联想 PCManager 的 `COOLit64.sys` 占着 `WinRing0_1_2_0` 服务名、MSI Afterburner 的 `RTCore64`）
+同样不在可利用范围内：调用别人装的提权驱动比自己分发一个更糟。
+
 上一轮已完成（天气三项优化）：
 
 - **入口改为图标 + 温度，去掉地区**：地区是用户自己设的，每分钟重复一遍只是在花掉入口宽度。
