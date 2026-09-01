@@ -196,6 +196,21 @@ public sealed class SystemMonitorFormatterTests
     }
 
     [TestMethod(DisplayName =
+        "UT-SYSMON-080 [MON-002] The clock's taskbar segment carries no CPU tag")]
+    public void ClockSegmentCarriesNoTag()
+    {
+        // The clock shares the chip glyph with the usage row and its unit already names it;
+        // a second "CPU" told the reader nothing and cost the width that pushed "GHz" into
+        // the ellipsis.
+        SystemMonitorSegmentDto segment = SystemMonitorFormatter.FormatSegment(
+            Sample(cpuClockMhz: 4392d),
+            SystemMonitorContract.CpuClock,
+            SystemMonitorDetail.Normal);
+
+        Assert.AreEqual("4.39 GHz", segment.Text);
+    }
+
+    [TestMethod(DisplayName =
         "UT-SYSMON-011 [MON-001] The clock is pending before a baseline, not unavailable")]
     public void MissingClockIsPendingBeforeABaseline()
     {

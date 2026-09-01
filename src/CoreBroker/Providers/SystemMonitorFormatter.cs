@@ -82,7 +82,10 @@ public static class SystemMonitorFormatter
     public static string ResolveShortTag(string metricId) => metricId switch
     {
         SystemMonitorContract.CpuUsage => "CPU",
-        SystemMonitorContract.CpuClock => "CPU",
+        // No tag: the clock shares the CPU chip glyph and its unit ("4.48 GHz") already says
+        // what it is. Two rows both saying "CPU" told the reader nothing and cost the width
+        // that pushed the unit into the ellipsis.
+        SystemMonitorContract.CpuClock => "",
         SystemMonitorContract.CpuTemperature => "CPU",
         SystemMonitorContract.MemoryUsage => "MEM",
         SystemMonitorContract.GpuUsage => "GPU",
