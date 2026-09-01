@@ -180,7 +180,8 @@ Broker 不可用或数据加载失败时，面板仍能启动并显示可理解�
   源在运行而这台机器确实没有该传感器时才显示「此电脑无法读取」；有没有源**逐项判断**
   （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)、
   [ADR-0034](adr/0034-core-temp-as-a-second-sensor-source.md)；
-  本产品仍不分发也不加载任何内核驱动，[ADR-0029](adr/0029-drop-the-bundled-sensor-driver.md)）；
+  本产品不分发、不加载、也不自行签发任何内核驱动，
+  [ADR-0029](adr/0029-drop-the-bundled-sensor-driver.md)）；
 - 任何读不到的项显示状态而非 0 或占位数字（[ADR-0028](adr/0028-system-monitor-scope-and-sensor-tiers.md)）；
 - 采样按需进行：卡片可见或任务栏入口正在索要读数时才采样，两者皆无时休眠。
 
