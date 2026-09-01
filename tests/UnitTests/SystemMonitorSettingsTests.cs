@@ -102,9 +102,9 @@ public sealed class SystemMonitorSettingsTests
 
         viewModel.CardOptions[0].IsSelected = true;
         viewModel.CardOptions[1].IsSelected = true;
-        SystemMonitorSettingsViewModel.MoveUp(
-            viewModel.CardOptions,
-            viewModel.CardOptions[1]);
+        // Reordering is a drag on the list, which moves items in the same observable
+        // collection the save reads.
+        viewModel.CardOptions.Move(1, 0);
 
         Assert.IsTrue(await viewModel.SaveAsync(CancellationToken.None));
         Assert.IsNotNull(client.LastSave);
@@ -182,7 +182,7 @@ public sealed class SystemMonitorSettingsTests
             option => option.MetricId == card.MetricId);
 
         Assert.AreNotEqual(card.IncludeAutomationId, entry.IncludeAutomationId);
-        Assert.AreNotEqual(card.MoveUpAutomationId, entry.MoveUpAutomationId);
+        Assert.AreNotEqual(card.DetailAutomationId, entry.DetailAutomationId);
         Assert.IsTrue(card.IncludeAutomationId.Contains("Card", StringComparison.Ordinal));
         Assert.IsTrue(entry.IncludeAutomationId.Contains("Entry", StringComparison.Ordinal));
     }

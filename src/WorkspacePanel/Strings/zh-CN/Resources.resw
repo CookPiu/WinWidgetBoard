@@ -817,12 +817,6 @@
   <data name="SysMonSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>硬件监控设置</value>
   </data>
-  <data name="SysMonMoveUpButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>上移</value>
-  </data>
-  <data name="SysMonMoveDownButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>下移</value>
-  </data>
   <data name="AddCardButtonToolTip" xml:space="preserve">
     <value>添加卡片</value>
   </data>

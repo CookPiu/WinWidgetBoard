@@ -302,38 +302,6 @@ public sealed class SystemMonitorSettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public static bool MoveUp(
-        ObservableCollection<SystemMonitorMetricOption> options,
-        SystemMonitorMetricOption option)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(option);
-        int index = options.IndexOf(option);
-        if (index <= 0)
-        {
-            return false;
-        }
-
-        options.Move(index, index - 1);
-        return true;
-    }
-
-    public static bool MoveDown(
-        ObservableCollection<SystemMonitorMetricOption> options,
-        SystemMonitorMetricOption option)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(option);
-        int index = options.IndexOf(option);
-        if (index < 0 || index >= options.Count - 1)
-        {
-            return false;
-        }
-
-        options.Move(index, index + 1);
-        return true;
-    }
-
     /// <summary>
     /// Checks what the broker would reject anyway, so the user sees the reason next to the
     /// control rather than as a failed save.

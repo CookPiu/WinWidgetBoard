@@ -111,10 +111,6 @@ public sealed class SystemMonitorMetricOption : INotifyPropertyChanged
 
     public string DetailAutomationId => $"SysMon{SurfaceTag}Detail_{MetricId}";
 
-    public string MoveUpAutomationId => $"SysMon{SurfaceTag}Up_{MetricId}";
-
-    public string MoveDownAutomationId => $"SysMon{SurfaceTag}Down_{MetricId}";
-
     public SystemMonitorItemDto ToItem() =>
         new() { MetricId = MetricId, Detail = Detail };
 

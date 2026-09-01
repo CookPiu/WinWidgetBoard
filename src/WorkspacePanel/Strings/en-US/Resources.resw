@@ -817,12 +817,6 @@
   <data name="SysMonSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Hardware monitor settings</value>
   </data>
-  <data name="SysMonMoveUpButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Move up</value>
-  </data>
-  <data name="SysMonMoveDownButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Move down</value>
-  </data>
   <data name="AddCardButtonToolTip" xml:space="preserve">
     <value>Add card</value>
   </data>

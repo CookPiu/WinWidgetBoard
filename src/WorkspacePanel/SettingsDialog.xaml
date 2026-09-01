@@ -48,29 +48,32 @@
                 Padding="0,2">
                 <!--
                     Every column is stated. A star column here measures against infinity and
-                    pushes the trailing reorder button past the list's right edge, which is
-                    the same clip that once hid the weather search button.
+                    arranges trailing content past the list's right edge, which is the same
+                    clip that once hid the weather search button.
 
-                    The budget is what is left of the section's 416 after the list's border
-                    and the ListViewItem's own padding - roughly 390 - so these four columns
-                    plus their gaps (376 in all) have to stay under it. The detail box is
-                    wide enough for "数值与进度条" without taking anything off the name
-                    column or clipping the move-down button off the row.
+                    Order is changed by dragging the row - the list reorders its own source -
+                    so the gripper is an affordance, not a control: it says "this row moves"
+                    without costing a pair of buttons per row.
                 -->
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="128" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="144" />
                     <ColumnDefinition Width="168" />
-                    <ColumnDefinition Width="28" />
-                    <ColumnDefinition Width="28" />
                 </Grid.ColumnDefinitions>
+                <FontIcon
+                    FontSize="10"
+                    Glyph="&#xE76F;"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                    automation:AutomationProperties.AccessibilityView="Raw" />
                 <CheckBox
+                    Grid.Column="1"
                     Content="{x:Bind DisplayName}"
                     IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
                     MinWidth="0"
                     automation:AutomationProperties.Name="{x:Bind DisplayName}"
                     automation:AutomationProperties.AutomationId="{x:Bind IncludeAutomationId}" />
                 <ComboBox
-                    Grid.Column="1"
+                    Grid.Column="2"
                     MinWidth="0"
                     FontSize="12"
                     ItemsSource="{x:Bind DetailOptions}"
@@ -78,24 +81,6 @@
                     SelectedIndex="{x:Bind DetailIndex, Mode=TwoWay}"
                     automation:AutomationProperties.Name="{x:Bind DisplayName}"
                     automation:AutomationProperties.AutomationId="{x:Bind DetailAutomationId}" />
-                <Button
-                    x:Uid="SysMonMoveUpButton"
-                    Grid.Column="2"
-                    Style="{StaticResource WwbCardIconButtonStyle}"
-                    Tag="{x:Bind MetricId}"
-                    Click="MoveUpButton_Click"
-                    automation:AutomationProperties.AutomationId="{x:Bind MoveUpAutomationId}">
-                    <FontIcon FontSize="12" Glyph="&#xE74A;" />
-                </Button>
-                <Button
-                    x:Uid="SysMonMoveDownButton"
-                    Grid.Column="3"
-                    Style="{StaticResource WwbCardIconButtonStyle}"
-                    Tag="{x:Bind MetricId}"
-                    Click="MoveDownButton_Click"
-                    automation:AutomationProperties.AutomationId="{x:Bind MoveDownAutomationId}">
-                    <FontIcon FontSize="12" Glyph="&#xE74B;" />
-                </Button>
             </Grid>
         </DataTemplate>
         <!-- One row shape for both place lists: a preset and a search hit are the same
@@ -431,29 +416,41 @@
                         Style="{StaticResource WwbCardCaptionStyle}"
                         TextWrapping="Wrap" />
 
-                    <TextBlock
-                        x:Uid="SysMonCardSectionHeader"
-                        Style="{StaticResource WwbCardTitleStyle}" />
                     <!--
+                        Collapsed by default: each list is eight rows, and two of them open
+                        put the network source and the save state two screens down. Rows are
+                        reordered by dragging - the ListView reorders the same observable
+                        collection the save reads - so the lists carry no per-row buttons.
+
                         The lists do not scroll themselves: the section's ScrollViewer is the
                         one scroll region. A nested MaxHeight used to cut a row in half and
                         stack a second scrollbar inside the first.
                     -->
-                    <ListView
-                        x:Name="SysMonCardList"
-                        Padding="4,2"
-                        Background="Transparent"
-                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{StaticResource WwbControlCornerRadius}"
-                        ScrollViewer.HorizontalScrollMode="Disabled"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollMode="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Hidden"
-                        SelectionMode="None"
-                        ItemsSource="{x:Bind SystemMonitorViewModel.CardOptions, Mode=OneWay}"
-                        ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
-                        automation:AutomationProperties.AutomationId="SysMonCardList" />
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        automation:AutomationProperties.AutomationId="SysMonCardExpander">
+                        <Expander.Header>
+                            <TextBlock
+                                x:Uid="SysMonCardSectionHeader"
+                                Style="{StaticResource WwbCardTitleStyle}" />
+                        </Expander.Header>
+                        <ListView
+                            x:Name="SysMonCardList"
+                            Padding="4,2"
+                            Background="Transparent"
+                            AllowDrop="True"
+                            CanDragItems="True"
+                            CanReorderItems="True"
+                            ScrollViewer.HorizontalScrollMode="Disabled"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                            SelectionMode="None"
+                            ItemsSource="{x:Bind SystemMonitorViewModel.CardOptions, Mode=OneWay}"
+                            ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
+                            automation:AutomationProperties.AutomationId="SysMonCardList" />
+                    </Expander>
 
                     <!--
                         The network source sits with the metric lists rather than in its own
@@ -474,24 +471,31 @@
                         SelectedIndex="{x:Bind SystemMonitorViewModel.SelectedNetworkIndex, Mode=TwoWay}"
                         automation:AutomationProperties.AutomationId="SysMonNetworkInterfaceBox" />
 
-                    <TextBlock
-                        x:Uid="SysMonEntrySectionHeader"
-                        Style="{StaticResource WwbCardTitleStyle}" />
-                    <ListView
-                        x:Name="SysMonEntryList"
-                        Padding="4,2"
-                        Background="Transparent"
-                        BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{StaticResource WwbControlCornerRadius}"
-                        ScrollViewer.HorizontalScrollMode="Disabled"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollMode="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Hidden"
-                        SelectionMode="None"
-                        ItemsSource="{x:Bind SystemMonitorViewModel.EntryOptions, Mode=OneWay}"
-                        ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
-                        automation:AutomationProperties.AutomationId="SysMonEntryList" />
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        automation:AutomationProperties.AutomationId="SysMonEntryExpander">
+                        <Expander.Header>
+                            <TextBlock
+                                x:Uid="SysMonEntrySectionHeader"
+                                Style="{StaticResource WwbCardTitleStyle}" />
+                        </Expander.Header>
+                        <ListView
+                            x:Name="SysMonEntryList"
+                            Padding="4,2"
+                            Background="Transparent"
+                            AllowDrop="True"
+                            CanDragItems="True"
+                            CanReorderItems="True"
+                            ScrollViewer.HorizontalScrollMode="Disabled"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                            SelectionMode="None"
+                            ItemsSource="{x:Bind SystemMonitorViewModel.EntryOptions, Mode=OneWay}"
+                            ItemTemplate="{StaticResource SysMonMetricOptionTemplate}"
+                            automation:AutomationProperties.AutomationId="SysMonEntryList" />
+                    </Expander>
 
                     <TextBlock
                         x:Name="SysMonSettingsValidationText"

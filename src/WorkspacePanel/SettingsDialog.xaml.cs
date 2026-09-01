@@ -204,51 +204,6 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
         }
     }
 
-    private void MoveUpButton_Click(object sender, RoutedEventArgs args)
-    {
-        if (TryResolve(sender, out var options, out SystemMonitorMetricOption? option) &&
-            options is not null &&
-            option is not null)
-        {
-            SystemMonitorSettingsViewModel.MoveUp(options, option);
-        }
-    }
-
-    private void MoveDownButton_Click(object sender, RoutedEventArgs args)
-    {
-        if (TryResolve(sender, out var options, out SystemMonitorMetricOption? option) &&
-            options is not null &&
-            option is not null)
-        {
-            SystemMonitorSettingsViewModel.MoveDown(options, option);
-        }
-    }
-
-    /// <summary>
-    /// Resolves the row from the button's DataContext rather than from its Tag alone: the two
-    /// lists hold options with the same metric IDs, and the surface on the row itself is the
-    /// only thing that says which list the button belongs to.
-    /// </summary>
-    private bool TryResolve(
-        object sender,
-        out System.Collections.ObjectModel.ObservableCollection<SystemMonitorMetricOption>?
-            options,
-        out SystemMonitorMetricOption? option)
-    {
-        options = null;
-        option = null;
-        if (sender is not FrameworkElement { DataContext: SystemMonitorMetricOption row })
-        {
-            return false;
-        }
-
-        option = row;
-        options = row.Surface == SystemMonitorSurface.Card
-            ? SystemMonitorViewModel.CardOptions
-            : SystemMonitorViewModel.EntryOptions;
-        return true;
-    }
-
     /// <summary>
     /// Releases the section transition's state. Closing the dialog does this on its own; the
     /// interface is here so a caller that never got to show it - the dialog is built before
