@@ -74,6 +74,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private readonly CardLayoutEditViewModel _cardEdit;
     private readonly CardLayoutSurfaceViewModel _cardSurface;
     private readonly SurfaceMotionCoordinator _surfaceMotion;
+    private readonly StatusLineController _statusLine;
     private readonly ScreenRect _launcherRect;
     private readonly bool _reducedMotion;
     private readonly bool _highContrast;
@@ -139,6 +140,10 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _surfaceMotion = new SurfaceMotionCoordinator(
             _reducedMotion,
             _highContrast);
+        _statusLine = new StatusLineController(
+            StatusText,
+            DispatcherQueue,
+            _reducedMotion);
         StartupTrace.Mark("ctor-settings-read");
         TryConfigureSystemBackdrop();
         StartupTrace.Mark("ctor-backdrop");
@@ -396,6 +401,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _motion.Dispose();
         _cardFoldVisuals.Dispose();
         _surfaceMotion.Dispose();
+        _statusLine.Dispose();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();
         _appWindow.Closing -= AppWindow_Closing;
@@ -417,6 +423,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _motion.Dispose();
         _cardFoldVisuals.Dispose();
         _surfaceMotion.Dispose();
+        _statusLine.Dispose();
         _cardSubscription?.OnWindowClosed();
         _cardSurface.SetPanelVisibility(false);
         _realizedCardRuntimes.Clear();

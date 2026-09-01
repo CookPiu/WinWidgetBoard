@@ -2170,7 +2170,6 @@
                                 Style="{StaticResource WwbStatusSurfaceStyle}">
                                 <TextBlock
                                     x:Name="StatusText"
-                                    x:Uid="StatusText"
                                     MaxLines="1"
                                     Style="{StaticResource WwbPanelContextStyle}"
                                     TextTrimming="CharacterEllipsis"
