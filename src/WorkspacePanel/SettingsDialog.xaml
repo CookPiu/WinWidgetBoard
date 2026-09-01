@@ -11,8 +11,7 @@
     BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
     CornerRadius="{StaticResource WwbPanelCornerRadius}"
     CloseButtonStyle="{StaticResource WwbDialogButtonStyle}"
-    DefaultButton="None"
-    MaxWidth="760">
+    DefaultButton="None">
     <controls:ContentDialog.TitleTemplate>
         <DataTemplate>
             <TextBlock
@@ -261,7 +260,7 @@
                         TextWrapping="Wrap" />
 
                     <!--
-                        Star plus Auto, not stated widths: the bounded 456 grid above makes
+                        Star plus Auto, not stated widths: the bounded 416 grid above makes
                         this measure finite, so the button can never be arranged past the
                         clip the way the fixed 220+116 pair was.
                     -->
