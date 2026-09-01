@@ -85,16 +85,18 @@ public sealed class TokenUsageCardProjectionTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-064 [USE-009] A trend bar never collapses to nothing")]
+        "UT-TOKUSE-064 [USE-009] An idle hour draws nothing; any usage draws at least a stub")]
     public void TrendBarsKeepAMinimumHeight()
     {
         TokenUsagePage page = Overview(Project(ReadyReport()));
 
         Assert.AreEqual(TokenUsageContract.TrendHours, page.Trend.Count);
-        // An hour with a little usage and an hour with none must not read the same.
+        // An idle hour is honest absence - stubs across every idle hour read as a dashed
+        // line - while an hour with any usage at all must never vanish.
+        Assert.AreEqual(0d, page.Trend[0].BarHeight, 0.0001d);
         Assert.AreEqual(
             TokenUsageTrendBar.MinimumBarHeight,
-            page.Trend[0].BarHeight,
+            page.Trend[1].BarHeight,
             0.0001d);
         Assert.AreEqual(TokenUsageTrendBar.TrackHeight, page.Trend[^1].BarHeight, 0.0001d);
     }
@@ -272,10 +274,12 @@ public sealed class TokenUsageCardProjectionTests
         for (int i = 0; i < buckets.Length; i++)
         {
             bool last = i == buckets.Length - 1;
+            // Bucket 1 carries a single token so the strip has all three cases: an idle
+            // hour, an hour with barely any usage, and the peak hour.
             buckets[i] = new TokenUsageHourBucket(
                 SampledAt.AddHours(i - (TokenUsageContract.TrendHours - 1)),
-                last ? 1_000 : 0,
-                Requests: last ? 1 : 0);
+                last ? 1_000 : i == 1 ? 1 : 0,
+                Requests: last ? 1 : i == 1 ? 1 : 0);
         }
 
         return buckets;

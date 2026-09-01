@@ -213,17 +213,14 @@ public static class TokenUsageFormatter
             return Empty(TokenUsageContract.TodayOutputTokens);
         }
 
+        // No ratio: the output count's share of billed tokens is a different kind of fact
+        // than the hit rate's 0..100%, and two meters with two meanings on one card read as
+        // one meaning. The hit rate keeps the card's only meter.
         return Ready(
             TokenUsageContract.TodayOutputTokens,
             FormatTokenCount(aggregate.TodayOutputTokens)) with
         {
             SecondaryText = FormatAmount(aggregate, aggregate.TodayOutputCostUsd),
-            Ratio = aggregate.TodayBilledTokens > 0
-                ? Math.Clamp(
-                    aggregate.TodayOutputTokens / (double)aggregate.TodayBilledTokens,
-                    0d,
-                    1d)
-                : null,
         };
     }
 

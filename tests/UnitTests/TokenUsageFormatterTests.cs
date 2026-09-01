@@ -96,6 +96,7 @@ public sealed class TokenUsageFormatterTests
         Assert.IsNull(Metric(payload, TokenUsageContract.TodayBilledTokens).Ratio);
         Assert.IsNull(Metric(payload, TokenUsageContract.TodayCacheReadTokens).Ratio);
         Assert.IsNull(Metric(payload, TokenUsageContract.TodayRequests).Ratio);
+        Assert.IsNull(Metric(payload, TokenUsageContract.TodayOutputTokens).Ratio);
         Assert.AreEqual(
             0.75d,
             Metric(payload, TokenUsageContract.CacheHitRate).Ratio!.Value,

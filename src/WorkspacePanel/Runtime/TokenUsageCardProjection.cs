@@ -119,18 +119,22 @@ public sealed record TokenUsageTrendBar
     public const double TrackHeight = 44d;
 
     /// <summary>
-    /// A bar is never fully invisible: an hour with a little usage and an hour with none read
-    /// the same at zero height, and the difference is the interesting part.
+    /// A bar with any usage at all is never fully invisible, but an hour with none draws
+    /// nothing: a row of minimum-height stubs across every idle hour read as a dashed line
+    /// through the strip, and the little-versus-none distinction the stub was meant to keep
+    /// is carried by absence just as well.
     /// </summary>
-    public const double MinimumBarHeight = 1d;
+    public const double MinimumBarHeight = 2d;
 
     public int Index { get; init; }
 
     public double Fraction { get; init; }
 
-    public double BarHeight => Math.Max(
-        MinimumBarHeight,
-        Math.Clamp(Fraction, 0d, 1d) * TrackHeight);
+    public double BarHeight => Fraction <= 0d
+        ? 0d
+        : Math.Max(
+            MinimumBarHeight,
+            Math.Clamp(Fraction, 0d, 1d) * TrackHeight);
 }
 
 /// <summary>One slice of a page: a vendor on the overview, a model on a vendor's page.</summary>
