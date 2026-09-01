@@ -1,5 +1,6 @@
 using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Client;
+using WinWidgetBoard.WorkspacePanel.Runtime;
 
 namespace WinWidgetBoard.WorkspacePanel.Layout;
 
@@ -48,6 +49,16 @@ public sealed class LayoutPersistenceCoordinator
             {
                 throw new InvalidDataException(
                     "The persisted layout contains an invalid card item.");
+            }
+
+            // Layouts written before the placeholders were retired still carry them. They
+            // are dropped on replay - not an error, just a card the board no longer shows -
+            // and the next layout save persists their absence.
+            if (BuiltInCardCatalog.DeferredInstanceIds.Contains(
+                    BuiltInCardCatalog.BaseInstanceId(item.InstanceId),
+                    StringComparer.Ordinal))
+            {
+                continue;
             }
 
             loadedItems.Add(new CardLayoutItem(

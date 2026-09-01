@@ -151,6 +151,35 @@ public sealed class CardsSubscriptionTests
         Assert.IsTrue(dispatcher.Unregister(runtime.InstanceId, runtime));
     }
 
+    [TestMethod(DisplayName = "UT-CARDS-007 [CRD-002] A base snapshot fans out to every duplicate instance")]
+    public async Task DispatcherFansBaseSnapshotOutToDuplicates()
+    {
+        using CardRuntimeInstance original = CreateRuntime("demo.dispatcher");
+        using CardRuntimeInstance duplicate = CreateRuntime("demo.dispatcher#2");
+        var dispatcher = new CardSnapshotDispatcher(
+            action => ValueTask.FromResult(action()));
+        Assert.IsTrue(dispatcher.Register(original));
+        Assert.IsTrue(dispatcher.Register(duplicate));
+
+        // The broker publishes for the base identity only; the duplicate receives the same
+        // snapshot re-stamped with its own instance ID, which the runtime insists on.
+        CardSnapshotDispatchResult result = await dispatcher.DispatchAsync(
+            CreateSnapshot("demo.dispatcher", 1),
+            CancellationToken.None);
+
+        Assert.AreEqual(CardSnapshotDispatchResult.Applied, result);
+        Assert.AreEqual(1, original.Snapshot.Sequence);
+        Assert.AreEqual(1, duplicate.Snapshot.Sequence);
+        Assert.AreEqual("demo.dispatcher#2", duplicate.Snapshot.InstanceId);
+
+        Assert.IsTrue(dispatcher.Unregister(duplicate.InstanceId, duplicate));
+        CardSnapshotDispatchResult second = await dispatcher.DispatchAsync(
+            CreateSnapshot("demo.dispatcher", 2),
+            CancellationToken.None);
+        Assert.AreEqual(CardSnapshotDispatchResult.Applied, second);
+        Assert.AreEqual(1, duplicate.Snapshot.Sequence);
+    }
+
     [TestMethod(DisplayName = "UT-CARDS-004 [CRD-001/CRD-003] WorkspacePanel coordinator registers runtimes and applies live snapshots")]
     public async Task WorkspacePanelCoordinatorAppliesLiveSnapshots()
     {

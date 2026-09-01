@@ -147,6 +147,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         StartupTrace.Mark("ctor-settings-read");
         TryConfigureSystemBackdrop();
         StartupTrace.Mark("ctor-backdrop");
+        // The shipped board: the four real capabilities at their definitions' default sizes.
+        // The deferred placeholders earn no slot - a card whose content is "not available
+        // yet" is noise, not a preview.
         _cardLayout = new CardLayoutViewModel(
             4,
             [
@@ -155,18 +158,12 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                     CardSize.L),
                 new CardLayoutItem(
                     BuiltInCardCatalog.WeatherInstanceId,
-                    CardSize.M),
-                new CardLayoutItem(
-                    BuiltInCardCatalog.TimerInstanceId,
-                    CardSize.M),
-                new CardLayoutItem(
-                    BuiltInCardCatalog.TodoInstanceId,
-                    CardSize.M),
-                new CardLayoutItem(
-                    BuiltInCardCatalog.CalendarInstanceId,
-                    CardSize.M),
+                    CardSize.L),
                 new CardLayoutItem(
                     BuiltInCardCatalog.SystemMonitorInstanceId,
+                    CardSize.L),
+                new CardLayoutItem(
+                    BuiltInCardCatalog.TokenUsageInstanceId,
                     CardSize.L),
             ]);
         _cardEdit = new CardLayoutEditViewModel(_cardLayout);

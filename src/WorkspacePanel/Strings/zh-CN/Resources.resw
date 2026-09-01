@@ -827,7 +827,7 @@
     <value>取消</value>
   </data>
   <data name="AddCardDescription.Text" xml:space="preserve">
-    <value>当前不在面板上的卡片。添加后放在布局末尾，完成编辑时一并保存。</value>
+    <value>选择要添加的卡片；已在面板上的类型会作为新的一张再次添加。新卡片放在布局末尾，完成编辑时一并保存。</value>
   </data>
   <data name="AddCardConfirmButton.Content" xml:space="preserve">
     <value>添加</value>

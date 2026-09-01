@@ -827,7 +827,7 @@
     <value>Cancel</value>
   </data>
   <data name="AddCardDescription.Text" xml:space="preserve">
-    <value>Cards that are not on the board right now. Added cards go to the end of the layout and are saved when you finish editing.</value>
+    <value>Pick cards to add; a type already on the board is added as another instance. New cards land at the end of the layout and save when editing finishes.</value>
   </data>
   <data name="AddCardConfirmButton.Content" xml:space="preserve">
     <value>Add</value>

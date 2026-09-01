@@ -7,8 +7,8 @@ using WinWidgetBoard.WorkspacePanel.Runtime;
 namespace WinWidgetBoard.WorkspacePanel.Settings;
 
 /// <summary>
-/// One card the board does not currently show. Built-in instances are singletons, so an
-/// option exists only while its card is off the board and disappears once it is added.
+/// One card the picker offers. Every built-in card is always offered - a type that is
+/// already on the board is added again as a new instance with its own identity.
 /// </summary>
 public sealed class AddCardOption : INotifyPropertyChanged
 {
@@ -59,9 +59,11 @@ public sealed class AddCardOption : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Backs the add-card picker. It offers the built-in cards that are not on the board right
-/// now; adding one is a layout edit like any other, so the dialog only reports the choice and
-/// the caller applies it through <see cref="CardLayoutEditViewModel"/> where undo can see it.
+/// Backs the add-card picker. It offers every built-in card; a type already on the board is
+/// offered again as a fresh instance ("demo.weather#2"), so a board can carry two weather
+/// cards for two places worth watching. Adding is a layout edit like any other, so the dialog
+/// only reports the choice and the caller applies it through
+/// <see cref="CardLayoutEditViewModel"/> where undo can see it.
 ///
 /// WinUI-free on purpose - see the unit-test project's linked sources.
 /// </summary>
@@ -76,18 +78,19 @@ public sealed class AddCardViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(placedInstanceIds);
         Func<string, string?> resolve = resourceResolver ?? (static key => key);
-        HashSet<string> placed = placedInstanceIds.ToHashSet(StringComparer.Ordinal);
+        HashSet<string> taken = placedInstanceIds.ToHashSet(StringComparer.Ordinal);
 
         foreach (BuiltInCardInstance candidate in BuiltInCardCatalog.Addable)
         {
-            if (placed.Contains(candidate.InstanceId))
-            {
-                continue;
-            }
-
+            // Each option claims the ID it would add up front, so several selections in one
+            // pass cannot collide with each other or with what the board already holds.
+            string instanceId = BuiltInCardCatalog.CreateInstanceId(
+                candidate.InstanceId,
+                taken);
+            taken.Add(instanceId);
             string? title = resolve(candidate.Definition.TitleResourceKey);
             AddCardOption option = new(
-                candidate.InstanceId,
+                instanceId,
                 string.IsNullOrWhiteSpace(title)
                     ? candidate.Definition.CardTypeId
                     : title,

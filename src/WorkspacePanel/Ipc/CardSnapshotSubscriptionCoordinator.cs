@@ -130,12 +130,18 @@ public sealed class CardSnapshotSubscriptionCoordinator : IAsyncDisposable
             CardRuntimeInstance[] runtimeArray = runtimes.ToArray();
             SynchronizeRuntimes(runtimeArray);
 
+            // The broker knows base instance IDs only - its providers publish for
+            // "demo.weather", never for a duplicate's "#n" - so the wire carries base IDs
+            // and the dispatcher fans each snapshot out to every duplicate. A duplicate
+            // being visible therefore keeps its base's provider refreshing.
             string[] instanceIds = runtimeArray
-                .Select(runtime => runtime.InstanceId)
+                .Select(runtime => BuiltInCardCatalog.BaseInstanceId(runtime.InstanceId))
+                .Distinct(StringComparer.Ordinal)
                 .ToArray();
             HashSet<string> instanceIdSet = instanceIds
                 .ToHashSet(StringComparer.Ordinal);
             string[] visibleIds = visibleInstanceIds
+                .Select(BuiltInCardCatalog.BaseInstanceId)
                 .Where(instanceId => instanceIdSet.Contains(instanceId))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();

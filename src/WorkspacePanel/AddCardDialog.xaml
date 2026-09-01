@@ -11,7 +11,7 @@
     BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
     CornerRadius="{StaticResource WwbPanelCornerRadius}"
     CloseButtonStyle="{StaticResource WwbDialogCloseButtonStyle}"
-    DefaultButton="Close">
+    DefaultButton="None">
     <!--
         Same sheet as the settings dialog: the panel's material, corner and title scale. Two
         overlays in one panel must not read as two different products.

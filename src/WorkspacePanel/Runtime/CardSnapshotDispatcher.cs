@@ -6,11 +6,15 @@ namespace WinWidgetBoard.WorkspacePanel.Runtime;
 /// Marshals CoreBroker card snapshots onto the WorkspacePanel runtime's UI
 /// dispatcher. The dispatcher delegate is injected so this layer remains
 /// testable and does not reference WinUI DispatcherQueue directly.
+///
+/// Runtimes are keyed by their BASE instance ID: the broker publishes for
+/// "demo.weather" only, and every duplicate ("demo.weather#2") is fed the same
+/// snapshot with its own instance identity stamped back on.
 /// </summary>
 public sealed class CardSnapshotDispatcher
 {
     private readonly object _gate = new();
-    private readonly Dictionary<string, CardRuntimeInstance> _runtimes =
+    private readonly Dictionary<string, List<CardRuntimeInstance>> _runtimes =
         new(StringComparer.Ordinal);
     private readonly Func<
         Func<CardSnapshotDispatchResult>,
@@ -25,9 +29,26 @@ public sealed class CardSnapshotDispatcher
     public bool Register(CardRuntimeInstance runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
+        string baseId = BuiltInCardCatalog.BaseInstanceId(runtime.InstanceId);
         lock (_gate)
         {
-            return _runtimes.TryAdd(runtime.InstanceId, runtime);
+            if (!_runtimes.TryGetValue(baseId, out List<CardRuntimeInstance>? registered))
+            {
+                registered = [];
+                _runtimes[baseId] = registered;
+            }
+
+            if (registered.Any(existing =>
+                    string.Equals(
+                        existing.InstanceId,
+                        runtime.InstanceId,
+                        StringComparison.Ordinal)))
+            {
+                return false;
+            }
+
+            registered.Add(runtime);
+            return true;
         }
     }
 
@@ -35,11 +56,28 @@ public sealed class CardSnapshotDispatcher
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
         ArgumentNullException.ThrowIfNull(runtime);
+        string baseId = BuiltInCardCatalog.BaseInstanceId(instanceId);
         lock (_gate)
         {
-            return _runtimes.TryGetValue(instanceId, out CardRuntimeInstance? current) &&
-                ReferenceEquals(current, runtime) &&
-                _runtimes.Remove(instanceId);
+            if (!_runtimes.TryGetValue(baseId, out List<CardRuntimeInstance>? registered))
+            {
+                return false;
+            }
+
+            int index = registered.FindIndex(existing =>
+                ReferenceEquals(existing, runtime));
+            if (index < 0)
+            {
+                return false;
+            }
+
+            registered.RemoveAt(index);
+            if (registered.Count == 0)
+            {
+                _runtimes.Remove(baseId);
+            }
+
+            return true;
         }
     }
 
@@ -59,51 +97,65 @@ public sealed class CardSnapshotDispatcher
             return CardSnapshotDispatchResult.InvalidSnapshot;
         }
 
-        CardRuntimeInstance? runtime;
+        CardRuntimeInstance[] runtimes;
         lock (_gate)
         {
-            if (!_runtimes.TryGetValue(snapshot.InstanceId, out runtime))
+            if (!_runtimes.TryGetValue(
+                    BuiltInCardCatalog.BaseInstanceId(snapshot.InstanceId),
+                    out List<CardRuntimeInstance>? registered) ||
+                registered.Count == 0)
             {
                 return CardSnapshotDispatchResult.UnknownInstance;
             }
+
+            runtimes = [.. registered];
         }
 
-        if (!string.Equals(
-                runtime.Definition.CardTypeId,
+        CardSnapshotDispatchResult worst = CardSnapshotDispatchResult.IgnoredOlder;
+        bool applied = false;
+        foreach (CardRuntimeInstance runtime in runtimes)
+        {
+            if (!string.Equals(
+                    runtime.Definition.CardTypeId,
+                    snapshot.CardTypeId,
+                    StringComparison.Ordinal))
+            {
+                worst = CardSnapshotDispatchResult.CardTypeMismatch;
+                continue;
+            }
+
+            if (runtime.Snapshot.SchemaVersion != snapshot.SchemaVersion)
+            {
+                worst = CardSnapshotDispatchResult.SchemaMismatch;
+                continue;
+            }
+
+            // Duplicates receive the broker's snapshot with their own identity stamped
+            // back on: the runtime validates that a snapshot names the instance it lands on.
+            CardRuntimeSnapshot runtimeSnapshot = new(
+                runtime.InstanceId,
                 snapshot.CardTypeId,
-                StringComparison.Ordinal))
-        {
-            return CardSnapshotDispatchResult.CardTypeMismatch;
+                snapshot.SchemaVersion,
+                snapshot.Sequence,
+                snapshot.GeneratedAtUtc,
+                MapFreshness(snapshot.Freshness),
+                MapStatus(snapshot.Status),
+                snapshot.Payload,
+                snapshot.AllowedActions,
+                snapshot.DiagnosticCode);
+            try
+            {
+                // Broker sequences are compared only against other broker sequences; see
+                // CardRuntimeInstance.ApplyRemoteSnapshot.
+                applied |= runtime.ApplyRemoteSnapshot(runtimeSnapshot);
+            }
+            catch (ObjectDisposedException)
+            {
+                worst = CardSnapshotDispatchResult.Disposed;
+            }
         }
 
-        if (runtime.Snapshot.SchemaVersion != snapshot.SchemaVersion)
-        {
-            return CardSnapshotDispatchResult.SchemaMismatch;
-        }
-
-        CardRuntimeSnapshot runtimeSnapshot = new(
-            snapshot.InstanceId,
-            snapshot.CardTypeId,
-            snapshot.SchemaVersion,
-            snapshot.Sequence,
-            snapshot.GeneratedAtUtc,
-            MapFreshness(snapshot.Freshness),
-            MapStatus(snapshot.Status),
-            snapshot.Payload,
-            snapshot.AllowedActions,
-            snapshot.DiagnosticCode);
-        try
-        {
-            // Broker sequences are compared only against other broker sequences; see
-            // CardRuntimeInstance.ApplyRemoteSnapshot.
-            return runtime.ApplyRemoteSnapshot(runtimeSnapshot)
-                ? CardSnapshotDispatchResult.Applied
-                : CardSnapshotDispatchResult.IgnoredOlder;
-        }
-        catch (ObjectDisposedException)
-        {
-            return CardSnapshotDispatchResult.Disposed;
-        }
+        return applied ? CardSnapshotDispatchResult.Applied : worst;
     }
 
     private static bool IsValidSnapshot(CardStateSnapshot snapshot) =>

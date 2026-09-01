@@ -75,6 +75,54 @@ public sealed class LayoutPersistenceCoordinatorTests
         Assert.AreEqual(5, coordinator.CreateSaveRequest().ExpectedRevision);
     }
 
+    [TestMethod(DisplayName = "UT-LAYOUT-043 [LYT-007] retired placeholder cards are dropped on replay")]
+    public async Task RetiredPlaceholdersAreDroppedOnReplay()
+    {
+        // A layout written before the placeholders were retired still carries them; replay
+        // drops them silently, and the next save persists their absence.
+        var client = new FakeLayoutClient
+        {
+            Persisted = new LayoutDto
+            {
+                Revision = 3,
+                Items =
+                [
+                    new LayoutItemDto
+                    {
+                        InstanceId = "demo.notes",
+                        Order = 0,
+                        SizeId = "l",
+                    },
+                    new LayoutItemDto
+                    {
+                        InstanceId = "demo.timer",
+                        Order = 1,
+                        SizeId = "m",
+                        ColumnSpan = 2,
+                        RowSpan = 1,
+                    },
+                    new LayoutItemDto
+                    {
+                        InstanceId = "demo.calendar",
+                        Order = 2,
+                        SizeId = "m",
+                        ColumnSpan = 2,
+                        RowSpan = 1,
+                    },
+                ],
+            },
+        };
+        var coordinator = new LayoutPersistenceCoordinator(
+            client,
+            CreateLayout());
+
+        LayoutLoadResult? result = await coordinator.LoadAsync(CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.Items.Count);
+        Assert.AreEqual("demo.notes", result.Items[0].InstanceId);
+    }
+
     [TestMethod(DisplayName = "UT-LAYOUT-042 [LYT-007] invalid persisted size is rejected")]
     public async Task InvalidPersistedSizeIsRejected()
     {

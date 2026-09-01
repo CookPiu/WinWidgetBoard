@@ -110,20 +110,32 @@ public static class BuiltInCardCatalog
         ]);
 
     /// <summary>
-    /// The instances the panel can put back on the board, in the order the picker offers
-    /// them - the same order the panel ships with. Unknown is excluded: it is the fallback a
-    /// stored layout resolves to when its card type is gone, not something to add on purpose.
+    /// The instances the panel can put on the board, in the order the picker offers them.
+    /// Unknown is excluded: it is the fallback a stored layout resolves to when its card type
+    /// is gone, not something to add on purpose. The deferred placeholders (timer, todo,
+    /// calendar) are excluded too - a card whose whole content is "not available yet" earns
+    /// no place on a board or in a picker.
     /// </summary>
     public static IReadOnlyList<BuiltInCardInstance> Addable { get; } =
         Array.AsReadOnly<BuiltInCardInstance>(
         [
             new BuiltInCardInstance(NotesInstanceId, Notes),
             new BuiltInCardInstance(WeatherInstanceId, Weather),
-            new BuiltInCardInstance(TimerInstanceId, Timer),
-            new BuiltInCardInstance(TodoInstanceId, Todo),
-            new BuiltInCardInstance(CalendarInstanceId, Calendar),
             new BuiltInCardInstance(SystemMonitorInstanceId, SystemMonitor),
             new BuiltInCardInstance(TokenUsageInstanceId, TokenUsage),
+        ]);
+
+    /// <summary>
+    /// Instance IDs a stored layout may still carry but the board no longer shows: the
+    /// deferred placeholder cards. They are dropped when a persisted layout is replayed, and
+    /// the next layout save persists their absence.
+    /// </summary>
+    public static IReadOnlyList<string> DeferredInstanceIds { get; } =
+        Array.AsReadOnly<string>(
+        [
+            TimerInstanceId,
+            TodoInstanceId,
+            CalendarInstanceId,
         ]);
 
     /// <summary>
@@ -140,7 +152,7 @@ public static class BuiltInCardCatalog
         CardRuntimeContractGuards.RequireIdentifier(
             instanceId,
             nameof(instanceId));
-        return instanceId switch
+        return BaseInstanceId(instanceId) switch
         {
             NotesInstanceId => Notes,
             WeatherInstanceId => Weather,
@@ -151,6 +163,52 @@ public static class BuiltInCardCatalog
             TokenUsageInstanceId => TokenUsage,
             _ => Unknown,
         };
+    }
+
+    /// <summary>
+    /// Separates a duplicate instance from the identity it copies: "demo.weather#2" is a
+    /// second weather card. The base ID is the one the broker knows - its providers publish
+    /// snapshots for the base only, and the panel fans them out to every duplicate.
+    /// </summary>
+    public const char DuplicateSeparator = '#';
+
+    public static string BaseInstanceId(string instanceId)
+    {
+        CardRuntimeContractGuards.RequireIdentifier(
+            instanceId,
+            nameof(instanceId));
+        int separator = instanceId.IndexOf(DuplicateSeparator);
+        return separator < 0 ? instanceId : instanceId[..separator];
+    }
+
+    /// <summary>
+    /// The ID a newly added card gets: the base itself while it is free, then the lowest
+    /// free "#n". Every instance on a board stays unique - layout records, subscriptions and
+    /// fold-motion channels are all keyed by it.
+    /// </summary>
+    public static string CreateInstanceId(
+        string baseInstanceId,
+        IReadOnlyCollection<string> takenInstanceIds)
+    {
+        CardRuntimeContractGuards.RequireIdentifier(
+            baseInstanceId,
+            nameof(baseInstanceId));
+        ArgumentNullException.ThrowIfNull(takenInstanceIds);
+        var taken = new HashSet<string>(takenInstanceIds, StringComparer.Ordinal);
+        if (!taken.Contains(baseInstanceId))
+        {
+            return baseInstanceId;
+        }
+
+        for (int suffix = 2; ; suffix++)
+        {
+            string candidate = baseInstanceId + DuplicateSeparator +
+                suffix.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!taken.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 }
 
