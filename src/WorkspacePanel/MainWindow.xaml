@@ -1176,18 +1176,14 @@
                                     secondary readings: it is the one number pair that changes
                                     what the reader does next, and it stays on the smallest
                                     card, where felt temperature, humidity and wind do not.
-                                    High and low are separate runs so a screen reader says
-                                    which is which instead of reading two numbers in a row.
+                                    The two values read high/low at every size; a slash keeps
+                                    them from running together without spending width on
+                                    labels.
                                 -->
                                 <StackPanel
                                     Orientation="Horizontal"
                                     Spacing="{StaticResource WwbSpace1}"
                                     Visibility="{x:Bind HasWeatherHighLow, Mode=OneWay}">
-                                    <TextBlock
-                                        x:Uid="WeatherHighLabel"
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        Visibility="{x:Bind IsWeatherHighLowLabelVisible, Mode=OneWay}"
-                                        VerticalAlignment="Center" />
                                     <TextBlock
                                         automation:AutomationProperties.AutomationId="WeatherHighTemperatureText"
                                         Margin="0,0,4,0"
@@ -1195,20 +1191,10 @@
                                         Text="{x:Bind WeatherHighTemperatureText, Mode=OneWay}"
                                         TextTrimming="CharacterEllipsis"
                                         VerticalAlignment="Center" />
-                                    <!--
-                                        Stands in for the two labels on a one-cell card, which
-                                        is not wide enough to name them.
-                                    -->
                                     <TextBlock
                                         Margin="0,0,4,0"
                                         Style="{StaticResource WwbCardCaptionStyle}"
                                         Text="/"
-                                        Visibility="{x:Bind IsWeatherHighLowSeparatorVisible, Mode=OneWay}"
-                                        VerticalAlignment="Center" />
-                                    <TextBlock
-                                        x:Uid="WeatherLowLabel"
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        Visibility="{x:Bind IsWeatherHighLowLabelVisible, Mode=OneWay}"
                                         VerticalAlignment="Center" />
                                     <TextBlock
                                         automation:AutomationProperties.AutomationId="WeatherLowTemperatureText"
@@ -1343,13 +1329,18 @@
                             Text="{x:Bind WeatherObservedAtText, Mode=OneWay}"
                             TextTrimming="CharacterEllipsis"
                             VerticalAlignment="Center" />
+                        <!--
+                            The attribution is stated in the panel's language; the provider's
+                            English phrase would make this the one mixed-language line on the
+                            card. The brand name and the link are what the licence needs.
+                        -->
                         <HyperlinkButton
+                            x:Uid="WeatherAttributionLink"
                             HorizontalAlignment="Left"
                             MinHeight="16"
                             Padding="0"
                             FontSize="11"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Content="{x:Bind WeatherAttributionText, Mode=OneWay}"
                             NavigateUri="https://open-meteo.com/"
                             VerticalAlignment="Center" />
                     </StackPanel>

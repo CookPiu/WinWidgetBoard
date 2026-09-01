@@ -51,22 +51,18 @@ public sealed class WeatherCardDisclosureTests
         ApplyPayload(item);
 
         // One cell: the place, the number, the sky and today's range - about 80 DIP of the 98
-        // a one-row card has. The named readings cost 34 more and do not fit.
+        // a one-row card has. The named readings cost 34 more and do not fit. The range is two
+        // slash-separated values at every size, so it discloses nothing further.
         Assert.IsTrue(item.HasWeatherHighLow);
         Assert.IsFalse(item.HasWeatherSecondary);
         Assert.IsFalse(item.HasWeatherHours);
         Assert.IsFalse(item.HasWeatherDays);
         Assert.IsFalse(item.HasWeatherFooter);
-        // Too narrow to name the two ends; the values carry a slash between them instead.
-        Assert.IsFalse(item.IsWeatherHighLowLabelVisible);
-        Assert.IsTrue(item.IsWeatherHighLowSeparatorVisible);
 
         // Two cells across, one down. Still one row of height, so the named readings still do
-        // not fit - the width only buys room to name the range.
+        // not fit.
         item.UpdatePlacement(Place(CardSize.M));
         Assert.IsFalse(item.HasWeatherSecondary);
-        Assert.IsTrue(item.IsWeatherHighLowLabelVisible);
-        Assert.IsFalse(item.IsWeatherHighLowSeparatorVisible);
         Assert.IsFalse(item.HasWeatherHours);
         Assert.IsFalse(item.HasWeatherDays);
 

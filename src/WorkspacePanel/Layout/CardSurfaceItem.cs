@@ -178,8 +178,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public string WeatherObservedAtText => WeatherProjection.ObservedAtText;
 
-    public string WeatherAttributionText => WeatherProjection.AttributionText;
-
     public bool HasWeatherData => WeatherProjection.HasData;
 
     public IReadOnlyList<WeatherHourProjection> WeatherHours => WeatherProjection.Hours;
@@ -215,18 +213,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// </summary>
     public bool HasWeatherSecondary =>
         HasWeatherData && Placement.Size is CardSize.L or CardSize.XL;
-
-    /// <summary>
-    /// Whether today's range names its two ends. One cell is about 170 DIP wide and
-    /// "最高 28.9 °C  最低 16.6 °C" does not fit across it; the two values alone, separated by
-    /// a slash, do. The labels come back as soon as the card is two cells wide.
-    /// </summary>
-    public bool IsWeatherHighLowLabelVisible =>
-        HasWeatherHighLow && Placement.Size is not CardSize.S;
-
-    /// <summary>The separator that stands in for the labels on the narrowest card.</summary>
-    public bool IsWeatherHighLowSeparatorVisible =>
-        HasWeatherHighLow && Placement.Size is CardSize.S;
 
     /// <summary>
     /// When the observation time and the attribution have a line to sit on. Both are context
@@ -511,12 +497,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 new PropertyChangedEventArgs(nameof(HasWeatherSecondary)));
             PropertyChanged?.Invoke(
                 this,
-                new PropertyChangedEventArgs(nameof(IsWeatherHighLowLabelVisible)));
-            PropertyChanged?.Invoke(
-                this,
-                new PropertyChangedEventArgs(nameof(IsWeatherHighLowSeparatorVisible)));
-            PropertyChanged?.Invoke(
-                this,
                 new PropertyChangedEventArgs(nameof(HasWeatherFooter)));
             PropertyChanged?.Invoke(
                 this,
@@ -723,9 +703,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherObservedAtText)));
-            PropertyChanged?.Invoke(
-                this,
-                new PropertyChangedEventArgs(nameof(WeatherAttributionText)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherData)));
