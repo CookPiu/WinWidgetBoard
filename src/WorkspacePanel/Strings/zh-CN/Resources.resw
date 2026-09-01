@@ -757,8 +757,8 @@
   <data name="SysMonStatus.Unavailable" xml:space="preserve">
     <value>此电脑无法读取</value>
   </data>
-  <data name="SysMonStatus.NeedsSensorSource" xml:space="preserve">
-    <value>需 HWiNFO/Core Temp</value>
+  <data name="SysMonSensorSourceHint.Text" xml:space="preserve">
+    <value>温度与风扇转速需要 HWiNFO 或 Core Temp 在后台运行；没有来源时，这些行不会出现在卡片和任务栏上。</value>
   </data>
   <data name="SysMonDetail.Compact" xml:space="preserve">
     <value>仅数值</value>
@@ -876,6 +876,9 @@
   </data>
   <data name="GeneralAutostartToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>开机自启</value>
+  </data>
+  <data name="GeneralVersionLabel" xml:space="preserve">
+    <value>版本 {0}</value>
   </data>
   <data name="GeneralHotkeyHint.Text" xml:space="preserve">
     <value>快捷键：默认 Ctrl + Alt + B 打开或关闭面板；在任务栏入口上点右键可以更换或关闭。</value>

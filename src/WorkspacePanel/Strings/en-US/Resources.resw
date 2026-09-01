@@ -757,8 +757,8 @@
   <data name="SysMonStatus.Unavailable" xml:space="preserve">
     <value>Not available on this PC</value>
   </data>
-  <data name="SysMonStatus.NeedsSensorSource" xml:space="preserve">
-    <value>Needs HWiNFO/Core Temp</value>
+  <data name="SysMonSensorSourceHint.Text" xml:space="preserve">
+    <value>Temperature and fan speed need HWiNFO or Core Temp running in the background; without a source those rows stay off the card and the taskbar.</value>
   </data>
   <data name="SysMonDetail.Compact" xml:space="preserve">
     <value>Value only</value>
@@ -876,6 +876,9 @@
   </data>
   <data name="GeneralAutostartToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Start with Windows</value>
+  </data>
+  <data name="GeneralVersionLabel" xml:space="preserve">
+    <value>Version {0}</value>
   </data>
   <data name="GeneralHotkeyHint.Text" xml:space="preserve">
     <value>Shortcut: Ctrl + Alt + B opens and closes the panel. Right-click the taskbar entry to change it or switch it off.</value>

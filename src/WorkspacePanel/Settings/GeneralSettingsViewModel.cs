@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace WinWidgetBoard.WorkspacePanel.Settings;
@@ -33,7 +34,16 @@ public sealed class GeneralSettingsViewModel : INotifyPropertyChanged
         {
             _statusText = Resolve("GeneralAutostartUnavailableStatus");
         }
+
+        VersionText = string.Format(
+            CultureInfo.CurrentCulture,
+            Resolve("GeneralVersionLabel"),
+            typeof(GeneralSettingsViewModel).Assembly.GetName().Version?.ToString(3) ??
+                "0.0.0");
     }
+
+    /// <summary>The running build, stated where a user reporting a bug will look for it.</summary>
+    public string VersionText { get; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

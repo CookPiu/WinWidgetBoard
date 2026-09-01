@@ -10,7 +10,7 @@
     BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
     BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
     CornerRadius="{StaticResource WwbPanelCornerRadius}"
-    CloseButtonStyle="{StaticResource WwbDialogButtonStyle}"
+    CloseButtonStyle="{StaticResource WwbDialogCloseButtonStyle}"
     DefaultButton="Close">
     <!--
         Same sheet as the settings dialog: the panel's material, corner and title scale. Two

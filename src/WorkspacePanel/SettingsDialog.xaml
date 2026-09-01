@@ -10,7 +10,7 @@
     BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
     BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
     CornerRadius="{StaticResource WwbPanelCornerRadius}"
-    CloseButtonStyle="{StaticResource WwbDialogButtonStyle}"
+    CloseButtonStyle="{StaticResource WwbDialogCloseButtonStyle}"
     DefaultButton="None">
     <controls:ContentDialog.TitleTemplate>
         <DataTemplate>
@@ -174,7 +174,6 @@
             Grid.Column="1"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
-            Padding="{StaticResource WwbCompactCardPadding}"
             Style="{StaticResource WwbCardSurfaceStyle}">
         <Grid RowSpacing="{StaticResource WwbSpace3}">
             <Grid.RowDefinitions>
@@ -249,6 +248,10 @@
                         x:Uid="GeneralHotkeyHint"
                         Style="{StaticResource WwbCardCaptionStyle}"
                         TextWrapping="Wrap" />
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind GeneralViewModel.VersionText}"
+                        automation:AutomationProperties.AutomationId="GeneralVersionText" />
                 </StackPanel>
 
                 <StackPanel
@@ -415,6 +418,16 @@
                     Visibility="Collapsed">
                     <TextBlock
                         x:Uid="SysMonSettingsDescription"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        TextWrapping="Wrap" />
+                    <!--
+                        Temperature and fan readings come from an optional sensor source; the
+                        card silently omits those rows when no source is running, so the one
+                        place that explains the requirement is here, next to the lists that
+                        let the user enable them.
+                    -->
+                    <TextBlock
+                        x:Uid="SysMonSensorSourceHint"
                         Style="{StaticResource WwbCardCaptionStyle}"
                         TextWrapping="Wrap" />
 
