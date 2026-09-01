@@ -1846,11 +1846,18 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private string FormatNoteStatus(NoteEditorStatus status)
     {
+        // Ready is the steady state, and a steady state carries no status line: the hint it
+        // used to print sat on the card permanently, which the visual spec's status rules
+        // (loading, stale, offline, error, empty only) exist to prevent.
+        if (status is NoteEditorStatus.Ready)
+        {
+            return string.Empty;
+        }
+
         string resourceKey = status switch
         {
             NoteEditorStatus.Unavailable => "NoteEditorUnavailableStatus",
             NoteEditorStatus.Loading => "NoteEditorLoadingStatus",
-            NoteEditorStatus.Ready => "NoteEditorReadyStatus",
             NoteEditorStatus.PendingSave => "NoteEditorPendingSaveStatus",
             NoteEditorStatus.Saving => "NoteEditorSavingStatus",
             NoteEditorStatus.Saved => "NoteEditorSavedStatus",
