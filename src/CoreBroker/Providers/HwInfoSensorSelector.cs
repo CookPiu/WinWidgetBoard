@@ -30,16 +30,6 @@ internal readonly record struct HwInfoSensorSelection(
 internal static class HwInfoSensorSelector
 {
     /// <summary>
-    /// Outside this a "temperature" is not one: HWiNFO reports the same type for a few derived
-    /// values, and a sensor that has lost its source reads as a large negative number.
-    /// </summary>
-    private const double MinTemperatureCelsius = -40d;
-
-    private const double MaxTemperatureCelsius = 150d;
-
-    private const double MaxFanRpm = 30_000d;
-
-    /// <summary>
     /// Temperature-typed readings that are not a temperature of anything: they are headroom or
     /// limits, measured in degrees, and one of them sitting at 38 would read as a very cool CPU.
     /// </summary>
@@ -112,13 +102,16 @@ internal static class HwInfoSensorSelector
         return new HwInfoSensorSelection(cpu, gpu, fan);
     }
 
+    /// <summary>
+    /// Outside these a "temperature" is not one: HWiNFO reports the same type for a few derived
+    /// values, and a sensor that has lost its source reads as a large negative number. Shared
+    /// with the other sensor sources - see <see cref="SensorReadingBounds"/>.
+    /// </summary>
     public static bool IsPlausibleTemperature(double value) =>
-        double.IsFinite(value) &&
-        value > MinTemperatureCelsius &&
-        value <= MaxTemperatureCelsius;
+        SensorReadingBounds.IsPlausibleTemperature(value);
 
     public static bool IsPlausibleFanRpm(double value) =>
-        double.IsFinite(value) && value >= 0d && value <= MaxFanRpm;
+        SensorReadingBounds.IsPlausibleFanRpm(value);
 
     private static void Consider(int rank, int elementIndex, ref int chosen, ref int chosenRank)
     {

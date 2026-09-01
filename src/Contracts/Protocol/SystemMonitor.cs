@@ -196,11 +196,12 @@ public static class SystemMonitorMetricStatus
     public const string Unavailable = "unavailable";
 
     /// <summary>
-    /// The reading needs the optional sensor source and that source is not running. Temperature
-    /// and fan have no user-mode API of their own (ADR-0029) and are read from HWiNFO's shared
-    /// memory; without it there is nothing to read, but the fix is on the user's side rather
-    /// than a property of the machine, so the surfaces say so instead of "not available on this
-    /// PC".
+    /// The reading needs an optional sensor source and none that covers it is running.
+    /// Temperature and fan have no user-mode API of their own (ADR-0029) and are read from the
+    /// shared memory of a monitoring program the user runs - HWiNFO for all three, Core Temp
+    /// for the CPU temperature alone. Without one there is nothing to read, but the fix is on
+    /// the user's side rather than a property of the machine, so the surfaces say so instead of
+    /// "not available on this PC".
     /// </summary>
     public const string NeedsSensorSource = "needs-sensor-source";
 }

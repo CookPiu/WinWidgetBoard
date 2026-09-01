@@ -200,7 +200,7 @@ public sealed class HwInfoSensorTests
         "UT-SYSMON-078 [MON-001] Without the source a temperature says so, and only a temperature")]
     public void WithoutTheSourceOnlySensorMetricsSaySo()
     {
-        var withoutSource = new SystemMetricSample { HasBaseline = true, HasSensorSource = false };
+        var withoutSource = new SystemMetricSample { HasBaseline = true };
 
         foreach (string metricId in new[]
         {
@@ -226,7 +226,13 @@ public sealed class HwInfoSensorTests
                 .Status);
 
         // With the source running and still no reading, the machine really is the reason.
-        var withSource = new SystemMetricSample { HasBaseline = true, HasSensorSource = true };
+        var withSource = new SystemMetricSample
+        {
+            HasBaseline = true,
+            HasCpuTemperatureSource = true,
+            HasGpuTemperatureSource = true,
+            HasFanSource = true,
+        };
         Assert.AreEqual(
             SystemMonitorMetricStatus.Unavailable,
             SystemMonitorFormatter

@@ -203,10 +203,14 @@ WeatherSettingsDialog
   计数器路径是本地化的，在非英文 Windows 上用本地化变体添加英文路径会静默失败；
 - **传感器层**（温度、风扇）没有用户态 API。本产品**不予实现**驱动侧
   （[ADR-0029](adr/0029-drop-the-bundled-sensor-driver.md)），改为在 CoreBroker 内只读打开
-  HWiNFO 的 `Global\HWiNFO_SENS_SM2` 共享内存段取三项读数
-  （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)）：只 `OpenExisting`，
-  不安装、不启动、不提权、不写入，该块按不可信输入逐项校验，不在时每 5 秒重探并报
-  `needs-sensor-source`。进程数因此仍是三个，锁文件里也仍然只有微软与测试框架包。
+  用户已在运行的监控程序的共享内存段
+  （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)、
+  [ADR-0034](adr/0034-core-temp-as-a-second-sensor-source.md)）：
+  HWiNFO 的 `Global\HWiNFO_SENS_SM2` 覆盖三项，Core Temp 的 `CoreTempMappingObjectEx`
+  只覆盖 CPU 温度，同一项上 HWiNFO 优先。只 `OpenExisting`，不安装、不启动、不提权、不写入；
+  两个块都按不可信输入逐项校验，命名空间一律**全局优先、本地兜底**，不允许反向。
+  没有覆盖某项读数的源时该项报 `needs-sensor-source`，**逐项判断**而非一个全局开关。
+  进程数因此仍是三个，锁文件里也仍然只有微软与测试框架包。
   CPU 频率已由 [ADR-0031](adr/0031-cpu-clock-from-per-core-counters.md) 移入公开 API 层。
 
 采样是**按需**的：卡片可见，或任务栏入口在近 10 秒内索要过摘要，才会以 2 秒节奏采样；

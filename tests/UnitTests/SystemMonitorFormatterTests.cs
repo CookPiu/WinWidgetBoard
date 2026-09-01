@@ -233,6 +233,8 @@ public sealed class SystemMonitorFormatterTests
             NetworkUpBytesPerSecond = networkUpBytesPerSecond,
             NetworkDownBytesPerSecond = networkDownBytesPerSecond,
             HasBaseline = hasBaseline,
-            HasSensorSource = hasSensorSource,
+            HasCpuTemperatureSource = hasSensorSource,
+            HasGpuTemperatureSource = hasSensorSource,
+            HasFanSource = hasSensorSource,
         };
 }

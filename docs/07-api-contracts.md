@@ -402,10 +402,12 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
 
 - `ready`：有读数；
 - `pending`：差分类读数还差一拍基线，只有速率与占用类会出现；
-- `needs-sensor-source`：读数来自 HWiNFO 的共享内存而它此刻没在运行
-  （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)）。**只会出现在
+- `needs-sensor-source`：读数来自用户已在运行的监控程序的共享内存，而**覆盖这一项的源**此刻没在运行
+  （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)、
+  [ADR-0034](adr/0034-core-temp-as-a-second-sensor-source.md)）。**只会出现在
   `cpu.temperature`、`gpu.temperature`、`fan.speed` 三项上**——其余指标读不到就是这台机器读不到，
-  运行什么都不会改变；
+  运行什么都不会改变。判断是逐项的：只运行 Core Temp 的机器，`cpu.temperature` 有源，
+  另两项仍报本状态；
 - `unavailable`：这台机器确实给不出这一项。
 
 后两者在界面上是两句不同的话：一句用户可以动手解决，一句是机器的事实。

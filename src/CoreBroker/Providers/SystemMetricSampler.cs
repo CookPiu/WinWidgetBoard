@@ -51,12 +51,20 @@ public sealed record SystemMetricSample
     public bool HasBaseline { get; init; }
 
     /// <summary>
-    /// Whether the optional sensor source was readable on this tick. The temperature and fan
-    /// readings above have no user-mode API behind them and come from HWiNFO's shared memory
-    /// when it is running; false means it was not, which the surfaces show as "start HWiNFO"
-    /// rather than as "this machine cannot read it".
+    /// Whether an optional sensor source that can answer CPU temperature was readable on this
+    /// tick. The three readings below have no user-mode API behind them and come from another
+    /// program's shared memory; false means none was there, which the surfaces show as "start
+    /// one of them" rather than as "this machine cannot read it".
+    ///
+    /// Tracked per reading rather than once, because the sources differ in what they cover:
+    /// Core Temp publishes the CPU only, so a machine running Core Temp and nothing else has a
+    /// source for the temperature below and none for the two after it.
     /// </summary>
-    public bool HasSensorSource { get; init; }
+    public bool HasCpuTemperatureSource { get; init; }
+
+    public bool HasGpuTemperatureSource { get; init; }
+
+    public bool HasFanSource { get; init; }
 }
 
 /// <summary>
@@ -173,13 +181,14 @@ internal sealed class NetworkRateTracker
 /// Samples what Windows exposes to a normal, unelevated process: system times, memory status,
 /// interface counters, drive space, and the PDH counter set. Temperature and fan speed have no
 /// such API at all - they sit behind a kernel driver this product does not ship (ADR-0029) - so
-/// they are read from HWiNFO's shared memory when the user is already running it, and reported
-/// as null, with <see cref="SystemMetricSample.HasSensorSource"/> false, when they are not.
+/// they are read from the shared memory of a monitoring program the user is already running
+/// (HWiNFO, or Core Temp for the CPU alone), and reported as null when none of them is there.
 /// </summary>
 public sealed class SystemMetricSampler : IDisposable
 {
     private readonly PdhCounterSet? _counters;
     private readonly HwInfoSensorReader _sensors;
+    private readonly CoreTempSensorReader _coreTemp;
     private readonly double? _gpuMemoryTotalBytes;
     private readonly NetworkRateTracker _networkRateTracker = new();
 
@@ -189,14 +198,17 @@ public sealed class SystemMetricSampler : IDisposable
     private string _networkInterfaceId = SystemMonitorContract.AllNetworkInterfaces;
     private bool _disposed;
 
-    public SystemMetricSampler(string? sensorMapName = null)
+    public SystemMetricSampler(
+        string? sensorMapName = null,
+        IReadOnlyList<string>? coreTempMapNames = null)
     {
         // A machine without the GPU counter set, or with PDH unavailable, still reports CPU,
         // memory, disk and network. Losing one family must not lose the rest.
         _counters = PdhCounterSet.TryCreate();
-        // Costs nothing when HWiNFO is not there: the reader opens no handle until it finds the
+        // Costs nothing when neither is there: a reader opens no handle until it finds its
         // section, and looks for it again only every few seconds.
         _sensors = new HwInfoSensorReader(sensorMapName);
+        _coreTemp = new CoreTempSensorReader(coreTempMapNames);
         _gpuMemoryTotalBytes = ReadGpuMemoryTotalBytes();
     }
 
@@ -226,6 +238,7 @@ public sealed class SystemMetricSampler : IDisposable
         (double? memoryUsed, double? memoryTotal) = ReadMemory();
         (double? diskUsed, double? diskTotal) = ReadSystemDriveSpace();
         HwInfoSensorSample sensors = _sensors.Read(nowUtc);
+        CoreTempSensorSample coreTemp = _coreTemp.Read(nowUtc);
 
         return new SystemMetricSample
         {
@@ -246,13 +259,17 @@ public sealed class SystemMetricSampler : IDisposable
             DiskTotalBytes = diskTotal,
             NetworkUpBytesPerSecond = networkRates.UpBytesPerSecond,
             NetworkDownBytesPerSecond = networkRates.DownBytesPerSecond,
-            // No kernel driver of our own reads these; they are whatever the optional sensor
-            // source published, and null on a machine that is not running one.
-            CpuTemperatureCelsius = sensors.CpuTemperatureCelsius,
+            // No kernel driver of our own reads these; they are whatever an optional sensor
+            // source published, and null on a machine that is not running one. HWiNFO first
+            // because it names the sensor it read; Core Temp stands in for the CPU alone.
+            CpuTemperatureCelsius =
+                sensors.CpuTemperatureCelsius ?? coreTemp.CpuTemperatureCelsius,
             GpuTemperatureCelsius = sensors.GpuTemperatureCelsius,
             FanRpm = sensors.FanRpm,
             HasBaseline = hasCpuBaseline && networkRates.HasBaseline,
-            HasSensorSource = sensors.IsSourcePresent,
+            HasCpuTemperatureSource = sensors.IsSourcePresent || coreTemp.IsSourcePresent,
+            HasGpuTemperatureSource = sensors.IsSourcePresent,
+            HasFanSource = sensors.IsSourcePresent,
         };
     }
 
@@ -266,6 +283,7 @@ public sealed class SystemMetricSampler : IDisposable
         _disposed = true;
         _counters?.Dispose();
         _sensors.Dispose();
+        _coreTemp.Dispose();
     }
 
     private double? SampleCpuUsage()

@@ -785,7 +785,7 @@
     <value>Not available on this PC</value>
   </data>
   <data name="SysMonStatus.NeedsSensorSource" xml:space="preserve">
-    <value>Needs HWiNFO running</value>
+    <value>Needs HWiNFO/Core Temp</value>
   </data>
   <data name="SysMonDetail.Compact" xml:space="preserve">
     <value>Value only</value>

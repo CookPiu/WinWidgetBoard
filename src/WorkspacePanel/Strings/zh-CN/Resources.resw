@@ -785,7 +785,7 @@
     <value>此电脑无法读取</value>
   </data>
   <data name="SysMonStatus.NeedsSensorSource" xml:space="preserve">
-    <value>需运行 HWiNFO</value>
+    <value>需 HWiNFO/Core Temp</value>
   </data>
   <data name="SysMonDetail.Compact" xml:space="preserve">
     <value>仅数值</value>

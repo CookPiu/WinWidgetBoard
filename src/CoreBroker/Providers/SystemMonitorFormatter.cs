@@ -41,15 +41,20 @@ public static class SystemMonitorFormatter
     };
 
     /// <summary>
-    /// Metrics that have no user-mode API at all and come from the optional sensor source. Only
-    /// these can report "needs sensor source": every other metric that has no value has none
-    /// because this machine does not expose it, which running HWiNFO would not change.
+    /// Whether a source that could answer this metric was readable. Only the three sensor
+    /// metrics have one at all: every other metric that has no value has none because this
+    /// machine does not expose it, which running a monitoring program would not change.
+    ///
+    /// Asked per metric rather than once, because the sources cover different readings - a
+    /// machine running only Core Temp has a source for the CPU temperature and none for the
+    /// GPU or the fan, and telling the user to start something would be wrong for those two.
     /// </summary>
-    private static readonly HashSet<string> SensorSourceMetrics = new(StringComparer.Ordinal)
+    private static bool? HasSourceFor(SystemMetricSample sample, string metricId) => metricId switch
     {
-        SystemMonitorContract.CpuTemperature,
-        SystemMonitorContract.GpuTemperature,
-        SystemMonitorContract.FanSpeed,
+        SystemMonitorContract.CpuTemperature => sample.HasCpuTemperatureSource,
+        SystemMonitorContract.GpuTemperature => sample.HasGpuTemperatureSource,
+        SystemMonitorContract.FanSpeed => sample.HasFanSource,
+        _ => null,
     };
 
     public static string ResolveIconId(string metricId) => metricId switch
@@ -143,7 +148,7 @@ public static class SystemMonitorFormatter
             ? SystemMonitorMetricStatus.Ready
             : !sample.HasBaseline && RateMetrics.Contains(metricId)
                 ? SystemMonitorMetricStatus.Pending
-                : !sample.HasSensorSource && SensorSourceMetrics.Contains(metricId)
+                : HasSourceFor(sample, metricId) is false
                     ? SystemMonitorMetricStatus.NeedsSensorSource
                     : SystemMonitorMetricStatus.Unavailable;
 

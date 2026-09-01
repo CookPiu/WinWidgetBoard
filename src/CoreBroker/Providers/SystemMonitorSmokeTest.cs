@@ -43,10 +43,13 @@ internal static class SystemMonitorSmokeTest
             " gpuMemory=" + Describe(second.GpuMemoryTotalBytes) +
             " disk=" + Describe(second.DiskTotalBytes));
 
-        // Printed, never asserted: temperature and fan come from HWiNFO's shared memory, and
-        // most machines are not running it. Its absence is the expected state, not a failure.
+        // Printed, never asserted: temperature and fan come from a monitoring program's shared
+        // memory, and most machines are not running one. Absence is the expected state here,
+        // not a failure.
         Console.WriteLine(
-            "sensor source: " + (second.HasSensorSource ? "present" : "absent"));
+            "sensor sources: cpuTemperature=" + Present(second.HasCpuTemperatureSource) +
+            " gpuTemperature=" + Present(second.HasGpuTemperatureSource) +
+            " fan=" + Present(second.HasFanSource));
 
         foreach (string metricId in SystemMonitorContract.MetricIds)
         {
@@ -93,6 +96,8 @@ internal static class SystemMonitorSmokeTest
         Console.WriteLine("SYSMON-SMOKE-PASS");
         return 0;
     }
+
+    private static string Present(bool present) => present ? "present" : "absent";
 
     private static string Describe(double? bytes) =>
         bytes is { } value
