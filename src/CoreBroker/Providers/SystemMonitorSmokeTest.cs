@@ -43,6 +43,11 @@ internal static class SystemMonitorSmokeTest
             " gpuMemory=" + Describe(second.GpuMemoryTotalBytes) +
             " disk=" + Describe(second.DiskTotalBytes));
 
+        // Printed, never asserted: temperature and fan come from HWiNFO's shared memory, and
+        // most machines are not running it. Its absence is the expected state, not a failure.
+        Console.WriteLine(
+            "sensor source: " + (second.HasSensorSource ? "present" : "absent"));
+
         foreach (string metricId in SystemMonitorContract.MetricIds)
         {
             SystemMonitorMetricDto metric = SystemMonitorFormatter.FormatMetric(

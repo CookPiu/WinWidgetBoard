@@ -81,6 +81,25 @@ public sealed class SystemMonitorCardProjectionTests
     }
 
     [TestMethod(DisplayName =
+        "UT-SYSMON-079 [MON-001] A reading waiting on the sensor source is worded differently")]
+    public void NeedsSensorSourceIsItsOwnWording()
+    {
+        // "Not available on this PC" and "start HWiNFO" are different facts, and only one of
+        // them is something the user can act on. Temperature has no user-mode API at all
+        // (ADR-0029), so it is read from HWiNFO's shared memory when that is running.
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.CpuTemperature,
+                "—",
+                ratio: null,
+                status: SystemMonitorMetricStatus.NeedsSensorSource)).Metrics.Single();
+
+        Assert.IsFalse(row.HasReading);
+        Assert.IsTrue(row.IsMetricStatusTextVisible);
+        Assert.AreEqual("[SysMonStatus.NeedsSensorSource]", row.MetricStatusText);
+    }
+
+    [TestMethod(DisplayName =
         "UT-SYSMON-024 [MON-001] A payload with no metrics array projects empty rather than throwing")]
     public void PlaceholderPayloadProjectsEmpty()
     {

@@ -189,11 +189,20 @@ public static class SystemMonitorMetricStatus
     public const string Pending = "pending";
 
     /// <summary>
-    /// This machine cannot supply the reading at all. Temperature and fan land here on every
-    /// machine this ships to, because reading them needs a kernel driver this product does not
-    /// distribute.
+    /// This machine cannot supply the reading at all - no counter, no sensor, nothing behind
+    /// it. Distinct from <see cref="NeedsSensorSource"/>, which is a reading this machine could
+    /// supply if the optional source were running.
     /// </summary>
     public const string Unavailable = "unavailable";
+
+    /// <summary>
+    /// The reading needs the optional sensor source and that source is not running. Temperature
+    /// and fan have no user-mode API of their own (ADR-0029) and are read from HWiNFO's shared
+    /// memory; without it there is nothing to read, but the fix is on the user's side rather
+    /// than a property of the machine, so the surfaces say so instead of "not available on this
+    /// PC".
+    /// </summary>
+    public const string NeedsSensorSource = "needs-sensor-source";
 }
 
 public sealed record SystemMonitorItemDto

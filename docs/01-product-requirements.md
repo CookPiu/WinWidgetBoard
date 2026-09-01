@@ -1,8 +1,8 @@
 # WinWidgetBoard 轻量产品需求
 
 文档状态：已批准
-版本：0.3
-日期：2026-08-31
+版本：0.4
+日期：2026-09-01
 适用范围：轻量核心版
 
 ## 1. 产品定位
@@ -175,8 +175,10 @@ Broker 不可用或数据加载失败时，面板仍能启动并显示可理解�
 - 公开 API 层覆盖 CPU 占用与频率、内存、GPU 占用与显存、磁盘活动与占用、网络上下行；
 - CPU 频率取当前最快的一颗核，由每核性能计数器测出，不需要驱动
   （[ADR-0031](adr/0031-cpu-clock-from-per-core-counters.md)）；
-- 温度与风扇在参考机上无法从用户态读到，恒显示「此电脑无法读取」
-  （[ADR-0029](adr/0029-drop-the-bundled-sensor-driver.md)：不分发内核传感器驱动）；
+- 温度与风扇没有任何用户态 API，读数来自 HWiNFO 的共享内存：用户已在运行 HWiNFO 时显示真实读数，
+  未运行时显示「需运行 HWiNFO」，机器确实没有该传感器时才显示「此电脑无法读取」
+  （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)；本产品仍不分发任何内核驱动，
+  [ADR-0029](adr/0029-drop-the-bundled-sensor-driver.md)）；
 - 任何读不到的项显示状态而非 0 或占位数字（[ADR-0028](adr/0028-system-monitor-scope-and-sensor-tiers.md)）；
 - 采样按需进行：卡片可见或任务栏入口正在索要读数时才采样，两者皆无时休眠。
 

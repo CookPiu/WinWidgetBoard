@@ -40,6 +40,18 @@ public static class SystemMonitorFormatter
         SystemMonitorContract.NetworkDown,
     };
 
+    /// <summary>
+    /// Metrics that have no user-mode API at all and come from the optional sensor source. Only
+    /// these can report "needs sensor source": every other metric that has no value has none
+    /// because this machine does not expose it, which running HWiNFO would not change.
+    /// </summary>
+    private static readonly HashSet<string> SensorSourceMetrics = new(StringComparer.Ordinal)
+    {
+        SystemMonitorContract.CpuTemperature,
+        SystemMonitorContract.GpuTemperature,
+        SystemMonitorContract.FanSpeed,
+    };
+
     public static string ResolveIconId(string metricId) => metricId switch
     {
         SystemMonitorContract.CpuUsage or
@@ -110,8 +122,8 @@ public static class SystemMonitorFormatter
                 Unbounded(sample.NetworkDownBytesPerSecond),
             // The clock is readable but has nothing to plot against: its turbo ceiling is not
             // exposed to user mode, and against the window's own peak it would be a flat line
-            // near the top whatever the machine was doing. Temperature and fan are unavailable
-            // on every machine this ships to, and a temperature has no honest zero anyway.
+            // near the top whatever the machine was doing. A temperature has no honest zero to
+            // scale from either, and a fan's ceiling is the board's, not something we can read.
             _ => null,
         };
     }
@@ -131,7 +143,9 @@ public static class SystemMonitorFormatter
             ? SystemMonitorMetricStatus.Ready
             : !sample.HasBaseline && RateMetrics.Contains(metricId)
                 ? SystemMonitorMetricStatus.Pending
-                : SystemMonitorMetricStatus.Unavailable;
+                : !sample.HasSensorSource && SensorSourceMetrics.Contains(metricId)
+                    ? SystemMonitorMetricStatus.NeedsSensorSource
+                    : SystemMonitorMetricStatus.Unavailable;
 
         return new SystemMonitorMetricDto
         {

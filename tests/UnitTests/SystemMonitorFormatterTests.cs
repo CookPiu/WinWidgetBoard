@@ -74,8 +74,8 @@ public sealed class SystemMonitorFormatterTests
     }
 
     [TestMethod(DisplayName =
-        "UT-SYSMON-005 [MON-001] A sensor that needs a driver is unavailable, never pending")]
-    public void SensorMetricsAreUnavailableNotPending()
+        "UT-SYSMON-005 [MON-001] A sensor reading is never pending, whichever way it is missing")]
+    public void SensorMetricsAreNeverPending()
     {
         foreach (string metricId in new[]
         {
@@ -84,14 +84,21 @@ public sealed class SystemMonitorFormatterTests
             SystemMonitorContract.FanSpeed,
         })
         {
-            SystemMonitorMetricDto metric = SystemMonitorFormatter.FormatMetric(
-                Sample(hasBaseline: false),
-                metricId,
-                SystemMonitorDetail.Normal);
-            Assert.AreEqual(
-                SystemMonitorMetricStatus.Unavailable,
-                metric.Status,
-                $"'{metricId}' has no baseline to wait for; it needs a sensor service.");
+            // Pending means "wait one tick for a baseline", which only the metrics measured as
+            // a difference have. These three are published whole by the sensor source or not at
+            // all, so waiting is never the answer - which of the two unreadable states they get
+            // is UT-SYSMON-078.
+            foreach (bool hasSensorSource in new[] { false, true })
+            {
+                SystemMonitorMetricDto metric = SystemMonitorFormatter.FormatMetric(
+                    Sample(hasBaseline: false, hasSensorSource: hasSensorSource),
+                    metricId,
+                    SystemMonitorDetail.Normal);
+                Assert.AreNotEqual(
+                    SystemMonitorMetricStatus.Pending,
+                    metric.Status,
+                    $"'{metricId}' has no baseline to wait for.");
+            }
         }
     }
 
@@ -215,7 +222,8 @@ public sealed class SystemMonitorFormatterTests
         double? memoryTotalBytes = null,
         double? networkUpBytesPerSecond = null,
         double? networkDownBytesPerSecond = null,
-        bool hasBaseline = true) =>
+        bool hasBaseline = true,
+        bool hasSensorSource = false) =>
         new()
         {
             CpuUsagePercent = cpuUsagePercent,
@@ -225,5 +233,6 @@ public sealed class SystemMonitorFormatterTests
             NetworkUpBytesPerSecond = networkUpBytesPerSecond,
             NetworkDownBytesPerSecond = networkDownBytesPerSecond,
             HasBaseline = hasBaseline,
+            HasSensorSource = hasSensorSource,
         };
 }

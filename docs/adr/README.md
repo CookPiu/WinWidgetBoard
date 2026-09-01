@@ -41,3 +41,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0030](0030-token-usage-card.md) | Accepted | 纳入 Token 用量卡片，按厂商分别解析本机会话记录且不落库 |
 | [0031](0031-cpu-clock-from-per-core-counters.md) | Accepted | CPU 频率改由每核 PDH 计数器测量，脱离传感器层 |
 | [0032](0032-windows-device-weather-location.md) | Accepted | 天气默认经 Windows 前台授权读取设备位置，手动位置保留为降级与覆盖 |
+| [0033](0033-hwinfo-shared-memory-sensor-source.md) | Accepted | 温度与风扇改由 HWiNFO 共享内存读取，读不到时说明需运行 HWiNFO |

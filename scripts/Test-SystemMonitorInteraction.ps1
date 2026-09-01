@@ -15,7 +15,8 @@ param(
 .DESCRIPTION
     Starts an isolated broker and panel, waits for the card to show real readings, then changes
     which metrics are displayed through the settings dialog and confirms the change survives a
-    panel restart.
+    panel restart. Finally it swaps in CPU temperature, whose reading comes from the optional
+    sensor source rather than from Windows, and checks the row says which state it is in.
 
     Everything runs on an acceptance instance ID with a data directory under %TEMP%; the
     production database is never touched (ADR-0017). Only processes this script started are
@@ -284,7 +285,44 @@ try {
     }
 
     Write-Output "SYSMON-RESTART-PASS cpu.clock=$reloaded"
-    Write-Output 'REAL-SYSMON-PASS card+settings+persistence'
+
+    # Temperature has no user-mode API on Windows at all: it is read out of HWiNFO's shared
+    # memory when the user is already running it, and says so when they are not (ADR-0033).
+    # Swapping it in for the clock keeps the number of rows the same, so what this asserts is
+    # the wording rather than the card's size ladder a second time.
+    $temperatureToggle = Wait-ElementByAutomationId `
+        -Root $window `
+        -AutomationId 'SysMonCardInclude_cpu.temperature' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    $temperaturePattern = $temperatureToggle.GetCurrentPattern(
+        [System.Windows.Automation.TogglePattern]::Pattern)
+    if ($temperaturePattern.Current.ToggleState -ne
+        [System.Windows.Automation.ToggleState]::On) {
+        $temperaturePattern.Toggle()
+    }
+
+    $clockPattern = $clockToggle.GetCurrentPattern(
+        [System.Windows.Automation.TogglePattern]::Pattern)
+    if ($clockPattern.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) {
+        $clockPattern.Toggle()
+    }
+
+    $saveButton = Wait-ElementByAutomationId `
+        -Root $window `
+        -AutomationId 'SysMonSettingsSaveButton' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    Invoke-Element -Element $saveButton
+
+    # Either a real temperature, or the wording for whichever of the two unreadable states this
+    # machine is in. Both are correct answers; an empty row or a bare resource key is not.
+    $temperatureRow = Wait-MetricReading `
+        -Root $window `
+        -Pattern ('(CPU 温度|CPU temperature).*' +
+            '(°C|需运行 HWiNFO|Needs HWiNFO running|此电脑无法读取|Not available)') `
+        -Timeout ([TimeSpan]::FromSeconds(25))
+    Write-Output "SYSMON-TEMPERATURE-PASS `"$temperatureRow`""
+
+    Write-Output 'REAL-SYSMON-PASS card+settings+persistence+sensor-source'
 }
 catch {
     $failure = $_

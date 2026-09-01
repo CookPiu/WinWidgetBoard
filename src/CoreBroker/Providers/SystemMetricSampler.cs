@@ -49,6 +49,14 @@ public sealed record SystemMetricSample
     /// zero or a lifetime counter that reads as a real measurement.
     /// </summary>
     public bool HasBaseline { get; init; }
+
+    /// <summary>
+    /// Whether the optional sensor source was readable on this tick. The temperature and fan
+    /// readings above have no user-mode API behind them and come from HWiNFO's shared memory
+    /// when it is running; false means it was not, which the surfaces show as "start HWiNFO"
+    /// rather than as "this machine cannot read it".
+    /// </summary>
+    public bool HasSensorSource { get; init; }
 }
 
 /// <summary>
@@ -163,13 +171,15 @@ internal sealed class NetworkRateTracker
 }
 /// <summary>
 /// Samples what Windows exposes to a normal, unelevated process: system times, memory status,
-/// interface counters, drive space, and the PDH counter set. Temperature, fan speed and any
-/// other sensor behind a kernel driver are deliberately absent here - they arrive, if at all,
-/// from the optional sensor service, and this type reports them as null in the meantime.
+/// interface counters, drive space, and the PDH counter set. Temperature and fan speed have no
+/// such API at all - they sit behind a kernel driver this product does not ship (ADR-0029) - so
+/// they are read from HWiNFO's shared memory when the user is already running it, and reported
+/// as null, with <see cref="SystemMetricSample.HasSensorSource"/> false, when they are not.
 /// </summary>
 public sealed class SystemMetricSampler : IDisposable
 {
     private readonly PdhCounterSet? _counters;
+    private readonly HwInfoSensorReader _sensors;
     private readonly double? _gpuMemoryTotalBytes;
     private readonly NetworkRateTracker _networkRateTracker = new();
 
@@ -179,11 +189,14 @@ public sealed class SystemMetricSampler : IDisposable
     private string _networkInterfaceId = SystemMonitorContract.AllNetworkInterfaces;
     private bool _disposed;
 
-    public SystemMetricSampler()
+    public SystemMetricSampler(string? sensorMapName = null)
     {
         // A machine without the GPU counter set, or with PDH unavailable, still reports CPU,
         // memory, disk and network. Losing one family must not lose the rest.
         _counters = PdhCounterSet.TryCreate();
+        // Costs nothing when HWiNFO is not there: the reader opens no handle until it finds the
+        // section, and looks for it again only every few seconds.
+        _sensors = new HwInfoSensorReader(sensorMapName);
         _gpuMemoryTotalBytes = ReadGpuMemoryTotalBytes();
     }
 
@@ -212,6 +225,7 @@ public sealed class SystemMetricSampler : IDisposable
         PdhReadings pdh = _counters?.Read() ?? default;
         (double? memoryUsed, double? memoryTotal) = ReadMemory();
         (double? diskUsed, double? diskTotal) = ReadSystemDriveSpace();
+        HwInfoSensorSample sensors = _sensors.Read(nowUtc);
 
         return new SystemMetricSample
         {
@@ -232,11 +246,13 @@ public sealed class SystemMetricSampler : IDisposable
             DiskTotalBytes = diskTotal,
             NetworkUpBytesPerSecond = networkRates.UpBytesPerSecond,
             NetworkDownBytesPerSecond = networkRates.DownBytesPerSecond,
-            // Every sensor below needs a kernel driver; see the sensor service.
-            CpuTemperatureCelsius = null,
-            GpuTemperatureCelsius = null,
-            FanRpm = null,
+            // No kernel driver of our own reads these; they are whatever the optional sensor
+            // source published, and null on a machine that is not running one.
+            CpuTemperatureCelsius = sensors.CpuTemperatureCelsius,
+            GpuTemperatureCelsius = sensors.GpuTemperatureCelsius,
+            FanRpm = sensors.FanRpm,
             HasBaseline = hasCpuBaseline && networkRates.HasBaseline,
+            HasSensorSource = sensors.IsSourcePresent,
         };
     }
 
@@ -249,6 +265,7 @@ public sealed class SystemMetricSampler : IDisposable
 
         _disposed = true;
         _counters?.Dispose();
+        _sensors.Dispose();
     }
 
     private double? SampleCpuUsage()

@@ -4,7 +4,7 @@ using WinWidgetBoard.Contracts.Protocol;
 namespace WinWidgetBoard.WorkspacePanel.Runtime;
 
 /// <summary>
-/// Resource keys for the metric names and the two non-ready states. The broker formats every
+/// Resource keys for the metric names and the non-ready states. The broker formats every
 /// number but never a name: names are the one part that has to be translated, and the panel
 /// owns the resources.
 /// </summary>
@@ -12,6 +12,7 @@ public static class SystemMonitorResourceKeys
 {
     public const string PendingStatus = "SysMonStatus.Pending";
     public const string UnavailableStatus = "SysMonStatus.Unavailable";
+    public const string NeedsSensorSourceStatus = "SysMonStatus.NeedsSensorSource";
 
     public static string GetNameKey(string metricId) => metricId switch
     {
@@ -155,18 +156,26 @@ public sealed record SystemMonitorCardProjection
                     Ratio = ReadRatio(metric),
                     MetricStatusText = Resolve(
                         resourceResolver,
-                        string.Equals(
-                            status,
-                            SystemMonitorMetricStatus.Pending,
-                            StringComparison.Ordinal)
-                            ? SystemMonitorResourceKeys.PendingStatus
-                            : SystemMonitorResourceKeys.UnavailableStatus),
+                        ResolveStatusKey(status)),
                 });
         }
 
         bool hasData = rows.Any(row => row.HasReading);
         return new SystemMonitorCardProjection(rows, hasData);
     }
+
+    /// <summary>
+    /// Which wording a non-ready row carries. A reading held up by the optional sensor source
+    /// is not the same fact as one this machine cannot produce, and saying so is what tells the
+    /// user there is something they can do about it.
+    /// </summary>
+    private static string ResolveStatusKey(string status) => status switch
+    {
+        SystemMonitorMetricStatus.Pending => SystemMonitorResourceKeys.PendingStatus,
+        SystemMonitorMetricStatus.NeedsSensorSource =>
+            SystemMonitorResourceKeys.NeedsSensorSourceStatus,
+        _ => SystemMonitorResourceKeys.UnavailableStatus,
+    };
 
     private static SystemMonitorDetail ReadDetail(JsonElement metric)
     {
