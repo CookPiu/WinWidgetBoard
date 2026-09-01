@@ -61,18 +61,6 @@
   <data name="WindowTitle" xml:space="preserve">
     <value>WinWidgetBoard workspace</value>
   </data>
-  <data name="HeadingText.Text" xml:space="preserve">
-    <value>WorkspacePanel test window</value>
-  </data>
-  <data name="DescriptionText.Text" xml:space="preserve">
-    <value>This ordinary window verifies the M1.0 WinUI 3 build foundation. It does not implement product panel behavior.</value>
-  </data>
-  <data name="CloseButton.Content" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="CloseButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Close test window</value>
-  </data>
   <data name="GreetingText.Text" xml:space="preserve">
     <value>Today's workspace</value>
   </data>
@@ -253,17 +241,8 @@
   <data name="NotesCardTitle.Text" xml:space="preserve">
     <value>Notes</value>
   </data>
-  <data name="NotesCardBody.Text" xml:space="preserve">
-    <value>Edit a local note below; changes are autosaved through CoreBroker.</value>
-  </data>
   <data name="WeatherCardTitle.Text" xml:space="preserve">
     <value>Weather</value>
-  </data>
-  <data name="OpenNotesButton.Content" xml:space="preserve">
-    <value>Focus editor</value>
-  </data>
-  <data name="OpenNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Focus note editor</value>
   </data>
   <data name="NewNoteButton.Content" xml:space="preserve">
     <value>&#xE710;</value>
@@ -450,9 +429,6 @@
   </data>
   <data name="NoteEditorLoadingStatus" xml:space="preserve">
     <value>Loading local note…</value>
-  </data>
-  <data name="NoteEditorReadyStatus" xml:space="preserve">
-    <value>Ready. Changes save automatically.</value>
   </data>
   <data name="NoteEditorPendingSaveStatus" xml:space="preserve">
     <value>Waiting to save…</value>
@@ -1036,11 +1012,8 @@
   <data name="WeatherWindLabel.Text" xml:space="preserve">
     <value>Wind</value>
   </data>
-  <data name="WeatherHighLabel.Text" xml:space="preserve">
-    <value>High</value>
-  </data>
-  <data name="WeatherLowLabel.Text" xml:space="preserve">
-    <value>Low</value>
+  <data name="WeatherAttributionLink.Content" xml:space="preserve">
+    <value>Data by Open-Meteo</value>
   </data>
   <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
     <value>Updated</value>
