@@ -212,7 +212,7 @@
     <value>已加载当前天气位置。</value>
   </data>
   <data name="WeatherSettingsUnavailableStatus" xml:space="preserve">
-    <value>CoreBroker 不可用，无法保存天气设置。</value>
+    <value>后台服务不可用，无法保存天气设置。</value>
   </data>
   <data name="WeatherSettingsLoadFailedStatus" xml:space="preserve">
     <value>无法加载当前天气位置。</value>
@@ -234,9 +234,6 @@
   </data>
   <data name="ClosePanelButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>关闭面板</value>
-  </data>
-  <data name="StatusText.Text" xml:space="preserve">
-    <value>面板壳层已加载；连接 CoreBroker 后可使用本地便签编辑器。</value>
   </data>
   <data name="NotesCardTitle.Text" xml:space="preserve">
     <value>便签</value>
@@ -425,7 +422,7 @@
     <value>便签编辑与操作</value>
   </data>
   <data name="NoteEditorUnavailableStatus" xml:space="preserve">
-    <value>CoreBroker 不可用，编辑器当前为只读。</value>
+    <value>后台服务不可用，编辑器当前为只读。</value>
   </data>
   <data name="NoteEditorLoadingStatus" xml:space="preserve">
     <value>正在加载本地便签……</value>
@@ -620,7 +617,7 @@
     <value>关闭面板</value>
   </data>
   <data name="LayoutEditStartedStatus" xml:space="preserve">
-    <value>已进入布局编辑模式；现在可以调整尺寸、删除、拖动并撤销布局操作。</value>
+    <value>布局编辑：拖动排列，右下角手柄调整大小。</value>
   </data>
   <data name="LayoutEditCommittedStatus" xml:space="preserve">
     <value>布局编辑已完成。</value>
@@ -644,13 +641,13 @@
     <value>已恢复异常的布局空行；点击“完成”可保存修复后的位置。</value>
   </data>
   <data name="LayoutUnavailableStatus" xml:space="preserve">
-    <value>CoreBroker 不可用，卡片布局修改无法保存。</value>
+    <value>后台服务不可用，布局修改无法保存。</value>
   </data>
   <data name="LayoutSaveFailedStatus" xml:space="preserve">
-    <value>卡片布局保存失败，可继续编辑或取消以放弃修改。</value>
+    <value>布局保存失败，可重试或取消。</value>
   </data>
   <data name="LayoutEditCanceledStatus" xml:space="preserve">
-    <value>布局编辑已取消，已恢复进入编辑模式前的布局。</value>
+    <value>已取消编辑，恢复了原布局。</value>
   </data>
   <data name="CardResizeFrame.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>调整卡片大小</value>

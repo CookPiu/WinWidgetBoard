@@ -212,7 +212,7 @@
     <value>Current weather location loaded.</value>
   </data>
   <data name="WeatherSettingsUnavailableStatus" xml:space="preserve">
-    <value>CoreBroker is unavailable; weather settings cannot be saved.</value>
+    <value>The background service is unavailable; weather settings cannot be saved.</value>
   </data>
   <data name="WeatherSettingsLoadFailedStatus" xml:space="preserve">
     <value>Could not load the current weather location.</value>
@@ -234,9 +234,6 @@
   </data>
   <data name="ClosePanelButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Close panel</value>
-  </data>
-  <data name="StatusText.Text" xml:space="preserve">
-    <value>The panel shell is loaded; the local note editor is available when CoreBroker is connected.</value>
   </data>
   <data name="NotesCardTitle.Text" xml:space="preserve">
     <value>Notes</value>
@@ -425,7 +422,7 @@
     <value>Note editor actions</value>
   </data>
   <data name="NoteEditorUnavailableStatus" xml:space="preserve">
-    <value>CoreBroker is unavailable; the editor is read-only.</value>
+    <value>The background service is unavailable; the editor is read-only.</value>
   </data>
   <data name="NoteEditorLoadingStatus" xml:space="preserve">
     <value>Loading local note…</value>
@@ -620,7 +617,7 @@
     <value>Close panel</value>
   </data>
   <data name="LayoutEditStartedStatus" xml:space="preserve">
-    <value>Layout editing is on; cards can now be resized, removed, dragged, or undone.</value>
+    <value>Drag to arrange; the corner handle resizes.</value>
   </data>
   <data name="LayoutEditCommittedStatus" xml:space="preserve">
     <value>Layout editing completed.</value>
@@ -644,13 +641,13 @@
     <value>Recovered an excessive saved layout gap. Choose Done to save the repaired positions.</value>
   </data>
   <data name="LayoutUnavailableStatus" xml:space="preserve">
-    <value>CoreBroker is unavailable; card layout changes cannot be saved.</value>
+    <value>The background service is unavailable; layout changes cannot be saved.</value>
   </data>
   <data name="LayoutSaveFailedStatus" xml:space="preserve">
-    <value>Card layout could not be saved; keep editing or cancel to discard changes.</value>
+    <value>Layout save failed; retry or cancel.</value>
   </data>
   <data name="LayoutEditCanceledStatus" xml:space="preserve">
-    <value>Layout editing canceled; the layout from before editing was restored.</value>
+    <value>Edit canceled; the previous layout is restored.</value>
   </data>
   <data name="CardResizeFrame.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Resize card</value>
