@@ -81,22 +81,21 @@ public sealed class SystemMonitorCardProjectionTests
     }
 
     [TestMethod(DisplayName =
-        "UT-SYSMON-079 [MON-001] A reading waiting on the sensor source is worded differently")]
-    public void NeedsSensorSourceIsItsOwnWording()
+        "UT-SYSMON-079 [MON-001] A reading waiting on the sensor source stays off the card")]
+    public void NeedsSensorSourceRowIsDropped()
     {
-        // "Not available on this PC" and "start HWiNFO" are different facts, and only one of
-        // them is something the user can act on. Temperature has no user-mode API at all
-        // (ADR-0029), so it is read from HWiNFO's shared memory when that is running.
-        SystemMonitorMetricRow row = Project(
+        // A row held up by the optional sensor source would only ever repeat a setup
+        // instruction, and an instruction is settings content: the settings page states the
+        // HWiNFO/Core Temp requirement next to the metric lists instead. "Not available on
+        // this PC" remains a card fact and keeps its row.
+        SystemMonitorCardProjection projection = Project(
             Metric(
                 SystemMonitorContract.CpuTemperature,
                 "—",
                 ratio: null,
-                status: SystemMonitorMetricStatus.NeedsSensorSource)).Metrics.Single();
+                status: SystemMonitorMetricStatus.NeedsSensorSource));
 
-        Assert.IsFalse(row.HasReading);
-        Assert.IsTrue(row.IsMetricStatusTextVisible);
-        Assert.AreEqual("[SysMonStatus.NeedsSensorSource]", row.MetricStatusText);
+        Assert.AreEqual(0, projection.Metrics.Count);
     }
 
     [TestMethod(DisplayName =

@@ -176,7 +176,8 @@ Broker 不可用或数据加载失败时，面板仍能启动并显示可理解�
 - CPU 频率取当前最快的一颗核，由每核性能计数器测出，不需要驱动
   （[ADR-0031](adr/0031-cpu-clock-from-per-core-counters.md)）；
 - 温度与风扇没有任何用户态 API，读数来自用户已在运行的监控程序的共享内存：
-  HWiNFO 覆盖三项，Core Temp 只覆盖 CPU 温度。有源时显示真实读数，无源时显示「需 HWiNFO/Core Temp」，
+  HWiNFO 覆盖三项，Core Temp 只覆盖 CPU 温度。有源时显示真实读数，无源时该行**不显示**——
+  一行常驻的安装指引属于设置页，硬件监控设置在指标列表旁说明来源要求；
   源在运行而这台机器确实没有该传感器时才显示「此电脑无法读取」；有没有源**逐项判断**
   （[ADR-0033](adr/0033-hwinfo-shared-memory-sensor-source.md)、
   [ADR-0034](adr/0034-core-temp-as-a-second-sensor-source.md)；

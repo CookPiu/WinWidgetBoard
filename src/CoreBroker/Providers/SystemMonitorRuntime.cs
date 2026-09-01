@@ -197,6 +197,23 @@ public sealed class SystemMonitorRuntime : IDisposable
                 continue;
             }
 
+            // A reading held up by the optional sensor source is dropped rather than shown
+            // as a permanent placeholder: "FAN —" in the taskbar is a setup instruction, and
+            // the settings page states that requirement next to the metric lists. Unavailable
+            // and pending readings keep their segments; those states are transient or a fact
+            // about this machine, not something the entry should hide.
+            SystemMonitorMetricDto metric = SystemMonitorFormatter.FormatMetric(
+                sample,
+                item.MetricId,
+                item.Detail);
+            if (string.Equals(
+                    metric.Status,
+                    SystemMonitorMetricStatus.NeedsSensorSource,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             SystemMonitorSegmentDto segment =
                 SystemMonitorFormatter.FormatSegment(sample, item.MetricId, item.Detail);
             segments.Add(segment with

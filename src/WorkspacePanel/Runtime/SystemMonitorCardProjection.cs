@@ -12,7 +12,6 @@ public static class SystemMonitorResourceKeys
 {
     public const string PendingStatus = "SysMonStatus.Pending";
     public const string UnavailableStatus = "SysMonStatus.Unavailable";
-    public const string NeedsSensorSourceStatus = "SysMonStatus.NeedsSensorSource";
 
     public static string GetNameKey(string metricId) => metricId switch
     {
@@ -141,6 +140,18 @@ public sealed record SystemMonitorCardProjection
 
             string status = ReadString(metric, "status") ??
                 SystemMonitorMetricStatus.Unavailable;
+            if (string.Equals(
+                    status,
+                    SystemMonitorMetricStatus.NeedsSensorSource,
+                    StringComparison.Ordinal))
+            {
+                // A reading held up by the optional sensor source stays off the card: the
+                // row would only ever repeat a setup instruction, and an instruction is
+                // settings content, not monitoring content. The settings page states the
+                // requirement next to the metric lists instead.
+                continue;
+            }
+
             rows.Add(
                 new SystemMonitorMetricRow
                 {
@@ -164,16 +175,10 @@ public sealed record SystemMonitorCardProjection
         return new SystemMonitorCardProjection(rows, hasData);
     }
 
-    /// <summary>
-    /// Which wording a non-ready row carries. A reading held up by the optional sensor source
-    /// is not the same fact as one this machine cannot produce, and saying so is what tells the
-    /// user there is something they can do about it.
-    /// </summary>
+    /// <summary>Which wording a non-ready row carries.</summary>
     private static string ResolveStatusKey(string status) => status switch
     {
         SystemMonitorMetricStatus.Pending => SystemMonitorResourceKeys.PendingStatus,
-        SystemMonitorMetricStatus.NeedsSensorSource =>
-            SystemMonitorResourceKeys.NeedsSensorSourceStatus,
         _ => SystemMonitorResourceKeys.UnavailableStatus,
     };
 
