@@ -874,8 +874,86 @@
   <data name="GeneralVersionLabel" xml:space="preserve">
     <value>Version {0}</value>
   </data>
+  <data name="SettingsCategoryTaskbarEntry.Content" xml:space="preserve">
+    <value>Taskbar entry</value>
+  </data>
+  <data name="EntrySettingsDescription.Text" xml:space="preserve">
+    <value>The taskbar entry's settings. Changes here apply immediately; there is no save button.</value>
+  </data>
+  <data name="EntryContentModeBox.Header" xml:space="preserve">
+    <value>Main capsule shows</value>
+  </data>
+  <data name="EntryContentDateTimeItem.Content" xml:space="preserve">
+    <value>Date and time</value>
+  </data>
+  <data name="EntryContentWeatherItem.Content" xml:space="preserve">
+    <value>Weather</value>
+  </data>
+  <data name="EntryShowMonitorToggle.Header" xml:space="preserve">
+    <value>Show hardware monitor</value>
+  </data>
+  <data name="EntryShowMonitorToggle.OnContent" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="EntryShowMonitorToggle.OffContent" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="EntryPlacementBox.Header" xml:space="preserve">
+    <value>Entry position</value>
+  </data>
+  <data name="EntryPlacementLeftItem.Content" xml:space="preserve">
+    <value>Embedded · left</value>
+  </data>
+  <data name="EntryPlacementCenterItem.Content" xml:space="preserve">
+    <value>Embedded · centre</value>
+  </data>
+  <data name="EntryPlacementRightItem.Content" xml:space="preserve">
+    <value>Embedded · right</value>
+  </data>
+  <data name="EntryPlacementFloatingItem.Content" xml:space="preserve">
+    <value>Floating above the taskbar</value>
+  </data>
+  <data name="EntryFallbackBox.Header" xml:space="preserve">
+    <value>When the taskbar is left-aligned</value>
+  </data>
+  <data name="EntryFallbackFloatingItem.Content" xml:space="preserve">
+    <value>Switch to floating</value>
+  </data>
+  <data name="EntryFallbackCenterItem.Content" xml:space="preserve">
+    <value>Switch to centre</value>
+  </data>
+  <data name="EntryFallbackRightItem.Content" xml:space="preserve">
+    <value>Switch to right</value>
+  </data>
+  <data name="EntryHotkeyModeBox.Header" xml:space="preserve">
+    <value>Panel shortcut</value>
+  </data>
+  <data name="EntryHotkeyDisabledItem.Content" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="EntryHotkeyCustomItem.Content" xml:space="preserve">
+    <value>Custom…</value>
+  </data>
+  <data name="EntryHotkeyCaptureBox.Header" xml:space="preserve">
+    <value>Record a chord</value>
+  </data>
+  <data name="EntryHotkeyCaptureBox.PlaceholderText" xml:space="preserve">
+    <value>Click here, then press the keys</value>
+  </data>
+  <data name="EntrySettingsAppliedStatus" xml:space="preserve">
+    <value>Applied.</value>
+  </data>
+  <data name="EntrySettingsFailedStatus" xml:space="preserve">
+    <value>The setting could not be saved.</value>
+  </data>
+  <data name="EntryHotkeyInvalidStatus" xml:space="preserve">
+    <value>A chord needs at least one of Ctrl, Alt or Shift.</value>
+  </data>
+  <data name="EntryHotkeyTakenStatus" xml:space="preserve">
+    <value>Another program holds that chord; pick a different one.</value>
+  </data>
   <data name="GeneralHotkeyHint.Text" xml:space="preserve">
-    <value>Shortcut: Ctrl + Alt + B opens and closes the panel. Right-click the taskbar entry to change it or switch it off.</value>
+    <value>The panel shortcut and the other entry options live in the "Taskbar entry" category.</value>
   </data>
   <data name="GeneralAutostartEnabledStatus" xml:space="preserve">
     <value>WinWidgetBoard will start after you sign in.</value>

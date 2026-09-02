@@ -874,8 +874,86 @@
   <data name="GeneralVersionLabel" xml:space="preserve">
     <value>版本 {0}</value>
   </data>
+  <data name="SettingsCategoryTaskbarEntry.Content" xml:space="preserve">
+    <value>任务栏入口</value>
+  </data>
+  <data name="EntrySettingsDescription.Text" xml:space="preserve">
+    <value>任务栏入口的设置。这里的改动立即生效，没有保存按钮。</value>
+  </data>
+  <data name="EntryContentModeBox.Header" xml:space="preserve">
+    <value>主胶囊显示</value>
+  </data>
+  <data name="EntryContentDateTimeItem.Content" xml:space="preserve">
+    <value>日期与时间</value>
+  </data>
+  <data name="EntryContentWeatherItem.Content" xml:space="preserve">
+    <value>天气</value>
+  </data>
+  <data name="EntryShowMonitorToggle.Header" xml:space="preserve">
+    <value>显示硬件监控</value>
+  </data>
+  <data name="EntryShowMonitorToggle.OnContent" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="EntryShowMonitorToggle.OffContent" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="EntryPlacementBox.Header" xml:space="preserve">
+    <value>入口位置</value>
+  </data>
+  <data name="EntryPlacementLeftItem.Content" xml:space="preserve">
+    <value>嵌入任务栏 · 靠左</value>
+  </data>
+  <data name="EntryPlacementCenterItem.Content" xml:space="preserve">
+    <value>嵌入任务栏 · 居中</value>
+  </data>
+  <data name="EntryPlacementRightItem.Content" xml:space="preserve">
+    <value>嵌入任务栏 · 靠右</value>
+  </data>
+  <data name="EntryPlacementFloatingItem.Content" xml:space="preserve">
+    <value>悬浮在任务栏上方</value>
+  </data>
+  <data name="EntryFallbackBox.Header" xml:space="preserve">
+    <value>任务栏左对齐时</value>
+  </data>
+  <data name="EntryFallbackFloatingItem.Content" xml:space="preserve">
+    <value>改为悬浮</value>
+  </data>
+  <data name="EntryFallbackCenterItem.Content" xml:space="preserve">
+    <value>改为居中</value>
+  </data>
+  <data name="EntryFallbackRightItem.Content" xml:space="preserve">
+    <value>改为靠右</value>
+  </data>
+  <data name="EntryHotkeyModeBox.Header" xml:space="preserve">
+    <value>打开面板的快捷键</value>
+  </data>
+  <data name="EntryHotkeyDisabledItem.Content" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="EntryHotkeyCustomItem.Content" xml:space="preserve">
+    <value>自定义…</value>
+  </data>
+  <data name="EntryHotkeyCaptureBox.Header" xml:space="preserve">
+    <value>录制组合键</value>
+  </data>
+  <data name="EntryHotkeyCaptureBox.PlaceholderText" xml:space="preserve">
+    <value>点击此处，然后按下组合键</value>
+  </data>
+  <data name="EntrySettingsAppliedStatus" xml:space="preserve">
+    <value>已应用。</value>
+  </data>
+  <data name="EntrySettingsFailedStatus" xml:space="preserve">
+    <value>无法保存设置。</value>
+  </data>
+  <data name="EntryHotkeyInvalidStatus" xml:space="preserve">
+    <value>组合键需要至少一个 Ctrl、Alt 或 Shift。</value>
+  </data>
+  <data name="EntryHotkeyTakenStatus" xml:space="preserve">
+    <value>该组合键被其他程序占用，请换一个。</value>
+  </data>
   <data name="GeneralHotkeyHint.Text" xml:space="preserve">
-    <value>快捷键：默认 Ctrl + Alt + B 打开或关闭面板；在任务栏入口上点右键可以更换或关闭。</value>
+    <value>快捷键与任务栏入口的其他选项在「任务栏入口」分类中设置。</value>
   </data>
   <data name="GeneralAutostartEnabledStatus" xml:space="preserve">
     <value>已设置为登录后自动启动。</value>

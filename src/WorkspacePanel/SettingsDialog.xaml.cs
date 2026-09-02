@@ -14,9 +14,10 @@ namespace WinWidgetBoard.WorkspacePanel;
 public enum SettingsCategory
 {
     General = 0,
-    Weather = 1,
-    SystemMonitor = 2,
-    TokenUsage = 3,
+    TaskbarEntry = 1,
+    Weather = 2,
+    SystemMonitor = 3,
+    TokenUsage = 4,
 }
 
 /// <summary>
@@ -27,6 +28,7 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
 {
     public SettingsDialog(
         GeneralSettingsViewModel generalViewModel,
+        LauncherEntrySettingsViewModel entryViewModel,
         WeatherSettingsViewModel weatherViewModel,
         SystemMonitorSettingsViewModel systemMonitorViewModel,
         TokenUsageSettingsViewModel tokenUsageViewModel,
@@ -34,6 +36,8 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
     {
         GeneralViewModel = generalViewModel ??
             throw new ArgumentNullException(nameof(generalViewModel));
+        EntryViewModel = entryViewModel ??
+            throw new ArgumentNullException(nameof(entryViewModel));
         WeatherViewModel = weatherViewModel ??
             throw new ArgumentNullException(nameof(weatherViewModel));
         SystemMonitorViewModel = systemMonitorViewModel ??
@@ -55,6 +59,8 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
     private readonly SurfaceMotionCoordinator _surfaceMotion;
 
     public GeneralSettingsViewModel GeneralViewModel { get; }
+
+    public LauncherEntrySettingsViewModel EntryViewModel { get; }
 
     public WeatherSettingsViewModel WeatherViewModel { get; }
 
@@ -80,6 +86,7 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
         // still being parsed, before the sections further down the tree exist.
         if (index < 0 ||
             GeneralSection is null ||
+            TaskbarEntrySection is null ||
             WeatherSection is null ||
             SystemMonitorSection is null ||
             TokenUsageSection is null ||
@@ -91,6 +98,11 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
         }
 
         SetSection(index, SettingsCategory.General, animate, GeneralSection);
+        SetSection(
+            index,
+            SettingsCategory.TaskbarEntry,
+            animate,
+            TaskbarEntrySection);
         SetSection(
             index,
             SettingsCategory.Weather,
@@ -203,6 +215,91 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
             Hide();
         }
     }
+
+    /// <summary>
+    /// Records a chord from a single key press: the modifiers held at that moment plus the
+    /// key itself. Modifier keys alone are ignored - a chord ends with a real key - and the
+    /// registration outcome is read back shortly after, because the launcher, not this
+    /// dialog, is the process that actually registers it.
+    /// </summary>
+    private void EntryHotkeyCaptureBox_KeyDown(
+        object sender,
+        Microsoft.UI.Xaml.Input.KeyRoutedEventArgs args)
+    {
+        Windows.System.VirtualKey key = args.Key;
+        if (key is Windows.System.VirtualKey.Control or
+            Windows.System.VirtualKey.Shift or
+            Windows.System.VirtualKey.Menu or
+            Windows.System.VirtualKey.LeftControl or
+            Windows.System.VirtualKey.RightControl or
+            Windows.System.VirtualKey.LeftShift or
+            Windows.System.VirtualKey.RightShift or
+            Windows.System.VirtualKey.LeftMenu or
+            Windows.System.VirtualKey.RightMenu or
+            Windows.System.VirtualKey.LeftWindows or
+            Windows.System.VirtualKey.RightWindows)
+        {
+            args.Handled = true;
+            return;
+        }
+
+        int modifiers =
+            (IsKeyDown(Windows.System.VirtualKey.Control)
+                ? LauncherEntrySettingsViewModel.ModifierControl
+                : 0) |
+            (IsKeyDown(Windows.System.VirtualKey.Menu)
+                ? LauncherEntrySettingsViewModel.ModifierAlt
+                : 0) |
+            (IsKeyDown(Windows.System.VirtualKey.Shift)
+                ? LauncherEntrySettingsViewModel.ModifierShift
+                : 0);
+        args.Handled = true;
+        if (EntryViewModel.TrySetCustomHotkey(modifiers, (int)key))
+        {
+            ScheduleHotkeyStateRefresh();
+        }
+    }
+
+    private void EntryHotkeyModeBox_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs args)
+    {
+        ScheduleHotkeyStateRefresh();
+    }
+
+    private static bool IsKeyDown(Windows.System.VirtualKey key) =>
+        Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(key)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+    /// <summary>
+    /// Reads the launcher's registration write-back once, after it has had a moment to see
+    /// the change. One shot, not a poll: the launcher applies within milliseconds, and a
+    /// second look on the next change costs nothing.
+    /// </summary>
+    private void ScheduleHotkeyStateRefresh()
+    {
+        if (_hotkeyStateTimer is null)
+        {
+            _hotkeyStateTimer = DispatcherQueue.CreateTimer();
+            _hotkeyStateTimer.Interval = TimeSpan.FromMilliseconds(800);
+            _hotkeyStateTimer.IsRepeating = false;
+            _hotkeyStateTimer.Tick += HotkeyStateTimer_Tick;
+        }
+
+        _hotkeyStateTimer.Stop();
+        _hotkeyStateTimer.Start();
+    }
+
+    private void HotkeyStateTimer_Tick(
+        Microsoft.UI.Dispatching.DispatcherQueueTimer sender,
+        object args)
+    {
+        sender.Stop();
+        EntryViewModel.RefreshHotkeyState();
+    }
+
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _hotkeyStateTimer;
 
     /// <summary>
     /// Releases the section transition's state. Closing the dialog does this on its own; the

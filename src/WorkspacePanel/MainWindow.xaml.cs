@@ -540,6 +540,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         var generalViewModel = new GeneralSettingsViewModel(
             StartupShortcut.ForCurrentUser(),
             key => _resources.GetString(key));
+        var entryViewModel = new LauncherEntrySettingsViewModel(
+            new RegistryLauncherPreferenceStore(),
+            key => _resources.GetString(key));
         var weatherViewModel = new WeatherSettingsViewModel(
             _weatherSettingsClient,
             key => _resources.GetString(key),
@@ -559,6 +562,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
             using var dialog = new SettingsDialog(
                 generalViewModel,
+                entryViewModel,
                 weatherViewModel,
                 systemMonitorViewModel,
                 tokenUsageViewModel,
@@ -634,6 +638,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         return category switch
         {
             SettingsCategory.General => general.StatusText,
+            // The entry's settings applied the moment they changed; there is no outcome
+            // left to report once the dialog closes.
+            SettingsCategory.TaskbarEntry => string.Empty,
             SettingsCategory.SystemMonitor => systemMonitor.StatusText,
             SettingsCategory.TokenUsage => tokenUsage.StatusText,
             _ => weather.StatusText,

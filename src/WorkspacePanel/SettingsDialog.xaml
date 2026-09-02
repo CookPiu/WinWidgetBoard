@@ -133,6 +133,9 @@
                     x:Uid="SettingsCategoryGeneral"
                     automation:AutomationProperties.AutomationId="SettingsCategoryGeneral" />
                 <ListViewItem
+                    x:Uid="SettingsCategoryTaskbarEntry"
+                    automation:AutomationProperties.AutomationId="SettingsCategoryTaskbarEntry" />
+                <ListViewItem
                     x:Uid="SettingsCategoryWeather"
                     automation:AutomationProperties.AutomationId="SettingsCategoryWeather" />
                 <ListViewItem
@@ -237,6 +240,98 @@
                         Style="{StaticResource WwbCardCaptionStyle}"
                         Text="{x:Bind GeneralViewModel.VersionText}"
                         automation:AutomationProperties.AutomationId="GeneralVersionText" />
+                </StackPanel>
+
+                <!--
+                    The taskbar entry's settings, moved here from the entry's own context
+                    menu so the product is configured in one place. Everything applies
+                    immediately - the launcher watches the same HKCU key these write - so,
+                    like General, this section has no commit row.
+                -->
+                <StackPanel
+                    x:Name="TaskbarEntrySection"
+                    Spacing="{StaticResource WwbSpace3}"
+                    Visibility="Collapsed">
+                    <TextBlock
+                        x:Uid="EntrySettingsDescription"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        TextWrapping="Wrap" />
+                    <ComboBox
+                        x:Name="EntryContentModeBox"
+                        x:Uid="EntryContentModeBox"
+                        Width="292"
+                        HorizontalAlignment="Left"
+                        FontSize="12"
+                        SelectedIndex="{x:Bind EntryViewModel.ContentModeIndex, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="EntryContentModeBox">
+                        <ComboBoxItem x:Uid="EntryContentDateTimeItem" />
+                        <ComboBoxItem x:Uid="EntryContentWeatherItem" />
+                    </ComboBox>
+                    <ToggleSwitch
+                        x:Uid="EntryShowMonitorToggle"
+                        IsOn="{x:Bind EntryViewModel.ShowSystemMonitor, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="EntryShowMonitorToggle" />
+                    <ComboBox
+                        x:Name="EntryPlacementBox"
+                        x:Uid="EntryPlacementBox"
+                        Width="292"
+                        HorizontalAlignment="Left"
+                        FontSize="12"
+                        SelectedIndex="{x:Bind EntryViewModel.PlacementIndex, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="EntryPlacementBox">
+                        <ComboBoxItem x:Uid="EntryPlacementLeftItem" />
+                        <ComboBoxItem x:Uid="EntryPlacementCenterItem" />
+                        <ComboBoxItem x:Uid="EntryPlacementRightItem" />
+                        <ComboBoxItem x:Uid="EntryPlacementFloatingItem" />
+                    </ComboBox>
+                    <ComboBox
+                        x:Name="EntryFallbackBox"
+                        x:Uid="EntryFallbackBox"
+                        Width="292"
+                        HorizontalAlignment="Left"
+                        FontSize="12"
+                        SelectedIndex="{x:Bind EntryViewModel.LeftAlignFallbackIndex, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="EntryFallbackBox">
+                        <ComboBoxItem x:Uid="EntryFallbackFloatingItem" />
+                        <ComboBoxItem x:Uid="EntryFallbackCenterItem" />
+                        <ComboBoxItem x:Uid="EntryFallbackRightItem" />
+                    </ComboBox>
+                    <ComboBox
+                        x:Name="EntryHotkeyModeBox"
+                        x:Uid="EntryHotkeyModeBox"
+                        Width="292"
+                        HorizontalAlignment="Left"
+                        FontSize="12"
+                        SelectedIndex="{x:Bind EntryViewModel.HotkeyModeIndex, Mode=TwoWay}"
+                        SelectionChanged="EntryHotkeyModeBox_SelectionChanged"
+                        automation:AutomationProperties.AutomationId="EntryHotkeyModeBox">
+                        <ComboBoxItem x:Uid="EntryHotkeyDisabledItem" />
+                        <ComboBoxItem Content="Ctrl + Alt + B" />
+                        <ComboBoxItem Content="Ctrl + Alt + D" />
+                        <ComboBoxItem Content="Ctrl + Alt + Q" />
+                        <ComboBoxItem x:Uid="EntryHotkeyCustomItem" />
+                    </ComboBox>
+                    <!--
+                        The recorder. A read-only box that turns the next key press - with
+                        whatever Ctrl/Alt/Shift are held - into the chord; the launcher is
+                        the process that registers it, and its write-back is what reports a
+                        chord another program already owns.
+                    -->
+                    <TextBox
+                        x:Name="EntryHotkeyCaptureBox"
+                        x:Uid="EntryHotkeyCaptureBox"
+                        Width="292"
+                        HorizontalAlignment="Left"
+                        IsReadOnly="True"
+                        Text="{x:Bind EntryViewModel.CustomHotkeyText, Mode=OneWay}"
+                        KeyDown="EntryHotkeyCaptureBox_KeyDown"
+                        Visibility="{x:Bind EntryViewModel.IsCustomHotkey, Mode=OneWay}"
+                        automation:AutomationProperties.AutomationId="EntryHotkeyCaptureBox" />
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind EntryViewModel.StatusText, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        automation:AutomationProperties.AutomationId="EntrySettingsStatusText" />
                 </StackPanel>
 
                 <StackPanel
