@@ -14,6 +14,12 @@ public static class TokenUsageContract
 {
     public const string SettingsGetMethod = "tokenusage.settings.get";
     public const string SettingsSaveMethod = "tokenusage.settings.save";
+    /// <summary>
+    /// Fetches the public price list now rather than at the next daily tick. Asynchronous
+    /// like weather location search: it is an outbound network call and never holds the
+    /// router gate (ADR-0035).
+    /// </summary>
+    public const string PricingSyncMethod = "tokenusage.pricing.sync";
 
     public const int MaxInstanceIdLength = CardsContract.MaxInstanceIdLength;
     public const string DefaultInstanceId = "demo.tokenusage";
@@ -116,6 +122,7 @@ public static class TokenUsageContract
     [
         SettingsGetMethod,
         SettingsSaveMethod,
+        PricingSyncMethod,
     ];
 
     public static bool IsValidInstanceId(string? value) =>
@@ -299,6 +306,22 @@ public sealed record TokenUsageSettingsSaveRequest
     public bool? SyncPricing { get; init; }
 
     public int ExpectedRevision { get; init; }
+}
+
+public sealed record TokenUsagePricingSyncRequest
+{
+    public string? InstanceId { get; init; }
+}
+
+public sealed record TokenUsagePricingSyncResponse
+{
+    /// <summary>True when the feed had changed and new rates were applied; false for a 304.</summary>
+    public bool Updated { get; init; }
+
+    /// <summary>How many first-party models the synced list prices.</summary>
+    public int RateCount { get; init; }
+
+    public string PricingSyncedAtUtc { get; init; } = string.Empty;
 }
 
 public sealed record TokenUsageSettingsSaveResponse

@@ -159,6 +159,69 @@ public sealed class TokenUsagePricingFeedTests
     }
 
     [TestMethod(DisplayName =
+        "UT-TOKUSE-116 [USE-017] An attempt reports updated, unchanged or failed and applies what it got")]
+    public async Task AttemptReportsItsOutcomeAndAppliesRates()
+    {
+        await using SqliteDatabase database = await SqliteDatabase.OpenAsync(
+            new SqliteDatabaseOptions(":memory:"));
+        await database.ApplySchemaAsync();
+        var cache = new TokenUsagePricingCacheRepository(database);
+        var book = new TokenUsageRateBook();
+        var clock = new FixedClock(new DateTimeOffset(2026, 9, 2, 8, 0, 0, TimeSpan.Zero));
+        TokenUsagePricingFetchResult next = new(
+            TokenUsagePricingFetchKind.Updated,
+            new Dictionary<string, TokenUsageRate>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["claude-not-yet-released"] = new(7m, 8m, 9m, 10m, 11m),
+            },
+            "\"etag-1\"");
+        bool fail = false;
+        using var syncer = new TokenUsagePricingSyncer(
+            (etag, _) => fail
+                ? throw new HttpRequestException("offline")
+                : Task.FromResult(next),
+            cache,
+            book,
+            clock,
+            () => true);
+
+        Assert.AreEqual(
+            TokenUsagePricingAttemptResult.Updated,
+            await syncer.AttemptAsync(CancellationToken.None));
+        Assert.AreEqual(7m, book.TryGetRate("claude-not-yet-released")!.Value.InputPerMillion);
+        Assert.AreEqual(clock.UtcNow, book.SyncedAtUtc);
+        // What the attempt kept is what a restart would reload.
+        Assert.AreEqual(1, cache.Get()!.Rates.Count);
+        Assert.AreEqual("\"etag-1\"", cache.Get()!.ETag);
+
+        next = new TokenUsagePricingFetchResult(
+            TokenUsagePricingFetchKind.NotModified,
+            new Dictionary<string, TokenUsageRate>(),
+            "\"etag-1\"");
+        Assert.AreEqual(
+            TokenUsagePricingAttemptResult.NotModified,
+            await syncer.AttemptAsync(CancellationToken.None));
+        Assert.AreEqual(1, book.SyncedCount, "a 304 keeps the rates");
+
+        fail = true;
+        Assert.AreEqual(
+            TokenUsagePricingAttemptResult.Failed,
+            await syncer.AttemptAsync(CancellationToken.None));
+        Assert.AreEqual(1, syncer.FailureCount);
+        Assert.AreEqual(1, book.SyncedCount, "a failure keeps the previous rates");
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : IProviderRefreshClock
+    {
+        public DateTimeOffset UtcNow { get; } = now;
+
+        public TimeSpan MonotonicNow => TimeSpan.Zero;
+
+        public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+    }
+
+    [TestMethod(DisplayName =
         "UT-TOKUSE-115 [USE-016] The built-in table prices Fable 5.1 at its cheaper cache read")]
     public void BuiltInTableKnowsFable51()
     {

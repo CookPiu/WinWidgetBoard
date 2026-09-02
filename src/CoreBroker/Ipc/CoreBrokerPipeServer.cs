@@ -130,6 +130,20 @@ public sealed class CoreBrokerPipeServer
                             .ConfigureAwait(false);
                         nextSubscription = null;
                     }
+                    else if (string.Equals(
+                        request!.Method,
+                        TokenUsageContract.PricingSyncMethod,
+                        StringComparison.Ordinal))
+                    {
+                        // The other command that leaves the machine while a user waits: a
+                        // price-list fetch on request (ADR-0035).
+                        response = await _commandRouter
+                            .SyncTokenPricingAsync(
+                                request,
+                                connectionCancellation.Token)
+                            .ConfigureAwait(false);
+                        nextSubscription = null;
+                    }
                     else
                     {
                         response = HandleEstablishedRequest(
@@ -356,6 +370,9 @@ public sealed class CoreBrokerPipeServer
                 : Array.Empty<string>())
             .Concat(_commandRouter.SystemMonitorAvailable
                 ? SystemMonitorContract.Methods
+                : Array.Empty<string>())
+            .Concat(_commandRouter.TokenUsageAvailable
+                ? TokenUsageContract.Methods
                 : Array.Empty<string>())
             .ToArray(),
             MaxMessageBytes = ProtocolConstants.MaxMessageBytes,

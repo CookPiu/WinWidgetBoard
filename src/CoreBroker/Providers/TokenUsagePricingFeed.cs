@@ -200,6 +200,14 @@ public enum TokenUsagePricingFetchKind
     NotModified,
 }
 
+/// <summary>The outcome of one attempt, whether scheduled or asked for by the user.</summary>
+public enum TokenUsagePricingAttemptResult
+{
+    Updated,
+    NotModified,
+    Failed,
+}
+
 public sealed record TokenUsagePricingFetchResult(
     TokenUsagePricingFetchKind Kind,
     IReadOnlyDictionary<string, TokenUsageRate> Rates,
@@ -340,6 +348,9 @@ public sealed class TokenUsagePricingSyncer : IDisposable
     private readonly Func<bool> _isEnabled;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly object _gate = new();
+    // One attempt at a time: a click on "sync now" while the daily tick is mid-fetch waits
+    // for it rather than starting a second download of the same document.
+    private readonly SemaphoreSlim _attemptGate = new(1, 1);
     private CancellationTokenSource _wake = new();
     private string? _etag;
     private DateTimeOffset? _lastAttemptUtc;
@@ -456,46 +467,55 @@ public sealed class TokenUsagePricingSyncer : IDisposable
         }
     }
 
-    public async Task AttemptAsync(CancellationToken cancellationToken)
+    public async Task<TokenUsagePricingAttemptResult> AttemptAsync(
+        CancellationToken cancellationToken)
     {
-        DateTimeOffset startedAt = _clock.UtcNow;
-        _lastAttemptUtc = startedAt;
+        await _attemptGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            TokenUsagePricingFetchResult result = await _fetch(_etag, cancellationToken)
-                .ConfigureAwait(false);
-            DateTimeOffset finishedAt = _clock.UtcNow;
-            if (result.Kind == TokenUsagePricingFetchKind.Updated)
+            DateTimeOffset startedAt = _clock.UtcNow;
+            _lastAttemptUtc = startedAt;
+            try
             {
-                _etag = result.ETag;
-                _cache.Save(new Persistence.TokenUsagePricingCacheRecord(
-                    result.Rates,
-                    result.ETag,
-                    finishedAt));
-                _rateBook.ApplySynced(result.Rates, finishedAt);
-            }
-            else
-            {
+                TokenUsagePricingFetchResult result = await _fetch(_etag, cancellationToken)
+                    .ConfigureAwait(false);
+                DateTimeOffset finishedAt = _clock.UtcNow;
+                _lastAttemptFailed = false;
+                if (result.Kind == TokenUsagePricingFetchKind.Updated)
+                {
+                    _etag = result.ETag;
+                    _cache.Save(new Persistence.TokenUsagePricingCacheRecord(
+                        result.Rates,
+                        result.ETag,
+                        finishedAt));
+                    _rateBook.ApplySynced(result.Rates, finishedAt);
+                    return TokenUsagePricingAttemptResult.Updated;
+                }
+
                 _cache.Touch(finishedAt);
                 _rateBook.MarkChecked(finishedAt);
+                return TokenUsagePricingAttemptResult.NotModified;
             }
-
-            _lastAttemptFailed = false;
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+                when (exception is HttpRequestException or
+                    IOException or
+                    JsonException or
+                    InvalidDataException or
+                    OperationCanceledException or
+                    Persistence.SqliteException)
+            {
+                _lastAttemptFailed = true;
+                FailureCount++;
+                return TokenUsagePricingAttemptResult.Failed;
+            }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        finally
         {
-            throw;
-        }
-        catch (Exception exception)
-            when (exception is HttpRequestException or
-                IOException or
-                JsonException or
-                InvalidDataException or
-                OperationCanceledException or
-                Persistence.SqliteException)
-        {
-            _lastAttemptFailed = true;
-            FailureCount++;
+            _attemptGate.Release();
         }
     }
 
@@ -512,6 +532,8 @@ public sealed class TokenUsagePricingSyncer : IDisposable
             _wake.Cancel();
             _wake.Dispose();
         }
+
+        _attemptGate.Dispose();
     }
 
     private async Task WaitAsync(TimeSpan duration, CancellationToken token)

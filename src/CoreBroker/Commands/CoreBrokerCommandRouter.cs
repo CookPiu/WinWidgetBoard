@@ -94,6 +94,29 @@ public sealed class CoreBrokerCommandRouter
             cancellationToken);
     }
 
+    /// <summary>
+    /// The second asynchronous command, routed like location search so the gated path stays
+    /// synchronous: a user-requested price-list fetch (ADR-0035).
+    /// </summary>
+    public Task<Envelope> SyncTokenPricingAsync(
+        Envelope request,
+        CancellationToken cancellationToken)
+    {
+        if (request.MessageType != EnvelopeMessageType.Request)
+        {
+            return Task.FromResult(
+                ErrorResponse(request, "validation.invalid-argument", "validation"));
+        }
+
+        if (_tokenUsageCommandHandler is null)
+        {
+            return Task.FromResult(
+                ErrorResponse(request, "resource.unavailable", "resource-unavailable"));
+        }
+
+        return _tokenUsageCommandHandler.SyncPricingAsync(request, cancellationToken);
+    }
+
     public bool PanelVisible => _panelVisibilityCommandHandler.PanelVisible;
 
     public long VisibilityRevision => _panelVisibilityCommandHandler.VisibilityRevision;

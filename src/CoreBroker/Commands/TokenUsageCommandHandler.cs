@@ -39,6 +39,59 @@ internal sealed class TokenUsageCommandHandler
         return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
     }
 
+    /// <summary>
+    /// The one token-usage command that does not take the router gate: it is an outbound
+    /// network call, and holding the gate across it would stall every other domain behind
+    /// a remote host. Failure is reported as provider.failed - the prices already on hand
+    /// stay in force, so it is transient by nature.
+    /// </summary>
+    public async Task<Envelope> SyncPricingAsync(
+        Envelope request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryDeserializePayload(
+                request.Payload,
+                out TokenUsagePricingSyncRequest? payload) ||
+            payload is null ||
+            !IsValidUsageInstanceId(payload.InstanceId))
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        Task<TokenUsagePricingAttemptResult>? attempt;
+        try
+        {
+            attempt = _runtime.SyncPricingNowAsync(cancellationToken);
+        }
+        catch (ObjectDisposedException)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        if (attempt is null)
+        {
+            return ErrorResponse(request, "resource.unavailable", "resource-unavailable");
+        }
+
+        TokenUsagePricingAttemptResult result = await attempt.ConfigureAwait(false);
+        if (result == TokenUsagePricingAttemptResult.Failed)
+        {
+            return ErrorResponse(request, "provider.failed", "provider");
+        }
+
+        return SuccessResponse(
+            request,
+            TokenUsageContract.PricingSyncMethod,
+            new TokenUsagePricingSyncResponse
+            {
+                Updated = result == TokenUsagePricingAttemptResult.Updated,
+                RateCount = _runtime.RateBook.SyncedCount,
+                PricingSyncedAtUtc = _runtime.RateBook.SyncedAtUtc is { } syncedAt
+                    ? NoteRecord.FormatTimestamp(syncedAt)
+                    : string.Empty,
+            });
+    }
+
     private Envelope HandleGet(Envelope request)
     {
         if (!TryDeserializePayload(

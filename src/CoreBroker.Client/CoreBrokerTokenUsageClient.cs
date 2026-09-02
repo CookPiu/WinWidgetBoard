@@ -17,6 +17,11 @@ public interface ITokenUsageSettingsClient
     Task<TokenUsageSettingsDto> SaveTokenUsageSettingsAsync(
         TokenUsageSettingsSaveRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Fetches the public price list now instead of at the next daily tick.</summary>
+    Task<TokenUsagePricingSyncResponse> SyncTokenPricingAsync(
+        string instanceId,
+        CancellationToken cancellationToken);
 }
 
 public sealed class CoreBrokerTokenUsageClient : ITokenUsageSettingsClient
@@ -56,6 +61,22 @@ public sealed class CoreBrokerTokenUsageClient : ITokenUsageSettingsClient
         return Deserialize<TokenUsageSettingsSaveResponse>(
             response,
             TokenUsageContract.SettingsSaveMethod).Settings;
+    }
+
+    public async Task<TokenUsagePricingSyncResponse> SyncTokenPricingAsync(
+        string instanceId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+        Envelope response = await _client.SendWithReconnectAsync(
+            CreateRequest(
+                TokenUsageContract.PricingSyncMethod,
+                new TokenUsagePricingSyncRequest { InstanceId = instanceId }),
+            cancellationToken).ConfigureAwait(false);
+        EnsureSuccess(response, TokenUsageContract.PricingSyncMethod);
+        return Deserialize<TokenUsagePricingSyncResponse>(
+            response,
+            TokenUsageContract.PricingSyncMethod);
     }
 
     private static Envelope CreateRequest<TPayload>(string method, TPayload payload) =>

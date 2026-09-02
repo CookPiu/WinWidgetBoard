@@ -126,6 +126,24 @@ public sealed class TokenUsageRuntime : IDisposable
         }
     }
 
+    /// <summary>
+    /// Fetches the price list now, on the user's explicit request. Not gated: it is an
+    /// outbound network call, and the syncer serializes its own attempts. Null when the
+    /// broker was started without a syncer.
+    /// </summary>
+    public Task<TokenUsagePricingAttemptResult>? SyncPricingNowAsync(
+        CancellationToken cancellationToken)
+    {
+        TokenUsagePricingSyncer? syncer;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            syncer = _pricingSyncer;
+        }
+
+        return syncer?.AttemptAsync(cancellationToken);
+    }
+
     public TokenUsageSettingsRecord SaveSettings(
         string instanceId,
         IReadOnlyList<string> enabledVendors,
