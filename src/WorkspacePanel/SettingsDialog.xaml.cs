@@ -163,6 +163,11 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
         await TokenUsageViewModel.SaveAsync(CancellationToken.None);
     }
 
+    private async void TokenUsageSyncNowButton_Click(object sender, RoutedEventArgs args)
+    {
+        await TokenUsageViewModel.SyncPricingNowAsync(CancellationToken.None);
+    }
+
     private async void WeatherSettingsSaveButton_Click(object sender, RoutedEventArgs args)
     {
         if (await WeatherViewModel.SaveAsync(CancellationToken.None))

@@ -79,6 +79,7 @@ Envelope：
 | `sysmon.summary.get` | 读取任务栏入口用的已排版读数分段 | 否 |
 | `tokenusage.settings.get` | 读取 Token 用量厂商启用设置 | 否 |
 | `tokenusage.settings.save` | 保存 Token 用量厂商启用设置 | 是 |
+| `tokenusage.pricing.sync` | 立即拉取一次公开价表（异步，不持路由锁） | 否 |
 
 写操作使用 `clientOperationId` 防止重试扩大副作用。相同 ID 和相同 payload 返回第一次结果；相同 ID 搭配不同 payload 返回 `validation.invalid-argument`。
 
@@ -488,6 +489,10 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
 - `syncPricing` 决定 Broker 是否每日拉取公开价表，默认 `true`；保存请求里省略该字段表示保持原值，
   由 `false` 改为 `true` 会立即触发一次拉取；`pricingSyncedAtUtc` **不是存储设置**，只是价表最近取回或
   确认未变的时间，从未取回时为空串；
+- `tokenusage.pricing.sync` 请求只带 `instanceId`，立即执行一次与每日拉取相同的条件 GET 并等待结果，
+  响应 `{ "updated": true, "rateCount": 27, "pricingSyncedAtUtc": "…" }`（`updated` 为 `false` 表示 304，
+  价表未变）；失败返回 `provider.failed`（瞬时），已有价表继续生效。它与 `weather.locations.search`
+  一样在路由锁之外异步执行，且不受 `syncPricing` 约束——开关管的是 Broker 自发的行为，这是用户的一次显式动作；
 - 落盘的只有厂商启用设置、同步开关与过滤后的价表，不含任何用量数字或会话内容（约束见
   [09-security-privacy.md](09-security-privacy.md) 会话转录只读面与定价同步两节）。
 

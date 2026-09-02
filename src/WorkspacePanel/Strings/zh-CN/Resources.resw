@@ -1159,6 +1159,24 @@
   <data name="TokenUsagePricingNotSyncedStatus" xml:space="preserve">
     <value>尚未同步到价表，当前按本版本内置的价表估算。</value>
   </data>
+  <data name="TokenUsageSyncNowButton.Content" xml:space="preserve">
+    <value>立即同步</value>
+  </data>
+  <data name="TokenUsageSyncNowButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>立即同步公开定价</value>
+  </data>
+  <data name="TokenUsagePricingSyncingStatus" xml:space="preserve">
+    <value>正在同步价表……</value>
+  </data>
+  <data name="TokenUsagePricingSyncUpdatedStatus" xml:space="preserve">
+    <value>价表已更新。</value>
+  </data>
+  <data name="TokenUsagePricingSyncUnchangedStatus" xml:space="preserve">
+    <value>价表已是最新，没有变化。</value>
+  </data>
+  <data name="TokenUsagePricingSyncFailedStatus" xml:space="preserve">
+    <value>同步价表失败，继续使用现有价表。</value>
+  </data>
   <data name="TokenUsageSettingsSaveButton.Content" xml:space="preserve">
     <value>保存</value>
   </data>

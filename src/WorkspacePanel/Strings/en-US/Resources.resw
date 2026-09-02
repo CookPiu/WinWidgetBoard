@@ -1159,6 +1159,24 @@
   <data name="TokenUsagePricingNotSyncedStatus" xml:space="preserve">
     <value>Prices have not been synced yet; estimates use the table built into this version.</value>
   </data>
+  <data name="TokenUsageSyncNowButton.Content" xml:space="preserve">
+    <value>Sync now</value>
+  </data>
+  <data name="TokenUsageSyncNowButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Sync public prices now</value>
+  </data>
+  <data name="TokenUsagePricingSyncingStatus" xml:space="preserve">
+    <value>Syncing prices…</value>
+  </data>
+  <data name="TokenUsagePricingSyncUpdatedStatus" xml:space="preserve">
+    <value>Prices updated.</value>
+  </data>
+  <data name="TokenUsagePricingSyncUnchangedStatus" xml:space="preserve">
+    <value>Prices are already current; nothing changed.</value>
+  </data>
+  <data name="TokenUsagePricingSyncFailedStatus" xml:space="preserve">
+    <value>Price sync failed; the current prices stay in use.</value>
+  </data>
   <data name="TokenUsageSettingsSaveButton.Content" xml:space="preserve">
     <value>Save</value>
   </data>

@@ -117,7 +117,8 @@ Token 用量的费用估算按公开价折算，价表每日从 LiteLLM 的开�
 - 响应用 `Utf8JsonReader` 流式过滤到 Anthropic/OpenAI 的一方模型 id，其余供应商的条目既不进内存
   对象也不落盘；
 - 落盘的只有过滤后的价格、ETag 与取回时间（`token_usage_pricing` 单行）；
-- 设置页开关 `syncPricing` 默认开，关闭后不再访问该端点、只用内置价表；
+- 设置页开关 `syncPricing` 默认开，关闭后 Broker 不再自发访问该端点、只用内置价表；开关旁的
+  「立即同步」是一次显式动作（`tokenusage.pricing.sync`），点击才发起同一条 GET，不受开关约束；
 - 失败不通知用户，只计数供诊断，价格退回上一次成功的结果或内置表。
 
 ## 4. Explorer 与权限

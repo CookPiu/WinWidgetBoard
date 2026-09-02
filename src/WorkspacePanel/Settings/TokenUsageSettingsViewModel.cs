@@ -141,6 +141,7 @@ public sealed class TokenUsageSettingsViewModel : INotifyPropertyChanged
             if (Set(ref _isBusy, value))
             {
                 Raise(nameof(CanSave));
+                Raise(nameof(CanSyncNow));
             }
         }
     }
@@ -165,6 +166,46 @@ public sealed class TokenUsageSettingsViewModel : INotifyPropertyChanged
     }
 
     public bool CanSave => _client is not null && IsLoaded && !IsBusy;
+
+    /// <summary>
+    /// A fetch on request is an explicit action, so it is offered even while the daily
+    /// switch is off; the switch governs what the broker does on its own.
+    /// </summary>
+    public bool CanSyncNow => _client is not null && !IsBusy;
+
+    public async Task SyncPricingNowAsync(CancellationToken cancellationToken)
+    {
+        if (!CanSyncNow || _client is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusText = _text("TokenUsagePricingSyncingStatus");
+        try
+        {
+            TokenUsagePricingSyncResponse response = await _client.SyncTokenPricingAsync(
+                TokenUsageContract.DefaultInstanceId,
+                cancellationToken).ConfigureAwait(true);
+            PricingSyncedText = FormatPricingSynced(response.PricingSyncedAtUtc);
+            StatusText = _text(
+                response.Updated
+                    ? "TokenUsagePricingSyncUpdatedStatus"
+                    : "TokenUsagePricingSyncUnchangedStatus");
+        }
+        catch (CoreBrokerClientException)
+        {
+            StatusText = _text("TokenUsagePricingSyncFailedStatus");
+        }
+        catch (IOException)
+        {
+            StatusText = _text("TokenUsagePricingSyncFailedStatus");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     public int Revision => _revision;
 

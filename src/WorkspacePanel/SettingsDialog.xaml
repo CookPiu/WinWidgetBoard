@@ -643,10 +643,31 @@
                         selection; the line under it says how fresh the prices are, which is
                         the only visible effect of the switch.
                     -->
-                    <ToggleSwitch
-                        x:Uid="TokenUsageSyncPricingToggle"
-                        IsOn="{x:Bind TokenUsageViewModel.SyncPricing, Mode=TwoWay}"
-                        automation:AutomationProperties.AutomationId="TokenUsageSyncPricingToggle" />
+                    <Grid ColumnSpacing="{StaticResource WwbSpace2}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ToggleSwitch
+                            x:Uid="TokenUsageSyncPricingToggle"
+                            IsOn="{x:Bind TokenUsageViewModel.SyncPricing, Mode=TwoWay}"
+                            automation:AutomationProperties.AutomationId="TokenUsageSyncPricingToggle" />
+                        <!--
+                            An explicit fetch. Offered even while the daily switch is off: the
+                            switch governs what the broker does on its own, a click is the user
+                            asking for one pull now.
+                        -->
+                        <Button
+                            x:Name="TokenUsageSyncNowButton"
+                            x:Uid="TokenUsageSyncNowButton"
+                            Grid.Column="1"
+                            MinWidth="96"
+                            VerticalAlignment="Bottom"
+                            Style="{StaticResource WwbDialogButtonStyle}"
+                            IsEnabled="{x:Bind TokenUsageViewModel.CanSyncNow, Mode=OneWay}"
+                            Click="TokenUsageSyncNowButton_Click"
+                            automation:AutomationProperties.AutomationId="TokenUsageSyncNowButton" />
+                    </Grid>
                     <TextBlock
                         Style="{StaticResource WwbCardCaptionStyle}"
                         Text="{x:Bind TokenUsageViewModel.PricingSyncedText, Mode=OneWay}"
