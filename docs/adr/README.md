@@ -43,3 +43,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0032](0032-windows-device-weather-location.md) | Accepted | 天气默认经 Windows 前台授权读取设备位置，手动位置保留为降级与覆盖 |
 | [0033](0033-hwinfo-shared-memory-sensor-source.md) | Accepted | 温度与风扇改由 HWiNFO 共享内存读取，读不到时说明需运行 HWiNFO |
 | [0034](0034-core-temp-as-a-second-sensor-source.md) | Accepted | 温度源改为多来源并逐项判断，新增无时限的 Core Temp |
+| [0035](0035-daily-token-pricing-sync.md) | Accepted | Token 定价每日从 LiteLLM 开源价表条件拉取，同步价优先、内置表兜底、用户可关（修订 0030 第 9 条） |

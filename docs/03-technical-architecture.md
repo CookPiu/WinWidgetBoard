@@ -26,6 +26,7 @@ flowchart LR
     C <--> B
     B <--> D[("SQLite")]
     B <--> W["Open-Meteo<br/>天气 + 地理编码"]
+    B --> G["GitHub raw<br/>LiteLLM 价表（每日）"]
 ```
 
 | 组件 | 技术 | 当前职责 |
@@ -69,7 +70,8 @@ flowchart LR
 
 - 不引用 WinUI；
 - 验证全部 IPC 输入；
-- 持有数据库、全部网络访问（天气读数与地点搜索两个 Open-Meteo 端点）和集中调度；
+- 持有数据库、全部网络访问（天气读数与地点搜索两个 Open-Meteo 端点，以及每日一次、可关闭的
+  LiteLLM 价表拉取，[ADR-0035](adr/0035-daily-token-pricing-sync.md)）和集中调度；
 - 地点搜索是唯一的异步命令，且不占用命令路由器的全局锁——它是一次外发请求，
   占锁会让所有域排在远端主机之后（[ADR-0027](adr/0027-weather-location-search.md)）；
 - 队列、重试、超时和释放必须有上界。

@@ -456,7 +456,9 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
 两个方法，一个内置实例 `demo.tokenusage`（[ADR-0030](adr/0030-token-usage-card.md)）。
 用量数据本身经 `cards.snapshot` 下发，载荷按页组织：第 0 页恒为总览，其后是已启用厂商各一页；
 每页含读数（已排版文本）、按厂商或模型的拆分、归一化到 0..1 的 24 小时趋势和已排版金额估算。
-聚合结果只存在于 Broker 进程内，不写入 SQLite；该 Provider 不产生任何网络流量。
+聚合结果只存在于 Broker 进程内，不写入 SQLite；该 Provider 本身不产生网络流量。定价由一条独立的
+每日同步循环从 LiteLLM 开源价表条件拉取（[ADR-0035](adr/0035-daily-token-pricing-sync.md)），
+落盘的只有过滤后的价格、ETag 与取回时间。
 
 `tokenusage.settings.get` 请求只带 `instanceId`；响应在 `settings` 之外还带一份 `vendors`：
 
@@ -465,6 +467,8 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
   "settings": {
     "instanceId": "demo.tokenusage",
     "enabledVendors": ["claude", "codex"],
+    "syncPricing": true,
+    "pricingSyncedAtUtc": "2026-09-02T01:12:40.0000000Z",
     "revision": 1,
     "updatedAtUtc": "2026-08-28T06:00:00.0000000Z"
   },
@@ -481,8 +485,11 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
   保存时记下的可用性下次打开就已经过时；
 - `tokenusage.settings.save` 必须带 `clientOperationId` 与 `expectedRevision`，
   冲突返回 `conflict.tokenusage-settings-revision`；
-- 落盘的只有厂商启用设置，不含任何用量数字或会话内容（约束见
-  [09-security-privacy.md](09-security-privacy.md) 会话转录只读面一节）。
+- `syncPricing` 决定 Broker 是否每日拉取公开价表，默认 `true`；保存请求里省略该字段表示保持原值，
+  由 `false` 改为 `true` 会立即触发一次拉取；`pricingSyncedAtUtc` **不是存储设置**，只是价表最近取回或
+  确认未变的时间，从未取回时为空串；
+- 落盘的只有厂商启用设置、同步开关与过滤后的价表，不含任何用量数字或会话内容（约束见
+  [09-security-privacy.md](09-security-privacy.md) 会话转录只读面与定价同步两节）。
 
 ## 10. 天气 Provider
 

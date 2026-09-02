@@ -1,8 +1,8 @@
 # 当前安全与隐私边界
 
 文档状态：已批准
-版本：0.4
-日期：2026-09-01
+版本：0.5
+日期：2026-09-02
 
 ## 1. 当前攻击面
 
@@ -11,8 +11,9 @@
 - LauncherHost 任务栏入口；
 - WorkspacePanel 用户输入；
 - 当前用户 Named Pipe；
-- SQLite 中的布局、便签、天气位置、硬件监控显示项和 Token 用量厂商设置；
+- SQLite 中的布局、便签、天气位置、硬件监控显示项、Token 用量厂商设置与同步开关，以及过滤后的公开价表；
 - 到 `api.open-meteo.com` 的天气请求与到 `geocoding-api.open-meteo.com` 的地点搜索（见 §3.1）；
+- 到 `raw.githubusercontent.com` 的每日定价拉取（见 §3.4，用户可关）；
 - 对本机会话转录的只读扫描（见 §3.2）；
 - 本机硬件读数采样（仅公开用户态 API，不联网、不提权）；
 - 对监控程序共享内存段的只读访问（HWiNFO、Core Temp，见 §3.3）；
@@ -28,7 +29,7 @@
 - 天气自动/手动定位模式；
 - 用户在设置对话框中输入的地点搜索词；
 - 本机会话转录（只读来源，内容绝不进入日志或存储，见 §3.2）；
-- 硬件监控显示项与 Token 用量厂商启用设置；
+- 硬件监控显示项与 Token 用量设置（厂商启用、定价同步开关）；
 - IPC session token；
 - 当前用户数据库和备份；
 - 诊断日志中的系统信息。
@@ -43,13 +44,15 @@ flowchart LR
     P["WorkspacePanel"] --> B
     B --> D[("SQLite")]
     B --> W["Open-Meteo<br/>天气 + 地理编码"]
+    B --> G["GitHub raw<br/>LiteLLM 价表（每日、可关）"]
 ```
 
 - LauncherHost 和 WorkspacePanel 是当前用户进程；
 - CoreBroker 只接受当前用户连接和正确 session token；
 - SQLite 是本地用户数据边界；
 - Windows 位置服务是受系统隐私设置控制的 OS 信任边界，只由前台 WorkspacePanel 调用；
-- Open-Meteo 是唯一的外部网络供应商，占两个端点：天气读数与地点搜索。
+- 外部网络供应商有两个：Open-Meteo（天气读数与地点搜索两个端点）与 GitHub raw
+  （LiteLLM 开源价表一个端点，§3.4）。
 
 ## 3.1 地点搜索
 
@@ -79,7 +82,8 @@ Token 用量读取各工具的会话记录：`%USERPROFILE%\.claude\projects` �
   落盘的只有「启用了哪些厂商」这一项设置，不含任何用量数字；
 - 配额只按厂商自己记录的数值原样显示，不估算、不查询、不外发；
 - 解析失败只累加计数器，不记录任何来自对话的内容；
-- 不产生任何网络流量：该卡片没有外部供应商。
+- 读取本身不产生任何网络流量；卡片唯一的网络活动是与用量无关、可关闭的定价拉取（§3.4），
+  它是单向的，任何来自转录的数据都不会随它离开本机。
 
 ## 3.3 传感器共享内存只读面
 
@@ -100,6 +104,21 @@ HWiNFO 的 `Global\HWiNFO_SENS_SM2`（[ADR-0033](adr/0033-hwinfo-shared-memory-s
   并定时丢弃句柄重开——否则它退出后共享段会随我们持有的句柄一直留着，把最后一次读数冒充成实时值；
 - 读数**不写入 SQLite**，只存在于 broker 进程内，与天气读数和 Token 用量一致；
 - 不产生任何网络流量，源不在时静默降级。
+
+## 3.4 定价同步
+
+Token 用量的费用估算按公开价折算，价表每日从 LiteLLM 的开源价表条件拉取
+（[ADR-0035](adr/0035-daily-token-pricing-sync.md)），端点固定为
+`https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json`：
+
+- 单向 GET，请求只带 User-Agent 与上次的 `If-None-Match`，不带账号、设备、安装标识，
+  更不带任何用量数字；
+- 成功后 24 小时一次，失败后 1 小时重试；响应上限 8 MiB，超时 30 秒；
+- 响应用 `Utf8JsonReader` 流式过滤到 Anthropic/OpenAI 的一方模型 id，其余供应商的条目既不进内存
+  对象也不落盘；
+- 落盘的只有过滤后的价格、ETag 与取回时间（`token_usage_pricing` 单行）；
+- 设置页开关 `syncPricing` 默认开，关闭后不再访问该端点、只用内置价表；
+- 失败不通知用户，只计数供诊断，价格退回上一次成功的结果或内置表。
 
 ## 4. Explorer 与权限
 
