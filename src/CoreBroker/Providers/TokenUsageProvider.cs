@@ -39,7 +39,8 @@ public sealed class TokenUsageProvider : IProviderRefreshSource
         IReadOnlyList<ITokenUsageSource> sources,
         IReadOnlyList<string> enabledVendors,
         Func<DateTimeOffset>? utcNow = null,
-        TimeZoneInfo? timeZone = null)
+        TimeZoneInfo? timeZone = null,
+        Func<string?, TokenUsageRate?>? rateLookup = null)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(enabledVendors);
@@ -49,7 +50,7 @@ public sealed class TokenUsageProvider : IProviderRefreshSource
         _enabledVendors = Normalize(enabledVendors);
         _utcNow = utcNow ?? (static () => DateTimeOffset.UtcNow);
         _timeZone = timeZone ?? TimeZoneInfo.Local;
-        _aggregator = new TokenUsageAggregator(_timeZone);
+        _aggregator = new TokenUsageAggregator(_timeZone, rateLookup);
     }
 
     /// <summary>

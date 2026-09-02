@@ -39,7 +39,7 @@ public static class TokenUsagePricing
     /// When the rates below were last checked against the vendors' published pricing. Shown to
     /// nobody, but it is what a later reader needs in order to know whether to re-check.
     /// </summary>
-    public const string VerifiedOn = "2026-08-28";
+    public const string VerifiedOn = "2026-09-02";
 
     /// <summary>
     /// Sources: platform.claude.com/docs/en/about-claude/pricing for the Claude rows (base
@@ -51,6 +51,9 @@ public static class TokenUsagePricing
         new(StringComparer.OrdinalIgnoreCase)
         {
             // --- Anthropic ------------------------------------------------------------
+            // Fable 5.1 / Mythos 5.1 read cache hits at 0.025x base input, not the usual 0.1x.
+            ["claude-fable-5-1"] = new(10m, 50m, 12.50m, 20m, 0.25m),
+            ["claude-mythos-5-1"] = new(10m, 50m, 12.50m, 20m, 0.25m),
             ["claude-fable-5"] = new(10m, 50m, 12.50m, 20m, 1m),
             ["claude-mythos-5"] = new(10m, 50m, 12.50m, 20m, 1m),
             ["claude-opus-5"] = new(5m, 25m, 6.25m, 10m, 0.50m),
@@ -99,4 +102,84 @@ public static class TokenUsagePricing
 
     /// <summary>Model ids this build can price, for tests and diagnostics.</summary>
     public static IReadOnlyCollection<string> PricedModels => Rates.Keys;
+}
+
+/// <summary>
+/// The rates the aggregator actually consults: the daily-synced feed first, the built-in
+/// table behind it.
+///
+/// The feed wins where both know a model because it is newer than any build - a price cut
+/// or a new model reaches installed copies without a release. The built-in table stays as
+/// the floor so a machine that is offline, or has the sync switched off, prices exactly what
+/// it did before the feed existed (ADR-0035).
+/// </summary>
+public sealed class TokenUsageRateBook
+{
+    private readonly object _gate = new();
+    private IReadOnlyDictionary<string, TokenUsageRate>? _synced;
+    private DateTimeOffset? _syncedAtUtc;
+
+    public DateTimeOffset? SyncedAtUtc
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _syncedAtUtc;
+            }
+        }
+    }
+
+    public int SyncedCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _synced?.Count ?? 0;
+            }
+        }
+    }
+
+    public void ApplySynced(
+        IReadOnlyDictionary<string, TokenUsageRate> rates,
+        DateTimeOffset syncedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(rates);
+        lock (_gate)
+        {
+            _synced = rates;
+            _syncedAtUtc = syncedAtUtc;
+        }
+    }
+
+    /// <summary>Records a successful check that found nothing new.</summary>
+    public void MarkChecked(DateTimeOffset checkedAtUtc)
+    {
+        lock (_gate)
+        {
+            if (_synced is not null)
+            {
+                _syncedAtUtc = checkedAtUtc;
+            }
+        }
+    }
+
+    public TokenUsageRate? TryGetRate(string? model)
+    {
+        if (model is null)
+        {
+            return null;
+        }
+
+        IReadOnlyDictionary<string, TokenUsageRate>? synced;
+        lock (_gate)
+        {
+            synced = _synced;
+        }
+
+        return synced is not null && synced.TryGetValue(model, out TokenUsageRate rate)
+            ? rate
+            : TokenUsagePricing.TryGetRate(model);
+    }
 }

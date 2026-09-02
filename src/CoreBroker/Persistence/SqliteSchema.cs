@@ -205,5 +205,24 @@ public static class SqliteSchema
                         CHECK (unit_system IN ('metric', 'imperial'));
                 PRAGMA user_version = 8;
                 """),
+            // The synced price list is one row of public list prices plus the feed's ETag and
+            // a timestamp - no usage figure - and the settings row learns whether the user
+            // wants the daily sync at all (ADR-0035).
+            new SqliteMigration(
+                9,
+                "persist-token-pricing-sync",
+                """
+                CREATE TABLE IF NOT EXISTS token_usage_pricing (
+                    id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+                    rates_json TEXT NOT NULL,
+                    etag TEXT NULL,
+                    fetched_at_utc TEXT NOT NULL
+                );
+
+                ALTER TABLE token_usage_settings
+                    ADD COLUMN sync_pricing INTEGER NOT NULL DEFAULT 1
+                        CHECK (sync_pricing IN (0, 1));
+                PRAGMA user_version = 9;
+                """),
         };
 }

@@ -96,6 +96,7 @@ internal sealed class TokenUsageCommandHandler
         var fingerprint = new TokenUsageSaveFingerprint(
             payload.InstanceId!,
             string.Join('|', payload.EnabledVendors!),
+            payload.SyncPricing,
             payload.ExpectedRevision);
 
         lock (_gate)
@@ -119,7 +120,8 @@ internal sealed class TokenUsageCommandHandler
                 TokenUsageSettingsRecord saved = _runtime.SaveSettings(
                     payload.InstanceId!,
                     payload.EnabledVendors!,
-                    payload.ExpectedRevision);
+                    payload.ExpectedRevision,
+                    payload.SyncPricing);
                 var responsePayload = new TokenUsageSettingsSaveResponse
                 {
                     ClientOperationId = payload.ClientOperationId,
@@ -149,11 +151,15 @@ internal sealed class TokenUsageCommandHandler
         }
     }
 
-    private static TokenUsageSettingsDto ToContract(TokenUsageSettingsRecord settings) =>
+    private TokenUsageSettingsDto ToContract(TokenUsageSettingsRecord settings) =>
         new()
         {
             InstanceId = settings.InstanceId,
             EnabledVendors = settings.EnabledVendors,
+            SyncPricing = settings.SyncPricing,
+            PricingSyncedAtUtc = _runtime.RateBook.SyncedAtUtc is { } syncedAt
+                ? NoteRecord.FormatTimestamp(syncedAt)
+                : string.Empty,
             Revision = settings.Revision,
             UpdatedAtUtc = settings.UpdatedAtUtc ?? string.Empty,
         };
@@ -203,5 +209,6 @@ internal sealed class TokenUsageCommandHandler
     private sealed record TokenUsageSaveFingerprint(
         string InstanceId,
         string EnabledVendors,
+        bool? SyncPricing,
         int ExpectedRevision);
 }

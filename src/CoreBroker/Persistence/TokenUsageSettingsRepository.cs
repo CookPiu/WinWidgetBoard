@@ -13,7 +13,8 @@ public sealed record TokenUsageSettingsRecord
         string instanceId,
         IReadOnlyList<string> enabledVendors,
         int revision,
-        string? updatedAtUtc)
+        string? updatedAtUtc,
+        bool syncPricing = true)
     {
         if (!TokenUsageContract.IsValidInstanceId(instanceId))
         {
@@ -40,11 +41,15 @@ public sealed record TokenUsageSettingsRecord
         EnabledVendors = enabledVendors.ToArray();
         Revision = revision;
         UpdatedAtUtc = updatedAtUtc;
+        SyncPricing = syncPricing;
     }
 
     public string InstanceId { get; }
 
     public IReadOnlyList<string> EnabledVendors { get; }
+
+    /// <summary>Whether the daily price-list fetch is allowed (ADR-0035). Default on.</summary>
+    public bool SyncPricing { get; }
 
     public int Revision { get; }
 
@@ -133,7 +138,7 @@ public sealed class TokenUsageSettingsRepository
         ValidateInstanceId(instanceId);
         TokenUsageSettingsRecord? result = null;
         _repository.Query(
-            "SELECT instance_id, enabled_vendors, revision, updated_at_utc " +
+            "SELECT instance_id, enabled_vendors, revision, updated_at_utc, sync_pricing " +
             "FROM token_usage_settings WHERE instance_id = @instance;",
             statement => statement.BindText("@instance", instanceId),
             statement => result = ReadRecord(statement));
@@ -144,7 +149,8 @@ public sealed class TokenUsageSettingsRepository
         string instanceId,
         IReadOnlyList<string> enabledVendors,
         int expectedRevision,
-        DateTimeOffset? nowUtc = null)
+        DateTimeOffset? nowUtc = null,
+        bool syncPricing = true)
     {
         ValidateInstanceId(instanceId);
         if (!TokenUsageContract.IsValidVendorList(enabledVendors))
@@ -174,27 +180,29 @@ public sealed class TokenUsageSettingsRepository
         {
             _repository.Execute(
                 "INSERT INTO token_usage_settings " +
-                "(instance_id, enabled_vendors, revision, updated_at_utc) " +
-                "VALUES (@instance, @vendors, @revision, @updated);",
+                "(instance_id, enabled_vendors, revision, updated_at_utc, sync_pricing) " +
+                "VALUES (@instance, @vendors, @revision, @updated, @sync);",
                 statement =>
                 {
                     statement.BindText("@instance", instanceId);
                     statement.BindText("@vendors", vendorsJson);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
+                    statement.BindInt("@sync", syncPricing ? 1 : 0);
                 });
         }
         else
         {
             int changes = _repository.Execute(
                 "UPDATE token_usage_settings SET enabled_vendors = @vendors, " +
-                "revision = @revision, updated_at_utc = @updated " +
+                "revision = @revision, updated_at_utc = @updated, sync_pricing = @sync " +
                 "WHERE instance_id = @instance AND revision = @expected;",
                 statement =>
                 {
                     statement.BindText("@vendors", vendorsJson);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
+                    statement.BindInt("@sync", syncPricing ? 1 : 0);
                     statement.BindText("@instance", instanceId);
                     statement.BindInt("@expected", expectedRevision);
                 });
@@ -212,7 +220,8 @@ public sealed class TokenUsageSettingsRepository
             instanceId,
             enabledVendors,
             nextRevision,
-            updatedAtUtc);
+            updatedAtUtc,
+            syncPricing);
     }
 
     private static TokenUsageSettingsRecord ReadRecord(SqliteStatement statement) =>
@@ -222,7 +231,8 @@ public sealed class TokenUsageSettingsRepository
             TokenUsageSettingsRecord.DeserializeVendors(statement.ReadText(1)),
             statement.ReadInt(2),
             statement.ReadText(3) ??
-                throw new SqliteException(1, "token_usage_settings.updated_at_utc is NULL."));
+                throw new SqliteException(1, "token_usage_settings.updated_at_utc is NULL."),
+            statement.ReadInt(4) != 0);
 
     private static void ValidateInstanceId(string instanceId)
     {

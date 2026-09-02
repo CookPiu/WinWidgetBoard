@@ -292,6 +292,12 @@ public sealed record TokenUsageSettingsSaveRequest
 
     public IReadOnlyList<string>? EnabledVendors { get; init; }
 
+    /// <summary>
+    /// Whether the broker may fetch the public price list once a day. Null leaves the stored
+    /// value alone, so a client built before this field saves exactly what it did before.
+    /// </summary>
+    public bool? SyncPricing { get; init; }
+
     public int ExpectedRevision { get; init; }
 }
 
@@ -312,6 +318,20 @@ public sealed record TokenUsageSettingsDto
     /// the one failure mode that cannot be noticed by looking at it.
     /// </summary>
     public IReadOnlyList<string> EnabledVendors { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Whether the broker fetches the public price list once a day (ADR-0035). On by
+    /// default: a stale price is the one error in the cost figure that does not show, and
+    /// the fetch carries nothing about this machine.
+    /// </summary>
+    public bool SyncPricing { get; init; } = true;
+
+    /// <summary>
+    /// When the synced price list was last fetched or confirmed unchanged; empty when the
+    /// broker has never reached the feed. Not stored settings state - it rides along so the
+    /// settings page can say how fresh the prices are.
+    /// </summary>
+    public string PricingSyncedAtUtc { get; init; } = string.Empty;
 
     public int Revision { get; init; }
 

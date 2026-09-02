@@ -21,8 +21,15 @@ public sealed class TokenUsageRuntime : IDisposable
     private readonly TokenUsageProvider _provider;
     private readonly ProviderRefreshHostRegistration _hostRegistration;
     private TokenUsageSettingsRecord _settings;
+    private TokenUsagePricingSyncer? _pricingSyncer;
     private long _sequence;
     private bool _disposed;
+
+    /// <summary>
+    /// The prices the aggregator consults: the daily-synced feed over the built-in table.
+    /// Owned here so the provider and the settings surface report from the same book.
+    /// </summary>
+    public TokenUsageRateBook RateBook { get; } = new();
 
     public TokenUsageRuntime(
         TokenUsageSettingsRepository settingsRepository,
@@ -45,7 +52,8 @@ public sealed class TokenUsageRuntime : IDisposable
         _provider = new TokenUsageProvider(
             sources ?? TokenUsageProvider.CreateDefaultSources(),
             _settings.EnabledVendors,
-            () => _clock.UtcNow);
+            () => _clock.UtcNow,
+            rateLookup: RateBook.TryGetRate);
 
         var adapter = new ProviderCardSnapshotAdapter(
             TokenUsageProvider.InstanceId,
@@ -104,10 +112,25 @@ public sealed class TokenUsageRuntime : IDisposable
     /// </summary>
     public IReadOnlyList<TokenUsageVendorStatusDto> ListVendors() => _provider.ListVendors();
 
+    /// <summary>
+    /// Hooks up the daily fetch. Attached after construction rather than passed in: the
+    /// syncer needs an HttpClient and the cache repository, neither of which this runtime
+    /// should own, and a broker started without one (smoke tests) simply never syncs.
+    /// </summary>
+    public void AttachPricingSyncer(TokenUsagePricingSyncer syncer)
+    {
+        ArgumentNullException.ThrowIfNull(syncer);
+        lock (_gate)
+        {
+            _pricingSyncer = syncer;
+        }
+    }
+
     public TokenUsageSettingsRecord SaveSettings(
         string instanceId,
         IReadOnlyList<string> enabledVendors,
-        int expectedRevision)
+        int expectedRevision,
+        bool? syncPricing = null)
     {
         if (!string.Equals(
                 instanceId,
@@ -122,16 +145,25 @@ public sealed class TokenUsageRuntime : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            bool sync = syncPricing ?? _settings.SyncPricing;
             TokenUsageSettingsRecord saved = _settingsRepository.Save(
                 instanceId,
                 enabledVendors,
                 expectedRevision,
-                _clock.UtcNow);
+                _clock.UtcNow,
+                sync);
 
             // Pushed down rather than read per tick: switching a vendor off has to drop its
             // records now, not merely stop counting new ones.
             _provider.SetEnabledVendors(saved.EnabledVendors);
+            bool syncTurnedOn = sync && !_settings.SyncPricing;
             _settings = saved;
+            if (syncTurnedOn)
+            {
+                // The first fetch after the switch must not wait for tomorrow's tick.
+                _pricingSyncer?.Trigger();
+            }
+
             return saved;
         }
     }

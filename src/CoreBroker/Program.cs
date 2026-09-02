@@ -131,6 +131,21 @@ internal static class Program
             providerVisibilityRegistry,
             cardSnapshotSubscriptionHub,
             refreshClock);
+        // Its own HttpClient: a different vendor and a different privacy boundary from the
+        // weather client, so neither can inherit a header or a policy meant for the other.
+        using var pricingHttpClient = new HttpClient
+        {
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+        var pricingFeed = new TokenUsagePricingFeedClient(pricingHttpClient);
+        using var pricingSyncer = new TokenUsagePricingSyncer(
+            pricingFeed.FetchAsync,
+            new TokenUsagePricingCacheRepository(database),
+            tokenUsageRuntime.RateBook,
+            refreshClock,
+            () => tokenUsageRuntime.GetSettings().SyncPricing);
+        tokenUsageRuntime.AttachPricingSyncer(pricingSyncer);
+        Task pricingSyncTask = pricingSyncer.RunAsync(cancellation.Token);
         var server = new CoreBrokerPipeServer(
             CoreBrokerPipeNames.Production,
             sessionToken,
@@ -146,6 +161,15 @@ internal static class Program
                 tokenUsageRuntime));
         await server.RunAsync(cancellation.Token).ConfigureAwait(false);
         await providerHostTask.ConfigureAwait(false);
+        try
+        {
+            await pricingSyncTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Stopping with the broker is the loop's normal end.
+        }
+
         return fatalSupervisor.HasFatalFault ? ProviderFatalExitCode : 0;
     }
 

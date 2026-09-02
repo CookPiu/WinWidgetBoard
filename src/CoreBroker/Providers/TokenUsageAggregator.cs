@@ -141,12 +141,21 @@ public sealed class TokenUsageAggregator
     public const int RetentionHours = TokenUsageContract.TrendHours + 2;
 
     private readonly TimeZoneInfo _timeZone;
+    private readonly Func<string?, TokenUsageRate?> _rateLookup;
     private readonly List<TranscriptUsageRecord> _records = [];
     private readonly HashSet<ResponseKey> _seen = [];
 
-    public TokenUsageAggregator(TimeZoneInfo? timeZone = null)
+    /// <param name="rateLookup">
+    /// Where prices come from. The runtime hands in its rate book (synced feed over the
+    /// built-in table); the default is the built-in table alone, which is what the tests
+    /// and the smoke test price against.
+    /// </param>
+    public TokenUsageAggregator(
+        TimeZoneInfo? timeZone = null,
+        Func<string?, TokenUsageRate?>? rateLookup = null)
     {
         _timeZone = timeZone ?? TimeZoneInfo.Local;
+        _rateLookup = rateLookup ?? TokenUsagePricing.TryGetRate;
     }
 
     public int RecordCount => _records.Count;
@@ -292,7 +301,7 @@ public sealed class TokenUsageAggregator
                 todayCacheableInput += record.CacheableInputTokens;
                 todayRequests++;
 
-                if (TokenUsagePricing.TryGetRate(record.Model) is { } rate)
+                if (_rateLookup(record.Model) is { } rate)
                 {
                     decimal outputCost =
                         record.OutputTokens * rate.OutputPerMillion / 1_000_000m;
