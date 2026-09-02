@@ -638,6 +638,20 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!--
+                        The daily price-list fetch (ADR-0035). Saved with the vendor
+                        selection; the line under it says how fresh the prices are, which is
+                        the only visible effect of the switch.
+                    -->
+                    <ToggleSwitch
+                        x:Uid="TokenUsageSyncPricingToggle"
+                        IsOn="{x:Bind TokenUsageViewModel.SyncPricing, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="TokenUsageSyncPricingToggle" />
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind TokenUsageViewModel.PricingSyncedText, Mode=OneWay}"
+                        TextWrapping="Wrap"
+                        automation:AutomationProperties.AutomationId="TokenUsagePricingSyncedText" />
                 </StackPanel>
                 </Grid>
             </ScrollViewer>

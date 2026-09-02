@@ -29,6 +29,8 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         nameof(IsTokenUsageTrendVisible),
         nameof(TokenUsageCostText),
         nameof(IsTokenUsageCostVisible),
+        nameof(TokenUsageCostNoteText),
+        nameof(IsTokenUsageCostNoteVisible),
         nameof(IsTokenUsagePageSwitcherVisible),
         nameof(TokenUsageMetricLimit),
     ];
@@ -371,6 +373,19 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// the readings are what give way, not the other way round.
     /// </summary>
     public bool IsTokenUsageCostVisible => TokenUsageCostText.Length > 0;
+
+    /// <summary>
+    /// What stands in for the headline when nothing on the page could be priced: the note
+    /// naming how many models have no rate. A page with usage but no figure at all read as
+    /// "the card lost its cost", which is exactly what happened the day a new model id
+    /// arrived - the note says why instead of saying nothing.
+    /// </summary>
+    public string TokenUsageCostNoteText => TokenUsageCurrentPage?.CostNoteText ?? string.Empty;
+
+    public bool IsTokenUsageCostNoteVisible =>
+        !IsTokenUsageCostVisible &&
+        TokenUsageCostNoteText.Length > 0 &&
+        TokenUsageCurrentPage?.UnpricedModelCount > 0;
 
     /// <summary>
     /// One grid row tall. The trend is the first thing to go: it is the tallest single block

@@ -1144,6 +1144,21 @@
   <data name="TokenUsageVendorUnavailable.Text" xml:space="preserve">
     <value>no records</value>
   </data>
+  <data name="TokenUsageSyncPricingToggle.Header" xml:space="preserve">
+    <value>Sync public prices daily</value>
+  </data>
+  <data name="TokenUsageSyncPricingToggle.OnContent" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="TokenUsageSyncPricingToggle.OffContent" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="TokenUsagePricingSyncedStatus" xml:space="preserve">
+    <value>Prices updated {0} (source: the LiteLLM open price list). When off, only the price table built into this version is used.</value>
+  </data>
+  <data name="TokenUsagePricingNotSyncedStatus" xml:space="preserve">
+    <value>Prices have not been synced yet; estimates use the table built into this version.</value>
+  </data>
   <data name="TokenUsageSettingsSaveButton.Content" xml:space="preserve">
     <value>Save</value>
   </data>

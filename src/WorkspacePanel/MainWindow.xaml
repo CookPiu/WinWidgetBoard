@@ -2029,6 +2029,16 @@
                                         Text="{x:Bind TokenUsageCostText, Mode=OneWay}"
                                         automation:AutomationProperties.AutomationId="TokenUsageCostText" />
                                 </StackPanel>
+                                <!--
+                                    Usage with no figure: say why (how many models have no
+                                    rate) rather than dropping the headline silently.
+                                -->
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind TokenUsageCostNoteText, Mode=OneWay}"
+                                    TextWrapping="Wrap"
+                                    Visibility="{x:Bind IsTokenUsageCostNoteVisible, Mode=OneWay}"
+                                    automation:AutomationProperties.AutomationId="TokenUsageCostNoteText" />
                                 <ItemsControl
                                     ItemsSource="{x:Bind TokenUsageMetrics}"
                                     ItemTemplate="{StaticResource TokenUsageMetricTemplate}"

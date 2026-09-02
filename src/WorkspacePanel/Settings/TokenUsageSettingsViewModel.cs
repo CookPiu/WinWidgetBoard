@@ -74,10 +74,12 @@ public sealed class TokenUsageSettingsViewModel : INotifyPropertyChanged
     private readonly ITokenUsageSettingsClient? _client;
     private readonly Func<string, string> _text;
     private string _statusText = string.Empty;
+    private string _pricingSyncedText = string.Empty;
     private int _revision;
     private bool _isBusy;
     private bool _wasSaved;
     private bool _isLoaded;
+    private bool _syncPricing = true;
 
     public TokenUsageSettingsViewModel(
         ITokenUsageSettingsClient? client,
@@ -103,6 +105,27 @@ public sealed class TokenUsageSettingsViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<TokenUsageVendorOption> Vendors { get; }
+
+    /// <summary>
+    /// Whether the broker may fetch the public price list once a day (ADR-0035). Saved with
+    /// the vendor selection; on by default because a stale price is the one error in the
+    /// cost figure that does not show.
+    /// </summary>
+    public bool SyncPricing
+    {
+        get => _syncPricing;
+        set => Set(ref _syncPricing, value);
+    }
+
+    /// <summary>
+    /// How fresh the synced prices are, as a sentence: when they were last fetched, or that
+    /// the built-in table is what is pricing today.
+    /// </summary>
+    public string PricingSyncedText
+    {
+        get => _pricingSyncedText;
+        private set => Set(ref _pricingSyncedText, value);
+    }
 
     public string StatusText
     {
@@ -205,6 +228,7 @@ public sealed class TokenUsageSettingsViewModel : INotifyPropertyChanged
                     ClientOperationId = Guid.NewGuid(),
                     InstanceId = TokenUsageContract.DefaultInstanceId,
                     EnabledVendors = SelectedVendors,
+                    SyncPricing = SyncPricing,
                     ExpectedRevision = _revision,
                 },
                 cancellationToken).ConfigureAwait(true);
@@ -265,7 +289,27 @@ public sealed class TokenUsageSettingsViewModel : INotifyPropertyChanged
                 StringComparer.Ordinal);
         }
 
+        SyncPricing = settings.SyncPricing;
+        PricingSyncedText = FormatPricingSynced(settings.PricingSyncedAtUtc);
         Raise(nameof(Revision));
+    }
+
+    private string FormatPricingSynced(string syncedAtUtc)
+    {
+        if (!string.IsNullOrEmpty(syncedAtUtc) &&
+            DateTimeOffset.TryParse(
+                syncedAtUtc,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal,
+                out DateTimeOffset syncedAt))
+        {
+            return string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                _text("TokenUsagePricingSyncedStatus"),
+                syncedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture));
+        }
+
+        return _text("TokenUsagePricingNotSyncedStatus");
     }
 
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

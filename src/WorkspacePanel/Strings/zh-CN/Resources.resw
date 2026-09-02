@@ -1144,6 +1144,21 @@
   <data name="TokenUsageVendorUnavailable.Text" xml:space="preserve">
     <value>无记录</value>
   </data>
+  <data name="TokenUsageSyncPricingToggle.Header" xml:space="preserve">
+    <value>每日同步公开定价</value>
+  </data>
+  <data name="TokenUsageSyncPricingToggle.OnContent" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="TokenUsageSyncPricingToggle.OffContent" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="TokenUsagePricingSyncedStatus" xml:space="preserve">
+    <value>价表更新于 {0}（来源：LiteLLM 开源价表）。关闭后只用本版本内置的价表。</value>
+  </data>
+  <data name="TokenUsagePricingNotSyncedStatus" xml:space="preserve">
+    <value>尚未同步到价表，当前按本版本内置的价表估算。</value>
+  </data>
   <data name="TokenUsageSettingsSaveButton.Content" xml:space="preserve">
     <value>保存</value>
   </data>
