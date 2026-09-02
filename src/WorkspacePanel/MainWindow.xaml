@@ -133,17 +133,14 @@
             mark, and the row already carries its own time or weekday; the distinction that
             matters is carried by the backdrop, which is large enough to show it.
         -->
-        <!--
-            The clear glyph is the backdrop's sun at row scale: a disc inside a thin halo
-            ring. A bare disc alone read as a bullet point, and six hours of clear sky became
-            a bulleted list. The halo is one reversed-winding subpath, so the ring is part of
-            the same flat mark rather than a second translucent layer.
-        -->
+        <!-- Clear sky is a single disc: at 18 DIP any ring or ray around it reads as noise. -->
         <DataTemplate x:Key="WeatherGlyphClearTemplate">
             <Grid Width="18" Height="18" Opacity="0.85">
-                <Path
-                    Stretch="None"
-                    Data="F1 M 1.0,9.0 A 8.0,8.0 0 1 1 17.0,9.0 A 8.0,8.0 0 1 1 1.0,9.0 Z M 2.4,9.0 A 6.6,6.6 0 1 0 15.6,9.0 A 6.6,6.6 0 1 0 2.4,9.0 Z M 4.6,9.0 A 4.4,4.4 0 1 1 13.4,9.0 A 4.4,4.4 0 1 1 4.6,9.0 Z"
+                <Ellipse
+                    Width="10.4"
+                    Height="10.4"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
                     Fill="{ThemeResource TextFillColorSecondaryBrush}" />
             </Grid>
         </DataTemplate>
