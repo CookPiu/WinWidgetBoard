@@ -15,8 +15,11 @@ public sealed class NoteEditorUndoTests
             fake,
             autosaveDelay: TimeSpan.FromMilliseconds(40));
 
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
         viewModel.Body = "first";
+        // A save closes the undo step; without it the two edits would be one step.
+        await viewModel.WaitForIdleAsync(timeout.Token);
         viewModel.Body = "second";
 
         Assert.IsTrue(viewModel.CanUndo);
@@ -28,7 +31,6 @@ public sealed class NoteEditorUndoTests
         Assert.AreEqual("second", viewModel.Body);
         Assert.IsFalse(viewModel.CanRedo);
 
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await viewModel.WaitForIdleAsync(timeout.Token);
         Assert.AreEqual("second", fake.Saves[^1].Body);
         Assert.IsFalse(viewModel.HasUnsavedChanges);
@@ -59,12 +61,14 @@ public sealed class NoteEditorUndoTests
     {
         await using var viewModel = new NoteEditorViewModel(
             new FakeNoteClient(),
-            autosaveDelay: TimeSpan.FromSeconds(10));
+            autosaveDelay: TimeSpan.FromMilliseconds(1));
 
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
         for (int index = 0; index < 25; index++)
         {
             viewModel.Body = $"draft-{index}";
+            await viewModel.WaitForIdleAsync(timeout.Token);
         }
 
         int undoCount = 0;
@@ -79,9 +83,74 @@ public sealed class NoteEditorUndoTests
         Assert.IsTrue(viewModel.CanRedo);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-045 [NTE-001] Edits between two saves form one undo step per field")]
+    public async Task EditsBetweenTwoSavesFormOneUndoStepPerField()
+    {
+        var fake = new FakeNoteClient();
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(20));
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        viewModel.Body = "s";
+        viewModel.Body = "so";
+        viewModel.Body = "some";
+        // Touching the other field opens a step of its own.
+        viewModel.Title = "T";
+        viewModel.Title = "Ti";
+        await viewModel.WaitForIdleAsync(timeout.Token);
+        // A save closes the run: the next edit is a new step.
+        viewModel.Body = "some more";
+
+        Assert.IsTrue(viewModel.Undo());
+        Assert.AreEqual("some", viewModel.Body);
+        Assert.AreEqual("Ti", viewModel.Title);
+        Assert.IsTrue(viewModel.Undo());
+        Assert.AreEqual("some", viewModel.Body);
+        Assert.AreEqual(string.Empty, viewModel.Title);
+        Assert.IsTrue(viewModel.Undo());
+        Assert.AreEqual(string.Empty, viewModel.Body);
+        Assert.IsFalse(viewModel.CanUndo);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-047 [NTE-001] Undo stays available while a save is in flight")]
+    public async Task UndoStaysAvailableWhileSaveIsInFlight()
+    {
+        var fake = new FakeNoteClient
+        {
+            SaveGate = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(10));
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        viewModel.Body = "typed";
+        while (!viewModel.IsSaving)
+        {
+            timeout.Token.ThrowIfCancellationRequested();
+            await Task.Delay(5, timeout.Token);
+        }
+
+        // The buttons used to unload here: CanUndo went false for the length of every save.
+        Assert.IsTrue(viewModel.CanUndo);
+        Assert.IsTrue(viewModel.Undo());
+        Assert.AreEqual(string.Empty, viewModel.Body);
+
+        fake.SaveGate.SetResult();
+        await viewModel.WaitForIdleAsync(timeout.Token);
+        Assert.AreEqual(string.Empty, fake.Saves[^1].Body);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+    }
+
     private sealed class FakeNoteClient : INoteClient
     {
         public List<NoteSaveRequest> Saves { get; } = [];
+
+        public TaskCompletionSource? SaveGate { get; init; }
 
         public Task<NoteDto?> GetNoteAsync(
             string noteId,
@@ -102,19 +171,24 @@ public sealed class NoteEditorUndoTests
                 Deleted = true,
             });
 
-        public Task<NoteDto> SaveNoteAsync(
+        public async Task<NoteDto> SaveNoteAsync(
             NoteSaveRequest request,
             CancellationToken cancellationToken)
         {
             Saves.Add(request);
-            return Task.FromResult(new NoteDto
+            if (SaveGate is not null)
+            {
+                await SaveGate.Task.WaitAsync(cancellationToken);
+            }
+
+            return new NoteDto
             {
                 NoteId = request.NoteId ?? string.Empty,
                 Title = request.Title ?? string.Empty,
                 Body = request.Body ?? string.Empty,
                 BodyFormat = request.BodyFormat ?? NotesContract.PlainTextFormat,
                 UpdatedAtUtc = $"2026-08-10T00:00:00.{Saves.Count:0000000}+00:00",
-            });
+            };
         }
     }
 }

@@ -322,25 +322,70 @@ try {
         -Name $originalTitle `
         -Timeout ([TimeSpan]::FromSeconds(10)) `
         -Enabled
-    $protectedDraft = 'draft-guard-' + [Guid]::NewGuid().ToString('N')
-    Set-TextValue -Element $bodyBox -Value $protectedDraft
-    [void](Wait-DisabledElementByName `
-        -Root $window `
-        -Name $originalTitle `
-        -Timeout ([TimeSpan]::FromSeconds(5)))
+    # Opening another note straight after typing saves the draft first rather than refusing:
+    # the half-second autosave wait is not something the user should have to notice. The
+    # created note is open here, so the draft lands on it.
+    $flushedDraft = 'flushed-draft-' + [Guid]::NewGuid().ToString('N')
+    Set-TextValue -Element $bodyBox -Value $flushedDraft
+    # The value is read back before the pick so the editor has seen the edit: TextChanged
+    # is raised on a later tick than the UIA write, and a pick that lands first opens the
+    # other note with the draft still only in the box.
     [void](Wait-ElementValue `
         -Root $window `
         -AutomationId 'NoteBodyBox' `
-        -Expected $protectedDraft `
+        -Expected $flushedDraft `
         -Timeout ([TimeSpan]::FromSeconds(5)) `
         -Enabled)
-    Set-VerticalScrollPercent -Element $noteScroll -Percent 100
-    [void](Wait-SavedStatus `
+    Invoke-Element -Element $guardedResult
+    Set-VerticalScrollPercent -Element $noteScroll -Percent 0
+    [void](Wait-ElementValue `
         -Root $window `
+        -AutomationId 'NoteTitleBox' `
+        -Expected $originalTitle `
         -Timeout ([TimeSpan]::FromSeconds(10)) `
-        -ScrollContainer $noteScroll)
+        -Enabled)
+    [void](Wait-ElementValue `
+        -Root $window `
+        -AutomationId 'NoteBodyBox' `
+        -Expected $originalBody `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -Enabled)
 
-    Write-Output 'REAL-NOTE-CREATE-PASS create+list+search+open+draft-guard'
+    # And the draft reached the store: searching for it finds the created note, which reads
+    # back with the draft as its body.
+    Invoke-Element -Element $listButton
+    $searchBox = Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'SearchBox' `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -Enabled
+    Set-TextValue -Element $searchBox -Value $flushedDraft
+    $flushedResult = Wait-VisibleElementByName `
+        -Root $window `
+        -Name $createdTitle `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -Enabled
+    Invoke-Element -Element $flushedResult
+    [void](Wait-ElementValue `
+        -Root $window `
+        -AutomationId 'NoteBodyBox' `
+        -Expected $flushedDraft `
+        -Timeout ([TimeSpan]::FromSeconds(10)) `
+        -Enabled)
+
+    # The switcher closed on the pick; the button that opens it also closes it.
+    Invoke-Element -Element $listButton
+    [void](Wait-VisibleElementByAutomationId `
+        -Root $window `
+        -AutomationId 'SearchBox' `
+        -Timeout ([TimeSpan]::FromSeconds(10)))
+    Invoke-Element -Element $listButton
+    Wait-ElementNotVisibleByName `
+        -Root $window `
+        -Name $originalTitle `
+        -Timeout ([TimeSpan]::FromSeconds(5))
+
+    Write-Output 'REAL-NOTE-CREATE-PASS create+list+search+open+flush-before-switch+toggle'
 }
 finally {
     Stop-TestProcess -Process $panelProcess

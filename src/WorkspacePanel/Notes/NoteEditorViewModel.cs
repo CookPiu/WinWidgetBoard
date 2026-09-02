@@ -20,18 +20,25 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     public const string DefaultNoteId = "primary-note";
 
     private static readonly TimeSpan DefaultAutosaveDelay = TimeSpan.FromMilliseconds(500);
+    // How long "saved" stays on the footer before the editor is simply ready again. A
+    // confirmation that never leaves becomes a permanent status line, which the visual spec's
+    // steady-state rule exists to prevent.
+    private static readonly TimeSpan DefaultSavedStatusHold = TimeSpan.FromSeconds(3);
     private const int MaxDraftHistory = 20;
+    private const string ConflictErrorCode = "conflict.notes-revision";
 
     private readonly object _gate = new();
     private readonly INoteClient? _noteClient;
     private readonly Action<Action> _dispatch;
     private readonly TimeSpan _autosaveDelay;
+    private readonly TimeSpan _savedStatusHold;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly List<NoteDraftSnapshot> _undoHistory = [];
     private readonly List<NoteDraftSnapshot> _redoHistory = [];
     private string _noteId;
     private CancellationTokenSource? _pendingSaveCancellation;
+    private TaskCompletionSource? _pendingFlush;
     private Task<bool>? _pendingSaveTask;
     private Task<bool>? _loadTask;
     private string _title = string.Empty;
@@ -47,12 +54,24 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     private bool _isMarkdownPreviewVisible;
     private bool _disposed;
     private long _draftVersion;
+    // An undo step is a run of edits to one field between two saves, not a keystroke: the
+    // snapshot for the run is taken at its first edit, and the run closes when the draft is
+    // persisted or the other field is touched. Per-keystroke steps made the 20-step history
+    // worth about four words.
+    private bool _draftBurstOpen;
+    private bool _draftBurstIsTitle;
+    // The rendered preview for the body it was rendered from. Rendering runs five regular
+    // expressions over the whole body, and the getter is re-read by the binding on every
+    // publish, so the result is kept until the body changes.
+    private string? _previewCacheBody;
+    private IReadOnlyList<NoteMarkdownPreviewBlock> _previewCache = [];
 
     public NoteEditorViewModel(
         INoteClient? noteClient,
         string noteId = DefaultNoteId,
         Action<Action>? dispatch = null,
-        TimeSpan? autosaveDelay = null)
+        TimeSpan? autosaveDelay = null,
+        TimeSpan? savedStatusHold = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(noteId);
         _noteClient = noteClient;
@@ -63,6 +82,11 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _autosaveDelay,
             TimeSpan.Zero,
             nameof(autosaveDelay));
+        _savedStatusHold = savedStatusHold ?? DefaultSavedStatusHold;
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+            _savedStatusHold,
+            TimeSpan.Zero,
+            nameof(savedStatusHold));
         _status = noteClient is null
             ? NoteEditorStatus.Unavailable
             : NoteEditorStatus.Loading;
@@ -134,7 +158,13 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             lock (_gate)
             {
-                return NoteMarkdownPreviewFormatter.Format(_body);
+                if (!ReferenceEquals(_previewCacheBody, _body))
+                {
+                    _previewCache = NoteMarkdownPreviewFormatter.Format(_body);
+                    _previewCacheBody = _body;
+                }
+
+                return _previewCache;
             }
         }
     }
@@ -223,10 +253,29 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     _isLoaded &&
                     _status == NoteEditorStatus.Error &&
                     _hasUnsavedChanges &&
+                    !IsConflict(_errorCode) &&
                     !_isLoading &&
                     !_isSaving &&
                     _pendingSaveTask is null &&
                     !_disposed;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether fetching the note again is the way out of the current error. A retry cannot fix
+    /// a load that failed (there is nothing to retry) or a revision conflict (the stored note
+    /// moved on, so the retained draft can never be accepted as written); both need the stored
+    /// copy back. A failed save that a retry could still land is not offered a reload, which
+    /// would throw the draft away.
+    /// </summary>
+    public bool CanReload
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return CanReloadLocked();
             }
         }
     }
@@ -265,6 +314,9 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    // Undo does not wait for a save in flight, and typing never did: an edit while saving
+    // simply bumps the draft version and the save that lands is ignored as stale. Gating the
+    // buttons on the save unloaded and re-created them on every half-second autosave.
     public bool CanUndo
     {
         get
@@ -273,7 +325,6 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             {
                 return _isLoaded &&
                     !_isLoading &&
-                    !_isSaving &&
                     _undoHistory.Count != 0 &&
                     !_disposed;
             }
@@ -288,7 +339,6 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             {
                 return _isLoaded &&
                     !_isLoading &&
-                    !_isSaving &&
                     _redoHistory.Count != 0 &&
                     !_disposed;
             }
@@ -302,6 +352,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             lock (_gate)
             {
                 return _noteClient is not null &&
+                    _isLoaded &&
                     _status != NoteEditorStatus.Unavailable &&
                     !_isLoading &&
                     !_disposed;
@@ -495,14 +546,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _hasUnsavedChanges = true;
             _status = NoteEditorStatus.PendingSave;
             _errorCode = null;
-            previousCancellation = _pendingSaveCancellation;
-            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                _lifetimeCancellation.Token);
-            _pendingSaveCancellation = cancellation;
-            _pendingSaveTask = RunSaveAsync(
-                _draftVersion,
-                cancellation,
-                skipDebounce: false);
+            previousCancellation = ScheduleSaveLocked(skipDebounce: false);
         }
 
         previousCancellation?.Cancel();
@@ -537,8 +581,100 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _isMarkdownPreviewVisible = !_isMarkdownPreviewVisible;
         }
 
-        Publish(nameof(IsMarkdownPreviewVisible), nameof(CanPreviewMarkdown));
+        // The blocks are only announced while the preview is showing, so opening it has to
+        // announce them once for whatever the body became in the meantime.
+        Publish(
+            nameof(IsMarkdownPreviewVisible),
+            nameof(MarkdownPreviewBlocks),
+            nameof(CanPreviewMarkdown));
         return true;
+    }
+
+    /// <summary>
+    /// Persists the pending draft now rather than after the debounce, and reports whether the
+    /// editor is clean afterwards. This is what lets "new", "open" and "delete" go ahead
+    /// straight after typing: the half-second wait is an autosave detail, not a state the
+    /// user should have to notice. A draft whose save already failed is not retried here;
+    /// that stays an explicit action.
+    /// </summary>
+    public Task<bool> SaveNowAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        Task<bool>? pending;
+        TaskCompletionSource? flush;
+        lock (_gate)
+        {
+            if (!_hasUnsavedChanges)
+            {
+                return Task.FromResult(true);
+            }
+
+            pending = _pendingSaveTask;
+            flush = _pendingFlush;
+            if (pending is null)
+            {
+                return Task.FromResult(false);
+            }
+        }
+
+        flush?.TrySetResult();
+        return AwaitSaveAsync(pending, cancellationToken);
+    }
+
+    /// <summary>
+    /// Fetches the note again and replaces whatever the editor holds; see
+    /// <see cref="CanReload"/> for when that is the right move. A note that turns out to be
+    /// gone keeps the draft under a fresh identity, so nothing typed is lost.
+    /// </summary>
+    public Task<bool> ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        bool loadedBefore;
+        string noteId;
+        lock (_gate)
+        {
+            if (!CanReloadLocked())
+            {
+                return Task.FromResult(false);
+            }
+
+            loadedBefore = _isLoaded;
+            noteId = _noteId;
+            if (loadedBefore)
+            {
+                _isLoading = true;
+                _status = NoteEditorStatus.Loading;
+                _errorCode = null;
+                // Anything a straggling save might still report belongs to the draft being
+                // discarded.
+                _draftVersion++;
+            }
+        }
+
+        if (!loadedBefore)
+        {
+            Task<bool> load = LoadCoreAsync(cancellationToken);
+            lock (_gate)
+            {
+                _loadTask = load;
+            }
+
+            return load;
+        }
+
+        Publish(
+            nameof(IsLoading),
+            nameof(Status),
+            nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
+            nameof(CanLoadNote),
+            nameof(CanDelete),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return ReloadCoreAsync(noteId, cancellationToken);
     }
 
     public void MarkUnavailable(string errorCode = "transport.unavailable")
@@ -559,6 +695,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _isMarkdownPreviewVisible = false;
             _undoHistory.Clear();
             _redoHistory.Clear();
+            _draftBurstOpen = false;
         }
 
         Publish(
@@ -582,7 +719,6 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        CancellationTokenSource cancellation;
         Task<bool> saveTask;
         lock (_gate)
         {
@@ -598,18 +734,11 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 return Task.FromResult(false);
             }
 
-            cancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                _lifetimeCancellation.Token,
-                cancellationToken);
-            _pendingSaveCancellation = cancellation;
             _isSaving = true;
             _status = NoteEditorStatus.Saving;
             _errorCode = null;
-            saveTask = RunSaveAsync(
-                _draftVersion,
-                cancellation,
-                skipDebounce: true);
-            _pendingSaveTask = saveTask;
+            ScheduleSaveLocked(skipDebounce: true, cancellationToken);
+            saveTask = _pendingSaveTask!;
         }
 
         Publish(
@@ -719,6 +848,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _status = NoteEditorStatus.Ready;
                 _undoHistory.Clear();
                 _redoHistory.Clear();
+                _draftBurstOpen = false;
             }
 
             Publish(
@@ -747,9 +877,12 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (Exception exception)
         {
+            // Not loaded: the editor has nothing to build on. Letting it accept input here
+            // produced a draft with no revision, and saving that tried to create a note that
+            // already existed - every retry hit the same key. The way out is a reload.
             lock (_gate)
             {
-                _isLoaded = true;
+                _isLoaded = false;
                 _isLoading = false;
                 _status = NoteEditorStatus.Error;
                 _errorCode = GetErrorCode(exception);
@@ -804,6 +937,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _status = NoteEditorStatus.Ready;
                 _undoHistory.Clear();
                 _redoHistory.Clear();
+                _draftBurstOpen = false;
             }
 
             Publish(
@@ -880,6 +1014,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _status = NoteEditorStatus.Saved;
                 _undoHistory.Clear();
                 _redoHistory.Clear();
+                _draftBurstOpen = false;
+                StartSavedSettle(_draftVersion);
             }
 
             Publish(
@@ -959,6 +1095,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _status = NoteEditorStatus.Ready;
                 _undoHistory.Clear();
                 _redoHistory.Clear();
+                _draftBurstOpen = false;
             }
 
             Publish(
@@ -1091,7 +1228,6 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             if (_noteClient is null ||
                 !_isLoaded ||
                 _isLoading ||
-                _isSaving ||
                 _disposed ||
                 source.Count == 0)
             {
@@ -1107,14 +1243,10 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             _hasUnsavedChanges = true;
             _status = NoteEditorStatus.PendingSave;
             _errorCode = null;
-            previousCancellation = _pendingSaveCancellation;
-            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                _lifetimeCancellation.Token);
-            _pendingSaveCancellation = cancellation;
-            _pendingSaveTask = RunSaveAsync(
-                _draftVersion,
-                cancellation,
-                skipDebounce: false);
+            // Typing after an undo starts a new step; merging it into the run that was just
+            // undone would make the next undo skip straight past it.
+            _draftBurstOpen = false;
+            previousCancellation = ScheduleSaveLocked(skipDebounce: false);
         }
 
         previousCancellation?.Cancel();
@@ -1136,57 +1268,58 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
     {
         value ??= string.Empty;
         CancellationTokenSource? previousCancellation;
-        Task<bool>? saveTask = null;
         string propertyName;
+        bool announcePreview;
         lock (_gate)
         {
-            if (_disposed || !_isLoaded || _noteClient is null)
+            // Not while a switch is in flight: the fields still hold the note being left,
+            // so an edit landing here would be recorded against it, then thrown away when
+            // the requested note arrives and bumps the draft version. The box shows the
+            // arriving note a moment later either way.
+            if (_disposed || !_isLoaded || _isLoading || _noteClient is null)
             {
                 return;
             }
 
+            string current = isTitle ? _title : _body;
+            if (string.Equals(current, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (!_draftBurstOpen || _draftBurstIsTitle != isTitle)
+            {
+                AddHistoryEntry(_undoHistory, new NoteDraftSnapshot(_title, _body));
+                _draftBurstOpen = true;
+                _draftBurstIsTitle = isTitle;
+            }
+
+            _redoHistory.Clear();
             if (isTitle)
             {
-                if (string.Equals(_title, value, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                AddHistoryEntry(_undoHistory, new NoteDraftSnapshot(_title, _body));
-                _redoHistory.Clear();
                 _title = value;
                 propertyName = nameof(Title);
             }
             else
             {
-                if (string.Equals(_body, value, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                AddHistoryEntry(_undoHistory, new NoteDraftSnapshot(_title, _body));
-                _redoHistory.Clear();
                 _body = value;
                 propertyName = nameof(Body);
             }
 
+            // Re-rendering the preview for a body nobody is looking at is pure cost; the
+            // blocks are announced when the preview opens instead.
+            announcePreview = !isTitle && _isMarkdownPreviewVisible;
             _draftVersion++;
             _hasUnsavedChanges = true;
             _status = NoteEditorStatus.PendingSave;
             _errorCode = null;
-            previousCancellation = _pendingSaveCancellation;
-            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                _lifetimeCancellation.Token);
-            _pendingSaveCancellation = cancellation;
-            long version = _draftVersion;
-            saveTask = RunSaveAsync(version, cancellation, skipDebounce: false);
-            _pendingSaveTask = saveTask;
+            previousCancellation = ScheduleSaveLocked(skipDebounce: false);
         }
 
         previousCancellation?.Cancel();
         Publish(
             propertyName,
-            !isTitle ? nameof(MarkdownPreviewBlocks) : nameof(Title),
+            announcePreview ? nameof(MarkdownPreviewBlocks) : propertyName,
             nameof(Status),
             nameof(HasUnsavedChanges),
             nameof(CanLoadNote),
@@ -1196,9 +1329,48 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             nameof(ErrorCode));
     }
 
+    /// <summary>
+    /// Replaces the pending save with one for the current draft version. Runs under the
+    /// gate; the caller cancels the returned source after leaving it.
+    /// </summary>
+    private CancellationTokenSource? ScheduleSaveLocked(
+        bool skipDebounce,
+        CancellationToken cancellationToken = default)
+    {
+        CancellationTokenSource? previous = _pendingSaveCancellation;
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCancellation.Token,
+            cancellationToken);
+        var flush = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingSaveCancellation = cancellation;
+        _pendingFlush = flush;
+        _pendingSaveTask = RunSaveAsync(_draftVersion, cancellation, flush, skipDebounce);
+        return previous;
+    }
+
+    private async Task<bool> AwaitSaveAsync(
+        Task<bool> pending,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await pending.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+        }
+
+        lock (_gate)
+        {
+            return !_disposed && !_hasUnsavedChanges;
+        }
+    }
+
     private async Task<bool> RunSaveAsync(
         long version,
         CancellationTokenSource cancellationSource,
+        TaskCompletionSource flush,
         bool skipDebounce)
     {
         bool publishErrorAfterCleanup = false;
@@ -1212,8 +1384,12 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
             }
             else
             {
-                await Task.Delay(_autosaveDelay, cancellationSource.Token)
+                // The debounce, or a flush from SaveNowAsync, whichever comes first.
+                await Task.WhenAny(
+                        Task.Delay(_autosaveDelay, cancellationSource.Token),
+                        flush.Task)
                     .ConfigureAwait(false);
+                cancellationSource.Token.ThrowIfCancellationRequested();
             }
 
             await _saveGate.WaitAsync(cancellationSource.Token).ConfigureAwait(false);
@@ -1272,6 +1448,8 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                         _hasUnsavedChanges = false;
                         _status = NoteEditorStatus.Saved;
                         _errorCode = null;
+                        _draftBurstOpen = false;
+                        StartSavedSettle(version);
                     }
                 }
 
@@ -1314,6 +1492,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                     _isSaving = false;
                     _status = NoteEditorStatus.Error;
                     _errorCode = GetErrorCode(exception);
+                    _draftBurstOpen = false;
                     publishErrorAfterCleanup = true;
                 }
             }
@@ -1326,6 +1505,7 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 if (ReferenceEquals(_pendingSaveCancellation, cancellationSource))
                 {
                     _pendingSaveCancellation = null;
+                    _pendingFlush = null;
                     _pendingSaveTask = null;
                     clearedPendingTask = true;
                 }
@@ -1348,6 +1528,188 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
 
         return false;
     }
+
+    private async Task<bool> ReloadCoreAsync(
+        string noteId,
+        CancellationToken cancellationToken)
+    {
+        CancellationTokenSource? previousCancellation = null;
+        try
+        {
+            NoteDto? note = await _noteClient!
+                .GetNoteAsync(noteId, cancellationToken)
+                .ConfigureAwait(false);
+
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+
+                if (note is null)
+                {
+                    // The stored note is gone. The draft is all there is, so it becomes a
+                    // note of its own rather than a draft that can never be saved.
+                    _noteId = "note-" + Guid.NewGuid().ToString("N");
+                    _expectedUpdatedAtUtc = null;
+                    _isLoaded = true;
+                    _isLoading = false;
+                    _isSaving = false;
+                    _isMarkdownPreviewVisible = false;
+                    _errorCode = null;
+                    _draftVersion++;
+                    _undoHistory.Clear();
+                    _redoHistory.Clear();
+                    _draftBurstOpen = false;
+                    if (_title.Length == 0 && _body.Length == 0)
+                    {
+                        _hasUnsavedChanges = false;
+                        _status = NoteEditorStatus.Ready;
+                    }
+                    else
+                    {
+                        _hasUnsavedChanges = true;
+                        _status = NoteEditorStatus.PendingSave;
+                        // The save outlives the reload call that started it: the token here
+                        // belongs to the reload, not to the draft.
+                        previousCancellation = ScheduleSaveLocked(
+                            skipDebounce: true,
+                            CancellationToken.None);
+                    }
+                }
+                else
+                {
+                    _title = note.Title;
+                    _body = note.Body;
+                    _bodyFormat = NormalizeBodyFormat(note.BodyFormat);
+                    _expectedUpdatedAtUtc = note.UpdatedAtUtc;
+                    _isLoaded = true;
+                    _isLoading = false;
+                    _isSaving = false;
+                    _hasUnsavedChanges = false;
+                    _isMarkdownPreviewVisible = false;
+                    _draftVersion++;
+                    _errorCode = null;
+                    _status = NoteEditorStatus.Ready;
+                    _undoHistory.Clear();
+                    _redoHistory.Clear();
+                    _draftBurstOpen = false;
+                }
+            }
+
+            previousCancellation?.Cancel();
+            Publish(
+                nameof(NoteId),
+                nameof(Title),
+                nameof(Body),
+                nameof(IsMarkdown),
+                nameof(IsMarkdownPreviewVisible),
+                nameof(MarkdownPreviewBlocks),
+                nameof(Status),
+                nameof(IsLoading),
+                nameof(IsSaving),
+                nameof(HasUnsavedChanges),
+                nameof(CanEdit),
+                nameof(CanChangeMarkdownMode),
+                nameof(CanPreviewMarkdown),
+                nameof(CanLoadNote),
+                nameof(CanDelete),
+                nameof(CanUndo),
+                nameof(CanRedo),
+                nameof(CanRetrySave),
+                nameof(ErrorCode));
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return SetReloadFailure("cancelled");
+        }
+        catch (Exception exception)
+        {
+            return SetReloadFailure(GetErrorCode(exception));
+        }
+    }
+
+    private bool SetReloadFailure(string errorCode)
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            _isLoading = false;
+            _status = NoteEditorStatus.Error;
+            _errorCode = errorCode;
+        }
+
+        Publish(
+            nameof(Status),
+            nameof(IsLoading),
+            nameof(CanEdit),
+            nameof(CanChangeMarkdownMode),
+            nameof(CanPreviewMarkdown),
+            nameof(CanLoadNote),
+            nameof(CanDelete),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(CanRetrySave),
+            nameof(ErrorCode));
+        return false;
+    }
+
+    private bool CanReloadLocked() =>
+        _noteClient is not null &&
+        !_isLoading &&
+        !_isSaving &&
+        _status == NoteEditorStatus.Error &&
+        (!_isLoaded || !_hasUnsavedChanges || IsConflict(_errorCode)) &&
+        !_disposed;
+
+    private void StartSavedSettle(long version)
+    {
+        _ = SettleSavedAsync(version);
+    }
+
+    /// <summary>
+    /// Lets "saved" give way to plain readiness once the user has had a moment to see it.
+    /// Nothing happens if the draft moved on or the status changed in the meantime.
+    /// </summary>
+    private async Task SettleSavedAsync(long version)
+    {
+        try
+        {
+            await Task.Delay(_savedStatusHold, _lifetimeCancellation.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_disposed ||
+                version != _draftVersion ||
+                _status != NoteEditorStatus.Saved)
+            {
+                return;
+            }
+
+            _status = NoteEditorStatus.Ready;
+        }
+
+        Publish(nameof(Status));
+    }
+
+    private static bool IsConflict(string? errorCode) =>
+        string.Equals(errorCode, ConflictErrorCode, StringComparison.Ordinal);
 
     private static void AddHistoryEntry(
         List<NoteDraftSnapshot> history,
@@ -1411,6 +1773,14 @@ public sealed class NoteEditorViewModel : INotifyPropertyChanged, IAsyncDisposab
                 Array.IndexOf(distinctPropertyNames, nameof(CanDelete)) < 0)
             {
                 handler(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+            }
+
+            // Reloadability follows the status; announcing it wherever the status is
+            // announced keeps the two from drifting apart.
+            if (Array.IndexOf(distinctPropertyNames, nameof(Status)) >= 0 &&
+                Array.IndexOf(distinctPropertyNames, nameof(CanReload)) < 0)
+            {
+                handler(this, new PropertyChangedEventArgs(nameof(CanReload)));
             }
         });
     }

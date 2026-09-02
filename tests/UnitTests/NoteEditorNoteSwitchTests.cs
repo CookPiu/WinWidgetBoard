@@ -93,17 +93,65 @@ public sealed class NoteEditorNoteSwitchTests
             UpdatedAtUtc = "2026-08-10T00:00:01.0000000+00:00",
         };
 
+    [TestMethod(DisplayName = "UT-NOTE-053 [NTE-001] Edits arriving while a note switch is in flight are not recorded against the note being left")]
+    public async Task EditsDuringNoteSwitchAreNotRecordedAgainstTheNoteBeingLeft()
+    {
+        var fake = new FakeNoteClient();
+        fake.Notes[NoteEditorViewModel.DefaultNoteId] = CreateNote(
+            NoteEditorViewModel.DefaultNoteId,
+            "Primary",
+            "Primary body");
+        fake.Notes["secondary-note"] = CreateNote(
+            "secondary-note",
+            "Secondary",
+            "Secondary body");
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(10));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        // Gated only now: the initial load above has to complete on its own.
+        fake.LoadGate = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<bool> switching = viewModel.LoadNoteAsync("secondary-note");
+        Assert.IsTrue(viewModel.IsLoading);
+
+        // A keystroke that lands between the pick and the arrival of the picked note. It
+        // used to be recorded on the primary note, scheduled for saving, and then dropped
+        // when the secondary note arrived and moved the draft version on.
+        viewModel.Body = "typed during the switch";
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+
+        fake.LoadGate.SetResult();
+        Assert.IsTrue(await switching);
+        Assert.AreEqual("Secondary body", viewModel.Body);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await viewModel.WaitForIdleAsync(timeout.Token);
+        Assert.AreEqual(0, fake.Saves.Count);
+    }
+
     private sealed class FakeNoteClient : INoteClient
     {
         public Dictionary<string, NoteDto> Notes { get; } = [];
 
-        public Task<NoteDto?> GetNoteAsync(
+        public List<NoteSaveRequest> Saves { get; } = [];
+
+        public TaskCompletionSource? LoadGate { get; set; }
+
+        public async Task<NoteDto?> GetNoteAsync(
             string noteId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(
-                Notes.TryGetValue(noteId, out NoteDto? note)
-                    ? note
-                    : null);
+            CancellationToken cancellationToken)
+        {
+            if (LoadGate is { Task.IsCompleted: false } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
+            return Notes.TryGetValue(noteId, out NoteDto? note)
+                ? note
+                : null;
+        }
 
         public Task<IReadOnlyList<NoteDto>> SearchNotesAsync(
             string query,
@@ -121,10 +169,13 @@ public sealed class NoteEditorNoteSwitchTests
 
         public Task<NoteDto> SaveNoteAsync(
             NoteSaveRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(CreateNote(
+            CancellationToken cancellationToken)
+        {
+            Saves.Add(request);
+            return Task.FromResult(CreateNote(
                 request.NoteId ?? string.Empty,
                 request.Title ?? string.Empty,
                 request.Body ?? string.Empty));
+        }
     }
 }

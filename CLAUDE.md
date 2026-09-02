@@ -246,6 +246,19 @@ a corrupt SDK.** Bisect instead: the failure is in whatever XAML changed, and re
 property (`StatusText` -> `MetricStatusText`) fixes it. The page-level `x:Name` is the one that
 wins; rename the view-model property, not the element.
 
+## `TextBox.TextChanged` fires on a later tick, and `ItemsRepeater` sets no `DataContext` for `x:Bind` templates
+
+Two WinUI facts that each cost a real-desktop debugging round:
+
+- Assigning `TextBox.Text` does **not** raise `TextChanged` inside the setter; it is raised after the next
+  layout tick. A "suppress re-entrancy" flag set before the assignment and cleared after it is already down
+  when the handler runs, and a UIA `ValuePattern.SetValue` followed immediately by an `Invoke` can have the
+  click handler run before the text handler. Make handlers idempotent on state (the notes search box treats
+  "empty box, query already empty" as nothing to do) rather than relying on ordering.
+- Elements realized by `CardItemsRepeater` may have no `DataContext`, because the card templates bind with
+  `x:Bind`. Resolve a card from an element with `CardItemsRepeater.GetElementIndex` / `TryGetElement`
+  (`ResolveCurrentCardSurfaceItem`, `RealizedNoteCardRoots`), never with `DataContext is CardSurfaceItem`.
+
 ## The unit-test project links WorkspacePanel sources
 
 WorkspacePanel is a WinUI app and cannot be `ProjectReference`d, so `tests/UnitTests/WinWidgetBoard.UnitTests.csproj` pulls its files in individually with `<Compile Include="..\..\src\WorkspacePanel\...">`. The test project references no Windows App SDK package, which makes the split enforceable:

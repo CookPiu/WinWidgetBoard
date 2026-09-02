@@ -470,6 +470,22 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public bool AreNoteToolsVisible =>
         AreCardActionsVisible && Placement.Size is not CardSize.S;
 
+    /// <summary>
+    /// On a one-row card the note switcher has the card to itself while it is open: there is
+    /// about 106 DIP of content height, and a search box plus a list of any use fills it. A
+    /// taller card keeps the editor in view underneath, so the note just picked can be read
+    /// without closing anything.
+    /// </summary>
+    public bool IsNoteBrowsingExclusive =>
+        Placement.Size is CardSize.S or CardSize.M or CardSize.W;
+
+    /// <summary>
+    /// How tall the switcher's result list may grow before it scrolls inside itself: what is
+    /// left of a one-row card after the search box, or a comfortable few results on a taller
+    /// one. Unbounded, the list pushed the editor out of the card's viewport.
+    /// </summary>
+    public double NoteSwitcherListMaxHeight => IsNoteBrowsingExclusive ? 64 : 180;
+
 
     public string NoteStatusText => _statusFormatter(NoteEditor.Status);
 
@@ -531,6 +547,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(AreNoteToolsVisible)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsNoteBrowsingExclusive)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(NoteSwitcherListMaxHeight)));
             // The hardware readings are held back per row rather than by rebuilding the list:
             // the rows are updated in place twice a second, and replacing them on a resize
             // would throw away that identity for no gain.

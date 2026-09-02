@@ -350,9 +350,12 @@ public sealed class WorkspaceVisualFoundationContractTests
         Assert.IsNull(
             (string?)noteBody.Attribute("Height"),
             "The note body must not carry a fixed height.");
-        Assert.AreEqual(
-            "120",
-            (string?)noteBody.Attribute("MinHeight"));
+        // Nor a floor: the star row already hands the body every DIP the card has left, and
+        // a minimum above what a one-row card can offer only nested a second scrollbar
+        // inside the card's own.
+        Assert.IsNull(
+            (string?)noteBody.Attribute("MinHeight"),
+            "The note body must not carry a minimum height.");
         Assert.AreEqual(
             "Stretch",
             (string?)noteBody.Attribute("VerticalAlignment"));

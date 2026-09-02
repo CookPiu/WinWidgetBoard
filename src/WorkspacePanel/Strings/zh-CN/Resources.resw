@@ -76,6 +76,9 @@
   <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>显示所有已保存便签</value>
   </data>
+  <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>全部便签</value>
+  </data>
   <data name="NoteSearchResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>便签搜索结果</value>
   </data>
@@ -105,6 +108,9 @@
   </data>
   <data name="NoteListFailedStatus" xml:space="preserve">
     <value>无法加载已保存便签。</value>
+  </data>
+  <data name="NoteListClosedStatus" xml:space="preserve">
+    <value>已收起便签列表。</value>
   </data>
   <data name="NoteLoadedStatus" xml:space="preserve">
     <value>已在编辑器中打开所选便签。</value>
@@ -313,6 +319,18 @@
   <data name="RetryNoteSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>重试保存便签</value>
   </data>
+  <data name="ReloadNoteButton.Content" xml:space="preserve">
+    <value>重新加载</value>
+  </data>
+  <data name="ReloadNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>重新加载便签</value>
+  </data>
+  <data name="NoteReloadedStatus" xml:space="preserve">
+    <value>已重新加载便签。</value>
+  </data>
+  <data name="NoteReloadFailedStatus" xml:space="preserve">
+    <value>无法重新加载便签。</value>
+  </data>
   <data name="NoteCopiedStatus" xml:space="preserve">
     <value>便签已复制到剪贴板。</value>
   </data>
@@ -321,9 +339,6 @@
   </data>
   <data name="NoteCopyFailedStatus" xml:space="preserve">
     <value>无法将便签复制到剪贴板。</value>
-  </data>
-  <data name="NoteSaveRetrySucceededStatus" xml:space="preserve">
-    <value>便签已保存。</value>
   </data>
   <data name="NoteSaveRetryFailedStatus" xml:space="preserve">
     <value>便签保存失败，当前草稿仍然保留。</value>
@@ -339,12 +354,6 @@
   </data>
   <data name="RedoNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>重做便签编辑</value>
-  </data>
-  <data name="NoteUndoStatus" xml:space="preserve">
-    <value>已撤销便签编辑。</value>
-  </data>
-  <data name="NoteRedoStatus" xml:space="preserve">
-    <value>已重做便签编辑。</value>
   </data>
   <data name="MarkdownModeCheckBox.Content" xml:space="preserve">
     <value>Markdown</value>
@@ -400,12 +409,6 @@
   <data name="NoteMarkdownModeBlockedStatus" xml:space="preserve">
     <value>便签不可用或正在保存，暂时不能切换 Markdown 模式。</value>
   </data>
-  <data name="NoteMarkdownPreviewStatus" xml:space="preserve">
-    <value>已显示 Markdown 预览。</value>
-  </data>
-  <data name="NoteMarkdownEditStatus" xml:space="preserve">
-    <value>已显示 Markdown 源文编辑。</value>
-  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>便签标题</value>
   </data>
@@ -438,6 +441,12 @@
   </data>
   <data name="NoteEditorErrorStatus" xml:space="preserve">
     <value>保存失败，当前草稿仍保留在编辑器中。</value>
+  </data>
+  <data name="NoteEditorConflictStatus" xml:space="preserve">
+    <value>便签已在别处更改，重新加载后再编辑。</value>
+  </data>
+  <data name="NoteEditorLoadFailedStatus" xml:space="preserve">
+    <value>无法加载便签，请重新加载。</value>
   </data>
   <data name="CardStatus.Unknown.Title" xml:space="preserve">
     <value>状态未知</value>
@@ -600,9 +609,6 @@
   </data>
   <data name="EditLayoutButtonAutomationName" xml:space="preserve">
     <value>编辑布局</value>
-  </data>
-  <data name="ListNotesButtonToolTip" xml:space="preserve">
-    <value>全部便签</value>
   </data>
   <data name="UndoLayoutButtonToolTip" xml:space="preserve">
     <value>撤销布局操作</value>

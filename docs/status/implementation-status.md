@@ -37,6 +37,30 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 当前提交的完成证据：
 
+- **便签卡片交互与布局整改（2026-09-02，浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文，隔离栈脚本复跑）**。
+  Before：撤销/重做按钮的 `x:Load` 绑在含 `!_isSaving` 的 `CanUndo` 上，每次 500 ms 自动保存都卸载再重建；
+  每次按键入一条撤销快照，20 步只够四个词，且 Ctrl+Z 走文本框自己的栈、回来时被记成新编辑并清掉 redo；
+  列表按钮只会打开不会关，空查询下展开的切换器没有出口；预览切换、搜索层、预览/编辑按钮互换都从
+  `RootGrid` 按名取第一个命中，第二张便签卡永远停在编辑态；输入完半秒内点新建/打开/删除得到「请先保存当前
+  草稿」；标题/正文/搜索词无 `MaxLength`，超限后 Broker 拒绝、重试永远失败；首次加载失败后编辑器仍可输入，
+  空修订的草稿走 `Create` 撞主键；修订冲突只有一个必然失败的「重试」；`MarkdownPreviewBlocks` 每键全文重排
+  五个正则、不看预览是否可见；预览独占一行时星号行空着仍占高度，预览被顶到卡底上方留白；正文 `MinHeight=120`
+  在一格卡片上嵌套两根滚动条；「已保存到本地」永不回落成常驻行；单行卡片上 180 高的列表把编辑器推出视口。
+  After：撤销不等保存、一步 = 两次保存之间同一字段的一串编辑（`UT-NOTE-045/047`）；Ctrl+Z/Y/Shift+Z 经
+  `PreviewKeyDown` 交给编辑器历史，光标落在改动区域末尾（`NoteCaretPlacement`，`UT-NOTE-050`）；列表按钮开合、
+  搜索框 Esc 关闭、删除后切换器保持原开合状态；便签处理程序一律从触发元素上溯到 repeater 元素解析所在卡片，
+  预览状态同步到每张便签副本并在新卡片 `ElementPrepared` 时对齐；新建/打开/删除先 `SaveNowAsync` 冲刷草稿
+  （`UT-NOTE-043/044/052`），切换途中到达的编辑不再记到被离开的便签上（`UT-NOTE-053`）；`MaxLength` 按契约封顶
+  并由 `UT-NOTE-049` 锁定；加载失败与修订冲突给「重新加载」、冲突不再提供重试（`UT-NOTE-048`）；预览块按正文引用
+  缓存、仅预览可见时发布；编辑器与预览共用星号行；正文去掉最小高度；Saved 3 s 后回落 Ready（`UT-NOTE-046`）；
+  单行卡片浏览时独占卡片、列表上限 64（`UT-NOTE-051`）；撤销/重做/预览切换/重试成功不再在面板状态行复述；
+  列表按钮补上 ToolTip，孤儿键 `ListNotesButtonToolTip` 与五条复述用状态串删除，两份 resw 各 386 条。
+  证据：Release UnitTests 577/577（新增 `UT-NOTE-043`～`053`，`UT-NOTE-020/022` 改为按保存分步）；
+  `WorkspacePanel --smoke-test` 退出码 0；四个真实桌面便签脚本全部通过（见下方桌面流程条目）。复跑中抓到并修掉
+  两处：`ItemsRepeater` 对 `x:Bind` 模板不设 `DataContext`，枚举便签卡改走 `TryGetElement`/`GetElementIndex`；
+  `TextBox.TextChanged` 在赋值后的下一拍才触发，清空搜索框时的抑制旗标对它无效，改为「空框且查询已空即无事可做」，
+  否则搜索后重开列表会被空查询作废。**未复验**：两张便签卡同时在板上的真实桌面流程（脚本用默认布局，只有一张）、
+  一格（`M`/`W`）卡片上切换器独占的实拍；
 - **Token 定价每日同步（2026-09-02，[ADR-0035](../adr/0035-daily-token-pricing-sync.md)）**。Before：用户当天把
   Claude Code 切到新发布的 `claude-fable-5-1`，价表没有这个 id，精确匹配拒绝猜测，当日全部用量无价、
   `TodayCostUsd` 为 0，卡片把「今日花费」整块隐藏且不说明——ADR-0030 后果里写的「价表静默过期」原样兑现。
@@ -174,7 +198,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - **折页命中一致性已实机验证**：新增 `scripts/Test-CardFoldHitTest.ps1`，4 轮（共 8 次折页）× 6 个跨网格探针，`REAL-CARD-FOLD-HITTEST-PASS`。它在折页settle后取每个探针**绘制中心点**，问系统该点上是谁，要求答案属于同一张卡片——这正是合成层折页唯一的真实风险：某次复位漏掉，面板画对了而输入落在别处。按几何重叠比对而非遍历树，因为要证的是"系统在那里找到的是这块面板"，不是 UIA 返回哪一层。
 - **拖动类脚本只能由使用者跑，代理跑不了**（2026-08-31 已由使用者跑通 `-WithBroker` 与 `-ResizeDragCombination` 两种模式）。代理侧四次尝试都止步于脚本自身的前置检查，原因已查清：脚本自启的面板抬不到最前——Windows 拒绝把前台交给一个本身不在前台的进程（控制台宿主永远不是），因此桌面上任何最大化窗口都会压住它。证据：报出的遮挡进程随当前开着的窗口变化（`REDAgent` → `claude` → 把 `claude` 最小化后变成 Progman 桌面），而面板几何与任务栏并不重叠（面板底边 `1884`，任务栏 `1904` 起）。**由使用者在自己的交互式终端里运行即可通过**——那时控制台就是前台进程，已实测如此。已尝试在共享模块里用一次真实点击换取前台权限，未能解决，改动已回退，不留未验证的脚本改动。注意这条只挡「脚本自启面板后请求前台」这一条路径：代理仍可用合成点击激活任务栏胶囊，再注入拖拽、读 UIA、截图，本轮缩放手势的实机证据就是这么取的。另一条前置检查「已有 LauncherHost 在跑」只是安装版常驻，退出后即可，不构成限制；
 - 真实桌面便签独立窗口通过（`NOTEWINDOW-PASS`）：窗口开在 `840×920` 物理像素（= `420×460` DIP），勾选「保持在最前」后 `WS_EX_TOPMOST` 由 False 变 True，弹出窗口打开即显示卡片当时的正文（证明两处共用同一个编辑器而非各持一份），在窗口里输入后状态行报「已保存到本地」。**注意**：面板在焦点移到弹出窗口时会隐藏自己，所以「卡片是否跟随」无法在窗口置前时读取——改为断言弹出窗口打开时与卡片内容一致，方向等价且不受焦点影响；
-- 真实桌面便签三脚本全部通过：`REAL-NOTE-LIST-PASS`、`REAL-NOTE-DELETE-PASS current+list`、`REAL-NOTE-CREATE-PASS create+list+search+open+draft-guard`。过程中修掉两处由本轮改动暴露的问题：滚动内容现在恰好等于视口高度，`ScrollPattern.SetScrollPercent` 会在「可滚动」检查与调用之间翻转并抛 `InvalidOperationException`（模块里改为忽略该状态——没有可滚的东西正是调用方要的结果）；`Test-NoteCreateInteraction.ps1` 需要在选中便签后重新打开切换器才能再用搜索框；
+- 真实桌面便签四脚本全部通过（2026-09-02 复跑）：`REAL-NOTE-LIST-PASS`、`REAL-NOTE-DELETE-PASS current+list`、`REAL-NOTE-MARKDOWN-PASS mode+preview+roundtrip`、`REAL-NOTE-CREATE-PASS create+list+search+open+flush-before-switch+toggle`（原 `draft-guard` 段改为断言「刚输入的草稿先落库、再切到所选便签」，并加了列表按钮开合各一次）。首次迁入卡片时修掉两处由改动暴露的问题：滚动内容现在恰好等于视口高度，`ScrollPattern.SetScrollPercent` 会在「可滚动」检查与调用之间翻转并抛 `InvalidOperationException`（模块里改为忽略该状态——没有可滚的东西正是调用方要的结果）；`Test-NoteCreateInteraction.ps1` 需要在选中便签后重新打开切换器才能再用搜索框；
 - 真实桌面天气卡片（生产路径，经启动器打开面板，安装后的正式构建）：`L` 下一屏显示北京 `26.2 °C`、字形 + **`雷阵雨伴冰雹`**（此前是 `Thunderstorm with hail`）、`体感 32.2 °C / 湿度 89% / 风速 1.3 km/h` 三列带名称、`15:00`–`20:00` 六格走势、`周三/周四/周五` 三行含最高与最低、页脚 `更新于 14:30 · Weather data by Open-Meteo.com`，**无一处被裁**。逐尺寸实拍（编辑模式下经 UIA 逐级改尺寸）：`S` 只剩地点 + 气温 + 天气；`M` 加次要读数；`W` 走势并排在右半，十格 `15:00`–`00:00`；`XL` 同样并排。**编辑模式下的注记**：编辑工具条本身占一行，`M`/`W` 在编辑模式里会把次要读数挤掉——非编辑态高度够，这是工具条的代价不是披露规则的问题；
 - 每张卡片的放大/缩小按钮补上了各自的 `AutomationId`（`WeatherCardIncreaseButton` 等）。此前它们只有共享的自动化名称，一次逐尺寸取证脚本因此按到了别的卡片的按钮，把板子的顺序改掉了——脚本无法说清自己要按的是哪一张卡；
 - **未测**：`Test-SystemMonitorInteraction.ps1` 与 `Test-WeatherSettingsInteraction.ps1` 的后半段在隔离栈里仍不可用——直接以 `--acceptance-test` 启动的面板不上报可见性，两张 provider 卡片在该路径下长期停留在「正在加载」。这不是本轮引入的，回退到 `759b6ac`、`eba4d0d` 复跑失败点相同，留待单独排查；

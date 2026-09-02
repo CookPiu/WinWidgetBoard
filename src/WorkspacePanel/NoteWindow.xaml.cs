@@ -4,6 +4,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using WinRT.Interop;
@@ -167,6 +168,14 @@ public sealed partial class NoteWindow : Window
         if (sender is TextBox textBox)
         {
             _noteEditor.Body = textBox.Text;
+        }
+    }
+
+    private void NoteWindowTextBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            NoteEditorKeyboard.TryHandle(_noteEditor, textBox, e);
         }
     }
 

@@ -109,6 +109,86 @@ public sealed class NoteListCoordinatorTests
         Assert.AreEqual("Secondary", editor.Title);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-044 [NTE-001] list coordinator saves the pending draft before opening another note")]
+    public async Task SavesPendingDraftBeforeOpeningAnotherNote()
+    {
+        var client = new FakeNoteClient
+        {
+            Notes =
+            {
+                [NoteEditorViewModel.DefaultNoteId] = CreateNote(
+                    NoteEditorViewModel.DefaultNoteId,
+                    "Primary"),
+                ["note-secondary"] = CreateNote(
+                    "note-secondary",
+                    "Secondary"),
+            },
+        };
+        await using var editor = new NoteEditorViewModel(
+            client,
+            autosaveDelay: TimeSpan.FromSeconds(10));
+        await using var search = new NoteSearchViewModel(
+            client,
+            searchDebounce: TimeSpan.FromMilliseconds(10));
+        var coordinator = new NoteListCoordinator(editor, search);
+
+        Assert.IsTrue(await editor.LoadAsync(CancellationToken.None));
+        editor.Body = "typed a moment ago";
+        Assert.IsFalse(editor.CanLoadNote);
+
+        // The draft goes to the store first; the switch is not refused for it.
+        Assert.IsTrue(await coordinator.LoadNoteAsync(
+            "note-secondary",
+            CancellationToken.None));
+
+        Assert.AreEqual("note-secondary", editor.NoteId);
+        Assert.AreEqual(1, client.Saves.Count);
+        Assert.AreEqual(NoteEditorViewModel.DefaultNoteId, client.Saves[0].NoteId);
+        Assert.AreEqual("typed a moment ago", client.Saves[0].Body);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-052 [NTE-001] list coordinator keeps the draft when its save fails")]
+    public async Task KeepsDraftWhenSaveFails()
+    {
+        var client = new FakeNoteClient
+        {
+            Notes =
+            {
+                [NoteEditorViewModel.DefaultNoteId] = CreateNote(
+                    NoteEditorViewModel.DefaultNoteId,
+                    "Primary"),
+                ["note-secondary"] = CreateNote(
+                    "note-secondary",
+                    "Secondary"),
+            },
+            SaveException = new CoreBrokerClientException(
+                NotesContract.SaveMethod,
+                "transport.unavailable",
+                "test failure"),
+        };
+        await using var editor = new NoteEditorViewModel(
+            client,
+            autosaveDelay: TimeSpan.FromSeconds(10));
+        await using var search = new NoteSearchViewModel(
+            client,
+            searchDebounce: TimeSpan.FromMilliseconds(10));
+        var coordinator = new NoteListCoordinator(editor, search);
+
+        Assert.IsTrue(await editor.LoadAsync(CancellationToken.None));
+        editor.Body = "must not be lost";
+
+        Assert.IsFalse(await coordinator.LoadNoteAsync(
+            "note-secondary",
+            CancellationToken.None));
+        Assert.IsFalse(await coordinator.CreateNoteAsync(CancellationToken.None));
+
+        Assert.AreEqual(NoteEditorViewModel.DefaultNoteId, editor.NoteId);
+        Assert.AreEqual("must not be lost", editor.Body);
+        Assert.IsTrue(editor.HasUnsavedChanges);
+        Assert.AreEqual(NoteEditorStatus.Error, editor.Status);
+        Assert.IsTrue(editor.CanRetrySave);
+    }
+
     private static NoteDto CreateNote(string noteId, string title) =>
         new()
         {
@@ -125,6 +205,10 @@ public sealed class NoteListCoordinatorTests
         public Dictionary<string, IReadOnlyList<NoteDto>> ResultsByQuery { get; init; } = [];
 
         public List<string> Queries { get; } = [];
+
+        public List<NoteSaveRequest> Saves { get; } = [];
+
+        public Exception? SaveException { get; init; }
 
         public Task<NoteDto?> GetNoteAsync(
             string noteId,
@@ -156,13 +240,22 @@ public sealed class NoteListCoordinatorTests
 
         public Task<NoteDto> SaveNoteAsync(
             NoteSaveRequest request,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new NoteDto
+            CancellationToken cancellationToken)
+        {
+            Saves.Add(request);
+            if (SaveException is not null)
+            {
+                return Task.FromException<NoteDto>(SaveException);
+            }
+
+            return Task.FromResult(new NoteDto
             {
                 NoteId = request.NoteId ?? string.Empty,
                 Title = request.Title ?? string.Empty,
                 Body = request.Body ?? string.Empty,
                 BodyFormat = request.BodyFormat ?? NotesContract.PlainTextFormat,
+                UpdatedAtUtc = $"2026-08-17T00:00:00.{Saves.Count:0000000}+00:00",
             });
+        }
     }
 }

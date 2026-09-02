@@ -76,6 +76,9 @@
   <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Show all saved notes</value>
   </data>
+  <data name="ListNotesButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>All notes</value>
+  </data>
   <data name="NoteSearchResultsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Note search results</value>
   </data>
@@ -105,6 +108,9 @@
   </data>
   <data name="NoteListFailedStatus" xml:space="preserve">
     <value>Could not load saved notes.</value>
+  </data>
+  <data name="NoteListClosedStatus" xml:space="preserve">
+    <value>Note list closed.</value>
   </data>
   <data name="NoteLoadedStatus" xml:space="preserve">
     <value>Selected note is open in the editor.</value>
@@ -310,6 +316,18 @@
   <data name="RetryNoteSaveButton.Content" xml:space="preserve">
     <value>Retry save</value>
   </data>
+  <data name="ReloadNoteButton.Content" xml:space="preserve">
+    <value>Reload</value>
+  </data>
+  <data name="ReloadNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Reload note</value>
+  </data>
+  <data name="NoteReloadedStatus" xml:space="preserve">
+    <value>Note reloaded.</value>
+  </data>
+  <data name="NoteReloadFailedStatus" xml:space="preserve">
+    <value>The note could not be reloaded.</value>
+  </data>
   <data name="RetryNoteSaveButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Retry saving the note</value>
   </data>
@@ -321,9 +339,6 @@
   </data>
   <data name="NoteCopyFailedStatus" xml:space="preserve">
     <value>Could not copy the note to the clipboard.</value>
-  </data>
-  <data name="NoteSaveRetrySucceededStatus" xml:space="preserve">
-    <value>Note saved successfully.</value>
   </data>
   <data name="NoteSaveRetryFailedStatus" xml:space="preserve">
     <value>Could not save the note. Your draft is still available.</value>
@@ -339,12 +354,6 @@
   </data>
   <data name="RedoNoteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Redo note edit</value>
-  </data>
-  <data name="NoteUndoStatus" xml:space="preserve">
-    <value>Note edit undone.</value>
-  </data>
-  <data name="NoteRedoStatus" xml:space="preserve">
-    <value>Note edit redone.</value>
   </data>
   <data name="MarkdownModeCheckBox.Content" xml:space="preserve">
     <value>Markdown</value>
@@ -400,12 +409,6 @@
   <data name="NoteMarkdownModeBlockedStatus" xml:space="preserve">
     <value>Markdown mode cannot be changed while the note is unavailable or saving.</value>
   </data>
-  <data name="NoteMarkdownPreviewStatus" xml:space="preserve">
-    <value>Markdown preview shown.</value>
-  </data>
-  <data name="NoteMarkdownEditStatus" xml:space="preserve">
-    <value>Markdown source editing shown.</value>
-  </data>
   <data name="NoteTitleBox.PlaceholderText" xml:space="preserve">
     <value>Note title</value>
   </data>
@@ -438,6 +441,12 @@
   </data>
   <data name="NoteEditorErrorStatus" xml:space="preserve">
     <value>Save failed; your draft remains in the editor.</value>
+  </data>
+  <data name="NoteEditorConflictStatus" xml:space="preserve">
+    <value>This note changed elsewhere; reload it before editing.</value>
+  </data>
+  <data name="NoteEditorLoadFailedStatus" xml:space="preserve">
+    <value>The note could not be loaded; reload it.</value>
   </data>
   <data name="CardStatus.Unknown.Title" xml:space="preserve">
     <value>Status unknown</value>
@@ -600,9 +609,6 @@
   </data>
   <data name="EditLayoutButtonAutomationName" xml:space="preserve">
     <value>Edit layout</value>
-  </data>
-  <data name="ListNotesButtonToolTip" xml:space="preserve">
-    <value>All notes</value>
   </data>
   <data name="UndoLayoutButtonToolTip" xml:space="preserve">
     <value>Undo layout operation</value>

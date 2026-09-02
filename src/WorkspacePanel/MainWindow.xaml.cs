@@ -98,7 +98,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private string? _draggedCardId;
     private CardPlacement? _dragStartPlacement;
     private bool _isSavingLayout;
-    private bool _suppressNoteSearchTextChanged;
     private int _disposed;
     private RectangleClip? _headerRevealClip;
 
@@ -958,56 +957,116 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
     private void ApplyNotePreviewState()
     {
+        // Every notes card, not the first one found: the editor is shared, so a second card
+        // on the board shows the same note and has to follow the same state.
+        foreach (FrameworkElement cardRoot in RealizedNoteCardRoots())
+        {
+            ApplyNoteContentState(cardRoot);
+        }
+    }
+
+    /// <summary>
+    /// The one place that decides what a notes card's content row shows. The editor, the
+    /// Markdown preview and (on a one-row card) the note switcher share it and never appear
+    /// together; the state is read from the editor and from the card's own switcher, so the
+    /// card is right whether the change came from a button, a resize or a fresh realization.
+    /// </summary>
+    private void ApplyNoteContentState(FrameworkElement cardRoot)
+    {
         bool isPreviewVisible = NoteEditor.IsMarkdownPreviewVisible;
+        bool browsingExclusively =
+            ResolveCurrentCardSurfaceItem(cardRoot) is { IsNoteBrowsingExclusive: true } &&
+            IsNoteSwitcherOpen(cardRoot);
         // Looked up as FrameworkElement, not as the concrete panel type: this only needs
         // something it can show and hide, and typing it to StackPanel meant the editor
         // silently stopped hiding the day its layout became a Grid.
         FrameworkElement? inputPanel = FindDescendantByName<FrameworkElement>(
-            RootGrid,
+            cardRoot,
             "NoteEditorInputPanel");
         FrameworkElement? previewPanel = FindDescendantByName<FrameworkElement>(
-            RootGrid,
+            cardRoot,
             "NoteMarkdownPreviewPanel");
-        if (isPreviewVisible)
-        {
-            if (inputPanel is not null)
-            {
-                _surfaceMotion.HideImmediately(inputPanel);
-            }
-
-            if (previewPanel is not null)
-            {
-                _surfaceMotion.Show(
-                    previewPanel,
-                    SurfaceMotionAnchor.Center);
-            }
-        }
-        else
-        {
-            if (previewPanel is not null)
-            {
-                _surfaceMotion.HideImmediately(previewPanel);
-            }
-
-            if (inputPanel is not null)
-            {
-                _surfaceMotion.Show(
-                    inputPanel,
-                    SurfaceMotionAnchor.Center);
-            }
-        }
+        bool showInput = !browsingExclusively && !isPreviewVisible;
+        bool showPreview = !browsingExclusively && isPreviewVisible;
+        ApplyContentPanel(inputPanel, showInput);
+        ApplyContentPanel(previewPanel, showPreview);
 
         SetVisibility(
             FindDescendantByName<Button>(
-                RootGrid,
+                cardRoot,
                 "PreviewNoteButton"),
             !isPreviewVisible);
         SetVisibility(
             FindDescendantByName<Button>(
-                RootGrid,
+                cardRoot,
                 "EditMarkdownButton"),
             isPreviewVisible);
     }
+
+    private void ApplyContentPanel(FrameworkElement? panel, bool isVisible)
+    {
+        if (panel is null)
+        {
+            return;
+        }
+
+        if (isVisible)
+        {
+            _surfaceMotion.Show(panel, SurfaceMotionAnchor.Center);
+        }
+        else
+        {
+            _surfaceMotion.HideImmediately(panel);
+        }
+    }
+
+    // Realized elements are found through the repeater's own index, the way
+    // ReestablishRealizedCards does, rather than through DataContext: the templates bind
+    // with x:Bind, and the repeater is under no obligation to set a DataContext for those.
+    private IEnumerable<FrameworkElement> RealizedNoteCardRoots()
+    {
+        for (int index = 0; index < _cardSurface.Items.Count; index++)
+        {
+            if (_cardSurface.GetItemAt(index) is { } item &&
+                string.Equals(
+                    item.CardTypeId,
+                    BuiltInCardCatalog.NotesCardTypeId,
+                    StringComparison.Ordinal) &&
+                CardItemsRepeater.TryGetElement(index) is FrameworkElement element)
+            {
+                yield return element;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The realized root of the notes card an element belongs to: the element the repeater
+    /// hands out for the card's index. Note handlers scope their lookups to it rather than
+    /// to the page, so that with two notes cards on the board the switcher opens on the card
+    /// whose button was pressed and not on whichever card the visual tree lists first.
+    /// </summary>
+    private FrameworkElement? FindNoteCardRoot(object sender)
+    {
+        DependencyObject? current = sender as DependencyObject;
+        while (current is not null &&
+            !ReferenceEquals(current, CardItemsRepeater))
+        {
+            if (current is FrameworkElement element &&
+                CardItemsRepeater.GetElementIndex(element) >= 0)
+            {
+                return element;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private bool IsNoteSwitcherOpen(FrameworkElement cardRoot) =>
+        FindDescendantByName<FrameworkElement>(cardRoot, "NoteSearchResultsBorder")
+            is { } results &&
+        _surfaceMotion.IsVisible(results);
 
     private static void SetVisibility(
         FrameworkElement? element,
@@ -1022,13 +1081,14 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     }
 
     private void SetSearchResultsVisible(
+        FrameworkElement cardRoot,
         bool isVisible,
         bool immediate = false)
     {
         // Looked up rather than referenced: the switcher moved into the notes card template,
         // so it is realized per card element and is not a field on this page.
         FrameworkElement? results = FindDescendantByName<FrameworkElement>(
-            RootGrid,
+            cardRoot,
             "NoteSearchResultsBorder");
         if (results is null)
         {
@@ -1041,18 +1101,43 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 results,
                 SurfaceMotionAnchor.Top,
                 floating: true);
-            return;
         }
-
-        if (immediate)
+        else if (immediate ||
+            ResolveCurrentCardSurfaceItem(cardRoot) is { IsNoteBrowsingExclusive: true })
         {
+            // On a one-row card the editor takes the switcher's place the moment it closes;
+            // fading the switcher out would keep both in the layout for the length of the
+            // fade and then jump.
             _surfaceMotion.HideImmediately(results);
-            return;
+        }
+        else
+        {
+            _surfaceMotion.Hide(
+                results,
+                SurfaceMotionAnchor.Top);
         }
 
-        _surfaceMotion.Hide(
-            results,
-            SurfaceMotionAnchor.Top);
+        ApplyNoteContentState(cardRoot);
+    }
+
+    private void CloseNoteSwitcher(FrameworkElement cardRoot)
+    {
+        ClearNoteSearchBox(cardRoot);
+        _ = _noteList.SearchAsync(string.Empty, CancellationToken.None);
+        SetSearchResultsVisible(cardRoot, false);
+        StatusText.Text = _resources.GetString("NoteListClosedStatus");
+    }
+
+    // No suppression flag around the assignment: TextChanged is raised on a later tick, not
+    // inside the setter, so a flag cleared on the way out was always down again by the time
+    // the handler ran. The handler instead recognizes an empty box for an already-empty
+    // query as nothing to do.
+    private static void ClearNoteSearchBox(FrameworkElement cardRoot)
+    {
+        if (FindDescendantByName<TextBox>(cardRoot, "SearchBox") is { } searchBox)
+        {
+            searchBox.Text = string.Empty;
+        }
     }
 
     private static T? FindDescendantByName<T>(
@@ -1083,20 +1168,25 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         return null;
     }
 
+    // "New", "open" and "delete" go through the list coordinator, which saves whatever the
+    // user was typing a moment ago before the editor moves on. The blocked messages remain
+    // for the one draft it cannot save: one whose save has already failed.
     private async void NewNoteButton_Click(object sender, RoutedEventArgs e)
     {
         CollapseNoteOverflow(sender);
-        if (!NoteEditor.CanLoadNote)
+        if (FindNoteCardRoot(sender) is { } cardRoot)
         {
-            StatusText.Text = _resources.GetString("NoteCreateBlockedStatus");
-            return;
+            SetSearchResultsVisible(cardRoot, false);
         }
 
-        SetSearchResultsVisible(false);
         StatusText.Text = _resources.GetString("NoteCreatingStatus");
-        bool created = await NoteEditor.CreateNoteAsync(CancellationToken.None);
+        bool created = await _noteList.CreateNoteAsync(CancellationToken.None);
         StatusText.Text = _resources.GetString(
-            created ? "NoteCreatedStatus" : "NoteCreateFailedStatus");
+            created
+                ? "NoteCreatedStatus"
+                : NoteEditor.HasUnsavedChanges
+                    ? "NoteCreateBlockedStatus"
+                    : "NoteCreateFailedStatus");
     }
 
     private async void DeleteCurrentNoteButton_Click(
@@ -1104,12 +1194,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         RoutedEventArgs e)
     {
         CollapseNoteOverflow(sender);
-        if (!NoteEditor.CanDelete)
-        {
-            StatusText.Text = _resources.GetString("NoteDeleteBlockedStatus");
-            return;
-        }
-
+        FrameworkElement? cardRoot = FindNoteCardRoot(sender);
+        bool switcherWasOpen = cardRoot is not null && IsNoteSwitcherOpen(cardRoot);
         string title = GetNoteDisplayTitle(NoteEditor.Title, NoteEditor.NoteId);
         if (!await ConfirmNoteDeletionAsync(title))
         {
@@ -1117,15 +1203,19 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         StatusText.Text = _resources.GetString("NoteDeletingStatus");
-        bool deleted = await NoteEditor.DeleteCurrentNoteAsync(
-            CancellationToken.None);
+        bool deleted = await _noteList.DeleteCurrentNoteAsync(CancellationToken.None);
         if (!deleted)
         {
-            StatusText.Text = _resources.GetString("NoteDeleteFailedStatus");
+            StatusText.Text = _resources.GetString(
+                NoteEditor.HasUnsavedChanges
+                    ? "NoteDeleteBlockedStatus"
+                    : "NoteDeleteFailedStatus");
             return;
         }
 
-        bool refreshed = await RefreshNoteResultsAfterDeleteAsync();
+        bool refreshed = await RefreshNoteResultsAfterDeleteAsync(
+            cardRoot,
+            keepOpen: switcherWasOpen);
         if (refreshed)
         {
             await LoadFirstListedNoteAsync();
@@ -1143,12 +1233,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        if (!NoteEditor.CanLoadNote)
-        {
-            StatusText.Text = _resources.GetString("NoteDeleteBlockedStatus");
-            return;
-        }
-
+        FrameworkElement? cardRoot = FindNoteCardRoot(button);
         button.IsEnabled = false;
         try
         {
@@ -1164,15 +1249,20 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 StringComparison.Ordinal);
             StatusText.Text = _resources.GetString("NoteDeletingStatus");
             bool deleted = deletingCurrent
-                ? await NoteEditor.DeleteCurrentNoteAsync(CancellationToken.None)
+                ? await _noteList.DeleteCurrentNoteAsync(CancellationToken.None)
                 : await NoteSearch.DeleteNoteAsync(result, CancellationToken.None);
             if (!deleted)
             {
-                StatusText.Text = _resources.GetString("NoteDeleteFailedStatus");
+                StatusText.Text = _resources.GetString(
+                    deletingCurrent && NoteEditor.HasUnsavedChanges
+                        ? "NoteDeleteBlockedStatus"
+                        : "NoteDeleteFailedStatus");
                 return;
             }
 
-            bool refreshed = await RefreshNoteResultsAfterDeleteAsync();
+            bool refreshed = await RefreshNoteResultsAfterDeleteAsync(
+                cardRoot,
+                keepOpen: true);
             if (deletingCurrent && refreshed)
             {
                 await LoadFirstListedNoteAsync();
@@ -1216,27 +1306,26 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Opens the note switcher, or closes it if it is already open. Browsing needs a way out
+    /// that is not picking a note: the button that opened it is the obvious one, and Escape
+    /// in the search box is the other.
+    /// </summary>
     private async void ListNotesButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!NoteSearch.CanSearch)
+        if (!NoteSearch.CanSearch || FindNoteCardRoot(sender) is not { } cardRoot)
         {
             return;
         }
 
-        _suppressNoteSearchTextChanged = true;
-        try
+        if (IsNoteSwitcherOpen(cardRoot))
         {
-            if (FindDescendantByName<TextBox>(RootGrid, "SearchBox") is { } searchBox)
-            {
-                searchBox.Text = string.Empty;
-            }
-        }
-        finally
-        {
-            _suppressNoteSearchTextChanged = false;
+            CloseNoteSwitcher(cardRoot);
+            return;
         }
 
-        SetSearchResultsVisible(false, immediate: true);
+        ClearNoteSearchBox(cardRoot);
+        SetSearchResultsVisible(cardRoot, false, immediate: true);
         StatusText.Text = _resources.GetString("NoteListLoadingStatus");
         NoteListOperationResult result = await _noteList.LoadAllAsync(
             CancellationToken.None);
@@ -1245,7 +1334,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        SetSearchResultsVisible(result.HasResults);
+        SetSearchResultsVisible(cardRoot, result.HasResults);
         StatusText.Text = result.Status switch
         {
             NoteSearchStatus.Ready => string.Format(
@@ -1258,9 +1347,23 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         };
     }
 
+    private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Escape || FindNoteCardRoot(sender) is not { } cardRoot)
+        {
+            return;
+        }
+
+        CloseNoteSwitcher(cardRoot);
+        FindDescendantByName<TextBox>(cardRoot, "NoteBodyBox")
+            ?.Focus(FocusState.Programmatic);
+        e.Handled = true;
+    }
+
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_suppressNoteSearchTextChanged || sender is not TextBox textBox)
+        if (sender is not TextBox textBox ||
+            FindNoteCardRoot(textBox) is not { } cardRoot)
         {
             return;
         }
@@ -1268,13 +1371,22 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         string query = textBox.Text.Trim();
         if (query.Length == 0)
         {
+            if (NoteSearch.Query.Length == 0)
+            {
+                // The box was cleared by the code that opens or closes the switcher, and the
+                // listing it started is already the empty query. Searching for nothing
+                // again here would outdate that listing and hide the list it was about to
+                // show - which is exactly what reopening after a search used to do.
+                return;
+            }
+
             await _noteList.SearchAsync(query, CancellationToken.None);
-            SetSearchResultsVisible(false);
+            SetSearchResultsVisible(cardRoot, false);
             StatusText.Text = _resources.GetString("NoteSearchClearedStatus");
             return;
         }
 
-        SetSearchResultsVisible(false, immediate: true);
+        SetSearchResultsVisible(cardRoot, false, immediate: true);
         StatusText.Text = _resources.GetString("NoteSearchSearchingStatus");
         NoteListOperationResult result = await _noteList.SearchAsync(
             query,
@@ -1284,7 +1396,7 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return;
         }
 
-        SetSearchResultsVisible(result.HasResults);
+        SetSearchResultsVisible(cardRoot, result.HasResults);
         StatusText.Text = result.Status switch
         {
             NoteSearchStatus.Ready => string.Format(
@@ -1301,33 +1413,40 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         object sender,
         RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: string noteId })
+        if (sender is not FrameworkElement { Tag: string noteId } element)
         {
             return;
         }
 
-        if (!NoteEditor.CanLoadNote)
-        {
-            StatusText.Text = _resources.GetString("NoteLoadBlockedStatus");
-            return;
-        }
-
+        FrameworkElement? cardRoot = FindNoteCardRoot(element);
         bool loaded = await _noteList.LoadNoteAsync(
             noteId,
             CancellationToken.None);
-        if (loaded)
+        if (loaded && cardRoot is not null)
         {
             // Picking a note is the end of browsing. The switcher lives inside the card now,
             // so leaving it open would keep the editor the user just asked for pushed below
             // the fold - in the header it merely sat above the board and cost nothing.
-            SetSearchResultsVisible(false);
+            SetSearchResultsVisible(cardRoot, false);
         }
 
         StatusText.Text = _resources.GetString(
-            loaded ? "NoteLoadedStatus" : "NoteLoadFailedStatus");
+            loaded
+                ? "NoteLoadedStatus"
+                : NoteEditor.HasUnsavedChanges
+                    ? "NoteLoadBlockedStatus"
+                    : "NoteLoadFailedStatus");
     }
 
-    private async Task<bool> RefreshNoteResultsAfterDeleteAsync()
+    /// <summary>
+    /// Re-runs the current listing after a delete. The switcher keeps the state it had: one
+    /// the user deleted from stays open with the row gone, one that was closed stays closed.
+    /// Opening it uninvited after a delete from the overflow menu made the list button, which
+    /// now toggles, close what the user had not asked to see.
+    /// </summary>
+    private async Task<bool> RefreshNoteResultsAfterDeleteAsync(
+        FrameworkElement? cardRoot,
+        bool keepOpen)
     {
         NoteListOperationResult result = await _noteList
             .RefreshAfterDeleteAsync(CancellationToken.None);
@@ -1336,7 +1455,11 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             return false;
         }
 
-        SetSearchResultsVisible(result.HasResults);
+        if (cardRoot is not null)
+        {
+            SetSearchResultsVisible(cardRoot, keepOpen && result.HasResults);
+        }
+
         return result.Status is NoteSearchStatus.Ready or NoteSearchStatus.Empty;
     }
 
@@ -1370,28 +1493,30 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         return result == ContentDialogResult.Primary;
     }
 
+    // Retry, undo, redo and the preview toggles no longer narrate themselves on the panel's
+    // status line: their result is on the card, in the footer or in the text, and a second
+    // sentence saying so at the top of the panel was a duplicate.
     private async void RetryNoteSaveButton_Click(object sender, RoutedEventArgs e)
     {
         bool saved = await NoteEditor.RetrySaveAsync(CancellationToken.None);
+        if (!saved)
+        {
+            StatusText.Text = _resources.GetString("NoteSaveRetryFailedStatus");
+        }
+    }
+
+    private async void ReloadNoteButton_Click(object sender, RoutedEventArgs e)
+    {
+        bool reloaded = await NoteEditor.ReloadAsync(CancellationToken.None);
         StatusText.Text = _resources.GetString(
-            saved ? "NoteSaveRetrySucceededStatus" : "NoteSaveRetryFailedStatus");
+            reloaded ? "NoteReloadedStatus" : "NoteReloadFailedStatus");
     }
 
-    private void UndoNoteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (NoteEditor.Undo())
-        {
-            StatusText.Text = _resources.GetString("NoteUndoStatus");
-        }
-    }
+    private void UndoNoteButton_Click(object sender, RoutedEventArgs e) =>
+        NoteEditor.Undo();
 
-    private void RedoNoteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (NoteEditor.Redo())
-        {
-            StatusText.Text = _resources.GetString("NoteRedoStatus");
-        }
-    }
+    private void RedoNoteButton_Click(object sender, RoutedEventArgs e) =>
+        NoteEditor.Redo();
 
     private void MarkdownModeCheckBox_Click(object sender, RoutedEventArgs e)
     {
@@ -1422,7 +1547,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         NoteEditor.ToggleMarkdownPreview();
-        StatusText.Text = _resources.GetString("NoteMarkdownPreviewStatus");
     }
 
     private void EditMarkdownButton_Click(object sender, RoutedEventArgs e)
@@ -1434,7 +1558,6 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         }
 
         NoteEditor.ToggleMarkdownPreview();
-        StatusText.Text = _resources.GetString("NoteMarkdownEditStatus");
     }
 
     /// <summary>
@@ -1485,6 +1608,14 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         if (sender is TextBox textBox)
         {
             NoteEditor.Body = textBox.Text;
+        }
+    }
+
+    private void NoteTextBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            NoteEditorKeyboard.TryHandle(NoteEditor, textBox, e);
         }
     }
 
@@ -1795,6 +1926,16 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
         _realizedCardRuntimes[args.Element] = item.Runtime;
         _cardSurface.SetViewportVisibility(item.Runtime, true);
         RequestCardSubscriptionRefresh();
+        // A notes card realized while the shared editor is already in preview would
+        // otherwise come up showing the editor; its template only knows the default state.
+        if (args.Element is FrameworkElement cardRoot &&
+            string.Equals(
+                item.CardTypeId,
+                BuiltInCardCatalog.NotesCardTypeId,
+                StringComparison.Ordinal))
+        {
+            ApplyNoteContentState(cardRoot);
+        }
     }
 
     private void PrepareCardSurfaceDepth(UIElement element)
@@ -1872,6 +2013,14 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
             NoteEditorStatus.PendingSave => "NoteEditorPendingSaveStatus",
             NoteEditorStatus.Saving => "NoteEditorSavingStatus",
             NoteEditorStatus.Saved => "NoteEditorSavedStatus",
+            // Three errors, three sentences: a draft the store would not take as written, a
+            // note that never arrived, and a save that can still be retried. "Save failed"
+            // for all three told the user to retry the two a retry cannot fix.
+            NoteEditorStatus.Error when string.Equals(
+                NoteEditor.ErrorCode,
+                "conflict.notes-revision",
+                StringComparison.Ordinal) => "NoteEditorConflictStatus",
+            NoteEditorStatus.Error when !NoteEditor.CanEdit => "NoteEditorLoadFailedStatus",
             NoteEditorStatus.Error => "NoteEditorErrorStatus",
             _ => "NoteEditorErrorStatus",
         };

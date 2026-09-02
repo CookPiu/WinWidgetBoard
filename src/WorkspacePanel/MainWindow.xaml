@@ -381,7 +381,7 @@
                             <StackPanel
                                 Grid.Column="2"
                                 Orientation="Horizontal"
-                                Spacing="2"
+                                Spacing="{StaticResource WwbSpace1}"
                                 Visibility="{x:Bind AreNoteToolsVisible, Mode=OneWay}">
                                 <Button
                                     x:Name="ListNotesButton"
@@ -401,7 +401,7 @@
                                     x:Name="NewNoteButton"
                                     x:Uid="NewNoteButton"
                                     Style="{StaticResource WwbCardIconButtonStyle}"
-                                    IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                                     Tag="{Binding ElementName=NoteOverflowPanel}"
                                     Click="NewNoteButton_Click">
                                     <ToolTipService.ToolTip>
@@ -478,10 +478,16 @@
                         <Grid
                             RowSpacing="8"
                             MinHeight="{Binding ViewportHeight, ElementName=NotesCardScrollViewer}">
+                            <!--
+                                The editor and the Markdown preview share the star row and
+                                are never shown together. When the preview sat in a row of
+                                its own, hiding the editor left the star row with nothing in
+                                it, and it kept the leftover height anyway - the preview was
+                                pushed to the bottom of the card with a blank above it.
+                            -->
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
@@ -501,14 +507,16 @@
                                         x:Uid="SearchBox"
                                         Style="{StaticResource WwbSearchBoxStyle}"
                                         IsEnabled="{x:Bind NoteSearch.CanSearch, Mode=OneWay}"
+                                        MaxLength="256"
+                                        KeyDown="SearchBox_KeyDown"
                                         TextChanged="SearchBox_TextChanged" />
                                     <ListView
                                     x:Name="NoteSearchResultsList"
                                     x:Uid="NoteSearchResultsList"
                                     ItemsSource="{x:Bind NoteSearch.Results, Mode=OneWay}"
-                                    IsEnabled="{x:Bind NoteEditor.CanLoadNote, Mode=OneWay}"
+                                    IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                                     IsItemClickEnabled="False"
-                                    MaxHeight="180"
+                                    MaxHeight="{x:Bind NoteSwitcherListMaxHeight, Mode=OneWay}"
                                     SelectionMode="None">
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="notes:NoteSearchResult">
@@ -524,8 +532,7 @@
                                                     Click="NoteSearchResultButton_Click"
                                                     automation:AutomationProperties.Name="{x:Bind Title}">
                                                     <StackPanel
-                                                        Padding="2"
-                                                        Spacing="1">
+                                                        Spacing="{StaticResource WwbSpace1}">
                                                         <TextBlock
                                                             Text="{x:Bind Title}"
                                                             TextTrimming="CharacterEllipsis"
@@ -561,36 +568,44 @@
                                     x:Uid="NoteTitleBox"
                                     Style="{StaticResource WwbNoteTitleTextBoxStyle}"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    MaxLength="512"
                                     Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
-                                    TextChanged="NoteTitleBox_TextChanged" />
+                                    TextChanged="NoteTitleBox_TextChanged"
+                                    PreviewKeyDown="NoteTextBox_PreviewKeyDown" />
+                                <!--
+                                    No minimum height: the star row already hands the body
+                                    every DIP the card has left, and a floor above what a
+                                    one-row card can offer only bought a second scrollbar
+                                    nested inside the card's own.
+                                -->
                                 <TextBox
                                     x:Name="NoteBodyBox"
                                     x:Uid="NoteBodyBox"
                                     Grid.Row="1"
-                                    MinHeight="120"
                                     Style="{StaticResource WwbNoteBodyTextBoxStyle}"
                                     AcceptsReturn="True"
                                     IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                                    MaxLength="262144"
                                     ScrollViewer.HorizontalScrollMode="Disabled"
                                     ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                                     ScrollViewer.VerticalScrollMode="Enabled"
                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                                     Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
                                     TextChanged="NoteBodyBox_TextChanged"
+                                    PreviewKeyDown="NoteTextBox_PreviewKeyDown"
                                     TextWrapping="Wrap"
                                     VerticalAlignment="Stretch"
                                     VerticalContentAlignment="Top" />
                             </Grid>
                             <Border
                                 x:Name="NoteMarkdownPreviewPanel"
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 x:Uid="NoteMarkdownPreviewPanel"
                                 Style="{StaticResource WwbSecondarySurfaceStyle}"
                                 Visibility="Collapsed">
                                 <ListView
                                     x:Name="NoteMarkdownPreviewText"
                                     x:Uid="NoteMarkdownPreviewText"
-                                    MaxHeight="320"
                                     Background="Transparent"
                                     BorderThickness="0"
                                     IsItemClickEnabled="False"
@@ -602,7 +617,7 @@
                             </Border>
                             <Border
                                 x:Name="NoteOverflowPanel"
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 Tag="{Binding ElementName=NoteMoreButton}"
                                 Style="{StaticResource WwbNoteOverflowSurfaceStyle}"
                                 Visibility="Collapsed">
@@ -635,14 +650,14 @@
                                         Grid.Column="2"
                                         Style="{StaticResource WwbNoteUtilityButtonStyle}"
                                         Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                        IsEnabled="{x:Bind NoteEditor.CanDelete, Mode=OneWay}"
+                                        IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
                                         Tag="{Binding ElementName=NoteOverflowPanel}"
                                         Click="DeleteCurrentNoteButton_Click" />
                                 </Grid>
                             </Border>
                             <Grid
                                 x:Name="NoteEditorFooter"
-                                Grid.Row="4"
+                                Grid.Row="3"
                                 VerticalAlignment="Bottom"
                                 ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
@@ -661,6 +676,13 @@
                                     Grid.Column="1"
                                     Orientation="Horizontal"
                                     Spacing="2">
+                                    <Button
+                                        x:Name="ReloadNoteButton"
+                                        x:Uid="ReloadNoteButton"
+                                        Style="{StaticResource WwbNoteUtilityButtonStyle}"
+                                        IsEnabled="{x:Bind NoteEditor.CanReload, Mode=OneWay}"
+                                        x:Load="{x:Bind NoteEditor.CanReload, Mode=OneWay}"
+                                        Click="ReloadNoteButton_Click" />
                                     <Button
                                         x:Name="RetryNoteSaveButton"
                                         x:Uid="RetryNoteSaveButton"

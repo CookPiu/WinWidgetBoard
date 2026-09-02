@@ -42,7 +42,7 @@ public sealed class NoteListCoordinator
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(noteId);
-        if (!_editor.CanLoadNote)
+        if (!await TryFlushDraftAsync(cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
@@ -50,6 +50,52 @@ public sealed class NoteListCoordinator
         return await _editor
             .LoadNoteAsync(noteId, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<bool> CreateNoteAsync(CancellationToken cancellationToken)
+    {
+        if (!await TryFlushDraftAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        return await _editor
+            .CreateNoteAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> DeleteCurrentNoteAsync(CancellationToken cancellationToken)
+    {
+        if (!await TryFlushDraftAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        return await _editor
+            .DeleteCurrentNoteAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Saves what the user was typing a moment ago before the editor moves on, so "new",
+    /// "open" and "delete" do not answer "save first" for a draft that would have saved
+    /// itself half a second later. A draft whose save has already failed still blocks, and
+    /// that one the user can see and retry.
+    /// </summary>
+    private async Task<bool> TryFlushDraftAsync(CancellationToken cancellationToken)
+    {
+        if (_editor.CanLoadNote)
+        {
+            return true;
+        }
+
+        if (!_editor.HasUnsavedChanges ||
+            !await _editor.SaveNowAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        return _editor.CanLoadNote;
     }
 
     public async Task<NoteListOperationResult> RefreshAfterDeleteAsync(

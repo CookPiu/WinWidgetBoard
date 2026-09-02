@@ -95,8 +95,10 @@
                         Grid.Row="0"
                         Style="{StaticResource WwbNoteTitleTextBoxStyle}"
                         IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                        MaxLength="512"
                         Text="{x:Bind NoteEditor.Title, Mode=OneWay}"
                         TextChanged="NoteWindowTitleBox_TextChanged"
+                        PreviewKeyDown="NoteWindowTextBox_PreviewKeyDown"
                         automation:AutomationProperties.AutomationId="NoteWindowTitleBox" />
 
                     <TextBox
@@ -106,12 +108,14 @@
                         Style="{StaticResource WwbNoteBodyTextBoxStyle}"
                         AcceptsReturn="True"
                         IsEnabled="{x:Bind NoteEditor.CanEdit, Mode=OneWay}"
+                        MaxLength="262144"
                         ScrollViewer.HorizontalScrollMode="Disabled"
                         ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                         ScrollViewer.VerticalScrollMode="Enabled"
                         ScrollViewer.VerticalScrollBarVisibility="Auto"
                         Text="{x:Bind NoteEditor.Body, Mode=OneWay}"
                         TextChanged="NoteWindowBodyBox_TextChanged"
+                        PreviewKeyDown="NoteWindowTextBox_PreviewKeyDown"
                         TextWrapping="Wrap"
                         VerticalAlignment="Stretch"
                         VerticalContentAlignment="Top"

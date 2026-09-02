@@ -246,6 +246,101 @@ public sealed class NoteEditorViewModelTests
         Assert.IsTrue(viewModel.CanRetrySave);
     }
 
+    [TestMethod(DisplayName = "UT-NOTE-043 [NTE-001] SaveNow persists the pending draft before the debounce elapses")]
+    public async Task SaveNowPersistsPendingDraftBeforeDebounce()
+    {
+        var fake = new FakeNoteClient();
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromSeconds(10));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        // Nothing pending: clean is the answer, and no request goes out.
+        Assert.IsTrue(await viewModel.SaveNowAsync(CancellationToken.None));
+        Assert.AreEqual(0, fake.Saves.Count);
+
+        viewModel.Body = "typed a moment ago";
+        Assert.IsFalse(viewModel.CanLoadNote);
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        Assert.IsTrue(await viewModel.SaveNowAsync(timeout.Token));
+
+        Assert.AreEqual(1, fake.Saves.Count);
+        Assert.AreEqual("typed a moment ago", fake.Saves[0].Body);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+        Assert.IsTrue(viewModel.CanLoadNote);
+        Assert.AreEqual(NoteEditorStatus.Saved, viewModel.Status);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-046 [NTE-001] Saved settles back to ready after the hold")]
+    public async Task SavedSettlesBackToReadyAfterHold()
+    {
+        var fake = new FakeNoteClient();
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(10),
+            savedStatusHold: TimeSpan.FromMilliseconds(30));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        viewModel.Body = "settles";
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await viewModel.WaitForIdleAsync(timeout.Token);
+        Assert.AreEqual(NoteEditorStatus.Saved, viewModel.Status);
+
+        while (viewModel.Status == NoteEditorStatus.Saved)
+        {
+            timeout.Token.ThrowIfCancellationRequested();
+            await Task.Delay(5, timeout.Token);
+        }
+
+        Assert.AreEqual(NoteEditorStatus.Ready, viewModel.Status);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+    }
+
+    [TestMethod(DisplayName = "UT-NOTE-048 [NTE-001/NFR-REL-002] A revision conflict offers reload instead of retry")]
+    public async Task RevisionConflictOffersReloadInsteadOfRetry()
+    {
+        var fake = new FakeNoteClient
+        {
+            Existing = new NoteDto
+            {
+                NoteId = NoteEditorViewModel.DefaultNoteId,
+                Title = "Stored title",
+                Body = "Stored body",
+                BodyFormat = NotesContract.PlainTextFormat,
+                CreatedAtUtc = "2026-08-08T00:00:00.0000000+00:00",
+                UpdatedAtUtc = "2026-08-08T00:00:01.0000000+00:00",
+            },
+        };
+        fake.SaveFailures.Enqueue(new CoreBrokerClientException(
+            NotesContract.SaveMethod,
+            "conflict.notes-revision",
+            "the note moved on"));
+        await using var viewModel = new NoteEditorViewModel(
+            fake,
+            autosaveDelay: TimeSpan.FromMilliseconds(10));
+
+        Assert.IsTrue(await viewModel.LoadAsync(CancellationToken.None));
+        Assert.IsFalse(viewModel.CanReload);
+        viewModel.Body = "stale draft";
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await viewModel.WaitForIdleAsync(timeout.Token);
+
+        // The same draft with the same revision fails the same way every time.
+        Assert.AreEqual(NoteEditorStatus.Error, viewModel.Status);
+        Assert.IsFalse(viewModel.CanRetrySave);
+        Assert.IsTrue(viewModel.CanReload);
+
+        Assert.IsTrue(await viewModel.ReloadAsync(timeout.Token));
+        Assert.AreEqual("Stored body", viewModel.Body);
+        Assert.AreEqual(NoteEditorStatus.Ready, viewModel.Status);
+        Assert.IsFalse(viewModel.HasUnsavedChanges);
+        Assert.IsFalse(viewModel.CanReload);
+        Assert.IsTrue(viewModel.CanEdit);
+    }
+
     [TestMethod(DisplayName = "UT-NOTE-009 [NTE-001] Editor leaves loading when CoreBroker is unavailable")]
     public async Task EditorLeavesLoadingWhenCoreBrokerIsUnavailable()
     {
