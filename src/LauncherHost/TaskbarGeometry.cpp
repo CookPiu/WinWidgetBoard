@@ -838,24 +838,30 @@ const wchar_t* ToString(const LauncherHotkeyPreference hotkey)
         return L"ctrl-alt-d";
     case LauncherHotkeyPreference::CtrlAltQ:
         return L"ctrl-alt-q";
+    case LauncherHotkeyPreference::Custom:
+        return L"custom";
     case LauncherHotkeyPreference::CtrlAltB:
     default:
         return L"ctrl-alt-b";
     }
 }
 
-LauncherHotkeyBinding ToHotkeyBinding(const LauncherHotkeyPreference hotkey)
+LauncherHotkeyBinding ToHotkeyBinding(const LauncherEntryPreferences& preferences)
 {
     // MOD_NOREPEAT everywhere: holding the chord down has to open the panel once, not once
     // per keyboard repeat. The Windows key is deliberately absent from every preset - the
     // shell owns most of that space and takes more of it in updates.
     //
     // Every preset is a letter rather than a punctuation or space key. Punctuation moves
-    // between layouts, so the menu would print a chord the keyboard cannot produce; and the
+    // between layouts, so a printed chord the keyboard cannot produce would result; and the
     // obvious candidates there are already taken - on the reference machine Ctrl+Alt+Space is
     // the Microsoft IME's half-width toggle and Ctrl+Alt+W is held by another application,
     // both of which registered as nothing at all when they were the presets here.
-    switch (hotkey)
+    //
+    // A custom chord comes from the panel's recorder, which enforces at least one modifier
+    // and never offers the Windows key. The load path has already validated the pair, so an
+    // empty pair here means "do not register", same as Disabled.
+    switch (preferences.hotkey)
     {
     case LauncherHotkeyPreference::CtrlAltB:
         return {MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'B'};
@@ -863,6 +869,12 @@ LauncherHotkeyBinding ToHotkeyBinding(const LauncherHotkeyPreference hotkey)
         return {MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'D'};
     case LauncherHotkeyPreference::CtrlAltQ:
         return {MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'Q'};
+    case LauncherHotkeyPreference::Custom:
+        return preferences.customHotkeyModifiers == 0
+            ? LauncherHotkeyBinding{}
+            : LauncherHotkeyBinding{
+                  preferences.customHotkeyModifiers | MOD_NOREPEAT,
+                  preferences.customHotkeyVirtualKey};
     case LauncherHotkeyPreference::Disabled:
     default:
         return {};

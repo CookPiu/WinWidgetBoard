@@ -39,31 +39,18 @@ constexpr UINT_PTR kAnimationTimerId = 3;
 constexpr UINT kAnimationIntervalMilliseconds = 16;
 
 
+// Two items. Every preference the menu used to carry lives in the panel's settings page
+// now, which writes the same HKCU key this entry watches - one place to configure the
+// product instead of a tree of radio items on a right-click.
 enum ContextMenuCommand : UINT
 {
     MenuTogglePanel = 1001,
-    MenuEditLayout = 1002,
-    MenuPauseRefresh = 1003,
-    MenuSettings = 1004,
-    MenuDiagnostics = 1005,
     MenuExit = 1006,
-    MenuContentDateTime = 1010,
-    MenuContentWeather = 1011,
-    // The hardware readings are their own capsule, so this is a switch rather than a third
-    // content choice: weather and readings can be on at the same time.
-    MenuToggleSystemMonitor = 1012,
-    MenuPlacementEmbeddedLeft = 1020,
-    MenuPlacementEmbeddedCenter = 1021,
-    MenuPlacementEmbeddedRight = 1022,
-    MenuPlacementFloating = 1023,
-    MenuFallbackFloating = 1030,
-    MenuFallbackCenter = 1031,
-    MenuFallbackRight = 1032,
-    MenuHotkeyDisabled = 1040,
-    MenuHotkeyCtrlAltB = 1041,
-    MenuHotkeyCtrlAltD = 1042,
-    MenuHotkeyCtrlAltQ = 1043,
 };
+
+// Posted by the preferences watcher thread when the HKCU key changes; handled on the
+// window's own thread, where every preference is applied.
+constexpr UINT kPreferencesChangedMessage = WM_APP + 41;
 
 // One registration, so re-applying a preference can always unregister what it replaces
 // without tracking which chord is currently held.
@@ -89,15 +76,6 @@ std::wstring RectToString(const RECT& rectangle)
         std::to_wstring(rectangle.top) + L" - " +
         std::to_wstring(rectangle.right) + L"," +
         std::to_wstring(rectangle.bottom) + L"]";
-}
-
-void AppendRadioItem(
-    const HMENU menu,
-    const UINT command,
-    const wchar_t* text,
-    const bool checked)
-{
-    AppendMenuW(menu, MF_STRING | (checked ? MF_CHECKED : MF_UNCHECKED), command, text);
 }
 
 bool IsWindowCoveringMonitor(const HWND window, const RECT& monitorRect)
@@ -286,12 +264,14 @@ bool LauncherWindow::Create(
 
     ApplyContentMode();
     ApplyHotkey();
+    StartPreferencesWatch();
     _coreBroker.Poll();
     return true;
 }
 
 void LauncherWindow::Destroy()
 {
+    StopPreferencesWatch();
     // The panel is resident, so it outlives its own close; take it down with the launcher.
     _panelProcess.Shutdown();
     _coreBroker.Close();
@@ -575,20 +555,6 @@ bool LauncherWindow::RefreshContent()
     return widthChanged;
 }
 
-void LauncherWindow::ApplyPreferences(const LauncherEntryPreferences& preferences)
-{
-    _preferences = preferences;
-    if (!SaveLauncherPreferences(_preferences))
-    {
-        Log(L"failed to persist launcher preferences");
-    }
-
-    ApplyContentMode();
-    ApplyHotkey();
-    RefreshContent();
-    Reposition();
-}
-
 void LauncherWindow::ApplyHotkey()
 {
     if (_window == nullptr)
@@ -602,10 +568,13 @@ void LauncherWindow::ApplyHotkey()
         _hotkeyRegistered = false;
     }
 
-    const LauncherHotkeyBinding binding = ToHotkeyBinding(_preferences.hotkey);
+    const LauncherHotkeyBinding binding = ToHotkeyBinding(_preferences);
     if (binding.modifiers == 0)
     {
         Log(L"panel hotkey disabled");
+        // Nothing was asked for, so nothing failed; the settings page must not report a
+        // disabled chord as taken.
+        SaveLauncherHotkeyState(true);
         return;
     }
 
@@ -614,8 +583,148 @@ void LauncherWindow::ApplyHotkey()
         kPanelHotkeyId,
         binding.modifiers,
         binding.virtualKey) != FALSE;
+    SaveLauncherHotkeyState(_hotkeyRegistered);
     Log(std::wstring(L"panel hotkey ") + ToString(_preferences.hotkey) +
         (_hotkeyRegistered ? L" registered" : L" unavailable"));
+}
+
+void LauncherWindow::StartPreferencesWatch()
+{
+    if (_preferencesWatchThread != nullptr)
+    {
+        return;
+    }
+
+    if (RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            L"Software\\WinWidgetBoard\\Launcher",
+            0,
+            nullptr,
+            REG_OPTION_NON_VOLATILE,
+            KEY_NOTIFY,
+            nullptr,
+            &_preferencesWatchKey,
+            nullptr) != ERROR_SUCCESS)
+    {
+        Log(L"preferences watch unavailable: key could not be opened");
+        return;
+    }
+
+    _preferencesWatchStop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    _preferencesWatchChange = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (_preferencesWatchStop == nullptr || _preferencesWatchChange == nullptr)
+    {
+        StopPreferencesWatch();
+        return;
+    }
+
+    struct WatchContext
+    {
+        HKEY key;
+        HANDLE stop;
+        HANDLE change;
+        HWND window;
+    };
+    auto* context = new WatchContext{
+        _preferencesWatchKey,
+        _preferencesWatchStop,
+        _preferencesWatchChange,
+        _window,
+    };
+
+    _preferencesWatchThread = CreateThread(
+        nullptr,
+        0,
+        [](LPVOID parameter) -> DWORD
+        {
+            const WatchContext* const context =
+                static_cast<WatchContext*>(parameter);
+            const HANDLE waits[2] = {context->stop, context->change};
+            for (;;)
+            {
+                if (RegNotifyChangeKeyValue(
+                        context->key,
+                        FALSE,
+                        REG_NOTIFY_CHANGE_LAST_SET,
+                        context->change,
+                        TRUE) != ERROR_SUCCESS)
+                {
+                    break;
+                }
+
+                const DWORD waited =
+                    WaitForMultipleObjects(2, waits, FALSE, INFINITE);
+                if (waited != WAIT_OBJECT_0 + 1)
+                {
+                    break;
+                }
+
+                PostMessageW(context->window, kPreferencesChangedMessage, 0, 0);
+            }
+
+            delete context;
+            return 0;
+        },
+        context,
+        0,
+        nullptr);
+    if (_preferencesWatchThread == nullptr)
+    {
+        delete context;
+        StopPreferencesWatch();
+    }
+}
+
+void LauncherWindow::StopPreferencesWatch()
+{
+    if (_preferencesWatchStop != nullptr)
+    {
+        SetEvent(_preferencesWatchStop);
+    }
+
+    if (_preferencesWatchThread != nullptr)
+    {
+        WaitForSingleObject(_preferencesWatchThread, 2000);
+        CloseHandle(_preferencesWatchThread);
+        _preferencesWatchThread = nullptr;
+    }
+
+    if (_preferencesWatchChange != nullptr)
+    {
+        CloseHandle(_preferencesWatchChange);
+        _preferencesWatchChange = nullptr;
+    }
+
+    if (_preferencesWatchStop != nullptr)
+    {
+        CloseHandle(_preferencesWatchStop);
+        _preferencesWatchStop = nullptr;
+    }
+
+    if (_preferencesWatchKey != nullptr)
+    {
+        RegCloseKey(_preferencesWatchKey);
+        _preferencesWatchKey = nullptr;
+    }
+}
+
+void LauncherWindow::HandlePreferencesChanged()
+{
+    const LauncherEntryPreferences loaded = LoadLauncherPreferences();
+    if (loaded == _preferences)
+    {
+        // Our own write-backs (the hotkey state) also wake the watcher; an unchanged
+        // profile is applied by doing nothing.
+        return;
+    }
+
+    Log(L"preferences changed externally; applying");
+    _preferences = loaded;
+    ApplyContentMode();
+    ApplyHotkey();
+    RefreshContent();
+    Reposition();
+    Render();
 }
 
 // Asking the broker for a hardware summary is also what keeps it sampling, so the request and
@@ -744,139 +853,10 @@ void LauncherWindow::ShowContextMenu(const POINT screenPoint)
         return;
     }
 
+    // Everything configurable lives in the panel's settings page, which writes the HKCU key
+    // this entry watches; the menu keeps only the two actions that must work even when the
+    // panel is the thing being asked about.
     AppendMenuW(menu, MF_STRING, MenuTogglePanel, L"打开/关闭面板");
-    AppendMenuW(menu, MF_STRING, MenuEditLayout, L"编辑布局");
-    AppendMenuW(menu, MF_STRING, MenuPauseRefresh, L"暂停后台刷新");
-    AppendMenuW(menu, MF_STRING, MenuSettings, L"打开设置");
-    AppendMenuW(menu, MF_STRING, MenuDiagnostics, L"诊断");
-    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-
-    HMENU contentMenu = CreatePopupMenu();
-    if (contentMenu != nullptr)
-    {
-        AppendRadioItem(
-            contentMenu,
-            MenuContentDateTime,
-            L"日期与时间",
-            _preferences.content == LauncherContentMode::DateTime);
-        AppendRadioItem(
-            contentMenu,
-            MenuContentWeather,
-            L"天气",
-            _preferences.content == LauncherContentMode::Weather);
-        AppendMenuW(
-            menu,
-            MF_STRING | MF_POPUP,
-            reinterpret_cast<UINT_PTR>(contentMenu),
-            L"显示内容");
-    }
-
-    AppendMenuW(
-        menu,
-        MF_STRING | (_preferences.showSystemMonitor ? MF_CHECKED : MF_UNCHECKED),
-        MenuToggleSystemMonitor,
-        L"显示硬件监控");
-
-    HMENU placementMenu = CreatePopupMenu();
-    if (placementMenu != nullptr)
-    {
-        AppendRadioItem(
-            placementMenu,
-            MenuPlacementEmbeddedLeft,
-            L"嵌入任务栏 · 靠左",
-            _preferences.placement ==
-                LauncherEntryPlacementPreference::EmbeddedLeft);
-        AppendRadioItem(
-            placementMenu,
-            MenuPlacementEmbeddedCenter,
-            L"嵌入任务栏 · 居中",
-            _preferences.placement ==
-                LauncherEntryPlacementPreference::EmbeddedCenter);
-        AppendRadioItem(
-            placementMenu,
-            MenuPlacementEmbeddedRight,
-            L"嵌入任务栏 · 靠右",
-            _preferences.placement ==
-                LauncherEntryPlacementPreference::EmbeddedRight);
-        AppendRadioItem(
-            placementMenu,
-            MenuPlacementFloating,
-            L"悬浮在任务栏上方",
-            _preferences.placement == LauncherEntryPlacementPreference::Floating);
-        AppendMenuW(
-            menu,
-            MF_STRING | MF_POPUP,
-            reinterpret_cast<UINT_PTR>(placementMenu),
-            L"入口位置");
-    }
-
-    HMENU hotkeyMenu = CreatePopupMenu();
-    if (hotkeyMenu != nullptr)
-    {
-        AppendRadioItem(
-            hotkeyMenu,
-            MenuHotkeyDisabled,
-            L"\u5173\u95ed",
-            _preferences.hotkey == LauncherHotkeyPreference::Disabled);
-        AppendRadioItem(
-            hotkeyMenu,
-            MenuHotkeyCtrlAltB,
-            L"Ctrl + Alt + B",
-            _preferences.hotkey == LauncherHotkeyPreference::CtrlAltB);
-        AppendRadioItem(
-            hotkeyMenu,
-            MenuHotkeyCtrlAltD,
-            L"Ctrl + Alt + D",
-            _preferences.hotkey == LauncherHotkeyPreference::CtrlAltD);
-        AppendRadioItem(
-            hotkeyMenu,
-            MenuHotkeyCtrlAltQ,
-            L"Ctrl + Alt + Q",
-            _preferences.hotkey == LauncherHotkeyPreference::CtrlAltQ);
-        // A chord another application already owns registers as nothing at all, and the only
-        // symptom is that pressing it does nothing. The menu title is the one place that can
-        // say so, so it says so instead of leaving the user to guess.
-        const bool wanted = _preferences.hotkey != LauncherHotkeyPreference::Disabled;
-        std::wstring hotkeyTitle = L"\u5feb\u6377\u952e";
-        if (wanted && !_hotkeyRegistered)
-        {
-            hotkeyTitle += L"\uff08\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528\uff09";
-        }
-
-        AppendMenuW(
-            menu,
-            MF_STRING | MF_POPUP,
-            reinterpret_cast<UINT_PTR>(hotkeyMenu),
-            hotkeyTitle.c_str());
-    }
-
-    HMENU fallbackMenu = CreatePopupMenu();
-    if (fallbackMenu != nullptr)
-    {
-        AppendRadioItem(
-            fallbackMenu,
-            MenuFallbackFloating,
-            L"改为悬浮",
-            _preferences.leftAlignFallback == LauncherLeftAlignFallback::Floating);
-        AppendRadioItem(
-            fallbackMenu,
-            MenuFallbackCenter,
-            L"改为居中",
-            _preferences.leftAlignFallback ==
-                LauncherLeftAlignFallback::EmbeddedCenter);
-        AppendRadioItem(
-            fallbackMenu,
-            MenuFallbackRight,
-            L"改为靠右",
-            _preferences.leftAlignFallback ==
-                LauncherLeftAlignFallback::EmbeddedRight);
-        AppendMenuW(
-            menu,
-            MF_STRING | MF_POPUP,
-            reinterpret_cast<UINT_PTR>(fallbackMenu),
-            L"任务栏左对齐时");
-    }
-
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, MenuExit, L"退出");
 
@@ -905,80 +885,6 @@ void LauncherWindow::HandleMenuCommand(const UINT command)
     case MenuTogglePanel:
         TogglePanelRequested();
         break;
-    case MenuEditLayout:
-        Log(L"edit-layout requested; layout mode is deferred to M1.3");
-        break;
-    case MenuPauseRefresh:
-        Log(L"pause-refresh requested; CoreBroker handoff is deferred to M2");
-        break;
-    case MenuSettings:
-        Log(L"settings requested; settings mode is deferred to a later work package");
-        break;
-    case MenuDiagnostics:
-        Log(L"diagnostics requested");
-        break;
-    case MenuContentDateTime:
-    case MenuContentWeather:
-    {
-        LauncherEntryPreferences updated = _preferences;
-        updated.content = command == MenuContentWeather
-            ? LauncherContentMode::Weather
-            : LauncherContentMode::DateTime;
-        ApplyPreferences(updated);
-        break;
-    }
-    case MenuToggleSystemMonitor:
-    {
-        LauncherEntryPreferences updated = _preferences;
-        updated.showSystemMonitor = !updated.showSystemMonitor;
-        ApplyPreferences(updated);
-        break;
-    }
-    case MenuHotkeyDisabled:
-    case MenuHotkeyCtrlAltB:
-    case MenuHotkeyCtrlAltD:
-    case MenuHotkeyCtrlAltQ:
-    {
-        LauncherEntryPreferences updated = _preferences;
-        updated.hotkey = command == MenuHotkeyDisabled
-            ? LauncherHotkeyPreference::Disabled
-            : command == MenuHotkeyCtrlAltD
-                ? LauncherHotkeyPreference::CtrlAltD
-                : command == MenuHotkeyCtrlAltQ
-                    ? LauncherHotkeyPreference::CtrlAltQ
-                    : LauncherHotkeyPreference::CtrlAltB;
-        ApplyPreferences(updated);
-        break;
-    }
-    case MenuPlacementEmbeddedLeft:
-    case MenuPlacementEmbeddedCenter:
-    case MenuPlacementEmbeddedRight:
-    case MenuPlacementFloating:
-    {
-        LauncherEntryPreferences updated = _preferences;
-        updated.placement = command == MenuPlacementEmbeddedLeft
-            ? LauncherEntryPlacementPreference::EmbeddedLeft
-            : command == MenuPlacementEmbeddedCenter
-                ? LauncherEntryPlacementPreference::EmbeddedCenter
-                : command == MenuPlacementEmbeddedRight
-                    ? LauncherEntryPlacementPreference::EmbeddedRight
-                    : LauncherEntryPlacementPreference::Floating;
-        ApplyPreferences(updated);
-        break;
-    }
-    case MenuFallbackFloating:
-    case MenuFallbackCenter:
-    case MenuFallbackRight:
-    {
-        LauncherEntryPreferences updated = _preferences;
-        updated.leftAlignFallback = command == MenuFallbackCenter
-            ? LauncherLeftAlignFallback::EmbeddedCenter
-            : command == MenuFallbackRight
-                ? LauncherLeftAlignFallback::EmbeddedRight
-                : LauncherLeftAlignFallback::Floating;
-        ApplyPreferences(updated);
-        break;
-    }
     case MenuExit:
         DestroyWindow(_window);
         break;
@@ -1368,6 +1274,10 @@ LRESULT CALLBACK LauncherWindow::WindowProcedure(
         }
 
         return DefWindowProcW(window, message, wParam, lParam);
+
+    case kPreferencesChangedMessage:
+        self->HandlePreferencesChanged();
+        return 0;
 
     case WM_RBUTTONUP:
     case WM_CONTEXTMENU:

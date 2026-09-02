@@ -10,4 +10,8 @@ namespace winwidgetboard::launcher
 LauncherEntryPreferences LoadLauncherPreferences();
 
 bool SaveLauncherPreferences(const LauncherEntryPreferences& preferences);
+
+// Records whether the panel hotkey actually registered, so the panel's settings page can
+// say "taken by another program" next to the control that chose the chord.
+void SaveLauncherHotkeyState(bool registered);
 }

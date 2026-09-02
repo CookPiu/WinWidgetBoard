@@ -12,6 +12,15 @@ constexpr wchar_t kLeftAlignFallbackValue[] = L"LeftAlignFallback";
 constexpr wchar_t kContentValue[] = L"Content";
 constexpr wchar_t kShowSystemMonitorValue[] = L"ShowSystemMonitor";
 constexpr wchar_t kHotkeyValue[] = L"Hotkey";
+constexpr wchar_t kHotkeyModifiersValue[] = L"HotkeyModifiers";
+constexpr wchar_t kHotkeyKeyValue[] = L"HotkeyKey";
+// Written by the entry after every registration attempt, read by the panel's settings page
+// to say "taken by another program" next to the control that chose the chord.
+constexpr wchar_t kHotkeyActiveValue[] = L"HotkeyActive";
+
+// The modifiers a recorded chord may carry. The Windows key is deliberately not accepted:
+// the shell owns most of that space and takes more of it in updates.
+constexpr DWORD kAllowedCustomModifiers = MOD_CONTROL | MOD_ALT | MOD_SHIFT;
 
 // The value Content used to carry when the hardware monitor was a third content mode rather
 // than its own capsule. A profile written by that build is read once and split into the two
@@ -115,6 +124,8 @@ LauncherHotkeyPreference ToHotkey(const DWORD value)
         return LauncherHotkeyPreference::CtrlAltD;
     case 3:
         return LauncherHotkeyPreference::CtrlAltQ;
+    case 4:
+        return LauncherHotkeyPreference::Custom;
     case 1:
     default:
         return LauncherHotkeyPreference::CtrlAltB;
@@ -131,6 +142,8 @@ DWORD FromHotkey(const LauncherHotkeyPreference hotkey)
         return 2u;
     case LauncherHotkeyPreference::CtrlAltQ:
         return 3u;
+    case LauncherHotkeyPreference::Custom:
+        return 4u;
     case LauncherHotkeyPreference::CtrlAltB:
     default:
         return 1u;
@@ -189,10 +202,33 @@ LauncherEntryPreferences LoadLauncherPreferences()
         preferences.showSystemMonitor = value != 0u;
     }
     // Absent means the default, which is on: a shortcut nobody is told about is a shortcut
-    // nobody uses, and the context menu both names the chord and can switch it off.
+    // nobody uses, and the settings page both names the chord and can switch it off.
     if (TryReadDword(kHotkeyValue, value))
     {
         preferences.hotkey = ToHotkey(value);
+    }
+
+    if (preferences.hotkey == LauncherHotkeyPreference::Custom)
+    {
+        DWORD modifiers = 0;
+        DWORD virtualKey = 0;
+        const bool valid =
+            TryReadDword(kHotkeyModifiersValue, modifiers) &&
+            TryReadDword(kHotkeyKeyValue, virtualKey) &&
+            (modifiers & kAllowedCustomModifiers) != 0 &&
+            (modifiers & ~kAllowedCustomModifiers) == 0 &&
+            virtualKey >= 0x08 && virtualKey <= 0xFE;
+        if (valid)
+        {
+            preferences.customHotkeyModifiers = modifiers;
+            preferences.customHotkeyVirtualKey = virtualKey;
+        }
+        else
+        {
+            // A custom mode without a usable chord registers nothing and looks exactly like
+            // a dead shortcut; the default preset is the honest fallback.
+            preferences.hotkey = LauncherHotkeyPreference::CtrlAltB;
+        }
     }
 
     return preferences;
@@ -226,8 +262,52 @@ bool SaveLauncherPreferences(const LauncherEntryPreferences& preferences)
             key,
             kShowSystemMonitorValue,
             preferences.showSystemMonitor ? 1u : 0u) &&
-        WriteDword(key, kHotkeyValue, FromHotkey(preferences.hotkey));
+        WriteDword(key, kHotkeyValue, FromHotkey(preferences.hotkey)) &&
+        WriteDword(key, kHotkeyModifiersValue, preferences.customHotkeyModifiers) &&
+        WriteDword(key, kHotkeyKeyValue, preferences.customHotkeyVirtualKey);
     RegCloseKey(key);
     return saved;
+}
+
+void SaveLauncherHotkeyState(const bool registered)
+{
+    HKEY key = nullptr;
+    if (RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            kPreferencesKey,
+            0,
+            nullptr,
+            REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE | KEY_QUERY_VALUE,
+            nullptr,
+            &key,
+            nullptr) != ERROR_SUCCESS)
+    {
+        return;
+    }
+
+    // Only written when it changes: the settings page watches this key, and rewriting an
+    // unchanged value would wake it for nothing.
+    DWORD current = 0;
+    const bool haveCurrent = [&]
+    {
+        DWORD size = sizeof(current);
+        DWORD type = REG_DWORD;
+        return RegGetValueW(
+            key,
+            nullptr,
+            kHotkeyActiveValue,
+            RRF_RT_REG_DWORD,
+            &type,
+            &current,
+            &size) == ERROR_SUCCESS;
+    }();
+    const DWORD desired = registered ? 1u : 0u;
+    if (!haveCurrent || current != desired)
+    {
+        WriteDword(key, kHotkeyActiveValue, desired);
+    }
+
+    RegCloseKey(key);
 }
 }

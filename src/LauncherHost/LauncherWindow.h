@@ -47,7 +47,6 @@ private:
     void Reposition();
     void ApplyPlacement();
     void Render();
-    void ApplyPreferences(const LauncherEntryPreferences& preferences);
     bool RefreshContent();
     struct EntryContent
     {
@@ -63,8 +62,15 @@ private:
     void ApplyContentMode();
     // Registers, re-registers or drops the global shortcut to match the preference. Failure
     // is a state the entry carries rather than an error it swallows: another application
-    // holding the chord is ordinary, and the menu has to be able to say so.
+    // holding the chord is ordinary, and the registry state it writes back is how the
+    // panel's settings page says so.
     void ApplyHotkey();
+    // The preferences now live behind the panel's settings page, which writes the same HKCU
+    // key this entry reads. The watcher wakes on any change to that key and re-applies; its
+    // own write-backs (the hotkey state) reload as an equal value and are skipped.
+    void StartPreferencesWatch();
+    void StopPreferencesWatch();
+    void HandlePreferencesChanged();
     [[nodiscard]] bool IsEmbedded() const noexcept;
     void ShowContextMenu(POINT screenPoint);
     void HandleMenuCommand(UINT command);
@@ -115,6 +121,10 @@ private:
     bool _reducedMotion{};
     // True only while a chord is actually registered with Windows.
     bool _hotkeyRegistered{};
+    HKEY _preferencesWatchKey{};
+    HANDLE _preferencesWatchStop{};
+    HANDLE _preferencesWatchChange{};
+    HANDLE _preferencesWatchThread{};
     LONGLONG _animationTick{};
     LONGLONG _performanceFrequency{};
     RECT _localHitRect{};

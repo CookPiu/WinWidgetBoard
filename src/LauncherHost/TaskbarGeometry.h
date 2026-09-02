@@ -51,17 +51,17 @@ enum class LauncherContentMode : unsigned char
     Weather,
 };
 
-// The global shortcut that opens and closes the panel. Presets rather than a free
-// modifier/key pair: the entry has no text input surface to capture a chord with, the value
-// stays one DWORD like every other preference, and a menu of four is what a user of a taskbar
-// entry will actually read. Every combination here is one Windows does not reserve and that
-// applications rarely bind, because a global hotkey takes the chord away from everything else.
+// The global shortcut that opens and closes the panel. The presets are chords Windows does
+// not reserve and that applications rarely bind; Custom carries a free modifier/key pair
+// recorded in the panel's settings, which - unlike this entry - has an input surface to
+// capture one with. The pair lives beside the mode in the same registry key.
 enum class LauncherHotkeyPreference : unsigned char
 {
     Disabled,
     CtrlAltB,
     CtrlAltD,
     CtrlAltQ,
+    Custom,
 };
 
 // The Win32 registration a preset resolves to. Zero modifiers means "do not register".
@@ -71,8 +71,6 @@ struct LauncherHotkeyBinding
     UINT virtualKey{};
 };
 
-[[nodiscard]] LauncherHotkeyBinding ToHotkeyBinding(LauncherHotkeyPreference hotkey);
-
 struct LauncherEntryPreferences
 {
     LauncherEntryPlacementPreference placement{
@@ -81,7 +79,16 @@ struct LauncherEntryPreferences
     LauncherContentMode content{LauncherContentMode::DateTime};
     bool showSystemMonitor{};
     LauncherHotkeyPreference hotkey{LauncherHotkeyPreference::CtrlAltB};
+    // The recorded chord, used only while hotkey is Custom. Zero modifiers is invalid and
+    // falls back to the default preset at load.
+    UINT customHotkeyModifiers{};
+    UINT customHotkeyVirtualKey{};
+
+    bool operator==(const LauncherEntryPreferences&) const = default;
 };
+
+[[nodiscard]] LauncherHotkeyBinding ToHotkeyBinding(
+    const LauncherEntryPreferences& preferences);
 
 struct MonitorSnapshot
 {
