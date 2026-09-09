@@ -2017,7 +2017,7 @@
                                     than the response count. Grouped by type scale and spacing
                                     rather than by a rule or a box, per the visual spec.
 
-                                    Behind it, the day's spend as it accumulated. The curve
+                                    Behind it, the day's spend hour by hour. The curve
                                     reaches past the card padding on both sides for the same
                                     reason the weather motif bleeds off its corner: it is a
                                     backdrop, and a backdrop that stops at the text margin

@@ -17,11 +17,12 @@ public readonly record struct TokenUsageCurveSpan(
 /// The smooth shape drawn through the spend points, and the value of that shape at any
 /// horizontal position.
 ///
-/// A monotone cubic Hermite spline (Fritsch–Carlson). The choice is not cosmetic: the data is a
-/// running total, so the curve must never dip between two hours or overshoot the day's total,
-/// and an ordinary Catmull-Rom or smoothed Bézier does both. Monotone tangents guarantee the
-/// curve stays inside every hour's two end values, which is what lets the crosshair read a
-/// position off it without inventing a figure the broker never sent.
+/// A shape-preserving cubic Hermite spline (Fritsch–Carlson). The choice is not cosmetic: the
+/// points are hourly totals, and an ordinary Catmull-Rom or smoothed Bézier swings below zero
+/// after a busy hour and puts a bump into a flat stretch. These tangents keep every span inside
+/// its two end values and make each local peak or trough sit exactly on its knot, which is what
+/// lets the crosshair read a position off the curve without implying a figure the broker never
+/// sent.
 ///
 /// Pure and WinUI-free, so the shape is unit-tested and the control only scales it.
 /// </summary>

@@ -107,9 +107,9 @@ public sealed record TokenUsageMetricRow
 }
 
 /// <summary>
-/// One point of the day's spend curve, already placed on 0..1 axes by the broker. The tip is
-/// composed here because it holds the one word that has to be translated - "now" - and the
-/// hour-tokens phrase around a number the broker formatted.
+/// One point of the day's spend curve - one hour's spend, already placed on 0..1 axes by the
+/// broker. The tip is composed here because it holds the one word that has to be translated -
+/// "now" - and the tokens phrase around a number the broker formatted.
 /// </summary>
 public sealed record TokenUsageSpendPoint
 {
@@ -123,8 +123,7 @@ public sealed record TokenUsageSpendPoint
 
     public bool IsCurrent { get; init; }
 
-    /// <summary>What the crosshair says at this point: the hour, the spend through it, the
-    /// tokens within it.</summary>
+    /// <summary>What the crosshair says at this point: the hour, what it cost, its tokens.</summary>
     public string TipText { get; init; } = string.Empty;
 }
 
@@ -413,7 +412,7 @@ public sealed record TokenUsageCardProjection
             int hour = Math.Clamp(ReadInt(element, "hour"), 0, 23);
             bool isCurrent = element.TryGetProperty("isCurrent", out JsonElement current) &&
                 current.ValueKind == JsonValueKind.True;
-            string cost = ReadString(element, "cumulativeCostText") ?? string.Empty;
+            string cost = ReadString(element, "costText") ?? string.Empty;
             string billed = ReadString(element, "billedText") ?? string.Empty;
             string label = isCurrent
                 ? Resolve(resourceResolver, TokenUsageResourceKeys.CurveNow)
@@ -430,8 +429,7 @@ public sealed record TokenUsageCardProjection
                     IsCurrent = isCurrent,
                     TipText = string.Join(
                         " · ",
-                        new[] { cost.Length > 0 ? label + " " + cost : label, tokens }
-                            .Where(part => part.Length > 0)),
+                        new[] { label, cost, tokens }.Where(part => part.Length > 0)),
                 });
         }
 

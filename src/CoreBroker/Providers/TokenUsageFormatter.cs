@@ -89,9 +89,9 @@ public static class TokenUsageFormatter
 
     /// <summary>
     /// The day's spend as a curve: one point per hour so far, each at the end of its hour and
-    /// at the running total through it. The horizontal axis is the part of the day that has
-    /// elapsed, not the whole day, so the curve always fills the card and its right edge is
-    /// always now; the vertical axis is the day's total, so the curve always ends at the top.
+    /// at what that hour cost. The horizontal axis is the part of the day that has elapsed,
+    /// not the whole day, so the curve always fills the card and its right edge is always now;
+    /// the vertical axis is the busiest hour so far, so the peak always touches the top.
     /// Neither axis needs a ceiling the data does not have.
     ///
     /// Spend where anything was priced, billed tokens otherwise - the headline falls back the
@@ -109,29 +109,33 @@ public static class TokenUsageFormatter
         // A minute's floor: at the stroke of midnight nothing has elapsed, and the first point
         // still needs a position.
         double elapsed = Math.Max(aggregate.TodayElapsedHours, 1d / 60d);
-        decimal cumulativeCost = 0m;
-        long cumulativeBilled = 0;
+        decimal peakCost = 0m;
+        long peakBilled = 0;
+        foreach (TokenUsageHourBucket bucket in aggregate.TodayHours)
+        {
+            peakCost = Math.Max(peakCost, bucket.CostUsd);
+            peakBilled = Math.Max(peakBilled, bucket.BilledTokens);
+        }
+
         var points = new TokenUsageSpendPointDto[aggregate.TodayHours.Count];
         for (int i = 0; i < points.Length; i++)
         {
             TokenUsageHourBucket bucket = aggregate.TodayHours[i];
-            cumulativeCost += bucket.CostUsd;
-            cumulativeBilled += bucket.BilledTokens;
             int hour = bucket.HourStartLocal.Hour;
             double level = priced
-                ? (double)(cumulativeCost / aggregate.TodayCostUsd)
-                : aggregate.TodayBilledTokens > 0
-                    ? cumulativeBilled / (double)aggregate.TodayBilledTokens
+                ? peakCost > 0m ? (double)(bucket.CostUsd / peakCost) : 0d
+                : peakBilled > 0
+                    ? bucket.BilledTokens / (double)peakBilled
                     : 0d;
             points[i] = new TokenUsageSpendPointDto
             {
                 Hour = hour,
                 Fraction = Math.Clamp(Math.Min(hour + 1, elapsed) / elapsed, 0d, 1d),
                 Level = Math.Clamp(level, 0d, 1d),
-                CumulativeCostText = !priced
+                CostText = !priced
                     ? string.Empty
-                    : cumulativeCost > 0m
-                        ? FormatAmount(aggregate, cumulativeCost)
+                    : bucket.CostUsd > 0m
+                        ? FormatAmount(aggregate, bucket.CostUsd)
                         : "\u2248$0.00",
                 BilledText = FormatTokenCount(bucket.BilledTokens),
                 IsCurrent = i == points.Length - 1,

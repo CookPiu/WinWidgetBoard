@@ -457,9 +457,9 @@ provider 的请求键从不变化。`networkInterfaceId` 是唯一的例外—�
 两个方法，一个内置实例 `demo.tokenusage`（[ADR-0030](adr/0030-token-usage-card.md)）。
 用量数据本身经 `cards.snapshot` 下发，载荷按页组织：第 0 页恒为总览，其后是已启用厂商各一页；
 每页含读数（已排版文本）、按厂商或模型的拆分（各带已排版金额 `costText`）、当日累计花费曲线
-`spendCurve`（自 0 点起每小时一点：`fraction` 为该小时结束时刻占已过去时间的比例、`level` 为累计花费占当日总额的比例，
-均为 0..1，末点恒为 `(1, 1)` 且 `isCurrent` 为 true；`cumulativeCostText` 与 `billedText` 已排版，全部无价时曲线按累计计费
-token 归一化且金额文本为空）、`totalTokensText`（计费 + 缓存读取）、`averageBilledPerRequestText` 和已排版金额估算
+`spendCurve`（自 0 点起每小时一点：`fraction` 为该小时结束时刻占已过去时间的比例、`level` 为该小时花费占当日峰值小时的比例，
+均为 0..1，末点 `fraction` 恒为 1 且 `isCurrent` 为 true；`costText` 与 `billedText` 为该小时自己的已排版金额与计费 token，
+全部无价时曲线按小时计费 token 归一化且金额文本为空）、`totalTokensText`（计费 + 缓存读取）、`averageBilledPerRequestText` 和已排版金额估算
 （[ADR-0036](adr/0036-token-usage-spend-curve-card.md)）。
 聚合结果只存在于 Broker 进程内，不写入 SQLite；该 Provider 本身不产生网络流量。定价由一条独立的
 每日同步循环从 LiteLLM 开源价表条件拉取（[ADR-0035](adr/0035-daily-token-pricing-sync.md)），

@@ -1226,10 +1226,10 @@
     <value>现在</value>
   </data>
   <data name="TokenUsageCurve.HourTokens" xml:space="preserve">
-    <value>本时 {0}</value>
+    <value>{0} token</value>
   </data>
   <data name="TokenUsageSpendCurve.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>今日累计花费曲线，指针悬停可查看各小时</value>
+    <value>今日每小时花费曲线，指针悬停可查看各小时</value>
   </data>
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>今日花费</value>

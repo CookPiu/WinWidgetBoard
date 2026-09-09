@@ -20,7 +20,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 | 便签 | 已实现 CRUD、搜索、Markdown、自动保存和安全删除；编辑区使用内容优先与渐进操作 | 只维护核心旅程 |
 | 天气 | 已实现 Open-Meteo、订阅、Windows 自动位置、手动位置和重启恢复设置；首次前台授权后每次冷启动读取一次系统位置，失败保留手动位置；面板关闭时按小时后台刷新，任务栏入口可经 `weather.summary.get` 显示读数；显示单位可选公制/英制并随设置持久化，线上数值恒为公制、两端组装时换算 | 跨重启 payload 缓存延期 |
 | 硬件监控 | 卡片与任务栏分段显示均已实现，显示项两处独立可配置并落盘；任务栏分段列宽按内容测量、加余量后按 12 DIP 量化并以 72 DIP 为下限——同字符数的数字抖动不动格，真正变宽的读数（如 `4.48 GHz`）立即重排而不再省略号截断；公开 API 层覆盖 9 项读数（含 CPU 频率），采样按需进行，任务栏硬件胶囊启用时每秒采样并刷新一次；温度与风扇由监控程序的共享内存补齐（HWiNFO 三项、Core Temp 仅 CPU 温度，同项 HWiNFO 优先），无覆盖该项的源时卡片与入口都不显示该行、来源要求写在硬件监控设置页，判断逐项进行（[ADR-0033](../adr/0033-hwinfo-shared-memory-sensor-source.md)、[ADR-0034](../adr/0034-core-temp-as-a-second-sensor-source.md)） | 本产品仍不分发任何内核驱动（[ADR-0029](../adr/0029-drop-the-bundled-sensor-driver.md)、[ADR-0031](../adr/0031-cpu-clock-from-per-core-counters.md)）；真实 HWiNFO 块的解析尚未在真机上验证 |
-| Token 用量 | 卡片已实现，读 Claude 与 Codex 的本机会话记录：两者格式与口径不同，Claude 按 `(requestId, messageId)` 去重、Codex 取会话累计量的相邻差分；分总览页与厂商页，设置页可启用/禁用厂商；以当日花费为主视觉，背后铺当日累计花费曲线（0 点到现在铺满卡宽，指针悬停显示该小时的累计金额与本时计费，[ADR-0036](../adr/0036-token-usage-spend-curve-card.md)）；两行高的卡片另有总 token / 响应数两块 KPI 与厂商或模型拆分计量条；下列今日计费/输出/缓存读取/缓存命中率，各 token 类型带自己那份金额，金额按公开 API 价折算并标 `≈`，无价模型不计入并以 `+` 标为下限、全部无价时在花费位置说明；价表每日从 LiteLLM 开源价表条件拉取（用户可关，[ADR-0035](../adr/0035-daily-token-pricing-sync.md)），内置表带核验日期作兜底；内容按卡片格数披露（S 一项读数，M/W 仅花费与页签，L 起全部）；卡片不可见时完全不读盘 | 不展示订阅配额（本地记录无法判断自身是否仍然成立，见 [ADR-0030](../adr/0030-token-usage-card.md) §2.2）；无请求级延迟；新增厂商的门禁见同一 ADR |
+| Token 用量 | 卡片已实现，读 Claude 与 Codex 的本机会话记录：两者格式与口径不同，Claude 按 `(requestId, messageId)` 去重、Codex 取会话累计量的相邻差分；分总览页与厂商页，设置页可启用/禁用厂商；以当日花费为主视觉，背后铺当日每小时花费曲线（0 点到现在铺满卡宽、按峰值小时归一化，指针悬停显示该小时的金额与计费 token，[ADR-0036](../adr/0036-token-usage-spend-curve-card.md)）；两行高的卡片另有总 token / 响应数两块 KPI 与厂商或模型拆分计量条；下列今日计费/输出/缓存读取/缓存命中率，各 token 类型带自己那份金额，金额按公开 API 价折算并标 `≈`，无价模型不计入并以 `+` 标为下限、全部无价时在花费位置说明；价表每日从 LiteLLM 开源价表条件拉取（用户可关，[ADR-0035](../adr/0035-daily-token-pricing-sync.md)），内置表带核验日期作兜底；内容按卡片格数披露（S 一项读数，M/W 仅花费与页签，L 起全部）；卡片不可见时完全不读盘 | 不展示订阅配额（本地记录无法判断自身是否仍然成立，见 [ADR-0030](../adr/0030-token-usage-card.md) §2.2）；无请求级延迟；新增厂商的门禁见同一 ADR |
 
 ## 3. 已有基础设施
 
@@ -39,11 +39,11 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 
 - **Token 用量卡片改版：累计花费曲线 + 双 KPI + 拆分计量条（2026-09-09，[ADR-0036](../adr/0036-token-usage-spend-curve-card.md)）**。
   Before：24 小时滚动趋势条与「今日花费」口径不一，最右一格永远是当前小时；五条读数行权重相同，
-  总 token 与平均每次计费要读者自己算；两行卡片读数行之下空一截。After：曲线为 0 点到现在的累计花费，
-  铺满卡宽、右缘恒为「现在」，按单调三次样条绘制（`TokenUsageSpendCurveShape`，`UT-TOKUSE-127`～`130` 钉住不回落、
-  不过冲、所绘与所读同一曲线）；指针悬停时 1 DIP 竖线 + 圆点沿曲线连续跟随，`HH:00 ≈$累计 · 本时 计费` 标签写指针所在
-  小时的真实读数，靠右缘翻转，只动 `Translation` 无动画，编辑模式下不接收指针；L 起显示总 token（注缓存读取）与响应数（注平均每次计费）两块，
-  响应数不再作为读数行；两个最大切片分列一条 3 DIP 计量条两端并各带金额；载荷新增 `spendCurve`/`totalTokensText`/
+  总 token 与平均每次计费要读者自己算；两行卡片读数行之下空一截。After：曲线为 0 点到现在每小时的花费（按当日峰值小时归一化），
+  铺满卡宽、右缘恒为「现在」，按保形三次样条绘制（`TokenUsageSpendCurveShape`，`UT-TOKUSE-127`～`130` 钉住两点之间
+  不越界、平段不隆起、所绘与所读同一曲线）；指针悬停时 1 DIP 竖线 + 圆点沿曲线连续跟随，`HH:00 · ≈$本时 · 本时 token`
+  标签写指针所在小时的真实读数，靠右缘翻转，只动 `Translation` 无动画，编辑模式下不接收指针；L 起显示总 token（注缓存读取）与响应数（注平均每次计费）两块，
+  响应数不再作为读数行；两个最大切片分列一条 3 DIP 计量条两端并各带金额；载荷新增 `spendCurve`（点上 `costText`/`billedText`）/`totalTokensText`/
   `averageBilledPerRequestText`、切片 `costText`，删除 `trend`；聚合改按本地小时分桶并逐小时计价。
   证据：Release UnitTests 586/586（新增 `UT-TOKUSE-120`～`130`，删除 `043/044`，`022/023/029/031/064/065/090`～`096`
   改为按曲线与 KPI 断言）；`WorkspacePanel --smoke-test` 与 `CoreBroker --pipe-handshake-smoke-test` 退出码均为 0；

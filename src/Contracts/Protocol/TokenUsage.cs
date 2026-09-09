@@ -199,11 +199,11 @@ public sealed record TokenUsagePageDto
         Array.Empty<TokenUsageMetricDto>();
 
     /// <summary>
-    /// Today's spend as it accumulated, one point per hour from midnight to now, oldest
-    /// first. Positions are already normalised - the horizontal axis is the part of the day
-    /// that has elapsed, the vertical the day's total so far - so the card draws a curve
-    /// that always spans its full width and never has to invent a ceiling. Empty when the
-    /// page has nothing today.
+    /// Today's spend hour by hour, one point per hour from midnight to now, oldest first.
+    /// Positions are already normalised - the horizontal axis is the part of the day that
+    /// has elapsed, the vertical the busiest hour so far - so the card draws a curve that
+    /// always spans its full width and never has to invent a ceiling. Empty when the page
+    /// has nothing today.
     /// </summary>
     public IReadOnlyList<TokenUsageSpendPointDto> SpendCurve { get; init; } =
         Array.Empty<TokenUsageSpendPointDto>();
@@ -285,7 +285,7 @@ public sealed record TokenUsageBreakdownDto
 }
 
 /// <summary>
-/// One point of a page's spend curve: the day's spend through the end of one local hour.
+/// One point of a page's spend curve: what one local hour cost, placed at the hour's end.
 /// </summary>
 public sealed record TokenUsageSpendPointDto
 {
@@ -299,13 +299,13 @@ public sealed record TokenUsageSpendPointDto
     public double Fraction { get; init; }
 
     /// <summary>
-    /// Vertical position, 0..1: the spend through this hour as a share of the day's total.
+    /// Vertical position, 0..1: this hour's spend as a share of the day's busiest hour.
     /// Falls back to billed tokens when nothing on the page could be priced.
     /// </summary>
     public double Level { get; init; }
 
-    /// <summary>Spend through this hour, formatted like the headline. Empty when unpriced.</summary>
-    public string CumulativeCostText { get; init; } = string.Empty;
+    /// <summary>This hour's spend, formatted like the headline. Empty when unpriced.</summary>
+    public string CostText { get; init; } = string.Empty;
 
     /// <summary>Billed tokens within this hour alone, formatted.</summary>
     public string BilledText { get; init; } = string.Empty;

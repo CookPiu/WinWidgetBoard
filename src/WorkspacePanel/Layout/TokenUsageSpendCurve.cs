@@ -18,8 +18,8 @@ namespace WinWidgetBoard.WorkspacePanel.Layout;
 /// arrive on 0..1 axes and have to be placed against whatever width the card has right now,
 /// which is a function of the grid, not of the data. Everything visual - the brushes, the
 /// stroke, the tip's surface - stays in the style; this type only positions. The shape itself
-/// (a monotone spline through the points) is <see cref="TokenUsageSpendCurveShape"/>, which is
-/// WinUI-free and tested; this type scales it to pixels.
+/// (a shape-preserving spline through the points) is <see cref="TokenUsageSpendCurveShape"/>,
+/// which is WinUI-free and tested; this type scales it to pixels.
 ///
 /// The crosshair moves compositor properties only (<see cref="UIElement.Translation"/>) and
 /// toggles visibility, with no animation at all: pointer tracking is the one interaction here

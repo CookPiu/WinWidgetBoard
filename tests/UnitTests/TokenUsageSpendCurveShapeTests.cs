@@ -4,9 +4,9 @@ namespace WinWidgetBoard.UnitTests;
 
 /// <summary>
 /// The shape the token card draws through the day's spend. What is pinned here is honesty
-/// rather than looks: the curve is a running total, so between two hours it may never dip
-/// below the earlier one or rise above the later one, and the value the crosshair reads off it
-/// has to be the same curve that was drawn.
+/// rather than looks: between two hours the curve may never leave the range of their two
+/// values - no swing below a quiet hour, no bump in a flat stretch - and the value the
+/// crosshair reads off it has to be the same curve that was drawn.
 /// </summary>
 [TestClass]
 public sealed class TokenUsageSpendCurveShapeTests
@@ -29,25 +29,33 @@ public sealed class TokenUsageSpendCurveShapeTests
 
     [TestMethod(DisplayName =
         "UT-TOKUSE-128 [USE-009] Between two hours the curve never leaves their two values")]
-    public void CurveIsMonotoneBetweenPoints()
+    public void CurveStaysBetweenNeighbouringPoints()
     {
-        // A quiet morning, a burst, then a flat stretch: the shape a smoothed curve most
-        // likes to overshoot on either side of the burst.
+        // A quiet morning, a burst, a flat stretch, then a drop to nothing: the shape a
+        // smoothed curve most likes to overshoot on either side of the burst and undershoot
+        // after the drop.
         TokenUsageSpendCurveShape shape = TokenUsageSpendCurveShape.FromPoints(
-            [Point(0.2d, 0d), Point(0.4d, 0.05d), Point(0.6d, 0.9d), Point(0.8d, 0.9d), Point(1d, 1d)]);
+            [Point(0.2d, 0d), Point(0.4d, 0.05d), Point(0.6d, 1d), Point(0.8d, 1d), Point(1d, 0d)]);
 
-        double previous = 0d;
-        for (int step = 0; step <= 1000; step++)
+        IReadOnlyList<TokenUsageCurveKnot> knots = shape.Knots;
+        for (int i = 0; i < knots.Count - 1; i++)
         {
-            double x = step / 1000d;
-            double level = shape.LevelAt(x);
-            Assert.IsTrue(level >= previous - 1e-9, $"dipped at x={x}: {level} < {previous}");
-            Assert.IsTrue(level >= 0d && level <= 1d, $"left the range at x={x}: {level}");
-            previous = level;
+            double low = Math.Min(knots[i].Y, knots[i + 1].Y);
+            double high = Math.Max(knots[i].Y, knots[i + 1].Y);
+            for (int step = 0; step <= 200; step++)
+            {
+                double x = knots[i].X + (knots[i + 1].X - knots[i].X) * step / 200d;
+                double level = shape.LevelAt(x);
+                Assert.IsTrue(
+                    level >= low - 1e-9 && level <= high + 1e-9,
+                    $"left [{low}, {high}] at x={x}: {level}");
+            }
         }
 
         // The flat hour stays flat: no bump borrowed from the burst before it.
-        Assert.AreEqual(0.9d, shape.LevelAt(0.7d), 1e-9);
+        Assert.AreEqual(1d, shape.LevelAt(0.7d), 1e-9);
+        // The drop ends on the floor, not below it.
+        Assert.AreEqual(0d, shape.LevelAt(1d), 1e-9);
     }
 
     [TestMethod(DisplayName =

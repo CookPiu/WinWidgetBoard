@@ -1226,10 +1226,10 @@
     <value>now</value>
   </data>
   <data name="TokenUsageCurve.HourTokens" xml:space="preserve">
-    <value>{0} this hour</value>
+    <value>{0} tokens</value>
   </data>
   <data name="TokenUsageSpendCurve.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Cumulative spend today; hover for each hour</value>
+    <value>Spend per hour today; hover for each hour</value>
   </data>
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>Spent today</value>

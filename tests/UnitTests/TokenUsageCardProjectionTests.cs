@@ -85,7 +85,7 @@ public sealed class TokenUsageCardProjectionTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-064 [USE-009] Each curve point carries a tip: the hour, the spend, the tokens")]
+        "UT-TOKUSE-064 [USE-009] Each curve point carries a tip: the hour, its spend, its tokens")]
     public void CurvePointsCarryALocalizedTip()
     {
         TokenUsagePage page = Overview(Project(ReadyReport()));
@@ -95,14 +95,17 @@ public sealed class TokenUsageCardProjectionTests
         // The broker formats the numbers; the panel adds the one word that has to be
         // translated and the phrase around the hour's tokens.
         Assert.AreEqual(
-            "01:00 \u2248$1.00 \u00b7 name:TokenUsageCurve.HourTokens 1",
+            "01:00 \u00b7 \u2248$1.00 \u00b7 name:TokenUsageCurve.HourTokens 1",
             page.SpendCurve[1].TipText);
         Assert.IsTrue(page.SpendCurve[^1].IsCurrent);
         Assert.IsTrue(
             page.SpendCurve[^1].TipText.StartsWith(
-                "name:TokenUsageCurve.Now \u2248$12.34",
+                "name:TokenUsageCurve.Now \u00b7 \u2248$11.34",
                 StringComparison.Ordinal));
         Assert.AreEqual(1d, page.SpendCurve[^1].Fraction, 0.0001d);
+        // The busiest hour is the ceiling; the quiet one sits near the floor.
+        Assert.AreEqual(1d, page.SpendCurve[^1].Level, 0.0001d);
+        Assert.AreEqual(1d / 11.34d, page.SpendCurve[1].Level, 0.0001d);
     }
 
     [TestMethod(DisplayName =

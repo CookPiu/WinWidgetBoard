@@ -40,7 +40,7 @@ public sealed class TokenUsageFormatterTests
             TokenUsageFormatter.FormatRate(double.NaN));
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-121 [USE-004] The spend curve spans the elapsed day and ends at the top")]
+        "UT-TOKUSE-121 [USE-004] The spend curve spans the elapsed day and peaks at the busiest hour")]
     public void SpendCurveSpansTheElapsedDay()
     {
         TokenUsageAggregate aggregate = ReadyAggregate() with
@@ -59,17 +59,18 @@ public sealed class TokenUsageFormatterTests
 
         Assert.AreEqual(3, points.Length);
         // Each point closes its hour; the axis is the two and a half hours that have passed,
-        // so the first hour ends at 0.4 and the open hour at exactly 1.
+        // so the first hour ends at 0.4 and the open hour at exactly 1. Heights are each
+        // hour's own spend against the busiest hour, which therefore touches the top.
         Assert.AreEqual(0.4d, points[0].Fraction, 0.0001d);
         Assert.AreEqual(0d, points[0].Level, 0.0001d);
-        Assert.AreEqual("\u2248$0.00", points[0].CumulativeCostText);
+        Assert.AreEqual("\u2248$0.00", points[0].CostText);
         Assert.AreEqual(0.8d, points[1].Fraction, 0.0001d);
-        Assert.AreEqual(0.25d, points[1].Level, 0.0001d);
-        Assert.AreEqual("\u2248$1.00", points[1].CumulativeCostText);
+        Assert.AreEqual(1d / 3d, points[1].Level, 0.0001d);
+        Assert.AreEqual("\u2248$1.00", points[1].CostText);
         Assert.AreEqual("50.0K", points[1].BilledText);
         Assert.AreEqual(1d, points[2].Fraction, 0.0001d);
         Assert.AreEqual(1d, points[2].Level, 0.0001d);
-        Assert.AreEqual("\u2248$4.00", points[2].CumulativeCostText);
+        Assert.AreEqual("\u2248$3.00", points[2].CostText);
         Assert.AreEqual(2, points[2].Hour);
         Assert.IsTrue(points[2].IsCurrent);
         Assert.IsFalse(points[1].IsCurrent);
@@ -91,10 +92,10 @@ public sealed class TokenUsageFormatterTests
 
         // The headline falls back to a note in this case; a flat curve under it would read as
         // a fault rather than as "nothing could be priced".
-        Assert.AreEqual(0.25d, points[0].Level, 0.0001d);
+        Assert.AreEqual(1d / 3d, points[0].Level, 0.0001d);
         Assert.AreEqual(1d, points[1].Level, 0.0001d);
-        Assert.AreEqual(string.Empty, points[0].CumulativeCostText);
-        Assert.AreEqual(string.Empty, points[1].CumulativeCostText);
+        Assert.AreEqual(string.Empty, points[0].CostText);
+        Assert.AreEqual(string.Empty, points[1].CostText);
     }
 
     [TestMethod(DisplayName =
