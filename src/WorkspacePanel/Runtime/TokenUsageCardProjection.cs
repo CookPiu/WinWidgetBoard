@@ -15,8 +15,8 @@ public static class TokenUsageResourceKeys
     public const string CostUnpriced = "TokenUsageCost.Unpriced";
     public const string CacheReadNote = "TokenUsageKpi.CacheReadNote";
     public const string AveragePerRequest = "TokenUsageKpi.AveragePerRequest";
-    public const string CurveNow = "TokenUsageSpendCurve.Now";
-    public const string CurveHourTokens = "TokenUsageSpendCurve.HourTokens";
+    public const string CurveNow = "TokenUsageCurve.Now";
+    public const string CurveHourTokens = "TokenUsageCurve.HourTokens";
 
     public static string GetMetricNameKey(string metricId) => metricId switch
     {

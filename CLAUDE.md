@@ -228,6 +228,19 @@ without any error. `SettingsDialog.xaml` overrides the resource (672) and states
 lane width to fit inside it; grow them only together. The same family exists for height
 (`ContentDialogMaxHeight`).
 
+## A `.resw` key must not start with an element's `x:Uid` followed by a dot
+
+The resource loader treats every `<Uid>.<Something>` entry as "set property `Something` on the
+element whose `x:Uid` is `Uid`". Code-only keys resolved through the resource resolver
+(`TokenUsageCost.Estimate`, `TokenUsageMetric.TodayBilled`, …) only work because no element
+carries that `x:Uid`. Adding `TokenUsageSpendCurve.Now` next to a control with
+`x:Uid="TokenUsageSpendCurve"` compiled fine, passed the smoke test, and crashed the installed
+panel on open with a stowed exception in `Microsoft.UI.Xaml.dll`; the only readable trace was
+the string `Unable to resolve property 'Now' while processing properties for Uid
+'TokenUsageSpendCurve'` inside the WER dump under `%LOCALAPPDATA%\CrashDumps`. Give code-only
+keys a prefix that is not an `x:Uid` (`TokenUsageCurve.Now`), and when the panel dies with
+`0xc000027b` and no message, grep the dump's UTF-16 strings before anything else.
+
 ## An `x:Bind` property must not share a name with an `x:Name` on the same page
 
 A `DataTemplate` in `MainWindow.xaml` bound `Text="{x:Bind StatusText}"` against its own

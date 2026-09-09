@@ -46,8 +46,12 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
   `averageBilledPerRequestText`、切片 `costText`，删除 `trend`；聚合改按本地小时分桶并逐小时计价。
   证据：Release UnitTests 582/582（新增 `UT-TOKUSE-120`～`126`，删除 `043/044`，`022/023/029/031/064/065/090`～`096`
   改为按曲线与 KPI 断言）；`WorkspacePanel --smoke-test` 与 `CoreBroker --pipe-handshake-smoke-test` 退出码均为 0；
-  已按 Release x64 重新安装。**未复验**：实机核对（浅色/深色下曲线可见、指针跨右缘时标签翻转、编辑模式下按住大字可拖动）
-  尚未做——安装时显示器处于关闭状态，截图全黑；下次打开面板时按 [ADR-0036](../adr/0036-token-usage-spend-curve-card.md) 门禁三项逐一核对。
+  已按 Release x64 重新安装。首次安装后面板打不开：资源键 `TokenUsageSpendCurve.Now/.HourTokens` 与曲线控件的
+  `x:Uid="TokenUsageSpendCurve"` 同前缀，被资源加载器当作要设到控件上的属性，面板一开即以 `0xc000027b` 崩溃
+  （编译与 `--smoke-test` 都不报，只有 `%LOCALAPPDATA%\CrashDumps` 里的转储字符串说明原因，规则已记入 `CLAUDE.md`）；
+  改为 `TokenUsageCurve.*` 后，对安装目录运行 `LauncherHost --panel-launch-smoke-test` 与 `--panel-lifecycle-smoke-test`
+  退出码均为 0、应用日志无新崩溃。**未复验**：目视核对（浅色/深色下曲线可见、指针跨右缘时标签翻转、编辑模式下按住大字可拖动）
+  仍未做——本机另一全屏程序挡住桌面截图；下次打开面板时按 [ADR-0036](../adr/0036-token-usage-spend-curve-card.md) 门禁三项逐一核对。
 - **便签卡片交互与布局整改（2026-09-02，浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文，隔离栈脚本复跑）**。
   Before：撤销/重做按钮的 `x:Load` 绑在含 `!_isSaving` 的 `CanUndo` 上，每次 500 ms 自动保存都卸载再重建；
   每次按键入一条撤销快照，20 步只够四个词，且 Ctrl+Z 走文本框自己的栈、回来时被记成新编辑并清掉 redo；

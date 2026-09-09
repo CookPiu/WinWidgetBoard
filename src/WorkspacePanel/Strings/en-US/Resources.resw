@@ -1222,10 +1222,10 @@
   <data name="TokenUsageKpi.AveragePerRequest" xml:space="preserve">
     <value>{0} billed per response</value>
   </data>
-  <data name="TokenUsageSpendCurve.Now" xml:space="preserve">
+  <data name="TokenUsageCurve.Now" xml:space="preserve">
     <value>now</value>
   </data>
-  <data name="TokenUsageSpendCurve.HourTokens" xml:space="preserve">
+  <data name="TokenUsageCurve.HourTokens" xml:space="preserve">
     <value>{0} this hour</value>
   </data>
   <data name="TokenUsageSpendCurve.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
