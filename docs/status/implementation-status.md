@@ -40,11 +40,12 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 - **Token 用量卡片改版：累计花费曲线 + 双 KPI + 拆分计量条（2026-09-09，[ADR-0036](../adr/0036-token-usage-spend-curve-card.md)）**。
   Before：24 小时滚动趋势条与「今日花费」口径不一，最右一格永远是当前小时；五条读数行权重相同，
   总 token 与平均每次计费要读者自己算；两行卡片读数行之下空一截。After：曲线为 0 点到现在的累计花费，
-  铺满卡宽、右缘恒为「现在」，指针悬停时 1 DIP 竖线 + 圆点 + `HH:00 ≈$累计 · 本时 计费` 标签，靠右缘翻转，
-  只动 `Translation` 无动画，编辑模式下不接收指针；L 起显示总 token（注缓存读取）与响应数（注平均每次计费）两块，
+  铺满卡宽、右缘恒为「现在」，按单调三次样条绘制（`TokenUsageSpendCurveShape`，`UT-TOKUSE-127`～`130` 钉住不回落、
+  不过冲、所绘与所读同一曲线）；指针悬停时 1 DIP 竖线 + 圆点沿曲线连续跟随，`HH:00 ≈$累计 · 本时 计费` 标签写指针所在
+  小时的真实读数，靠右缘翻转，只动 `Translation` 无动画，编辑模式下不接收指针；L 起显示总 token（注缓存读取）与响应数（注平均每次计费）两块，
   响应数不再作为读数行；两个最大切片分列一条 3 DIP 计量条两端并各带金额；载荷新增 `spendCurve`/`totalTokensText`/
   `averageBilledPerRequestText`、切片 `costText`，删除 `trend`；聚合改按本地小时分桶并逐小时计价。
-  证据：Release UnitTests 582/582（新增 `UT-TOKUSE-120`～`126`，删除 `043/044`，`022/023/029/031/064/065/090`～`096`
+  证据：Release UnitTests 586/586（新增 `UT-TOKUSE-120`～`130`，删除 `043/044`，`022/023/029/031/064/065/090`～`096`
   改为按曲线与 KPI 断言）；`WorkspacePanel --smoke-test` 与 `CoreBroker --pipe-handshake-smoke-test` 退出码均为 0；
   已按 Release x64 重新安装。首次安装后面板打不开：资源键 `TokenUsageSpendCurve.Now/.HourTokens` 与曲线控件的
   `x:Uid="TokenUsageSpendCurve"` 同前缀，被资源加载器当作要设到控件上的属性，面板一开即以 `0xc000027b` 崩溃

@@ -17,11 +17,16 @@ namespace WinWidgetBoard.WorkspacePanel.Layout;
 /// A control rather than a template of shapes because the geometry is computed: the points
 /// arrive on 0..1 axes and have to be placed against whatever width the card has right now,
 /// which is a function of the grid, not of the data. Everything visual - the brushes, the
-/// stroke, the tip's surface - stays in the style; this type only positions.
+/// stroke, the tip's surface - stays in the style; this type only positions. The shape itself
+/// (a monotone spline through the points) is <see cref="TokenUsageSpendCurveShape"/>, which is
+/// WinUI-free and tested; this type scales it to pixels.
 ///
 /// The crosshair moves compositor properties only (<see cref="UIElement.Translation"/>) and
 /// toggles visibility, with no animation at all: pointer tracking is the one interaction here
 /// that must add no latency, and a crosshair that eases toward the pointer is one that lags it.
+/// It follows the pointer continuously along the curve; the tip, though, always names the hour
+/// the pointer is inside and that hour's real figures, because the broker has hourly totals
+/// and a number interpolated between them would be an invention.
 ///
 /// The geometry is rebuilt on SizeChanged, so nothing it produces may feed back into layout:
 /// the template keeps every shape in a Canvas (see the style) and this type never sets a size
@@ -55,6 +60,7 @@ public sealed partial class TokenUsageSpendCurve : Control
     private FrameworkElement? _pip;
     private FrameworkElement? _tip;
     private TextBlock? _tipText;
+    private TokenUsageSpendCurveShape? _shape;
     private bool _isTracking;
 
     public TokenUsageSpendCurve()
@@ -103,13 +109,17 @@ public sealed partial class TokenUsageSpendCurve : Control
     {
         if (sender is TokenUsageSpendCurve curve)
         {
+            IReadOnlyList<TokenUsageSpendPoint>? points = curve.Points;
+            curve._shape = points is { Count: > 0 }
+                ? TokenUsageSpendCurveShape.FromPoints(points)
+                : null;
             curve.HideCrosshair();
             curve.Rebuild();
         }
     }
 
     /// <summary>
-    /// Places every point against the current size. The area closes along the bottom edge and
+    /// Places the spline against the current size. The area closes along the bottom edge and
     /// the line does not; both start at the origin, which is midnight with nothing spent.
     /// </summary>
     private void Rebuild()
@@ -119,48 +129,57 @@ public sealed partial class TokenUsageSpendCurve : Control
             return;
         }
 
-        IReadOnlyList<TokenUsageSpendPoint>? points = Points;
+        TokenUsageSpendCurveShape? shape = _shape;
         double width = ActualWidth;
         double height = ActualHeight;
-        if (points is null || points.Count == 0 || width <= 0d || height <= 0d)
+        if (shape is null || !shape.HasSpans || width <= 0d || height <= 0d)
         {
             _area.Data = null;
             _line.Data = null;
             return;
         }
 
+        IReadOnlyList<TokenUsageCurveSpan> spans = shape.Spans();
+        var lineFigure = new PathFigure
         {
-            var origin = new Point(0d, height);
-            var linePoints = new PointCollection();
-            var areaPoints = new PointCollection();
-            double lastX = 0d;
-            foreach (TokenUsageSpendPoint point in points)
-            {
-                Point placed = Place(point, width, height);
-                linePoints.Add(placed);
-                areaPoints.Add(placed);
-                lastX = placed.X;
-            }
-
-            areaPoints.Add(new Point(lastX, height));
-            var lineFigure = new PathFigure { StartPoint = origin, IsClosed = false };
-            lineFigure.Segments.Add(new PolyLineSegment { Points = linePoints });
-            var areaFigure = new PathFigure { StartPoint = origin, IsClosed = true };
-            areaFigure.Segments.Add(new PolyLineSegment { Points = areaPoints });
-
-            var lineGeometry = new PathGeometry();
-            lineGeometry.Figures.Add(lineFigure);
-            var areaGeometry = new PathGeometry();
-            areaGeometry.Figures.Add(areaFigure);
-            _line.Data = lineGeometry;
-            _area.Data = areaGeometry;
+            StartPoint = Place(spans[0].Start, width, height),
+            IsClosed = false,
+        };
+        var areaFigure = new PathFigure
+        {
+            StartPoint = Place(spans[0].Start, width, height),
+            IsClosed = true,
+        };
+        foreach (TokenUsageCurveSpan span in spans)
+        {
+            lineFigure.Segments.Add(Bezier(span, width, height));
+            areaFigure.Segments.Add(Bezier(span, width, height));
         }
+
+        Point end = Place(spans[^1].End, width, height);
+        areaFigure.Segments.Add(new LineSegment { Point = new Point(end.X, height) });
+
+        var lineGeometry = new PathGeometry();
+        lineGeometry.Figures.Add(lineFigure);
+        var areaGeometry = new PathGeometry();
+        areaGeometry.Figures.Add(areaFigure);
+        _line.Data = lineGeometry;
+        _area.Data = areaGeometry;
     }
 
-    private static Point Place(TokenUsageSpendPoint point, double width, double height) =>
-        new(
-            Math.Clamp(point.Fraction, 0d, 1d) * width,
-            height - Math.Clamp(point.Level, 0d, 1d) * Math.Max(0d, height - TopPadding));
+    private static BezierSegment Bezier(TokenUsageCurveSpan span, double width, double height) =>
+        new()
+        {
+            Point1 = Place(span.Control1, width, height),
+            Point2 = Place(span.Control2, width, height),
+            Point3 = Place(span.End, width, height),
+        };
+
+    private static Point Place(TokenUsageCurveKnot knot, double width, double height) =>
+        new(knot.X * width, LevelToY(knot.Y, height));
+
+    private static double LevelToY(double level, double height) =>
+        height - Math.Clamp(level, 0d, 1d) * Math.Max(0d, height - TopPadding);
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
@@ -173,17 +192,21 @@ public sealed partial class TokenUsageSpendCurve : Control
     }
 
     /// <summary>
-    /// Snaps to the first point at or past the pointer: each point closes an hour, so the hour
-    /// the pointer is inside is the one whose closing point lies to its right. Past the last
-    /// point the crosshair stays on "now" rather than following the pointer into nothing.
+    /// The crosshair stands where the pointer is and the pip sits on the curve above it,
+    /// evaluated from the same spline that was drawn. The tip names the hour the pointer is
+    /// inside: each point closes an hour, so that is the first point at or past the pointer.
+    /// Past the last point everything stays on "now" rather than following the pointer into
+    /// hours that have not happened.
     /// </summary>
     private void Track(double pointerX)
     {
         IReadOnlyList<TokenUsageSpendPoint>? points = Points;
+        TokenUsageSpendCurveShape? shape = _shape;
         double width = ActualWidth;
         double height = ActualHeight;
         if (points is null ||
             points.Count == 0 ||
+            shape is null ||
             width <= 0d ||
             height <= 0d ||
             _crosshair is null ||
@@ -194,35 +217,36 @@ public sealed partial class TokenUsageSpendCurve : Control
             return;
         }
 
-        TokenUsageSpendPoint chosen = points[^1];
+        TokenUsageSpendPoint hour = points[^1];
         foreach (TokenUsageSpendPoint point in points)
         {
             if (Math.Clamp(point.Fraction, 0d, 1d) * width >= pointerX)
             {
-                chosen = point;
+                hour = point;
                 break;
             }
         }
 
-        Point placed = Place(chosen, width, height);
+        double x = Math.Clamp(pointerX, 0d, Math.Clamp(points[^1].Fraction, 0d, 1d) * width);
+        double y = LevelToY(shape.LevelAt(x / width), height);
         // The crosshair lives in a Canvas and gets no stretch, so its height is set here.
         _crosshair.Height = height;
-        _crosshair.Translation = new Vector3((float)placed.X, 0f, 0f);
+        _crosshair.Translation = new Vector3((float)x, 0f, 0f);
         _pip.Translation = new Vector3(
-            (float)(placed.X - PipDiameter / 2d),
-            (float)(placed.Y - PipDiameter / 2d),
+            (float)(x - PipDiameter / 2d),
+            (float)(y - PipDiameter / 2d),
             0f);
 
-        _tipText.Text = chosen.TipText;
+        _tipText.Text = hour.TipText;
         // Measured, not read back: the text was just replaced and ActualWidth still describes
         // the previous tip. A tip that would run off the right edge flips to the other side of
         // the crosshair, because the card clips it there and the last few hours of the day are
         // exactly where the pointer ends up.
         _tip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double tipWidth = _tip.DesiredSize.Width;
-        double tipX = placed.X + TipGap + tipWidth > width
-            ? Math.Max(0d, placed.X - TipGap - tipWidth)
-            : placed.X + TipGap;
+        double tipX = x + TipGap + tipWidth > width
+            ? Math.Max(0d, x - TipGap - tipWidth)
+            : x + TipGap;
         _tip.Translation = new Vector3((float)tipX, 0f, 0f);
 
         if (!_isTracking)

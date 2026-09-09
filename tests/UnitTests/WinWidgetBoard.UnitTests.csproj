@@ -56,6 +56,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\SystemMonitorMetricViewModel.cs" Link="WorkspacePanel\Runtime\SystemMonitorMetricViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageCardProjection.cs" Link="WorkspacePanel\Runtime\TokenUsageCardProjection.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" Link="WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageSpendCurveShape.cs" Link="WorkspacePanel\Runtime\TokenUsageSpendCurveShape.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\TokenUsageSettingsViewModel.cs" Link="WorkspacePanel\Settings\TokenUsageSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherSettingsViewModel.cs" Link="WorkspacePanel\Settings\WeatherSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\DeviceLocationContracts.cs" Link="WorkspacePanel\Settings\DeviceLocationContracts.cs" />
