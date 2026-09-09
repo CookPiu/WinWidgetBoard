@@ -15,8 +15,8 @@ namespace WinWidgetBoard.UnitTests;
 ///
 /// The budget these limits come from: a row is 160 DIP with an 8 DIP gap, so two rows give
 /// 328; less 12 DIP padding twice, a 32 DIP header and 6 DIP spacing leaves 266 DIP. One
-/// reading costs about 23 DIP (26 with a meter), the page tabs 30, the trend 38, the
-/// breakdown 30 and the quota about 46.
+/// reading costs about 23 DIP (26 with a meter), the page tabs 30, the two tiles 60 and the
+/// split meter 25. The spend curve is a backdrop and costs nothing.
 /// </summary>
 [TestClass]
 public sealed class TokenUsageCardDisclosureTests
@@ -29,9 +29,10 @@ public sealed class TokenUsageCardDisclosureTests
     [DataRow(CardSize.S, 1)]
     [DataRow(CardSize.M, 0)]
     [DataRow(CardSize.W, 0)]
-    // 266 less the spend, the tabs and the trend leaves 144: every reading there is.
-    [DataRow(CardSize.L, 5)]
-    [DataRow(CardSize.XL, 5)]
+    // 266 less the spend, the tabs, the tiles and the split leaves 97: four readings, which
+    // is every reading left once the responses have moved into their tile.
+    [DataRow(CardSize.L, 4)]
+    [DataRow(CardSize.XL, 4)]
     public void MetricLimitFollowsCardHeight(CardSize size, int expected)
     {
         using CardSurfaceItem card = CreateTokenUsageCard(size);
@@ -41,20 +42,24 @@ public sealed class TokenUsageCardDisclosureTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-091 [USE-015] A short card drops the trend before it drops a reading")]
+        "UT-TOKUSE-091 [USE-015] The tiles and the split meter need two rows; the curve needs none")]
     [DataRow(CardSize.S, false)]
     [DataRow(CardSize.M, false)]
     [DataRow(CardSize.W, false)]
     [DataRow(CardSize.L, true)]
     [DataRow(CardSize.XL, true)]
-    public void TrendNeedsTwoRows(CardSize size, bool expected)
+    public void TilesAndSplitNeedTwoRows(CardSize size, bool expected)
     {
         using CardSurfaceItem card = CreateTokenUsageCard(size);
         ApplyReadyPayload(card);
 
-        // The trend is the tallest single block and the only one whose absence costs no
-        // number, so it is the first thing a one-row card gives up.
-        Assert.AreEqual(expected, card.IsTokenUsageTrendVisible);
+        // The tiles and the split are the tallest blocks after the headline and the only ones
+        // whose absence costs no reading, so they are what a one-row card gives up. The curve
+        // sits behind the headline and is shown wherever the headline is.
+        Assert.AreEqual(expected, card.IsTokenUsageKpiVisible);
+        Assert.AreEqual(expected, card.IsTokenUsageSplitVisible);
+        Assert.IsTrue(card.IsTokenUsageSpendCurveVisible);
+        Assert.AreEqual(11, card.TokenUsageSpendCurve.Count);
     }
 
     [TestMethod(DisplayName =
@@ -64,11 +69,29 @@ public sealed class TokenUsageCardDisclosureTests
         using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
         ApplyReadyPayload(card);
 
-        // 266 DIP, less the tabs, the amount and the trend, leaves room for every reading -
-        // so L shows the whole card rather than a prefix of it.
+        // 266 DIP, less the tabs, the amount, the tiles and the split, leaves room for every
+        // reading that is not already a tile - so L shows the whole card rather than a prefix
+        // of it.
         Assert.IsTrue(card.IsTokenUsageCostVisible);
-        Assert.IsTrue(card.IsTokenUsageTrendVisible);
-        Assert.AreEqual(TokenUsageContract.MetricIds.Count, card.TokenUsageMetrics.Count);
+        Assert.IsTrue(card.IsTokenUsageKpiVisible);
+        Assert.IsTrue(card.IsTokenUsageSplitVisible);
+        Assert.AreEqual(TokenUsageContract.MetricIds.Count - 1, card.TokenUsageMetrics.Count);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-126 [USE-015] Responses leave the rows once their tile shows them")]
+    public void RequestsRowYieldsToTheTile()
+    {
+        using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
+        ApplyReadyPayload(card);
+
+        // The same number twice on one card is the tile's, not the row's.
+        Assert.AreEqual("279", card.TokenUsageRequestsText);
+        Assert.IsFalse(card.TokenUsageMetrics.Any(metric =>
+            metric.MetricId == TokenUsageContract.TodayRequests));
+        Assert.AreEqual("claude-opus-5 \u2248$108.80", card.TokenUsageSplitLeadText);
+        Assert.IsFalse(card.IsTokenUsageSplitTrailVisible);
+        Assert.AreEqual(100d, card.TokenUsageSplitPercent, 0.0001d);
     }
 
     [TestMethod(DisplayName =
@@ -111,13 +134,15 @@ public sealed class TokenUsageCardDisclosureTests
         ApplyReadyPayload(card);
 
         CollectionAssert.AreEqual(
-            TokenUsageContract.MetricIds.ToArray(),
+            TokenUsageContract.MetricIds
+                .Where(metricId => metricId != TokenUsageContract.TodayRequests)
+                .ToArray(),
             card.TokenUsageMetrics.Select(metric => metric.MetricId).ToArray());
-        // Spend first: the billed total and the cache reads that dominate it are the two a
-        // card of any size keeps.
+        // Spend first: the billed total is the one reading a card of any size keeps, and the
+        // output that is the expensive part of it comes next.
         Assert.AreEqual(TokenUsageContract.TodayBilledTokens, card.TokenUsageMetrics[0].MetricId);
         Assert.AreEqual(
-            TokenUsageContract.TodayCacheReadTokens,
+            TokenUsageContract.TodayOutputTokens,
             card.TokenUsageMetrics[1].MetricId);
     }
 
@@ -125,16 +150,18 @@ public sealed class TokenUsageCardDisclosureTests
         "UT-TOKUSE-096 [USE-015] Resizing republishes the readings without a new snapshot")]
     public void ResizingRebuildsTheVisibleReadings()
     {
-        using CardSurfaceItem card = CreateTokenUsageCard(CardSize.L);
+        using CardSurfaceItem card = CreateTokenUsageCard(CardSize.S);
         ApplyReadyPayload(card);
-        Assert.AreEqual(TokenUsageContract.MetricIds.Count, card.TokenUsageMetrics.Count);
+        Assert.AreEqual(1, card.TokenUsageMetrics.Count);
+        Assert.IsFalse(card.IsTokenUsageKpiVisible);
 
         // Resizing raises Placement only. A card grown to hold every reading has to fill in
         // the ones it was hiding, rather than waiting for the next refresh to land.
         card.UpdatePlacement(
             new CardPlacement(card.InstanceId, CardSize.XL, 0, 0, 4, 2));
 
-        Assert.AreEqual(TokenUsageContract.MetricIds.Count, card.TokenUsageMetrics.Count);
+        Assert.IsTrue(card.IsTokenUsageKpiVisible);
+        Assert.AreEqual(TokenUsageContract.MetricIds.Count - 1, card.TokenUsageMetrics.Count);
     }
 
     private static void ApplyReadyPayload(CardSurfaceItem card)

@@ -87,37 +87,6 @@ public sealed class TokenUsageMetricViewModel : INotifyPropertyChanged
     }
 }
 
-/// <summary>
-/// One bar of the 24-hour strip. Identified by its position, because that is what a bar is: the
-/// same slot keeps its visual and only changes height as the window slides.
-/// </summary>
-public sealed class TokenUsageTrendBarViewModel : INotifyPropertyChanged
-{
-    private TokenUsageTrendBar _bar;
-
-    public TokenUsageTrendBarViewModel(TokenUsageTrendBar bar)
-    {
-        _bar = bar ?? throw new ArgumentNullException(nameof(bar));
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public int Index => _bar.Index;
-
-    public double BarHeight => _bar.BarHeight;
-
-    public void Apply(TokenUsageTrendBar bar)
-    {
-        ArgumentNullException.ThrowIfNull(bar);
-        double previous = _bar.BarHeight;
-        _bar = bar;
-        if (!previous.Equals(bar.BarHeight))
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BarHeight)));
-        }
-    }
-}
-
 public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
 {
     private TokenUsageBreakdownRow _row;
@@ -134,6 +103,10 @@ public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
     public string PrimaryText => _row.PrimaryText;
 
     public string SecondaryText => _row.SecondaryText;
+
+    public string CostText => _row.CostText;
+
+    public string SplitLabel => _row.SplitLabel;
 
     public double MeterPercent => _row.MeterPercent;
 
@@ -152,6 +125,8 @@ public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
 
         Raise(previous.PrimaryText, row.PrimaryText, nameof(PrimaryText));
         Raise(previous.SecondaryText, row.SecondaryText, nameof(SecondaryText));
+        Raise(previous.CostText, row.CostText, nameof(CostText));
+        Raise(previous.SplitLabel, row.SplitLabel, nameof(SplitLabel));
         Raise(previous.MeterPercent, row.MeterPercent, nameof(MeterPercent));
         Raise(previous.AutomationName, row.AutomationName, nameof(AutomationName));
         return true;
@@ -231,28 +206,6 @@ public static class TokenUsageListMerger
             (item, row) => string.Equals(item.MetricId, row.MetricId, StringComparison.Ordinal),
             row => new TokenUsageMetricViewModel(row),
             (item, row) => item.Apply(row));
-
-    public static void MergeTrend(
-        ObservableCollection<TokenUsageTrendBarViewModel> target,
-        IReadOnlyList<TokenUsageTrendBar> bars)
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(bars);
-
-        for (int index = 0; index < bars.Count; index++)
-        {
-            if (index < target.Count)
-            {
-                target[index].Apply(bars[index]);
-            }
-            else
-            {
-                target.Add(new TokenUsageTrendBarViewModel(bars[index]));
-            }
-        }
-
-        Trim(target, bars.Count);
-    }
 
     public static void MergeBreakdown(
         ObservableCollection<TokenUsageBreakdownViewModel> target,

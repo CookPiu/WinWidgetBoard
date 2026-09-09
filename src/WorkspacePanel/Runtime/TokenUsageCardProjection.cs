@@ -13,6 +13,10 @@ public static class TokenUsageResourceKeys
     public const string EmptyStatus = "TokenUsageStatus.Empty";
     public const string CostEstimate = "TokenUsageCost.Estimate";
     public const string CostUnpriced = "TokenUsageCost.Unpriced";
+    public const string CacheReadNote = "TokenUsageKpi.CacheReadNote";
+    public const string AveragePerRequest = "TokenUsageKpi.AveragePerRequest";
+    public const string CurveNow = "TokenUsageSpendCurve.Now";
+    public const string CurveHourTokens = "TokenUsageSpendCurve.HourTokens";
 
     public static string GetMetricNameKey(string metricId) => metricId switch
     {
@@ -103,43 +107,35 @@ public sealed record TokenUsageMetricRow
 }
 
 /// <summary>
-/// One hour of the trend. <see cref="Fraction"/> arrives already scaled against the page's own
-/// peak - the panel has no ceiling of its own to judge a token count against.
+/// One point of the day's spend curve, already placed on 0..1 axes by the broker. The tip is
+/// composed here because it holds the one word that has to be translated - "now" - and the
+/// hour-tokens phrase around a number the broker formatted.
 /// </summary>
-public sealed record TokenUsageTrendBar
+public sealed record TokenUsageSpendPoint
 {
-    /// <summary>
-    /// The bar strip's height in DIPs. It lives here rather than in XAML because the bar
-    /// heights are computed, and one number cannot be the source of truth in two places.
-    ///
-    /// Taller than a row of readings because it is a chart, not a reading: height is the only
-    /// axis a bar has, and at 32 the quiet hours were indistinguishable from each other. This
-    /// is the space the card had left once the quota block was gone.
-    /// </summary>
-    public const double TrackHeight = 44d;
+    public int Hour { get; init; }
 
-    /// <summary>
-    /// A bar with any usage at all is never fully invisible, but an hour with none draws
-    /// nothing: a row of minimum-height stubs across every idle hour read as a dashed line
-    /// through the strip, and the little-versus-none distinction the stub was meant to keep
-    /// is carried by absence just as well.
-    /// </summary>
-    public const double MinimumBarHeight = 2d;
-
-    public int Index { get; init; }
-
+    /// <summary>Horizontal position, 0..1; the last point is always at 1.</summary>
     public double Fraction { get; init; }
 
-    public double BarHeight => Fraction <= 0d
-        ? 0d
-        : Math.Max(
-            MinimumBarHeight,
-            Math.Clamp(Fraction, 0d, 1d) * TrackHeight);
+    /// <summary>Vertical position, 0..1; the last point is always at 1.</summary>
+    public double Level { get; init; }
+
+    public bool IsCurrent { get; init; }
+
+    /// <summary>What the crosshair says at this point: the hour, the spend through it, the
+    /// tokens within it.</summary>
+    public string TipText { get; init; } = string.Empty;
 }
 
 /// <summary>One slice of a page: a vendor on the overview, a model on a vendor's page.</summary>
 public sealed record TokenUsageBreakdownRow
 {
+    /// <summary>
+    /// The vendor's display name on the overview, the raw model id on a vendor page. A vendor
+    /// id is one of two the panel knows and has a resource for; a model id is whatever the
+    /// session recorded and is shown as such.
+    /// </summary>
     public string Label { get; init; } = string.Empty;
 
     public string PrimaryText { get; init; } = string.Empty;
@@ -148,7 +144,19 @@ public sealed record TokenUsageBreakdownRow
 
     public double Ratio { get; init; }
 
+    /// <summary>This slice's spend, formatted like the headline; empty when unpriced.</summary>
+    public string CostText { get; init; } = string.Empty;
+
     public double MeterPercent => Math.Clamp(Ratio, 0d, 1d) * 100d;
+
+    /// <summary>
+    /// The label the split meter carries: the slice's spend where it has one, its token count
+    /// where it does not, so the meter's two ends read in the same currency as the headline
+    /// whenever that is possible.
+    /// </summary>
+    public string SplitLabel => CostText.Length > 0
+        ? $"{Label} {CostText}"
+        : $"{Label} {PrimaryText}";
 
     public string AutomationName => $"{Label} {PrimaryText} {SecondaryText}";
 }
@@ -166,11 +174,29 @@ public sealed record TokenUsagePage
     public IReadOnlyList<TokenUsageMetricRow> Metrics { get; init; } =
         Array.Empty<TokenUsageMetricRow>();
 
-    public IReadOnlyList<TokenUsageTrendBar> Trend { get; init; } =
-        Array.Empty<TokenUsageTrendBar>();
+    public IReadOnlyList<TokenUsageSpendPoint> SpendCurve { get; init; } =
+        Array.Empty<TokenUsageSpendPoint>();
 
     public IReadOnlyList<TokenUsageBreakdownRow> Breakdown { get; init; } =
         Array.Empty<TokenUsageBreakdownRow>();
+
+    /// <summary>Every token today, billed and cache reads together. Empty without data.</summary>
+    public string TotalTokensText { get; init; } = string.Empty;
+
+    /// <summary>The line under the total: how much of it was cache reads.</summary>
+    public string TotalTokensNoteText { get; init; } = string.Empty;
+
+    /// <summary>Responses today, lifted out of the rows on a card tall enough for tiles.</summary>
+    public string RequestsText { get; init; } = string.Empty;
+
+    /// <summary>The line under the responses: billed tokens per response.</summary>
+    public string RequestsNoteText { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Whether the two tiles have anything to say. They are a pair: one with a figure and
+    /// one without would leave a hole where the other belongs.
+    /// </summary>
+    public bool HasKpi => TotalTokensText.Length > 0 && RequestsText.Length > 0;
 
     /// <summary>
     /// Today's usage at published list prices, already composed - "≈$12.34", or with a
@@ -191,14 +217,13 @@ public sealed record TokenUsagePage
     public bool HasData { get; init; }
 
     /// <summary>
-    /// The trend strip is hidden rather than shown flat when there is nothing in the window: a
-    /// row of minimum-height bars looks like a reading of zero everywhere, which is not the
-    /// same as having no history yet.
+    /// The curve is hidden rather than drawn flat when there is nothing today: a line along
+    /// the floor looks like a reading of zero everywhere, which is not the same as having no
+    /// history yet.
     /// </summary>
-    public bool IsTrendVisible => Trend.Count > 0 && HasData;
+    public bool IsSpendCurveVisible => SpendCurve.Count > 0 && HasData;
 
     public bool IsBreakdownVisible => Breakdown.Count > 0;
-
 }
 
 public sealed record TokenUsageCardProjection
@@ -258,6 +283,19 @@ public sealed record TokenUsageCardProjection
                 resourceResolver,
                 emptyText,
                 costNote);
+            string totalTokens = ReadString(page, "totalTokensText") ?? string.Empty;
+            string averageBilled =
+                ReadString(page, "averageBilledPerRequestText") ?? string.Empty;
+            TokenUsageMetricRow? requests = metrics.FirstOrDefault(metric =>
+                string.Equals(
+                    metric.MetricId,
+                    TokenUsageContract.TodayRequests,
+                    StringComparison.Ordinal));
+            TokenUsageMetricRow? cacheRead = metrics.FirstOrDefault(metric =>
+                string.Equals(
+                    metric.MetricId,
+                    TokenUsageContract.TodayCacheReadTokens,
+                    StringComparison.Ordinal));
             result.Add(
                 new TokenUsagePage
                 {
@@ -266,8 +304,24 @@ public sealed record TokenUsageCardProjection
                         resourceResolver,
                         TokenUsageResourceKeys.GetPageNameKey(pageId)),
                     Metrics = metrics,
-                    Trend = ReadTrend(page),
-                    Breakdown = ReadBreakdown(page),
+                    SpendCurve = ReadSpendCurve(page, resourceResolver),
+                    Breakdown = ReadBreakdown(page, resourceResolver),
+                    TotalTokensText = totalTokens,
+                    TotalTokensNoteText = totalTokens.Length > 0 && cacheRead?.HasReading == true
+                        ? Format(
+                            resourceResolver,
+                            TokenUsageResourceKeys.CacheReadNote,
+                            cacheRead.PrimaryText)
+                        : string.Empty,
+                    RequestsText = requests?.HasReading == true
+                        ? requests.PrimaryText
+                        : string.Empty,
+                    RequestsNoteText = averageBilled.Length > 0
+                        ? Format(
+                            resourceResolver,
+                            TokenUsageResourceKeys.AveragePerRequest,
+                            averageBilled)
+                        : string.Empty,
                     CostText = ReadString(page, "costText") ?? string.Empty,
                     UnpricedModelCount = ReadInt(page, "unpricedModelCount"),
                     CostNoteText = costNote,
@@ -330,37 +384,63 @@ public sealed record TokenUsageCardProjection
         return rows.ToArray();
     }
 
-    private static TokenUsageTrendBar[] ReadTrend(JsonElement page)
+    /// <summary>
+    /// The curve's points, in the order the broker placed them. The panel trusts the placement
+    /// and only composes the words: a point whose position is not a number is dropped rather
+    /// than drawn at the origin, because a point at the origin is a claim about midnight.
+    /// </summary>
+    private static TokenUsageSpendPoint[] ReadSpendCurve(
+        JsonElement page,
+        Func<string, string?> resourceResolver)
     {
-        if (!page.TryGetProperty("trend", out JsonElement trend) ||
-            trend.ValueKind != JsonValueKind.Array)
+        if (!page.TryGetProperty("spendCurve", out JsonElement curve) ||
+            curve.ValueKind != JsonValueKind.Array)
         {
-            return Array.Empty<TokenUsageTrendBar>();
+            return Array.Empty<TokenUsageSpendPoint>();
         }
 
-        var bars = new List<TokenUsageTrendBar>(trend.GetArrayLength());
-        int index = 0;
-        foreach (JsonElement value in trend.EnumerateArray())
+        var points = new List<TokenUsageSpendPoint>(curve.GetArrayLength());
+        foreach (JsonElement element in curve.EnumerateArray())
         {
-            if (index >= TokenUsageContract.TrendHours)
+            if (element.ValueKind != JsonValueKind.Object ||
+                points.Count >= TokenUsageContract.TrendHours ||
+                ReadRatio(element, "fraction") is not { } fraction ||
+                ReadRatio(element, "level") is not { } level)
             {
-                // A newer broker could send a longer window than this build lays out.
-                break;
+                continue;
             }
 
-            double fraction = value.ValueKind == JsonValueKind.Number &&
-                value.TryGetDouble(out double parsed) &&
-                double.IsFinite(parsed)
-                ? Math.Clamp(parsed, 0d, 1d)
-                : 0d;
-            bars.Add(new TokenUsageTrendBar { Index = index, Fraction = fraction });
-            index++;
+            int hour = Math.Clamp(ReadInt(element, "hour"), 0, 23);
+            bool isCurrent = element.TryGetProperty("isCurrent", out JsonElement current) &&
+                current.ValueKind == JsonValueKind.True;
+            string cost = ReadString(element, "cumulativeCostText") ?? string.Empty;
+            string billed = ReadString(element, "billedText") ?? string.Empty;
+            string label = isCurrent
+                ? Resolve(resourceResolver, TokenUsageResourceKeys.CurveNow)
+                : hour.ToString("00", System.Globalization.CultureInfo.InvariantCulture) + ":00";
+            string tokens = billed.Length > 0
+                ? Format(resourceResolver, TokenUsageResourceKeys.CurveHourTokens, billed)
+                : string.Empty;
+            points.Add(
+                new TokenUsageSpendPoint
+                {
+                    Hour = hour,
+                    Fraction = fraction,
+                    Level = level,
+                    IsCurrent = isCurrent,
+                    TipText = string.Join(
+                        " · ",
+                        new[] { cost.Length > 0 ? label + " " + cost : label, tokens }
+                            .Where(part => part.Length > 0)),
+                });
         }
 
-        return bars.ToArray();
+        return points.ToArray();
     }
 
-    private static TokenUsageBreakdownRow[] ReadBreakdown(JsonElement page)
+    private static TokenUsageBreakdownRow[] ReadBreakdown(
+        JsonElement page,
+        Func<string, string?> resourceResolver)
     {
         if (!page.TryGetProperty("breakdown", out JsonElement breakdown) ||
             breakdown.ValueKind != JsonValueKind.Array)
@@ -386,10 +466,15 @@ public sealed record TokenUsageCardProjection
             rows.Add(
                 new TokenUsageBreakdownRow
                 {
-                    Label = label,
+                    Label = TokenUsageContract.IsKnownVendorId(label)
+                        ? Resolve(
+                            resourceResolver,
+                            TokenUsageResourceKeys.GetPageNameKey(label))
+                        : label,
                     PrimaryText = ReadString(slice, "primaryText") ?? "—",
                     SecondaryText = ReadString(slice, "secondaryText") ?? string.Empty,
                     Ratio = ReadRatio(slice, "ratio") ?? 0d,
+                    CostText = ReadString(slice, "costText") ?? string.Empty,
                 });
         }
 

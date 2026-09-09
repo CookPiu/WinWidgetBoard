@@ -4,8 +4,8 @@ using WinWidgetBoard.Contracts.Protocol;
 namespace WinWidgetBoard.CoreBroker.Providers;
 
 /// <summary>
-/// Turns a report into the exact strings the card displays, and normalises each page's trend
-/// into the 0..1 it can draw. The broker owns units and rounding here for the same reason
+/// Turns a report into the exact strings the card displays, and places each page's spend curve
+/// on the 0..1 axes it draws against. The broker owns units and rounding here for the same reason
 /// <see cref="SystemMonitorFormatter"/> does: the card should bind text rather than re-derive
 /// numbers, and there is then one place where a unit is decided.
 ///
@@ -62,20 +62,25 @@ public static class TokenUsageFormatter
         {
             PageId = pageId,
             // Priority order, matching TokenUsageContract.MetricIds: a card too short for all
-            // of them shows a prefix, so the most useful readings have to come first.
-            // Priority order, matching TokenUsageContract.MetricIds: a card too short for all
             // of them shows a prefix, so what the user asked to see first comes first - spend,
             // then volume. Each token kind carries its own cost, so the reader is not left
-            // apportioning one lump sum across the rows.
+            // apportioning one lump sum across the rows. Responses come last because the
+            // two-row card lifts them into a tile of their own and drops the row.
             Metrics =
             [
                 FormatBilledTokens(aggregate),
-                FormatCacheReadTokens(aggregate),
-                FormatRequests(aggregate),
-                FormatCacheHitRate(aggregate),
                 FormatOutputTokens(aggregate),
+                FormatCacheReadTokens(aggregate),
+                FormatCacheHitRate(aggregate),
+                FormatRequests(aggregate),
             ],
-            Trend = NormalizeTrend(aggregate.Trend),
+            SpendCurve = FormatSpendCurve(aggregate),
+            TotalTokensText = HasToday(aggregate)
+                ? FormatTokenCount(aggregate.TodayBilledTokens + aggregate.TodayCacheReadTokens)
+                : string.Empty,
+            AverageBilledPerRequestText = HasToday(aggregate)
+                ? FormatTokenCount(aggregate.TodayBilledTokens / aggregate.TodayRequests)
+                : string.Empty,
             Breakdown = FormatBreakdown(aggregate),
             CostText = FormatCost(aggregate),
             UnpricedModelCount = aggregate.UnpricedModelCount,
@@ -83,40 +88,57 @@ public static class TokenUsageFormatter
     }
 
     /// <summary>
-    /// Scales a page's hourly totals against that page's own peak. There is no absolute ceiling
-    /// a token count could be drawn against, so the alternative would be inventing one; a bar
-    /// chart of the last day against its own maximum is the honest shape.
+    /// The day's spend as a curve: one point per hour so far, each at the end of its hour and
+    /// at the running total through it. The horizontal axis is the part of the day that has
+    /// elapsed, not the whole day, so the curve always fills the card and its right edge is
+    /// always now; the vertical axis is the day's total, so the curve always ends at the top.
+    /// Neither axis needs a ceiling the data does not have.
+    ///
+    /// Spend where anything was priced, billed tokens otherwise - the headline falls back the
+    /// same way, and a curve of nothing under a figure of something would read as a fault.
     /// </summary>
-    public static double[] NormalizeTrend(IReadOnlyList<TokenUsageHourBucket> trend)
+    public static TokenUsageSpendPointDto[] FormatSpendCurve(TokenUsageAggregate aggregate)
     {
-        ArgumentNullException.ThrowIfNull(trend);
-        if (trend.Count == 0)
+        ArgumentNullException.ThrowIfNull(aggregate);
+        if (!HasToday(aggregate) || aggregate.TodayHours.Count == 0)
         {
-            return Array.Empty<double>();
+            return Array.Empty<TokenUsageSpendPointDto>();
         }
 
-        long peak = 0;
-        foreach (TokenUsageHourBucket bucket in trend)
+        bool priced = aggregate.TodayCostUsd > 0m;
+        // A minute's floor: at the stroke of midnight nothing has elapsed, and the first point
+        // still needs a position.
+        double elapsed = Math.Max(aggregate.TodayElapsedHours, 1d / 60d);
+        decimal cumulativeCost = 0m;
+        long cumulativeBilled = 0;
+        var points = new TokenUsageSpendPointDto[aggregate.TodayHours.Count];
+        for (int i = 0; i < points.Length; i++)
         {
-            if (bucket.BilledTokens > peak)
+            TokenUsageHourBucket bucket = aggregate.TodayHours[i];
+            cumulativeCost += bucket.CostUsd;
+            cumulativeBilled += bucket.BilledTokens;
+            int hour = bucket.HourStartLocal.Hour;
+            double level = priced
+                ? (double)(cumulativeCost / aggregate.TodayCostUsd)
+                : aggregate.TodayBilledTokens > 0
+                    ? cumulativeBilled / (double)aggregate.TodayBilledTokens
+                    : 0d;
+            points[i] = new TokenUsageSpendPointDto
             {
-                peak = bucket.BilledTokens;
-            }
+                Hour = hour,
+                Fraction = Math.Clamp(Math.Min(hour + 1, elapsed) / elapsed, 0d, 1d),
+                Level = Math.Clamp(level, 0d, 1d),
+                CumulativeCostText = !priced
+                    ? string.Empty
+                    : cumulativeCost > 0m
+                        ? FormatAmount(aggregate, cumulativeCost)
+                        : "\u2248$0.00",
+                BilledText = FormatTokenCount(bucket.BilledTokens),
+                IsCurrent = i == points.Length - 1,
+            };
         }
 
-        var normalized = new double[trend.Count];
-        if (peak <= 0)
-        {
-            // A flat day of zeros, not a missing reading. The card draws an empty axis.
-            return normalized;
-        }
-
-        for (int i = 0; i < trend.Count; i++)
-        {
-            normalized[i] = Math.Clamp(trend[i].BilledTokens / (double)peak, 0d, 1d);
-        }
-
-        return normalized;
+        return points;
     }
 
     /// <summary>
@@ -282,6 +304,7 @@ public static class TokenUsageFormatter
                 PrimaryText = FormatTokenCount(slice.BilledTokens),
                 SecondaryText = FormatPercent(share),
                 Ratio = share,
+                CostText = FormatAmount(aggregate, slice.CostUsd),
             };
         }
 

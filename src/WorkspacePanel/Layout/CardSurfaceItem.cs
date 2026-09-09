@@ -26,12 +26,23 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         nameof(TokenUsageProjection),
         nameof(TokenUsageCurrentPage),
         nameof(HasTokenUsageData),
-        nameof(IsTokenUsageTrendVisible),
+        nameof(TokenUsageSpendCurve),
+        nameof(IsTokenUsageSpendCurveVisible),
         nameof(TokenUsageCostText),
         nameof(IsTokenUsageCostVisible),
         nameof(TokenUsageCostNoteText),
         nameof(IsTokenUsageCostNoteVisible),
         nameof(IsTokenUsagePageSwitcherVisible),
+        nameof(IsTokenUsageKpiVisible),
+        nameof(TokenUsageTotalTokensText),
+        nameof(TokenUsageTotalTokensNoteText),
+        nameof(TokenUsageRequestsText),
+        nameof(TokenUsageRequestsNoteText),
+        nameof(IsTokenUsageSplitVisible),
+        nameof(TokenUsageSplitLeadText),
+        nameof(TokenUsageSplitTrailText),
+        nameof(IsTokenUsageSplitTrailVisible),
+        nameof(TokenUsageSplitPercent),
         nameof(TokenUsageMetricLimit),
     ];
 
@@ -89,7 +100,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             _runtimeResourceResolver);
         TokenUsagePages = [];
         TokenUsageMetrics = [];
-        TokenUsageTrend = [];
         MergeTokenUsage(_tokenUsageProjection);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
@@ -281,7 +291,20 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public ObservableCollection<TokenUsageMetricViewModel> TokenUsageMetrics { get; }
 
-    public ObservableCollection<TokenUsageTrendBarViewModel> TokenUsageTrend { get; }
+    /// <summary>
+    /// The day's spend curve behind the headline. A list rather than a merged collection: the
+    /// curve is one geometry rebuilt from all of its points, so there is no per-point visual
+    /// to keep, and a snapshot replaces it whole.
+    /// </summary>
+    public IReadOnlyList<TokenUsageSpendPoint> TokenUsageSpendCurve =>
+        TokenUsageCurrentPage?.SpendCurve ?? Array.Empty<TokenUsageSpendPoint>();
+
+    /// <summary>
+    /// Shown at every size: it is a backdrop and costs no height. Hidden, rather than drawn
+    /// flat, when the page has nothing today.
+    /// </summary>
+    public bool IsTokenUsageSpendCurveVisible =>
+        TokenUsageCurrentPage?.IsSpendCurveVisible == true;
 
     /// <summary>
     /// The page currently shown. Falls back to the first available page when the selected one
@@ -328,9 +351,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// A card clips what does not fit rather than scrolling it, so a reading past this point
     /// is not cramped - it is invisible, and so is everything below it. The order of payment
     /// is the order of the card's purpose: the day's spend first, then the page tabs that say
-    /// whose spend it is, then the trend, and the readings take what is left. That is a change
-    /// from counting two readings at every small size and showing the spend only at two rows:
-    /// the readings were being paid for before the number the card exists to show.
+    /// whose spend it is, then the two tiles and the split meter a two-row card has room for,
+    /// and the readings take what is left. That is a change from counting two readings at
+    /// every small size and showing the spend only at two rows: the readings were being paid
+    /// for before the number the card exists to show.
     /// </summary>
     public int TokenUsageMetricLimit
     {
@@ -347,9 +371,16 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 budget -= 30;
             }
 
-            if (IsTokenUsageTrendVisible)
+            if (IsTokenUsageKpiVisible)
             {
-                budget -= 38;
+                // A caption, an 18 DIP figure and a caption under it, plus the spacing.
+                budget -= 60;
+            }
+
+            if (IsTokenUsageSplitVisible)
+            {
+                // A caption line and the 3 DIP meter under it, plus the spacing.
+                budget -= 25;
             }
 
             // A reading costs about 24 DIP - a label and its value on one line.
@@ -359,6 +390,54 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 TokenUsageContract.MetricIds.Count);
         }
     }
+
+    /// <summary>
+    /// The two tiles - every token, and responses - need two grid rows. A one-row card has
+    /// the headline and, at one cell across, a single reading; the tiles would cost it both.
+    /// </summary>
+    public bool IsTokenUsageKpiVisible =>
+        TokenUsageCurrentPage?.HasKpi == true &&
+        Placement.Size is CardSize.L or CardSize.XL;
+
+    public string TokenUsageTotalTokensText =>
+        TokenUsageCurrentPage?.TotalTokensText ?? string.Empty;
+
+    public string TokenUsageTotalTokensNoteText =>
+        TokenUsageCurrentPage?.TotalTokensNoteText ?? string.Empty;
+
+    public string TokenUsageRequestsText =>
+        TokenUsageCurrentPage?.RequestsText ?? string.Empty;
+
+    public string TokenUsageRequestsNoteText =>
+        TokenUsageCurrentPage?.RequestsNoteText ?? string.Empty;
+
+    /// <summary>
+    /// The split meter: how the page's spend divides between its two largest slices, vendors
+    /// on the overview and models on a vendor page. Two rows only, for the same reason as the
+    /// tiles; and only where the page has something to split.
+    /// </summary>
+    public bool IsTokenUsageSplitVisible =>
+        TokenUsageCurrentPage?.Breakdown.Count > 0 &&
+        HasTokenUsageData &&
+        Placement.Size is CardSize.L or CardSize.XL;
+
+    public string TokenUsageSplitLeadText =>
+        TokenUsageCurrentPage?.Breakdown.Count > 0
+            ? TokenUsageCurrentPage.Breakdown[0].SplitLabel
+            : string.Empty;
+
+    public string TokenUsageSplitTrailText =>
+        TokenUsageCurrentPage?.Breakdown.Count > 1
+            ? TokenUsageCurrentPage.Breakdown[1].SplitLabel
+            : string.Empty;
+
+    public bool IsTokenUsageSplitTrailVisible => TokenUsageSplitTrailText.Length > 0;
+
+    /// <summary>The largest slice's share, 0..100 for the meter.</summary>
+    public double TokenUsageSplitPercent =>
+        TokenUsageCurrentPage?.Breakdown.Count > 0
+            ? TokenUsageCurrentPage.Breakdown[0].MeterPercent
+            : 0d;
 
     /// <summary>
     /// The day's spend, shown as the card's headline rather than as one row among the
@@ -386,14 +465,6 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         !IsTokenUsageCostVisible &&
         TokenUsageCostNoteText.Length > 0 &&
         TokenUsageCurrentPage?.UnpricedModelCount > 0;
-
-    /// <summary>
-    /// One grid row tall. The trend is the first thing to go: it is the tallest single block
-    /// and the only one whose absence costs no number.
-    /// </summary>
-    public bool IsTokenUsageTrendVisible =>
-        TokenUsageCurrentPage?.IsTrendVisible == true &&
-        Placement.Size is CardSize.L or CardSize.XL;
 
     /// <summary>
     /// The smallest card has no room for tabs. It shows the overview and nothing else, which
@@ -787,19 +858,28 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsageListMerger.MergeMetrics(
             TokenUsageMetrics,
             TakeVisibleMetrics(page));
-        TokenUsageListMerger.MergeTrend(
-            TokenUsageTrend,
-            page?.Trend ?? Array.Empty<TokenUsageTrendBar>());
     }
 
     /// <summary>
     /// The prefix of the page's readings this card is tall enough to show. Truncated here
     /// rather than hidden in XAML so the rows that are not shown are never built at all.
+    /// Responses leave the rows when the tile shows them: the same number twice on one card
+    /// is the tile's, not the row's.
     /// </summary>
     private IReadOnlyList<TokenUsageMetricRow> TakeVisibleMetrics(TokenUsagePage? page)
     {
         IReadOnlyList<TokenUsageMetricRow> metrics =
             page?.Metrics ?? Array.Empty<TokenUsageMetricRow>();
+        if (IsTokenUsageKpiVisible)
+        {
+            metrics = metrics
+                .Where(metric => !string.Equals(
+                    metric.MetricId,
+                    TokenUsageContract.TodayRequests,
+                    StringComparison.Ordinal))
+                .ToArray();
+        }
+
         int limit = TokenUsageMetricLimit;
         if (metrics.Count <= limit)
         {

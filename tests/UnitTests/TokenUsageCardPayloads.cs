@@ -44,8 +44,9 @@ internal static class TokenUsageCardPayloads
             HasCurrentRate = true,
             PeakRatePerMinute = 39_300d,
             PeakWindowStartLocal = new DateTimeOffset(2026, 8, 28, 13, 45, 0, TimeSpan.Zero),
-            Trend = Trend(),
-            Breakdown = [new TokenUsageSlice("claude-opus-5", 1_580_000, 279)],
+            TodayHours = TodayHours(),
+            TodayElapsedHours = 10d + 46d / 60d,
+            Breakdown = [new TokenUsageSlice("claude-opus-5", 1_580_000, 279, 108.80m)],
             CacheHitRate = 0.988d,
             // Costed the way the broker does: the day's total, plus the per-kind shares the
             // rows carry. Output is part of the billed share, not an addition to it.
@@ -55,16 +56,18 @@ internal static class TokenUsageCardPayloads
             TodayOutputCostUsd = 12.10m,
         };
 
-    private static TokenUsageHourBucket[] Trend()
+    private static TokenUsageHourBucket[] TodayHours()
     {
-        var buckets = new TokenUsageHourBucket[TokenUsageContract.TrendHours];
-        for (int i = 0; i < buckets.Length; i++)
+        // 00:00 through 10:00 on the sample day, with the day's usage in the open hour.
+        var buckets = new TokenUsageHourBucket[11];
+        for (int hour = 0; hour < buckets.Length; hour++)
         {
-            bool last = i == buckets.Length - 1;
-            buckets[i] = new TokenUsageHourBucket(
-                SampledAt.AddHours(i - (TokenUsageContract.TrendHours - 1)),
-                last ? 1_000 : 0,
-                Requests: last ? 1 : 0);
+            bool last = hour == buckets.Length - 1;
+            buckets[hour] = new TokenUsageHourBucket(
+                new DateTimeOffset(2026, 8, 28, hour, 0, 0, TimeSpan.Zero),
+                last ? 1_580_000 : 0,
+                Requests: last ? 279 : 0,
+                last ? 108.80m : 0m);
         }
 
         return buckets;

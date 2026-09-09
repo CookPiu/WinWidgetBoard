@@ -1120,9 +1120,6 @@
   <data name="TokenUsageMetric.Unknown" xml:space="preserve">
     <value>Unknown</value>
   </data>
-  <data name="TokenUsageTrendStrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Billed tokens over the last 24 hours</value>
-  </data>
   <data name="TokenUsagePage.Overview" xml:space="preserve">
     <value>Overview</value>
   </data>
@@ -1212,6 +1209,27 @@
   </data>
   <data name="TokenUsageCost.Unpriced" xml:space="preserve">
     <value>{0} model(s) have no price and are excluded</value>
+  </data>
+  <data name="TokenUsageKpiTotalTokens.Text" xml:space="preserve">
+    <value>Total tokens</value>
+  </data>
+  <data name="TokenUsageKpiRequests.Text" xml:space="preserve">
+    <value>Responses</value>
+  </data>
+  <data name="TokenUsageKpi.CacheReadNote" xml:space="preserve">
+    <value>incl. {0} cache reads</value>
+  </data>
+  <data name="TokenUsageKpi.AveragePerRequest" xml:space="preserve">
+    <value>{0} billed per response</value>
+  </data>
+  <data name="TokenUsageSpendCurve.Now" xml:space="preserve">
+    <value>now</value>
+  </data>
+  <data name="TokenUsageSpendCurve.HourTokens" xml:space="preserve">
+    <value>{0} this hour</value>
+  </data>
+  <data name="TokenUsageSpendCurve.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Cumulative spend today; hover for each hour</value>
   </data>
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>Spent today</value>

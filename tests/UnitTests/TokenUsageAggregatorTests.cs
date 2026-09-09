@@ -5,8 +5,9 @@ namespace WinWidgetBoard.UnitTests;
 
 /// <summary>
 /// The arithmetic behind the card. Two of these are regressions for defects that produced
-/// plausible-looking wrong numbers rather than errors: the trend dropping the current hour, and
-/// a peak rate averaged over a different window length than the current rate it sits beside.
+/// plausible-looking wrong numbers rather than errors: the hourly buckets dropping the current
+/// hour, and a peak rate averaged over a different window length than the current rate it sits
+/// beside.
 /// </summary>
 [TestClass]
 public sealed class TokenUsageAggregatorTests
@@ -58,34 +59,62 @@ public sealed class TokenUsageAggregatorTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-022 [USE-004] The trend's last bucket is the current hour")]
-    public void TrendIncludesTheCurrentHour()
+        "UT-TOKUSE-022 [USE-004] Today's hours run from midnight to the current hour, which is last")]
+    public void TodayHoursIncludeTheCurrentHour()
     {
         var aggregator = new TokenUsageAggregator(Utc);
         aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 6, billed: 500)], Now);
 
-        IReadOnlyList<TokenUsageHourBucket> trend = Overview(aggregator, Now).Trend;
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
+        IReadOnlyList<TokenUsageHourBucket> hours = aggregate.TodayHours;
 
-        Assert.AreEqual(TokenUsageContract.TrendHours, trend.Count);
+        // 10:46: eleven buckets, 00:00 through 10:00, the last one still open.
+        Assert.AreEqual(11, hours.Count);
         // Regression: bucketing by the distance from the start of the current hour floors to
         // -1 for anything inside it, which dropped the most recent readings entirely.
-        Assert.AreEqual(500L, trend[^1].BilledTokens);
-        Assert.AreEqual(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero), trend[^1].HourStartLocal);
-        Assert.AreEqual(0L, trend[^2].BilledTokens);
+        Assert.AreEqual(500L, hours[^1].BilledTokens);
+        Assert.AreEqual(new DateTimeOffset(2026, 8, 28, 10, 0, 0, TimeSpan.Zero), hours[^1].HourStartLocal);
+        Assert.AreEqual(0L, hours[^2].BilledTokens);
+        Assert.AreEqual(new DateTimeOffset(2026, 8, 28, 0, 0, 0, TimeSpan.Zero), hours[0].HourStartLocal);
+        Assert.AreEqual(10d + 46d / 60d, aggregate.TodayElapsedHours, 0.0001d);
     }
 
     [TestMethod(DisplayName =
         "UT-TOKUSE-023 [USE-004] An earlier hour lands in its own bucket")]
-    public void TrendPlacesAnEarlierHourCorrectly()
+    public void TodayHoursPlaceAnEarlierHourCorrectly()
     {
         var aggregator = new TokenUsageAggregator(Utc);
         // 07:46, three hours before the 10:00 bucket.
         aggregator.Ingest([Record("req_1", "msg_1", minutesAgo: 180, billed: 300)], Now);
 
-        IReadOnlyList<TokenUsageHourBucket> trend = Overview(aggregator, Now).Trend;
+        IReadOnlyList<TokenUsageHourBucket> hours = Overview(aggregator, Now).TodayHours;
 
-        Assert.AreEqual(300L, trend[^4].BilledTokens);
-        Assert.AreEqual(new DateTimeOffset(2026, 8, 28, 7, 0, 0, TimeSpan.Zero), trend[^4].HourStartLocal);
+        Assert.AreEqual(300L, hours[7].BilledTokens);
+        Assert.AreEqual(new DateTimeOffset(2026, 8, 28, 7, 0, 0, TimeSpan.Zero), hours[7].HourStartLocal);
+        Assert.AreEqual(1, hours[7].Requests);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-120 [USE-004] The hours' costs add up to the day's cost, and so do the slices'")]
+    public void HourAndSliceCostsAddUpToTheDay()
+    {
+        var aggregator = new TokenUsageAggregator(Utc);
+        aggregator.Ingest(
+            [
+                Record("req_1", "msg_1", minutesAgo: 180, billed: 300_000),
+                Record("req_2", "msg_2", minutesAgo: 6, billed: 100_000),
+            ],
+            Now);
+
+        TokenUsageAggregate aggregate = Overview(aggregator, Now);
+
+        // Priced by the built-in table; the point is that each hour and each slice carries
+        // its own share on the same terms as the total, so the curve and the split meter
+        // never disagree with the headline they sit under.
+        Assert.IsTrue(aggregate.TodayCostUsd > 0m);
+        Assert.AreEqual(aggregate.TodayCostUsd, aggregate.TodayHours.Sum(hour => hour.CostUsd));
+        Assert.AreEqual(aggregate.TodayCostUsd, aggregate.Breakdown.Sum(slice => slice.CostUsd));
+        Assert.IsTrue(aggregate.TodayHours[7].CostUsd > aggregate.TodayHours[10].CostUsd);
     }
 
     [TestMethod(DisplayName =
@@ -206,8 +235,8 @@ public sealed class TokenUsageAggregatorTests
 
         Assert.AreEqual(1, aggregate.TodayRequests);
         Assert.AreEqual(300L, aggregate.TodayBilledTokens);
-        // The trend spans the retained window, so it still sees the earlier response.
-        Assert.AreEqual(7_300L, aggregate.Trend.Sum(bucket => bucket.BilledTokens));
+        // The hourly buckets are today's too, so the earlier response is in none of them.
+        Assert.AreEqual(300L, aggregate.TodayHours.Sum(bucket => bucket.BilledTokens));
     }
 
     [TestMethod(DisplayName =
@@ -316,7 +345,7 @@ public sealed class TokenUsageAggregatorTests
         Assert.IsFalse(aggregate.HasAnyRecord);
         Assert.AreEqual(0, aggregate.TodayRequests);
         Assert.IsNull(aggregate.CacheHitRate);
-        Assert.AreEqual(0, aggregate.Trend.Count);
+        Assert.AreEqual(0, aggregate.TodayHours.Count);
     }
 
     /// <summary>

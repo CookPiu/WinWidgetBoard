@@ -697,6 +697,92 @@
             Value="{ThemeResource TextFillColorSecondaryBrush}" />
     </Style>
 
+    <!--
+        A figure that outranks a reading but not the headline: the token card's two tiles.
+        One step below the 28 DIP headline and two above body, so the three sizes read as
+        three levels rather than as a headline with two footnotes.
+    -->
+    <Style
+        x:Key="WwbCardFigureStyle"
+        TargetType="TextBlock"
+        BasedOn="{StaticResource TitleTextBlockStyle}">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LineHeight" Value="22" />
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <!--
+        The token card's spend curve. The area takes the weather motif brush at the motif
+        opacity, so it is the same kind of backdrop the weather card paints and vanishes with
+        it under high contrast; the line and the crosshair take text colours, because they
+        state a value and have to survive there. The tip sits on the card surface colour so it
+        reads over the curve. Geometry and positions come from the control; nothing here moves
+        on its own.
+    -->
+    <Style
+        x:Key="WwbTokenUsageSpendCurveStyle"
+        TargetType="Control">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Control">
+                    <Grid>
+                        <Path
+                            x:Name="PART_Area"
+                            Opacity="{ThemeResource WwbWeatherMotifOpacity}"
+                            Fill="{ThemeResource WwbWeatherMotifStrongBrush}"
+                            IsHitTestVisible="False" />
+                        <Path
+                            x:Name="PART_Line"
+                            Stroke="{ThemeResource TextFillColorTertiaryBrush}"
+                            StrokeThickness="1"
+                            IsHitTestVisible="False" />
+                        <Rectangle
+                            x:Name="PART_Crosshair"
+                            Width="1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Stretch"
+                            Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed" />
+                        <Ellipse
+                            x:Name="PART_Pip"
+                            Width="7"
+                            Height="7"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Fill="{ThemeResource TextFillColorPrimaryBrush}"
+                            Stroke="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            StrokeThickness="1.5"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed" />
+                        <Border
+                            x:Name="PART_Tip"
+                            Padding="6,1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            CornerRadius="{StaticResource WwbControlCornerRadius}"
+                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                            BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
+                            BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed">
+                            <TextBlock
+                                x:Name="PART_TipText"
+                                Style="{StaticResource WwbCardCaptionStyle}"
+                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style
         x:Key="WwbSearchResultTitleStyle"
         TargetType="TextBlock"

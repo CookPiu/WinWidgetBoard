@@ -85,29 +85,72 @@ public sealed class TokenUsageCardProjectionTests
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-064 [USE-009] An idle hour draws nothing; any usage draws at least a stub")]
-    public void TrendBarsKeepAMinimumHeight()
+        "UT-TOKUSE-064 [USE-009] Each curve point carries a tip: the hour, the spend, the tokens")]
+    public void CurvePointsCarryALocalizedTip()
     {
         TokenUsagePage page = Overview(Project(ReadyReport()));
 
-        Assert.AreEqual(TokenUsageContract.TrendHours, page.Trend.Count);
-        // An idle hour is honest absence - stubs across every idle hour read as a dashed
-        // line - while an hour with any usage at all must never vanish.
-        Assert.AreEqual(0d, page.Trend[0].BarHeight, 0.0001d);
+        Assert.AreEqual(11, page.SpendCurve.Count);
+        Assert.IsTrue(page.IsSpendCurveVisible);
+        // The broker formats the numbers; the panel adds the one word that has to be
+        // translated and the phrase around the hour's tokens.
         Assert.AreEqual(
-            TokenUsageTrendBar.MinimumBarHeight,
-            page.Trend[1].BarHeight,
-            0.0001d);
-        Assert.AreEqual(TokenUsageTrendBar.TrackHeight, page.Trend[^1].BarHeight, 0.0001d);
+            "01:00 \u2248$1.00 \u00b7 name:TokenUsageSpendCurve.HourTokens 1",
+            page.SpendCurve[1].TipText);
+        Assert.IsTrue(page.SpendCurve[^1].IsCurrent);
+        Assert.IsTrue(
+            page.SpendCurve[^1].TipText.StartsWith(
+                "name:TokenUsageSpendCurve.Now \u2248$12.34",
+                StringComparison.Ordinal));
+        Assert.AreEqual(1d, page.SpendCurve[^1].Fraction, 0.0001d);
     }
 
     [TestMethod(DisplayName =
-        "UT-TOKUSE-065 [USE-009] The trend strip is hidden when there is nothing to draw")]
-    public void TrendHiddenWithoutData()
+        "UT-TOKUSE-065 [USE-009] The curve is hidden when there is nothing to draw")]
+    public void CurveHiddenWithoutData()
     {
-        // A row of minimum-height bars reads as "zero everywhere", which is not the same as
-        // having no history yet.
-        Assert.IsFalse(Overview(Project(EmptyReport())).IsTrendVisible);
+        // A line along the floor reads as "zero everywhere", which is not the same as having
+        // no history yet.
+        Assert.IsFalse(Overview(Project(EmptyReport())).IsSpendCurveVisible);
+        Assert.AreEqual(0, Overview(Project(EmptyReport())).SpendCurve.Count);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-124 [USE-008] The tiles compose their second lines from the readings")]
+    public void TilesComposeTheirNotes()
+    {
+        TokenUsagePage page = Overview(Project(ReadyReport()));
+
+        Assert.IsTrue(page.HasKpi);
+        Assert.AreEqual("11.4M", page.TotalTokensText);
+        Assert.AreEqual("name:TokenUsageKpi.CacheReadNote 11.0M", page.TotalTokensNoteText);
+        Assert.AreEqual("73", page.RequestsText);
+        Assert.AreEqual("name:TokenUsageKpi.AveragePerRequest 5,479", page.RequestsNoteText);
+        Assert.IsFalse(Overview(Project(EmptyReport())).HasKpi);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-TOKUSE-125 [USE-010] A vendor slice shows its name and its amount; a model its id")]
+    public void SplitLabelsUseNamesAndAmounts()
+    {
+        var report = new TokenUsageReport(
+            ReadyAggregate() with
+            {
+                Breakdown =
+                [
+                    new TokenUsageSlice(TokenUsageContract.ClaudeVendorId, 300_000, 60, 10.00m),
+                    new TokenUsageSlice(TokenUsageContract.CodexVendorId, 100_000, 13),
+                ],
+            },
+            [new TokenUsageVendorReport(TokenUsageContract.ClaudeVendorId, ReadyAggregate())]);
+
+        TokenUsageCardProjection projection = Project(report);
+
+        // The overview names the vendor the way its tab does; the amount rides with it where
+        // one exists, and the token count stands in where nothing was priced.
+        Assert.AreEqual("name:TokenUsagePage.Claude \u2248$10.00", projection.Pages[0].Breakdown[0].SplitLabel);
+        Assert.AreEqual("name:TokenUsagePage.Codex 100K", projection.Pages[0].Breakdown[1].SplitLabel);
+        Assert.AreEqual("claude-opus-5 \u2248$12.34", projection.Pages[1].Breakdown[0].SplitLabel);
     }
 
     [TestMethod(DisplayName =
@@ -263,23 +306,29 @@ public sealed class TokenUsageCardProjectionTests
             HasCurrentRate = true,
             PeakRatePerMinute = 14_900d,
             PeakWindowStartLocal = new DateTimeOffset(2026, 8, 28, 9, 30, 0, TimeSpan.Zero),
-            Trend = BuildTrend(),
-            Breakdown = [new TokenUsageSlice("claude-opus-5", 300_000, 73)],
+            TodayHours = BuildTodayHours(),
+            TodayElapsedHours = 10d + 46d / 60d,
+            Breakdown = [new TokenUsageSlice("claude-opus-5", 300_000, 73, 12.34m)],
             CacheHitRate = 0.75d,
+            TodayCostUsd = 12.34m,
         };
 
-    private static TokenUsageHourBucket[] BuildTrend()
+    /// <summary>
+    /// 00:00 through 10:00 on the sample day. Hour 1 carries a single token and a dollar so
+    /// the curve has all three cases: an idle hour, an hour with barely any usage, and the
+    /// open hour where the rest of the day's spend lands.
+    /// </summary>
+    private static TokenUsageHourBucket[] BuildTodayHours()
     {
-        var buckets = new TokenUsageHourBucket[TokenUsageContract.TrendHours];
-        for (int i = 0; i < buckets.Length; i++)
+        var buckets = new TokenUsageHourBucket[11];
+        for (int hour = 0; hour < buckets.Length; hour++)
         {
-            bool last = i == buckets.Length - 1;
-            // Bucket 1 carries a single token so the strip has all three cases: an idle
-            // hour, an hour with barely any usage, and the peak hour.
-            buckets[i] = new TokenUsageHourBucket(
-                SampledAt.AddHours(i - (TokenUsageContract.TrendHours - 1)),
-                last ? 1_000 : i == 1 ? 1 : 0,
-                Requests: last ? 1 : i == 1 ? 1 : 0);
+            bool last = hour == buckets.Length - 1;
+            buckets[hour] = new TokenUsageHourBucket(
+                new DateTimeOffset(2026, 8, 28, hour, 0, 0, TimeSpan.Zero),
+                last ? 1_000 : hour == 1 ? 1 : 0,
+                Requests: last ? 1 : hour == 1 ? 1 : 0,
+                last ? 11.34m : hour == 1 ? 1.00m : 0m);
         }
 
         return buckets;

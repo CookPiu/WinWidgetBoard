@@ -52,9 +52,9 @@ public static class TokenUsageContract
         value is not null && VendorIds.Contains(value, StringComparer.Ordinal);
 
     /// <summary>
-    /// How many hourly buckets travel with the card. Twenty-four is the window the card's
-    /// trend draws, and it is also the point past which the scanner stops keeping individual
-    /// responses and folds them into daily totals.
+    /// The hourly window the broker keeps individual responses for. Twenty-four covers every
+    /// hour "today" can reach back to, and it is also the point past which the scanner stops
+    /// keeping individual responses and folds them into daily totals.
     /// </summary>
     public const int TrendHours = 24;
 
@@ -112,10 +112,10 @@ public static class TokenUsageContract
     public static IReadOnlyList<string> MetricIds { get; } =
     [
         TodayBilledTokens,
-        TodayCacheReadTokens,
-        TodayRequests,
-        CacheHitRate,
         TodayOutputTokens,
+        TodayCacheReadTokens,
+        CacheHitRate,
+        TodayRequests,
     ];
 
     public static IReadOnlyList<string> Methods { get; } =
@@ -199,11 +199,25 @@ public sealed record TokenUsagePageDto
         Array.Empty<TokenUsageMetricDto>();
 
     /// <summary>
-    /// Hourly billed-token totals, oldest first, normalised to 0..1 against this page's own
-    /// peak. Normalised here for the same reason the text is formatted here: the card has no
-    /// ceiling to draw against and would have to invent one.
+    /// Today's spend as it accumulated, one point per hour from midnight to now, oldest
+    /// first. Positions are already normalised - the horizontal axis is the part of the day
+    /// that has elapsed, the vertical the day's total so far - so the card draws a curve
+    /// that always spans its full width and never has to invent a ceiling. Empty when the
+    /// page has nothing today.
     /// </summary>
-    public IReadOnlyList<double> Trend { get; init; } = Array.Empty<double>();
+    public IReadOnlyList<TokenUsageSpendPointDto> SpendCurve { get; init; } =
+        Array.Empty<TokenUsageSpendPointDto>();
+
+    /// <summary>
+    /// Every token today, billed and cache reads together, formatted. Empty when the page has
+    /// nothing today. It is the one figure the card shows that is not also a metric row: the
+    /// rows keep cache reads apart from the bill on purpose, and this is the sum a reader
+    /// would otherwise do in their head.
+    /// </summary>
+    public string TotalTokensText { get; init; } = string.Empty;
+
+    /// <summary>Billed tokens per response today, formatted. Empty without responses.</summary>
+    public string AverageBilledPerRequestText { get; init; } = string.Empty;
 
     /// <summary>
     /// What this page splits its usage by: vendors on the overview, models on a vendor page.
@@ -262,6 +276,42 @@ public sealed record TokenUsageBreakdownDto
 
     /// <summary>This slice's share of the page's billed tokens, 0..1.</summary>
     public double Ratio { get; init; }
+
+    /// <summary>
+    /// What this slice cost at list price, in the same shape as the page's headline. Empty
+    /// when none of it could be priced.
+    /// </summary>
+    public string CostText { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// One point of a page's spend curve: the day's spend through the end of one local hour.
+/// </summary>
+public sealed record TokenUsageSpendPointDto
+{
+    /// <summary>The local hour of day this point closes, 0..23.</summary>
+    public int Hour { get; init; }
+
+    /// <summary>
+    /// Horizontal position, 0..1: the end of this hour as a share of the day elapsed so far,
+    /// so the last point - the current hour, cut at "now" - is always at 1.
+    /// </summary>
+    public double Fraction { get; init; }
+
+    /// <summary>
+    /// Vertical position, 0..1: the spend through this hour as a share of the day's total.
+    /// Falls back to billed tokens when nothing on the page could be priced.
+    /// </summary>
+    public double Level { get; init; }
+
+    /// <summary>Spend through this hour, formatted like the headline. Empty when unpriced.</summary>
+    public string CumulativeCostText { get; init; } = string.Empty;
+
+    /// <summary>Billed tokens within this hour alone, formatted.</summary>
+    public string BilledText { get; init; } = string.Empty;
+
+    /// <summary>True for the last point, which is the hour still in progress.</summary>
+    public bool IsCurrent { get; init; }
 }
 
 public sealed record TokenUsageSettingsGetRequest

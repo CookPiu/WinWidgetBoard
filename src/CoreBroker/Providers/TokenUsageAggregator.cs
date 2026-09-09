@@ -3,13 +3,15 @@ using WinWidgetBoard.Contracts.Protocol;
 namespace WinWidgetBoard.CoreBroker.Providers;
 
 /// <summary>
-/// One hour of a trend, in local wall-clock time so the shape lines up with the user's day
-/// rather than with UTC.
+/// One hour of today, in local wall-clock time so the shape lines up with the user's day
+/// rather than with UTC. The cost is this hour's share at list price, on the same terms as
+/// the day's total.
 /// </summary>
 public readonly record struct TokenUsageHourBucket(
     DateTimeOffset HourStartLocal,
     long BilledTokens,
-    int Requests);
+    int Requests,
+    decimal CostUsd = 0m);
 
 /// <summary>
 /// One slice of a page's usage: a vendor on the overview, a model on a vendor's own page.
@@ -17,7 +19,8 @@ public readonly record struct TokenUsageHourBucket(
 public readonly record struct TokenUsageSlice(
     string Label,
     long BilledTokens,
-    int Requests);
+    int Requests,
+    decimal CostUsd = 0m);
 
 /// <summary>
 /// One page's numbers. Formatting into display text is a separate step so the arithmetic can
@@ -67,8 +70,20 @@ public sealed record TokenUsageAggregate
 
     public DateTimeOffset? PeakWindowStartLocal { get; init; }
 
-    public IReadOnlyList<TokenUsageHourBucket> Trend { get; init; } =
+    /// <summary>
+    /// Today's hours so far, midnight first, the current hour last. Always contiguous: an
+    /// idle hour is a bucket of zeros, not a gap, because the card draws the day as a curve
+    /// and a curve needs every hour to have a position.
+    /// </summary>
+    public IReadOnlyList<TokenUsageHourBucket> TodayHours { get; init; } =
         Array.Empty<TokenUsageHourBucket>();
+
+    /// <summary>
+    /// How much of the local day has passed, in hours, 0..24. The curve's horizontal axis is
+    /// this rather than the whole day, so it always spans the card and the right edge is
+    /// always "now".
+    /// </summary>
+    public double TodayElapsedHours { get; init; }
 
     public IReadOnlyList<TokenUsageSlice> Breakdown { get; init; } =
         Array.Empty<TokenUsageSlice>();
@@ -134,9 +149,9 @@ public sealed record TokenUsageReport(
 public sealed class TokenUsageAggregator
 {
     /// <summary>
-    /// How far back records are kept. Twenty-four hours covers the trend, and "today" reaches
-    /// back a further hour at the very end of a local day; two hours of slack absorbs both that
-    /// and a timezone whose offset has just changed.
+    /// How far back records are kept. "Today" reaches back up to twenty-four hours at the very
+    /// end of a local day; two hours of slack absorbs that and a timezone whose offset has just
+    /// changed.
     /// </summary>
     public const int RetentionHours = TokenUsageContract.TrendHours + 2;
 
@@ -273,15 +288,18 @@ public sealed class TokenUsageAggregator
         decimal todayOutputCost = 0m;
         var unpricedModels = new HashSet<string>(StringComparer.Ordinal);
 
-        var hourly = new long[TokenUsageContract.TrendHours];
-        var hourlyRequests = new int[TokenUsageContract.TrendHours];
-        // One slot per rate window across the trend span, so the peak is comparable with the
-        // current rate instead of being an hourly average of it.
+        // Indexed by local hour of day. Only today's records land here.
+        var todayHourBilled = new long[24];
+        var todayHourRequests = new int[24];
+        var todayHourCost = new decimal[24];
+        // One slot per rate window across the retention span, so the peak is comparable with
+        // the current rate instead of being an hourly average of it.
         int rateWindowCount =
             TokenUsageContract.TrendHours * 60 / TokenUsageContract.RateWindowMinutes;
         var rateWindows = new long[rateWindowCount];
         DateTimeOffset rateWindowsEnd = currentHourLocal.AddHours(1);
-        var slices = new Dictionary<string, (long Billed, int Requests)>(StringComparer.Ordinal);
+        var slices = new Dictionary<string, (long Billed, int Requests, decimal Cost)>(
+            StringComparer.Ordinal);
 
         foreach (TranscriptUsageRecord record in _records)
         {
@@ -300,6 +318,10 @@ public sealed class TokenUsageAggregator
                 todayCacheRead += record.CacheReadTokens;
                 todayCacheableInput += record.CacheableInputTokens;
                 todayRequests++;
+                int hourOfDay = localTime.Hour;
+                todayHourBilled[hourOfDay] += record.BilledTokens;
+                todayHourRequests[hourOfDay]++;
+                decimal recordCost = 0m;
 
                 if (_rateLookup(record.Model) is { } rate)
                 {
@@ -316,7 +338,9 @@ public sealed class TokenUsageAggregator
                     todayOutputCost += outputCost;
                     todayBilledCost += billedCost;
                     todayCacheReadCost += cacheReadCost;
-                    todayCost += billedCost + cacheReadCost;
+                    recordCost = billedCost + cacheReadCost;
+                    todayCost += recordCost;
+                    todayHourCost[hourOfDay] += recordCost;
                 }
                 else
                 {
@@ -324,37 +348,18 @@ public sealed class TokenUsageAggregator
                 }
 
                 string key = label(record);
-                (long billed, int requests) = slices.TryGetValue(
+                (long billed, int requests, decimal cost) = slices.TryGetValue(
                     key,
-                    out (long Billed, int Requests) existing)
+                    out (long Billed, int Requests, decimal Cost) existing)
                     ? existing
                     : default;
-                slices[key] = (billed + record.BilledTokens, requests + 1);
+                slices[key] = (billed + record.BilledTokens, requests + 1, cost + recordCost);
             }
 
             if (record.TimestampUtc >= rateWindowStart)
             {
                 rateWindowBilled += record.BilledTokens;
                 rateWindowRequests++;
-            }
-
-            // Bucketed by the hour the record falls in, not by the distance to the start of the
-            // current hour: the latter floors to -1 for anything inside the current hour and
-            // silently drops the most recent - and most interesting - readings.
-            DateTimeOffset recordHourLocal = new(
-                localTime.Year,
-                localTime.Month,
-                localTime.Day,
-                localTime.Hour,
-                0,
-                0,
-                localTime.Offset);
-            int hoursBack = (int)Math.Round((currentHourLocal - recordHourLocal).TotalHours);
-            if (hoursBack >= 0 && hoursBack < TokenUsageContract.TrendHours)
-            {
-                int index = TokenUsageContract.TrendHours - 1 - hoursBack;
-                hourly[index] += record.BilledTokens;
-                hourlyRequests[index]++;
             }
 
             if (localTime >= todayStartLocal)
@@ -374,13 +379,16 @@ public sealed class TokenUsageAggregator
             return new TokenUsageAggregate();
         }
 
-        var trend = new TokenUsageHourBucket[TokenUsageContract.TrendHours];
-        for (int i = 0; i < trend.Length; i++)
+        // Bucketed by the local hour of day, which is what places the current hour: it is the
+        // last bucket, and a record inside it lands there rather than being floored away.
+        var todayHours = new TokenUsageHourBucket[nowLocal.Hour + 1];
+        for (int hour = 0; hour < todayHours.Length; hour++)
         {
-            trend[i] = new TokenUsageHourBucket(
-                currentHourLocal.AddHours(i - (TokenUsageContract.TrendHours - 1)),
-                hourly[i],
-                hourlyRequests[i]);
+            todayHours[hour] = new TokenUsageHourBucket(
+                todayStartLocal.AddHours(hour),
+                todayHourBilled[hour],
+                todayHourRequests[hour],
+                todayHourCost[hour]);
         }
 
         long peakBilled = 0;
@@ -410,7 +418,8 @@ public sealed class TokenUsageAggregator
                 ? rateWindowsEnd.AddMinutes(
                     -(rateWindowCount - peakIndex) * TokenUsageContract.RateWindowMinutes)
                 : null,
-            Trend = trend,
+            TodayHours = todayHours,
+            TodayElapsedHours = (nowLocal - todayStartLocal).TotalHours,
             Breakdown = RankSlices(slices),
             CacheHitRate = todayCacheableInput > 0
                 ? todayCacheRead / (double)todayCacheableInput
@@ -424,12 +433,16 @@ public sealed class TokenUsageAggregator
     }
 
     private static TokenUsageSlice[] RankSlices(
-        Dictionary<string, (long Billed, int Requests)> slices) =>
+        Dictionary<string, (long Billed, int Requests, decimal Cost)> slices) =>
         slices.Count == 0
             ? Array.Empty<TokenUsageSlice>()
             : slices
                 .Select(pair =>
-                    new TokenUsageSlice(pair.Key, pair.Value.Billed, pair.Value.Requests))
+                    new TokenUsageSlice(
+                        pair.Key,
+                        pair.Value.Billed,
+                        pair.Value.Requests,
+                        pair.Value.Cost))
                 .OrderByDescending(slice => slice.BilledTokens)
                 .ThenBy(slice => slice.Label, StringComparer.Ordinal)
                 .Take(TokenUsageContract.MaxBreakdownRows)
