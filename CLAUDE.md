@@ -241,6 +241,26 @@ the string `Unable to resolve property 'Now' while processing properties for Uid
 keys a prefix that is not an `x:Uid` (`TokenUsageCurve.Now`), and when the panel dies with
 `0xc000027b` and no message, grep the dump's UTF-16 strings before anything else.
 
+## A `0xc000027b` panel crash with no text in the dump: hook `UnhandledException`, reproduce in isolation
+
+Every managed exception thrown inside a XAML callback (a dependency-property change, an `x:Bind`
+getter, a `DispatcherQueue` callback) surfaces as this stowed-exception fail-fast, and the WER
+dump does not always carry the message. The second crash of the spend-curve card was
+`Microsoft.UI.Xaml.LayoutCycleException` — the curve's `Path` was rebuilt on `SizeChanged` and
+its stroke grew the template's desired size by half a pixel per pass. Nothing in the dump said
+so; a temporary `Application.UnhandledException` handler writing to `%TEMP%` did, on the first
+run. Two things make that loop fast:
+
+- **Reproduce without the desktop.** `--smoke-test` and the launcher's panel smokes never feed
+  the card data, so they pass. Kill the installed instance (its pipe name is shared, so nothing
+  isolated can coexist with it), then use `Start-TestBroker` / `Start-TestPanel` from
+  `scripts/WinWidgetBoard.UiAutomation.psm1` with a temp data root and a fresh instance id: the
+  broker still scans the real transcripts, so the card gets real data within seconds, and
+  `Process.HasExited` plus a UIA lookup of `TokenUsageCostText` says whether it survived.
+- **Anything rebuilt on `SizeChanged` must not affect layout.** Put computed shapes in a
+  `Canvas` (its desired size ignores its children) and set their sizes in code; never let a
+  stroked `Path` be a direct child of the template's measuring panel.
+
 ## An `x:Bind` property must not share a name with an `x:Name` on the same page
 
 A `DataTemplate` in `MainWindow.xaml` bound `Text="{x:Bind StatusText}"` against its own

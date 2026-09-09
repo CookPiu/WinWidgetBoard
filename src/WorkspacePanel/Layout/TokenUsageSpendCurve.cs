@@ -22,6 +22,10 @@ namespace WinWidgetBoard.WorkspacePanel.Layout;
 /// The crosshair moves compositor properties only (<see cref="UIElement.Translation"/>) and
 /// toggles visibility, with no animation at all: pointer tracking is the one interaction here
 /// that must add no latency, and a crosshair that eases toward the pointer is one that lags it.
+///
+/// The geometry is rebuilt on SizeChanged, so nothing it produces may feed back into layout:
+/// the template keeps every shape in a Canvas (see the style) and this type never sets a size
+/// on anything the parent measures.
 /// </summary>
 public sealed partial class TokenUsageSpendCurve : Control
 {
@@ -34,10 +38,14 @@ public sealed partial class TokenUsageSpendCurve : Control
     private const double PipDiameter = 7d;
     private const double TipGap = 6d;
 
+    // Registered as object: the value is a managed list of a plain record, which is not a
+    // WinRT type, and a property type XAML cannot resolve through the generated metadata
+    // fails at assignment rather than at registration - after the smoke test, on the real
+    // desktop. The getter narrows it back.
     public static readonly DependencyProperty PointsProperty =
         DependencyProperty.Register(
             nameof(Points),
-            typeof(IReadOnlyList<TokenUsageSpendPoint>),
+            typeof(object),
             typeof(TokenUsageSpendCurve),
             new PropertyMetadata(null, OnPointsChanged));
 
@@ -72,7 +80,7 @@ public sealed partial class TokenUsageSpendCurve : Control
 
     public IReadOnlyList<TokenUsageSpendPoint>? Points
     {
-        get => (IReadOnlyList<TokenUsageSpendPoint>?)GetValue(PointsProperty);
+        get => GetValue(PointsProperty) as IReadOnlyList<TokenUsageSpendPoint>;
         set => SetValue(PointsProperty, value);
     }
 
@@ -121,30 +129,32 @@ public sealed partial class TokenUsageSpendCurve : Control
             return;
         }
 
-        var origin = new Point(0d, height);
-        var lineFigure = new PathFigure { StartPoint = origin, IsClosed = false };
-        var areaFigure = new PathFigure { StartPoint = origin, IsClosed = true };
-        var linePoints = new PolyLineSegment();
-        var areaPoints = new PolyLineSegment();
-        double lastX = 0d;
-        foreach (TokenUsageSpendPoint point in points)
         {
-            Point placed = Place(point, width, height);
-            linePoints.Points.Add(placed);
-            areaPoints.Points.Add(placed);
-            lastX = placed.X;
+            var origin = new Point(0d, height);
+            var linePoints = new PointCollection();
+            var areaPoints = new PointCollection();
+            double lastX = 0d;
+            foreach (TokenUsageSpendPoint point in points)
+            {
+                Point placed = Place(point, width, height);
+                linePoints.Add(placed);
+                areaPoints.Add(placed);
+                lastX = placed.X;
+            }
+
+            areaPoints.Add(new Point(lastX, height));
+            var lineFigure = new PathFigure { StartPoint = origin, IsClosed = false };
+            lineFigure.Segments.Add(new PolyLineSegment { Points = linePoints });
+            var areaFigure = new PathFigure { StartPoint = origin, IsClosed = true };
+            areaFigure.Segments.Add(new PolyLineSegment { Points = areaPoints });
+
+            var lineGeometry = new PathGeometry();
+            lineGeometry.Figures.Add(lineFigure);
+            var areaGeometry = new PathGeometry();
+            areaGeometry.Figures.Add(areaFigure);
+            _line.Data = lineGeometry;
+            _area.Data = areaGeometry;
         }
-
-        areaPoints.Points.Add(new Point(lastX, height));
-        lineFigure.Segments.Add(linePoints);
-        areaFigure.Segments.Add(areaPoints);
-
-        var lineGeometry = new PathGeometry();
-        lineGeometry.Figures.Add(lineFigure);
-        var areaGeometry = new PathGeometry();
-        areaGeometry.Figures.Add(areaFigure);
-        _line.Data = lineGeometry;
-        _area.Data = areaGeometry;
     }
 
     private static Point Place(TokenUsageSpendPoint point, double width, double height) =>
@@ -195,6 +205,8 @@ public sealed partial class TokenUsageSpendCurve : Control
         }
 
         Point placed = Place(chosen, width, height);
+        // The crosshair lives in a Canvas and gets no stretch, so its height is set here.
+        _crosshair.Height = height;
         _crosshair.Translation = new Vector3((float)placed.X, 0f, 0f);
         _pip.Translation = new Vector3(
             (float)(placed.X - PipDiameter / 2d),

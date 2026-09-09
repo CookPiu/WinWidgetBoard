@@ -49,9 +49,14 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
   已按 Release x64 重新安装。首次安装后面板打不开：资源键 `TokenUsageSpendCurve.Now/.HourTokens` 与曲线控件的
   `x:Uid="TokenUsageSpendCurve"` 同前缀，被资源加载器当作要设到控件上的属性，面板一开即以 `0xc000027b` 崩溃
   （编译与 `--smoke-test` 都不报，只有 `%LOCALAPPDATA%\CrashDumps` 里的转储字符串说明原因，规则已记入 `CLAUDE.md`）；
-  改为 `TokenUsageCurve.*` 后，对安装目录运行 `LauncherHost --panel-launch-smoke-test` 与 `--panel-lifecycle-smoke-test`
-  退出码均为 0、应用日志无新崩溃。**未复验**：目视核对（浅色/深色下曲线可见、指针跨右缘时标签翻转、编辑模式下按住大字可拖动）
-  仍未做——本机另一全屏程序挡住桌面截图；下次打开面板时按 [ADR-0036](../adr/0036-token-usage-spend-curve-card.md) 门禁三项逐一核对。
+  改为 `TokenUsageCurve.*` 后仍崩：第二个原因是 `LayoutCycleException`——曲线 `Path` 直接挂在模板 Grid 下，
+  每次 `SizeChanged` 重建几何，描边把期望尺寸撑大半像素，布局永不收敛；转储里没有这段文字，临时的
+  `Application.UnhandledException` 钩子第一次运行就报出来了。现改为所有图形放进 `Canvas`（期望尺寸不随子元素变）。
+  复现与验证走隔离栈：停掉已安装实例后用 `Start-TestBroker`/`Start-TestPanel`（临时数据目录、新实例 id）启动，
+  Broker 照常扫描本机会话记录，30 s 后面板存活、UIA 读到 `TokenUsageCostText = ≈$51.80`、`TokenUsageTotalTokensText = 39.4M`，
+  应用日志无崩溃；两次排查经过与规则已记入 `CLAUDE.md`。**未复验**：目视核对（浅色/深色下曲线可见、指针跨右缘时标签翻转、
+  编辑模式下按住大字可拖动）仍未做——本机另一全屏程序挡住桌面截图；下次打开面板时按
+  [ADR-0036](../adr/0036-token-usage-spend-curve-card.md) 门禁三项逐一核对。
 - **便签卡片交互与布局整改（2026-09-02，浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文，隔离栈脚本复跑）**。
   Before：撤销/重做按钮的 `x:Load` 绑在含 `!_isSaving` 的 `CanUndo` 上，每次 500 ms 自动保存都卸载再重建；
   每次按键入一条撤销快照，20 步只够四个词，且 Ctrl+Z 走文本框自己的栈、回来时被记成新编辑并清掉 redo；

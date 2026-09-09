@@ -721,6 +721,12 @@
         state a value and have to survive there. The tip sits on the card surface colour so it
         reads over the curve. Geometry and positions come from the control; nothing here moves
         on its own.
+
+        Everything drawn sits in a Canvas, and that is load-bearing: a Canvas reports no
+        desired size of its own, so the paths cannot feed back into layout. Hosted directly
+        in the Grid, the stroked path's bounds grew the control by half a pixel on every
+        SizeChanged, which rebuilt the geometry, which grew the bounds - a layout cycle that
+        killed the panel the moment real data arrived.
     -->
     <Style
         x:Key="WwbTokenUsageSpendCurveStyle"
@@ -731,52 +737,43 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Control">
-                    <Grid>
-                        <Path
-                            x:Name="PART_Area"
-                            Opacity="{ThemeResource WwbWeatherMotifOpacity}"
-                            Fill="{ThemeResource WwbWeatherMotifStrongBrush}"
-                            IsHitTestVisible="False" />
-                        <Path
-                            x:Name="PART_Line"
-                            Stroke="{ThemeResource TextFillColorTertiaryBrush}"
-                            StrokeThickness="1"
-                            IsHitTestVisible="False" />
-                        <Rectangle
-                            x:Name="PART_Crosshair"
-                            Width="1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Stretch"
-                            Fill="{ThemeResource TextFillColorSecondaryBrush}"
-                            IsHitTestVisible="False"
-                            Visibility="Collapsed" />
-                        <Ellipse
-                            x:Name="PART_Pip"
-                            Width="7"
-                            Height="7"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            Fill="{ThemeResource TextFillColorPrimaryBrush}"
-                            Stroke="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            StrokeThickness="1.5"
-                            IsHitTestVisible="False"
-                            Visibility="Collapsed" />
-                        <Border
-                            x:Name="PART_Tip"
-                            Padding="6,1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top"
-                            CornerRadius="{StaticResource WwbControlCornerRadius}"
-                            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                            BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
-                            BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
-                            IsHitTestVisible="False"
-                            Visibility="Collapsed">
-                            <TextBlock
-                                x:Name="PART_TipText"
-                                Style="{StaticResource WwbCardCaptionStyle}"
-                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                        </Border>
+                    <Grid Background="Transparent">
+                        <Canvas IsHitTestVisible="False">
+                            <Path
+                                x:Name="PART_Area"
+                                Opacity="{ThemeResource WwbWeatherMotifOpacity}"
+                                Fill="{ThemeResource WwbWeatherMotifStrongBrush}" />
+                            <Path
+                                x:Name="PART_Line"
+                                Stroke="{ThemeResource TextFillColorTertiaryBrush}"
+                                StrokeThickness="1" />
+                            <Rectangle
+                                x:Name="PART_Crosshair"
+                                Width="1"
+                                Fill="{ThemeResource TextFillColorSecondaryBrush}"
+                                Visibility="Collapsed" />
+                            <Ellipse
+                                x:Name="PART_Pip"
+                                Width="7"
+                                Height="7"
+                                Fill="{ThemeResource TextFillColorPrimaryBrush}"
+                                Stroke="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                StrokeThickness="1.5"
+                                Visibility="Collapsed" />
+                            <Border
+                                x:Name="PART_Tip"
+                                Padding="6,1"
+                                CornerRadius="{StaticResource WwbControlCornerRadius}"
+                                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
+                                BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    x:Name="PART_TipText"
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                            </Border>
+                        </Canvas>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
