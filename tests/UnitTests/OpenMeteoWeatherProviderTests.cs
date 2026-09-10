@@ -65,7 +65,7 @@ public sealed class OpenMeteoWeatherProviderTests
             "weather_code,wind_speed_10m,is_day");
         StringAssert.Contains(
             capturedRequest.RequestUri.Query,
-            "hourly=temperature_2m,weather_code,is_day");
+            "hourly=temperature_2m,weather_code,is_day,precipitation_probability");
         StringAssert.Contains(
             capturedRequest.RequestUri.Query,
             "daily=weather_code,temperature_2m_max,temperature_2m_min");

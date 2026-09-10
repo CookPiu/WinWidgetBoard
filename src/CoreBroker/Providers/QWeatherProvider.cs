@@ -41,12 +41,16 @@ public sealed class QWeatherProvider : IProviderRefreshSource
 
     private static readonly TimeSpan CacheFreshness = TimeSpan.FromMinutes(15);
 
-    /// <summary>Today plus three, matching what the card shows.</summary>
-    private const int ForecastDays = 4;
+    /// <summary>Today plus five, matching what the widest card shows.</summary>
+    private const int ForecastDays = 6;
 
-    private const int PublishedHourlyCount = 12;
+    /// <summary>
+    /// How many hours of the trend are published. The card decides how many of them to draw:
+    /// slicing here would make the payload depend on a card size the broker cannot see.
+    /// </summary>
+    private const int PublishedHourlyCount = 24;
 
-    private const int MaxPublishedDailyCount = 3;
+    private const int MaxPublishedDailyCount = 5;
 
     private readonly HttpClient _httpClient;
     private readonly string _apiHost;
@@ -474,7 +478,8 @@ public sealed class QWeatherProvider : IProviderRefreshSource
                     new QWeatherHour(
                         forecastTime,
                         temperature,
-                        QWeatherConditionCodes.ToWeatherCode(ReadConditionCode(entry))));
+                        QWeatherConditionCodes.ToWeatherCode(ReadConditionCode(entry)),
+                        ReadProbabilityPercent(entry)));
             }
         }
         catch (JsonException)
@@ -626,6 +631,9 @@ public sealed class QWeatherProvider : IProviderRefreshSource
                     weatherCode = entry.WeatherCode,
                     isDay = true,
                     conditionIconId = ResolveConditionIconId(entry.WeatherCode, isDay: true),
+                    // Null rather than zero when the vendor sent nothing: "no forecast" and
+                    // "no rain expected" are different answers.
+                    precipitationProbabilityPercent = entry.PrecipitationProbabilityPercent,
                 }).ToArray(),
                 daily = response.Daily
                     .Skip(1)
@@ -769,6 +777,28 @@ public sealed class QWeatherProvider : IProviderRefreshSource
         return true;
     }
 
+    /// <summary>
+    /// One hour's chance of precipitation as whole percent. The vendor sends it as a fraction
+    /// of one under the precipitation object, so it is scaled here to match the field name the
+    /// card reads - the same conversion humidity already gets. Null when absent or out of
+    /// range, which the card reads as "no figure" rather than as no rain.
+    /// </summary>
+    private static int? ReadProbabilityPercent(JsonElement hour)
+    {
+        if (!hour.TryGetProperty("precipitation", out JsonElement precipitation) ||
+            precipitation.ValueKind != JsonValueKind.Object ||
+            !precipitation.TryGetProperty("probability", out JsonElement value) ||
+            value.ValueKind != JsonValueKind.Number ||
+            !value.TryGetDouble(out double fraction) ||
+            !double.IsFinite(fraction) ||
+            fraction is < 0d or > 1d)
+        {
+            return null;
+        }
+
+        return (int)Math.Round(fraction * 100d, MidpointRounding.AwayFromZero);
+    }
+
     /// <summary>Relative humidity and cloud cover arrive as a fraction of one.</summary>
     private static double ReadRequiredFraction(JsonElement parent, string propertyName)
     {
@@ -899,7 +929,8 @@ public sealed record QWeatherApiResponse(
 public sealed record QWeatherHour(
     DateTimeOffset ForecastTime,
     double TemperatureC,
-    int? WeatherCode);
+    int? WeatherCode,
+    int? PrecipitationProbabilityPercent);
 
 public sealed record QWeatherDay(
     DateTimeOffset Start,

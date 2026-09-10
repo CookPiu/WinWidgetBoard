@@ -139,7 +139,7 @@ public sealed partial class TokenUsageSpendCurve : Control
             return;
         }
 
-        IReadOnlyList<TokenUsageCurveSpan> spans = shape.Spans();
+        IReadOnlyList<CurveSpan> spans = shape.Spans();
         var lineFigure = new PathFigure
         {
             StartPoint = Place(spans[0].Start, width, height),
@@ -150,7 +150,7 @@ public sealed partial class TokenUsageSpendCurve : Control
             StartPoint = Place(spans[0].Start, width, height),
             IsClosed = true,
         };
-        foreach (TokenUsageCurveSpan span in spans)
+        foreach (CurveSpan span in spans)
         {
             lineFigure.Segments.Add(Bezier(span, width, height));
             areaFigure.Segments.Add(Bezier(span, width, height));
@@ -167,7 +167,7 @@ public sealed partial class TokenUsageSpendCurve : Control
         _area.Data = areaGeometry;
     }
 
-    private static BezierSegment Bezier(TokenUsageCurveSpan span, double width, double height) =>
+    private static BezierSegment Bezier(CurveSpan span, double width, double height) =>
         new()
         {
             Point1 = Place(span.Control1, width, height),
@@ -175,7 +175,7 @@ public sealed partial class TokenUsageSpendCurve : Control
             Point3 = Place(span.End, width, height),
         };
 
-    private static Point Place(TokenUsageCurveKnot knot, double width, double height) =>
+    private static Point Place(CurveKnot knot, double width, double height) =>
         new(knot.X * width, LevelToY(knot.Y, height));
 
     private static double LevelToY(double level, double height) =>

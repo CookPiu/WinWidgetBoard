@@ -42,24 +42,35 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
 
     private static readonly string HourlyVariables = string.Join(
         ",",
-        ["temperature_2m", "weather_code", "is_day"]);
+        [
+            "temperature_2m",
+            "weather_code",
+            "is_day",
+            // The one fact a weather card is most often opened for that a temperature does
+            // not answer. Absent for hours the model has no probability for, which the
+            // parser treats as "no figure" rather than as zero.
+            "precipitation_probability",
+        ]);
 
     private static readonly string DailyVariables = string.Join(
         ",",
         ["weather_code", "temperature_2m_max", "temperature_2m_min"]);
 
     /// <summary>
-    /// Today plus three. The card shows the three days after today, so a fourth day has to be
-    /// requested to have three to show.
+    /// Today plus five. The widest card shows the five days after today, so a sixth day has
+    /// to be requested to have five to show.
     /// </summary>
-    private const int ForecastDays = 4;
+    private const int ForecastDays = 6;
 
-    /// <summary>How many hours of the trend the card can use. The rest of the day is fetched
-    /// anyway - it comes with the daily request - and simply not published.</summary>
-    private const int PublishedHourlyCount = 12;
+    /// <summary>
+    /// How many hours of the trend are published. The card decides how many of them to draw:
+    /// a two-column card cannot separate twenty-four points, a four-column one can. Slicing
+    /// here instead would make the payload depend on a card size the broker cannot see.
+    /// </summary>
+    private const int PublishedHourlyCount = 24;
 
     /// <summary>Bounds the published forecast independently of what the API returns.</summary>
-    private const int MaxPublishedDailyCount = 3;
+    private const int MaxPublishedDailyCount = 5;
 
     private readonly HttpClient _httpClient;
     private readonly Uri _endpoint;
@@ -394,6 +405,13 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
             return [];
         }
 
+        // Optional on purpose: a model that has no probability for these hours must not cost
+        // the card its temperature trend.
+        JsonElement? probabilities =
+            TryReadArray(hourly, "precipitation_probability", out JsonElement probabilityValues)
+                ? probabilityValues
+                : null;
+
         int count = times.GetArrayLength();
         if (temperatures.GetArrayLength() < count ||
             codes.GetArrayLength() < count ||
@@ -437,7 +455,8 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                     time,
                     temperature,
                     code,
-                    isDay != 0));
+                    isDay != 0,
+                    ReadProbabilityPercent(probabilities, index)));
         }
 
         return entries;
@@ -561,6 +580,24 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         return true;
     }
 
+    /// <summary>
+    /// One hour's chance of precipitation as whole percent, or null when the array is absent,
+    /// short, or carries a null for this hour. Values outside 0..100 are discarded rather
+    /// than clamped: a figure that far off is a parse that went wrong, not a forecast.
+    /// </summary>
+    private static int? ReadProbabilityPercent(JsonElement? probabilities, int index)
+    {
+        if (probabilities is not { } array ||
+            index >= array.GetArrayLength() ||
+            !TryReadInt32(array[index], out int percent) ||
+            percent is < 0 or > 100)
+        {
+            return null;
+        }
+
+        return percent;
+    }
+
     private static bool TryReadFiniteDouble(JsonElement element, out double value)
     {
         value = 0;
@@ -626,6 +663,10 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
                     conditionIconId = WeatherConditionContract.FromWeatherCode(
                         entry.WeatherCode,
                         entry.IsDay),
+                    // Null rather than zero when the model said nothing: "no forecast" and
+                    // "no rain expected" are different answers, and the card draws only one
+                    // of them.
+                    precipitationProbabilityPercent = entry.PrecipitationProbabilityPercent,
                 }).ToArray(),
                 daily = response.Daily.Select(entry => new
                 {
@@ -792,7 +833,8 @@ public sealed class OpenMeteoWeatherProvider : IProviderRefreshSource
         string TimeLocal,
         double TemperatureC,
         int WeatherCode,
-        bool IsDay);
+        bool IsDay,
+        int? PrecipitationProbabilityPercent);
 
     private sealed record WeatherDailyEntry(
         string DateLocal,

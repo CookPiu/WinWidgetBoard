@@ -19,7 +19,7 @@ public sealed class TokenUsageSpendCurveShapeTests
             [Point(0.25d, 0.1d), Point(0.5d, 0.6d), Point(1d, 1d)]);
 
         Assert.AreEqual(4, shape.Knots.Count);
-        Assert.AreEqual(new TokenUsageCurveKnot(0d, 0d), shape.Knots[0]);
+        Assert.AreEqual(new CurveKnot(0d, 0d), shape.Knots[0]);
         Assert.AreEqual(0.1d, shape.LevelAt(0.25d), 1e-9);
         Assert.AreEqual(0.6d, shape.LevelAt(0.5d), 1e-9);
         Assert.AreEqual(1d, shape.LevelAt(1d), 1e-9);
@@ -37,7 +37,7 @@ public sealed class TokenUsageSpendCurveShapeTests
         TokenUsageSpendCurveShape shape = TokenUsageSpendCurveShape.FromPoints(
             [Point(0.2d, 0d), Point(0.4d, 0.05d), Point(0.6d, 1d), Point(0.8d, 1d), Point(1d, 0d)]);
 
-        IReadOnlyList<TokenUsageCurveKnot> knots = shape.Knots;
+        IReadOnlyList<CurveKnot> knots = shape.Knots;
         for (int i = 0; i < knots.Count - 1; i++)
         {
             double low = Math.Min(knots[i].Y, knots[i + 1].Y);
@@ -65,9 +65,9 @@ public sealed class TokenUsageSpendCurveShapeTests
         TokenUsageSpendCurveShape shape = TokenUsageSpendCurveShape.FromPoints(
             [Point(0.3d, 0.2d), Point(0.7d, 0.7d), Point(1d, 1d)]);
 
-        IReadOnlyList<TokenUsageCurveSpan> spans = shape.Spans();
+        IReadOnlyList<CurveSpan> spans = shape.Spans();
         Assert.AreEqual(3, spans.Count);
-        foreach (TokenUsageCurveSpan span in spans)
+        foreach (CurveSpan span in spans)
         {
             for (int step = 0; step <= 20; step++)
             {

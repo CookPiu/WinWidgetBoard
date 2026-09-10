@@ -241,9 +241,37 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public bool HasWeatherData => WeatherProjection.HasData;
 
-    public IReadOnlyList<WeatherHourProjection> WeatherHours => WeatherProjection.Hours;
+    /// <summary>
+    /// How many hours of the trend a card this wide can separate. The provider publishes a
+    /// full day and the card slices it here, because the broker cannot see a card's size: a
+    /// payload cut to one size would starve the other. Two columns cannot tell twenty-four
+    /// points apart - they would land 14 DIP from each other - so the narrow cards take the
+    /// nearer half.
+    /// </summary>
+    private int WeatherHourBudget => Placement.Size switch
+    {
+        CardSize.W or CardSize.XL => 24,
+        _ => 12,
+    };
 
-    public IReadOnlyList<WeatherDayProjection> WeatherDays => WeatherProjection.Days;
+    /// <summary>
+    /// How many forecast days fit. Only the widest card has the height for five; the rest keep
+    /// three, which is what the two-column budget affords once the trend and footer are paid
+    /// for. Content that does not fit is clipped rather than scrolled, so this is a budget and
+    /// not a preference.
+    /// </summary>
+    private int WeatherDayBudget => Placement.Size == CardSize.XL ? 5 : 3;
+
+    public IReadOnlyList<WeatherHourProjection> WeatherHours =>
+        Slice(WeatherProjection.Hours, WeatherHourBudget);
+
+    public IReadOnlyList<WeatherDayProjection> WeatherDays =>
+        Slice(WeatherProjection.Days, WeatherDayBudget);
+
+    private static IReadOnlyList<T> Slice<T>(IReadOnlyList<T> source, int count) =>
+        source.Count <= count
+            ? source
+            : source.Take(count).ToArray();
 
     /// <summary>
     /// The forecast is disclosed by card size, not merely by whether it arrived. A card is a
@@ -735,6 +763,15 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherHours)));
+            // The two lists are now sliced by card size, so a resize that does not change the
+            // snapshot still changes what they contain. Without these the card would keep the
+            // previous size's slice until the next refresh.
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherHours)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherDays)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherDays)));
