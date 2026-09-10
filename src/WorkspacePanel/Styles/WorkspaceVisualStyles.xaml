@@ -908,6 +908,8 @@
                                                 Width="14"
                                                 Height="14"
                                                 VerticalAlignment="Center"
+                                                HorizontalContentAlignment="Stretch"
+                                                VerticalContentAlignment="Stretch"
                                                 IsTabStop="False" />
                                             <TextBlock
                                                 x:Name="PART_TipTime"

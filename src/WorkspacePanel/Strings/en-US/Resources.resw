@@ -1294,4 +1294,10 @@
   <data name="WeatherCurveTipPrecipitationLabel.Text" xml:space="preserve">
     <value>Rain</value>
   </data>
+  <data name="WeatherCurveNow" xml:space="preserve">
+    <value>Now</value>
+  </data>
+  <data name="WeatherCurveAutomationNameFormat" xml:space="preserve">
+    <value>Temperature trend, next {0} hours, from {1} to {2}</value>
+  </data>
 </root>

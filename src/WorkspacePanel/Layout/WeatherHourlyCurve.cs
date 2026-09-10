@@ -240,8 +240,16 @@ public sealed partial class WeatherHourlyCurve : Control
             areaFigure.Segments.Add(Bezier(span, width, curveHeight));
         }
 
+        // Down to the baseline, then back along it. Without that second segment the closing
+        // edge runs straight from the last point's foot to the first point itself, and since
+        // the first point sits at whatever temperature the hour happened to be, the fill
+        // becomes a wedge with a diagonal top - it reads as a shadow cast the wrong way.
+        // The spend curve gets away with one segment only because its first point is the
+        // origin, where that diagonal is already the bottom edge.
+        Point start = Place(spans[0].Start, width, curveHeight);
         Point end = Place(spans[^1].End, width, curveHeight);
         areaFigure.Segments.Add(new LineSegment { Point = new Point(end.X, curveHeight) });
+        areaFigure.Segments.Add(new LineSegment { Point = new Point(start.X, curveHeight) });
 
         var lineGeometry = new PathGeometry();
         lineGeometry.Figures.Add(lineFigure);

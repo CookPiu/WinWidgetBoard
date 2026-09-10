@@ -385,8 +385,40 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     {
         CardSize.XL => 106d,
         CardSize.W => 84d,
-        _ => 68d,
+        _ => 76d,
     };
+
+    /// <summary>
+    /// Three marks under the trend: where it starts, where it is halfway, where it ends. The
+    /// hover readout names any hour exactly, so these exist to say how far the curve reaches -
+    /// without them a descending line could be the next three hours or the next two days.
+    /// </summary>
+    public bool HasWeatherCurveAxis => HasWeatherHours && WeatherCurvePoints.Count >= 3;
+
+    public string WeatherCurveAxisStartText =>
+        _runtimeResourceResolver("WeatherCurveNow") is { Length: > 0 } localized
+            ? localized
+            : WeatherCurvePoints.Count > 0
+                ? WeatherCurvePoints[0].TimeText
+                : string.Empty;
+
+    public string WeatherCurveAxisMidText
+    {
+        get
+        {
+            IReadOnlyList<WeatherCurvePoint> points = WeatherCurvePoints;
+            return points.Count >= 3 ? points[points.Count / 2].TimeText : string.Empty;
+        }
+    }
+
+    public string WeatherCurveAxisEndText
+    {
+        get
+        {
+            IReadOnlyList<WeatherCurvePoint> points = WeatherCurvePoints;
+            return points.Count > 0 ? points[^1].TimeText : string.Empty;
+        }
+    }
 
     /// <summary>
     /// False before the first reading names a place. The card leaves the location line out
@@ -713,6 +745,36 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         RaiseTokenUsageChanged();
     }
 
+    /// <summary>
+    /// What the trend says, for a reader who cannot see it. The backdrop illustration
+    /// deliberately carries no automation name because the card's text already states the
+    /// same facts; the curve is the opposite case - twelve hours of readings appear nowhere
+    /// else on the card, so leaving it unnamed would hide them.
+    /// </summary>
+    public string WeatherCurveAutomationName
+    {
+        get
+        {
+            IReadOnlyList<WeatherCurvePoint> points = WeatherCurvePoints;
+            if (points.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            string? format = _runtimeResourceResolver("WeatherCurveAutomationNameFormat");
+            string first = points[0].TemperatureText;
+            string last = points[^1].TemperatureText;
+            return string.IsNullOrEmpty(format)
+                ? string.Join(" · ", first, last)
+                : string.Format(
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    format,
+                    points.Count,
+                    first,
+                    last);
+        }
+    }
+
     public string WeatherAutomationSummary =>
         string.Join(
             " · ",
@@ -822,6 +884,21 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherCurvePoints)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherCurveAxis)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAxisStartText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAxisMidText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAxisEndText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAutomationName)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherDays)));
@@ -1067,6 +1144,21 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherCurvePoints)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(HasWeatherCurveAxis)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAxisStartText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAxisMidText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAxisEndText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveAutomationName)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherDays)));
