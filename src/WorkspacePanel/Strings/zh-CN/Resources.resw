@@ -1234,4 +1234,58 @@
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>今日花费</value>
   </data>
+  <data name="WeatherSettingsProviderCombo.Header" xml:space="preserve">
+    <value>天气数据源</value>
+  </data>
+  <data name="WeatherSettingsProviderCombo.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>天气数据源</value>
+  </data>
+  <data name="WeatherSettingsProviderOpenMeteoItem.Content" xml:space="preserve">
+    <value>Open-Meteo（无需账号）</value>
+  </data>
+  <data name="WeatherSettingsProviderQWeatherItem.Content" xml:space="preserve">
+    <value>和风天气（需要 API Key）</value>
+  </data>
+  <data name="WeatherSettingsApiHostBox.Header" xml:space="preserve">
+    <value>API Host</value>
+  </data>
+  <data name="WeatherSettingsApiHostBox.PlaceholderText" xml:space="preserve">
+    <value>例如：abcdefg.qweatherapi.com</value>
+  </data>
+  <data name="WeatherSettingsApiHostBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>和风天气 API Host</value>
+  </data>
+  <data name="WeatherSettingsApiKeyBox.Header" xml:space="preserve">
+    <value>API Key</value>
+  </data>
+  <data name="WeatherSettingsApiKeyBox.PlaceholderText" xml:space="preserve">
+    <value>留空表示保留已保存的密钥</value>
+  </data>
+  <data name="WeatherSettingsApiKeyBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>和风天气 API Key</value>
+  </data>
+  <data name="WeatherSettingsProviderConsoleLink.Content" xml:space="preserve">
+    <value>在哪里获取 Host 与 Key</value>
+  </data>
+  <data name="WeatherSettingsProviderConsoleLink.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>打开和风天气控制台设置页</value>
+  </data>
+  <data name="WeatherSettingsCredentialStoredStatus" xml:space="preserve">
+    <value>已保存密钥。留空即保留现有密钥。</value>
+  </data>
+  <data name="WeatherSettingsCredentialMissingStatus" xml:space="preserve">
+    <value>尚未保存密钥。保存密钥后该数据源才能刷新。</value>
+  </data>
+  <data name="WeatherSettingsCredentialReplaceStatus" xml:space="preserve">
+    <value>保存后将替换已存储的密钥。</value>
+  </data>
+  <data name="WeatherSettingsInvalidApiHostStatus" xml:space="preserve">
+    <value>请填写和风天气控制台中的 API Host，例如 abcdefg.qweatherapi.com。</value>
+  </data>
+  <data name="WeatherSettingsInvalidApiKeyStatus" xml:space="preserve">
+    <value>API Key 含有无法发送的字符。</value>
+  </data>
+  <data name="WeatherSettingsMissingApiKeyStatus" xml:space="preserve">
+    <value>请填写该数据源的 API Key。</value>
+  </data>
 </root>

@@ -17,7 +17,7 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// called only while the settings dialog is open - never on a schedule, and never in the
 /// background. See ADR-0027.
 /// </summary>
-public sealed class OpenMeteoGeocodingService
+public sealed class OpenMeteoGeocodingService : IWeatherGeocodingService
 {
     public const string DataSourceKey = "geocoding-api.open-meteo.com";
     public const int MaxResponseBytes = 64 * 1024;

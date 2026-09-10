@@ -1,8 +1,8 @@
 # 当前安全与隐私边界
 
 文档状态：已批准
-版本：0.5
-日期：2026-09-02
+版本：0.6
+日期：2026-09-10
 
 ## 1. 当前攻击面
 
@@ -11,8 +11,10 @@
 - LauncherHost 任务栏入口；
 - WorkspacePanel 用户输入；
 - 当前用户 Named Pipe；
-- SQLite 中的布局、便签、天气位置、硬件监控显示项、Token 用量厂商设置与同步开关，以及过滤后的公开价表；
-- 到 `api.open-meteo.com` 的天气请求与到 `geocoding-api.open-meteo.com` 的地点搜索（见 §3.1）；
+- SQLite 中的布局、便签、天气位置与数据源选择、硬件监控显示项、Token 用量厂商设置与同步开关，以及过滤后的公开价表；
+- SQLite 中经 DPAPI 加密的天气服务 API Key（见 §3.5）；
+- 到当前天气数据源的天气请求与地点搜索：Open-Meteo（`api.open-meteo.com`、
+  `geocoding-api.open-meteo.com`）或和风天气（用户账号自有的 `*.qweatherapi.com` 主机，见 §3.1、§3.5）；
 - 到 `raw.githubusercontent.com` 的每日定价拉取（见 §3.4，用户可关）；
 - 对本机会话转录的只读扫描（见 §3.2）；
 - 本机硬件读数采样（仅公开用户态 API，不联网、不提权）；
@@ -26,7 +28,8 @@
 - 便签标题和正文；
 - 布局和卡片实例；
 - 天气位置标签与坐标；
-- 天气自动/手动定位模式；
+- 天气自动/手动定位模式与数据源选择；
+- 天气服务 API Key（唯一的用户凭据，见 §3.5）；
 - 用户在设置对话框中输入的地点搜索词；
 - 本机会话转录（只读来源，内容绝不进入日志或存储，见 §3.2）；
 - 硬件监控显示项与 Token 用量设置（厂商启用、定价同步开关）；
@@ -43,7 +46,7 @@ flowchart LR
     L["LauncherHost"] --> B["CoreBroker Named Pipe"]
     P["WorkspacePanel"] --> B
     B --> D[("SQLite")]
-    B --> W["Open-Meteo<br/>天气 + 地理编码"]
+    B --> W["天气数据源<br/>Open-Meteo 或和风天气<br/>天气 + 地理编码"]
     B --> G["GitHub raw<br/>LiteLLM 价表（每日、可关）"]
 ```
 
@@ -51,14 +54,15 @@ flowchart LR
 - CoreBroker 只接受当前用户连接和正确 session token；
 - SQLite 是本地用户数据边界；
 - Windows 位置服务是受系统隐私设置控制的 OS 信任边界，只由前台 WorkspacePanel 调用；
-- 外部网络供应商有两个：Open-Meteo（天气读数与地点搜索两个端点）与 GitHub raw
-  （LiteLLM 开源价表一个端点，§3.4）。
+- 外部网络供应商有两类：天气数据源（用户二选一，各自提供天气读数与地点搜索两个端点）
+  与 GitHub raw（LiteLLM 开源价表一个端点，§3.4）。同一时刻只有被选中的那一家会被访问。
 
 ## 3.1 地点搜索
 
-设置天气位置时，用户输入的地名会发送到 `geocoding-api.open-meteo.com`
-（[ADR-0027](adr/0027-weather-location-search.md)）。这是唯一会把用户输入的文本送出本机的路径，
-因此约束比天气读数更紧：
+设置天气位置时，用户输入的地名会发送到**当前天气数据源**的地理编码端点
+（[ADR-0027](adr/0027-weather-location-search.md)、[ADR-0038](adr/0038-second-weather-provider-qweather.md)）：
+Open-Meteo 时为 `geocoding-api.open-meteo.com`，和风天气时为该账号自有的 API 主机。
+这是唯一会把用户输入的文本送出本机的路径，因此约束比天气读数更紧：
 
 - 只在**用户提交搜索时**发生，不做按键即搜，也不在后台或按计划发生；
 - 只发送搜索词本身，不带账号、设备标识、安装标识或既有位置；
@@ -121,6 +125,23 @@ Token 用量的费用估算按公开价折算，价表每日从 LiteLLM 的开�
   「立即同步」是一次显式动作（`tokenusage.pricing.sync`），点击才发起同一条 GET，不受开关约束；
 - 失败不通知用户，只计数供诊断，价格退回上一次成功的结果或内置表。
 
+## 3.5 天气服务凭据
+
+和风天气数据源需要账号（[ADR-0038](adr/0038-second-weather-provider-qweather.md)）。
+这是本产品持有的**唯一一份用户凭据**，因此边界写死在代码里而不是留给配置：
+
+- API Key 经 **DPAPI（当前用户作用域）加密**后以 base64 文本存入 SQLite；
+  数据库文件被拷到其他账户或机器时解密失败，此时**视为没有凭据**，而不是报存储错误；
+- Key 只出现在请求头 `X-QW-Api-Key` 上，**绝不进 URL、请求键、日志或错误文本**；
+  该请求头挂在单条请求消息上，不挂在共享 `HttpClient` 的默认头上，
+  因此不会随无凭据的 Open-Meteo 流量一起发出；
+- Key **只写不读**：任何 IPC 响应只回 `hasApiCredential` 布尔值，从不回显；
+  设置对话框用 `PasswordBox` 采集，保存后立即清空；
+- 允许接收 Key 的主机限定在 `*.qweatherapi.com` 与 `*.qweather.com` 之下。
+  Key 是 bearer 凭据，它被发往哪个主机属于安全边界：粘贴错或被诱导填入的第三方主机不可达，
+  带路径、端口或 userinfo 的地址一律拒绝；
+- 缺 Host 或缺 Key 时不发任何网络请求，直接报缺凭据，**不回退到另一个数据源**。
+
 ## 4. Explorer 与权限
 
 - 禁止注入、Hook 或依赖 Explorer 私有视觉树；
@@ -160,8 +181,9 @@ Token 用量的费用估算按公开价折算，价表每日从 LiteLLM 的开�
 
 ## 8. 天气
 
-- 天气读数只连接 `https://api.open-meteo.com`；地点搜索只连接
-  `https://geocoding-api.open-meteo.com`，且只在用户提交搜索时（约束见 §3.1）；
+- 天气读数只连接**当前数据源**：Open-Meteo 时为 `https://api.open-meteo.com`，
+  和风天气时为该账号自有的 API 主机；地点搜索只连接同一家的地理编码端点，
+  且只在用户提交搜索时（约束见 §3.1、§3.5）；
 - 使用系统 TLS 证书验证；
 - 响应大小限制为 64 KiB；
 - Scheduler deadline 为 10 秒；

@@ -1234,4 +1234,58 @@
   <data name="TokenUsageCostLabel.Text" xml:space="preserve">
     <value>Spent today</value>
   </data>
+  <data name="WeatherSettingsProviderCombo.Header" xml:space="preserve">
+    <value>Weather source</value>
+  </data>
+  <data name="WeatherSettingsProviderCombo.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Weather source</value>
+  </data>
+  <data name="WeatherSettingsProviderOpenMeteoItem.Content" xml:space="preserve">
+    <value>Open-Meteo (no account)</value>
+  </data>
+  <data name="WeatherSettingsProviderQWeatherItem.Content" xml:space="preserve">
+    <value>QWeather (API key required)</value>
+  </data>
+  <data name="WeatherSettingsApiHostBox.Header" xml:space="preserve">
+    <value>API Host</value>
+  </data>
+  <data name="WeatherSettingsApiHostBox.PlaceholderText" xml:space="preserve">
+    <value>for example: abcdefg.qweatherapi.com</value>
+  </data>
+  <data name="WeatherSettingsApiHostBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>QWeather API host</value>
+  </data>
+  <data name="WeatherSettingsApiKeyBox.Header" xml:space="preserve">
+    <value>API Key</value>
+  </data>
+  <data name="WeatherSettingsApiKeyBox.PlaceholderText" xml:space="preserve">
+    <value>Leave empty to keep the stored key</value>
+  </data>
+  <data name="WeatherSettingsApiKeyBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>QWeather API key</value>
+  </data>
+  <data name="WeatherSettingsProviderConsoleLink.Content" xml:space="preserve">
+    <value>Where to find the host and key</value>
+  </data>
+  <data name="WeatherSettingsProviderConsoleLink.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Open the QWeather console settings page</value>
+  </data>
+  <data name="WeatherSettingsCredentialStoredStatus" xml:space="preserve">
+    <value>A key is stored. Leave the box empty to keep it.</value>
+  </data>
+  <data name="WeatherSettingsCredentialMissingStatus" xml:space="preserve">
+    <value>No key stored yet. This source cannot refresh until one is saved.</value>
+  </data>
+  <data name="WeatherSettingsCredentialReplaceStatus" xml:space="preserve">
+    <value>Saving will replace the stored key.</value>
+  </data>
+  <data name="WeatherSettingsInvalidApiHostStatus" xml:space="preserve">
+    <value>Enter the API host from your QWeather console, such as abcdefg.qweatherapi.com.</value>
+  </data>
+  <data name="WeatherSettingsInvalidApiKeyStatus" xml:space="preserve">
+    <value>The API key contains characters that cannot be sent.</value>
+  </data>
+  <data name="WeatherSettingsMissingApiKeyStatus" xml:space="preserve">
+    <value>Enter the API key for this source.</value>
+  </data>
 </root>

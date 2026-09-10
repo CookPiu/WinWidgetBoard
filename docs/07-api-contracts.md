@@ -235,6 +235,9 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
     "latitude": 35.6762,
     "longitude": 139.6503,
     "unitSystem": "metric",
+    "providerId": "open-meteo",
+    "apiHost": "",
+    "apiKey": null,
     "expectedRevision": 0
   }
 }
@@ -246,15 +249,29 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 - latitude 为有限数值且在 `[-90, 90]`；
 - longitude 为有限数值且在 `[-180, 180]`；
 - `unitSystem` 取 `metric` / `imperial`，缺省视为 `metric`——单位字段出现之前的客户端保持原义；
+- `providerId` 取 `open-meteo` / `qweather`，缺省视为 `open-meteo`——数据源字段出现之前的客户端
+  与既有数据行保持原义；未知取值返回 `validation.invalid-argument`；
+- `apiHost` 最长 100 字符，归一化为**纯小写主机名**：接受完整 URL 但只保留其 host，
+  带路径、端口或 userinfo 的一律拒绝；`providerId` 为 `qweather` 且填了 host 时，
+  host 必须位于 `*.qweatherapi.com` 或 `*.qweather.com` 之下，否则返回
+  `validation.invalid-argument`；
+- `apiKey` 最长 128 字符，只允许可打印 ASCII 且不含空白；
 - revision 冲突返回 `conflict.weather-settings-revision`。
 
-单位制只是**显示指令**：对 Open-Meteo 的请求恒为公制，卡片载荷的字段名（`temperatureC`、
-`windSpeedKmh`）继续承诺公制数值；载荷顶层多一个 `unitSystem` 标记，由面板投影与
-`weather.summary.get` 的组装方在格式化时换算（°F、mph）。改单位与改位置走同一条注册置换路径。
+`apiKey` 是**只写字段**，语义由取值决定：`null` 表示保持已存凭据不变，空串表示清除，
+其他值表示替换。任何响应都不回显它——`weather.settings.get` / `.save` 的返回体只带
+`hasApiCredential` 布尔值与 `providerId`、`apiHost`。
 
-未保存时返回 Singapore 默认值和 revision `0`，读取不会写数据库。
+单位制只是**显示指令**：对天气服务的请求恒为公制，卡片载荷的字段名（`temperatureC`、
+`windSpeedKmh`）继续承诺公制数值；载荷顶层多一个 `unitSystem` 标记，由面板投影与
+`weather.summary.get` 的组装方在格式化时换算（°F、mph）。改单位、改数据源与改位置走同一条
+注册置换路径。
+
+未保存时返回 Singapore 默认值、数据源 `open-meteo` 和 revision `0`，读取不会写数据库。
 
 保存成功后 Broker 替换天气请求 key、继承当前可见性并发布 Loading 快照。天气 payload 不持久化。
+选中 `qweather` 但缺 host 或缺凭据时，注册的来源不发网络请求，直接以
+`weather.credentials-missing` 报告缺少凭据，不回退到另一个数据源。
 
 摘要读取：
 
@@ -331,6 +348,8 @@ UI 只应用 sequence 更大的快照，不从缺失 payload 推断动作或权�
 ```
 
 限制：`query` 去空白后为 2～64 字符且不含控制字符，否则返回 `validation.invalid-argument`；最多返回 8 条；响应上限 64 KiB；超时 8 秒。缺少坐标或坐标越界的条目被丢弃，不半填展示。
+
+解析后端**跟随当前天气数据源**（[ADR-0038](adr/0038-second-weather-provider-qweather.md)）：选中和风天气且凭据可用时走和风 GeoAPI，否则走 Open-Meteo 地理编码。上述所有限制对两者相同，响应字段也相同——和风 GeoAPI 不返回 ISO 国家代码，该字段为空串。
 
 无匹配返回**空数组**，不是错误；只有请求本身失败才返回 `resource.unavailable`。调用方据此区分「没有这个地方」与「搜索不可用」，两者在界面上是不同的提示。
 

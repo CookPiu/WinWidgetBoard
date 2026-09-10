@@ -224,5 +224,26 @@ public static class SqliteSchema
                         CHECK (sync_pricing IN (0, 1));
                 PRAGMA user_version = 9;
                 """),
+            // A second weather source. The defaults reproduce the single-source behaviour
+            // exactly - every existing row keeps reading Open-Meteo with no host and no
+            // credential - so an upgrade changes nothing until the user picks the new source.
+            // api_key_protected holds DPAPI ciphertext, base64-encoded because the statement
+            // wrapper binds text rather than blobs; it is never the plaintext key (ADR-0038).
+            new SqliteMigration(
+                10,
+                "persist-weather-provider-selection",
+                """
+                ALTER TABLE weather_settings
+                    ADD COLUMN provider_id TEXT NOT NULL DEFAULT 'open-meteo'
+                        CHECK (provider_id IN ('open-meteo', 'qweather'));
+
+                ALTER TABLE weather_settings
+                    ADD COLUMN api_host TEXT NOT NULL DEFAULT ''
+                        CHECK (length(api_host) <= 100);
+
+                ALTER TABLE weather_settings
+                    ADD COLUMN api_key_protected TEXT NULL;
+                PRAGMA user_version = 10;
+                """),
         };
 }

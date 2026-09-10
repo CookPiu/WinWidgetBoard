@@ -172,8 +172,22 @@ public sealed partial class SettingsDialog : ContentDialog, IDisposable
     {
         if (await WeatherViewModel.SaveAsync(CancellationToken.None))
         {
+            // The view model clears the pending key once it has been stored; the box holds
+            // its own copy, so it is cleared with it rather than left to offer the same
+            // credential again if the dialog is reopened without being recreated.
+            WeatherSettingsApiKeyBox.Password = string.Empty;
             Hide();
         }
+    }
+
+    // PasswordBox.Password is pushed by hand rather than bound: a two-way binding on it
+    // would keep the plaintext in a binding expression for the life of the page, and this
+    // value is meant to live only until the save that stores it.
+    private void WeatherSettingsApiKeyBox_PasswordChanged(
+        object sender,
+        RoutedEventArgs args)
+    {
+        WeatherViewModel.ApiKey = WeatherSettingsApiKeyBox.Password;
     }
 
     private async void WeatherSettingsDeviceLocationButton_Click(

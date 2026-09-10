@@ -107,9 +107,6 @@ internal static class Program
             Timeout = Timeout.InfiniteTimeSpan,
         };
         var weatherSettingsRepository = new WeatherSettingsRepository(database);
-        // Shares the weather HttpClient: same vendor, same privacy boundary, and one place
-        // to change if either ever needs a proxy or a different timeout policy.
-        var geocodingService = new OpenMeteoGeocodingService(weatherHttpClient);
         using var weatherRuntime = new WeatherProviderRuntime(
             weatherSettingsRepository,
             providerHost,
@@ -117,6 +114,14 @@ internal static class Program
             cardSnapshotSubscriptionHub,
             weatherHttpClient,
             refreshClock);
+        // Shares the weather HttpClient: same privacy boundary as the readings, and one
+        // place to change if either ever needs a proxy or a different timeout policy. The
+        // QWeather credential rides on the individual request messages, never on this
+        // client's default headers, so the keyless Open-Meteo traffic cannot pick it up.
+        var geocodingService = new WeatherGeocodingRouter(
+            weatherRuntime.GetGeocodingSelection,
+            new OpenMeteoGeocodingService(weatherHttpClient),
+            (host, key) => new QWeatherGeocodingService(weatherHttpClient, host, key));
         using var systemMonitorRuntime = new SystemMonitorRuntime(
             new SystemMonitorSettingsRepository(database),
             providerHost,

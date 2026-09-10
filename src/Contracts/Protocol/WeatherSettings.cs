@@ -19,6 +19,143 @@ public static class WeatherSettingsContract
 
     public const int MaxTemperatureTextLength = 16;
 
+    // Which network source the card reads from. Stored and sent as a short token rather than
+    // as the scheduler's provider id: the scheduler id names a code path, this names a user
+    // choice, and the two are free to drift.
+    public const string OpenMeteoProviderId = "open-meteo";
+    public const string QWeatherProviderId = "qweather";
+
+    public const int MaxApiHostLength = 100;
+    public const int MaxApiKeyLength = 128;
+
+    /// <summary>
+    /// The hosts an API key is allowed to travel to. A key is a bearer credential, so the
+    /// host it is sent to is part of the security boundary, not a free-form setting: a
+    /// mistyped or pasted-in host must not be able to forward the key to a third party.
+    /// </summary>
+    public static IReadOnlyList<string> QWeatherHostSuffixes { get; } =
+    [
+        ".qweatherapi.com",
+        ".qweather.com",
+    ];
+
+    public static IReadOnlyList<string> ProviderIds { get; } =
+    [
+        OpenMeteoProviderId,
+        QWeatherProviderId,
+    ];
+
+    public static bool IsValidProviderId(string? value) =>
+        value is not null && ProviderIds.Contains(value, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Missing means Open-Meteo, so a row written before a second source existed - and a
+    /// request from a client that has never heard of the field - keeps meaning what it meant.
+    /// </summary>
+    public static bool TryNormalizeProviderId(string? value, out string normalized)
+    {
+        normalized = OpenMeteoProviderId;
+        if (value is null)
+        {
+            return true;
+        }
+
+        if (!IsValidProviderId(value))
+        {
+            return false;
+        }
+
+        normalized = value;
+        return true;
+    }
+
+    public static bool RequiresApiCredential(string? providerId) =>
+        string.Equals(providerId, QWeatherProviderId, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Reduces what the user pasted to a bare lowercase host name. A full URL is accepted
+    /// because the console shows the host inside one, but only its host survives: a path,
+    /// a query, a port or a userinfo section would each be a different destination from the
+    /// one <see cref="IsAllowedQWeatherHost"/> checked.
+    /// </summary>
+    public static bool TryNormalizeApiHost(string? value, out string normalized)
+    {
+        normalized = string.Empty;
+        if (value is null)
+        {
+            return true;
+        }
+
+        string trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            return true;
+        }
+
+        if (trimmed.Contains("://", StringComparison.Ordinal))
+        {
+            if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? parsed) ||
+                !string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal) ||
+                parsed.UserInfo.Length != 0 ||
+                !parsed.IsDefaultPort)
+            {
+                return false;
+            }
+
+            trimmed = parsed.Host;
+        }
+
+        trimmed = trimmed.ToLowerInvariant();
+        if (trimmed.Length > MaxApiHostLength || !IsHostName(trimmed))
+        {
+            return false;
+        }
+
+        normalized = trimmed;
+        return true;
+    }
+
+    public static bool IsAllowedQWeatherHost(string? host) =>
+        host is not null &&
+        QWeatherHostSuffixes.Any(
+            suffix => host.EndsWith(suffix, StringComparison.Ordinal) &&
+                host.Length > suffix.Length);
+
+    /// <summary>
+    /// An API key is opaque to us, so it is only checked for the shape a header value can
+    /// carry: printable ASCII, no spaces, bounded. Null means "leave the stored key alone"
+    /// and is the caller's business, not this method's.
+    /// </summary>
+    public static bool IsValidApiKey(string? value) =>
+        value is not null &&
+        value.Length is > 0 and <= MaxApiKeyLength &&
+        value.All(static character => character is > ' ' and < (char)0x7f);
+
+    private static bool IsHostName(string value)
+    {
+        if (value.Length == 0 ||
+            value.StartsWith('.') ||
+            value.EndsWith('.') ||
+            !value.Contains('.', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        foreach (string label in value.Split('.'))
+        {
+            if (label.Length is 0 or > 63 ||
+                label.StartsWith('-') ||
+                label.EndsWith('-') ||
+                !label.All(static character =>
+                    char.IsAsciiLetterOrDigit(character) || character == '-'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // Display units. The payload's numbers stay metric on the wire - "temperatureC" keeps
     // meaning Celsius no matter what the user reads - and both composers (the broker's entry
     // summary and the panel's card projection) convert at the last moment. Metric is the
@@ -121,6 +258,21 @@ public sealed record WeatherSettingsSaveRequest
     // Null means metric, so a request from before this field existed keeps its meaning.
     public string? UnitSystem { get; init; }
 
+    // Null means Open-Meteo, for the same reason.
+    public string? ProviderId { get; init; }
+
+    // The account's own API host. Null or empty clears it, which is what switching back to a
+    // keyless source means.
+    public string? ApiHost { get; init; }
+
+    /// <summary>
+    /// Write-only credential. Null leaves the stored key untouched - the settings dialog
+    /// cannot round-trip a key it was never given - an empty string clears it, and any other
+    /// value replaces it. It is never echoed back in a response; callers learn only whether
+    /// a key is present, from <see cref="WeatherSettingsDto.HasApiCredential"/>.
+    /// </summary>
+    public string? ApiKey { get; init; }
+
     public int ExpectedRevision { get; init; }
 }
 
@@ -144,6 +296,13 @@ public sealed record WeatherSettingsDto
     public bool UseDeviceLocation { get; init; } = true;
 
     public string UnitSystem { get; init; } = WeatherSettingsContract.MetricUnitSystem;
+
+    public string ProviderId { get; init; } = WeatherSettingsContract.OpenMeteoProviderId;
+
+    public string ApiHost { get; init; } = string.Empty;
+
+    // Presence only. The key itself never leaves the broker process.
+    public bool HasApiCredential { get; init; }
 
     public int Revision { get; init; }
 

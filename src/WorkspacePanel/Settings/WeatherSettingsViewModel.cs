@@ -52,6 +52,21 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 JsonValueKind.String,
                 CardSettingWritePolicy.CommitOnly,
                 value => WeatherSettingsContract.IsValidUnitSystem(value.GetString())),
+            new CardSettingDefinition(
+                "providerId",
+                JsonValueKind.String,
+                CardSettingWritePolicy.CommitOnly,
+                value => WeatherSettingsContract.IsValidProviderId(value.GetString())),
+            new CardSettingDefinition(
+                "apiHost",
+                JsonValueKind.String,
+                CardSettingWritePolicy.CommitOnly,
+                value => WeatherSettingsContract.TryNormalizeApiHost(
+                    value.GetString(),
+                    out _)),
+            // The API key is deliberately absent from the draft. The draft is a snapshot the
+            // dialog keeps, compares and re-sends, and a write-only credential belongs in
+            // none of that - it goes straight onto the one request that stores it.
         ]);
 
     private readonly IWeatherSettingsClient? _client;
@@ -74,6 +89,10 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     private bool _isLocating;
     private bool _useDeviceLocation = true;
     private bool _useImperialUnits;
+    private int _providerIndex;
+    private string _apiHost = string.Empty;
+    private string _apiKey = string.Empty;
+    private bool _hasStoredCredential;
     private bool _wasSaved;
 
     public WeatherSettingsViewModel(
@@ -194,6 +213,98 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
     {
         get => _useImperialUnits;
         set => SetField(ref _useImperialUnits, value);
+    }
+
+    /// <summary>
+    /// Which source the card reads from: 0 is Open-Meteo, 1 is QWeather. An index rather
+    /// than the wire token because the view binds a two-item list, and the mapping is stated
+    /// once here instead of in the XAML.
+    /// </summary>
+    public int ProviderIndex
+    {
+        get => _providerIndex;
+        set
+        {
+            int clamped = value is 1 ? 1 : 0;
+            if (SetField(ref _providerIndex, clamped))
+            {
+                OnPropertyChanged(nameof(ProviderId));
+                OnPropertyChanged(nameof(UsesApiCredential));
+                OnPropertyChanged(nameof(CredentialStatusText));
+            }
+        }
+    }
+
+    public string ProviderId => _providerIndex == 1
+        ? WeatherSettingsContract.QWeatherProviderId
+        : WeatherSettingsContract.OpenMeteoProviderId;
+
+    /// <summary>
+    /// Whether the chosen source needs an account. The credential lane is shown only then:
+    /// a host and key box under a source that has neither would read as something the user
+    /// forgot to fill in.
+    /// </summary>
+    public bool UsesApiCredential =>
+        WeatherSettingsContract.RequiresApiCredential(ProviderId);
+
+    public string ApiHost
+    {
+        get => _apiHost;
+        set => SetField(ref _apiHost, value ?? string.Empty);
+    }
+
+    /// <summary>
+    /// A key the user has just typed. Left empty it means "keep the stored one": a saved key
+    /// is never sent back to the dialog, so an empty box cannot mean "clear it" without also
+    /// clearing the key of anyone who opened the dialog to change something else.
+    /// </summary>
+    public string ApiKey
+    {
+        get => _apiKey;
+        set
+        {
+            if (SetField(ref _apiKey, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CredentialStatusText));
+            }
+        }
+    }
+
+    public bool HasStoredCredential
+    {
+        get => _hasStoredCredential;
+        private set
+        {
+            if (SetField(ref _hasStoredCredential, value))
+            {
+                OnPropertyChanged(nameof(CredentialStatusText));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Says what will happen on save, which is the only thing the user cannot see: the key
+    /// box is empty in all three states.
+    /// </summary>
+    public string CredentialStatusText
+    {
+        get
+        {
+            if (!UsesApiCredential)
+            {
+                return string.Empty;
+            }
+
+            if (ApiKey.Length > 0)
+            {
+                return ResolveText("WeatherSettingsCredentialReplaceStatus");
+            }
+
+            return ResolveText(
+                HasStoredCredential
+                    ? "WeatherSettingsCredentialStoredStatus"
+                    : "WeatherSettingsCredentialMissingStatus");
+        }
     }
 
     public bool IsLocating
@@ -442,6 +553,38 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
             return false;
         }
 
+        if (!WeatherSettingsContract.TryNormalizeApiHost(
+                ApiHost,
+                out string normalizedApiHost))
+        {
+            SetValidation("WeatherSettingsInvalidApiHostStatus");
+            return false;
+        }
+
+        // Caught here rather than at the broker so the message names the field: a source
+        // that authenticates is unusable without both halves, and saving it would leave the
+        // card reporting a missing credential with nothing on screen to explain why.
+        if (UsesApiCredential)
+        {
+            if (!WeatherSettingsContract.IsAllowedQWeatherHost(normalizedApiHost))
+            {
+                SetValidation("WeatherSettingsInvalidApiHostStatus");
+                return false;
+            }
+
+            if (ApiKey.Length == 0 && !HasStoredCredential)
+            {
+                SetValidation("WeatherSettingsMissingApiKeyStatus");
+                return false;
+            }
+
+            if (ApiKey.Length > 0 && !WeatherSettingsContract.IsValidApiKey(ApiKey))
+            {
+                SetValidation("WeatherSettingsInvalidApiKeyStatus");
+                return false;
+            }
+        }
+
         IsBusy = true;
         ValidationText = string.Empty;
         try
@@ -464,6 +607,12 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                     UseImperialUnits
                         ? WeatherSettingsContract.ImperialUnitSystem
                         : WeatherSettingsContract.MetricUnitSystem));
+            _draft.Set(
+                "providerId",
+                JsonSerializer.SerializeToElement(ProviderId));
+            _draft.Set(
+                "apiHost",
+                JsonSerializer.SerializeToElement(normalizedApiHost));
             CardSettingsCommitRequest commit = _draft.BuildCommitRequest();
             var request = new WeatherSettingsSaveRequest
             {
@@ -476,11 +625,19 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                     .GetProperty("useDeviceLocation")
                     .GetBoolean(),
                 UnitSystem = commit.Settings.GetProperty("unitSystem").GetString(),
+                ProviderId = commit.Settings.GetProperty("providerId").GetString(),
+                ApiHost = commit.Settings.GetProperty("apiHost").GetString(),
+                // Null keeps whatever is stored; the box is empty whenever the user did not
+                // mean to change the key.
+                ApiKey = ApiKey.Length > 0 ? ApiKey : null,
                 ExpectedRevision = checked((int)commit.ExpectedRevision),
             };
             WeatherSettingsDto saved = await _client
                 .SaveWeatherSettingsAsync(request, cancellationToken);
             _ = _draft.AcceptCommit(commit, saved.Revision);
+            // Cleared on the way out, not on the way in: the key has been stored, and a box
+            // still holding it would offer to send it again on the next unrelated save.
+            ApiKey = string.Empty;
             ApplySettings(saved);
             WasSaved = true;
             SetStatus("WeatherSettingsSavedStatus");
@@ -622,6 +779,14 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
             settings.UnitSystem,
             WeatherSettingsContract.ImperialUnitSystem,
             StringComparison.Ordinal);
+        ProviderIndex = string.Equals(
+            settings.ProviderId,
+            WeatherSettingsContract.QWeatherProviderId,
+            StringComparison.Ordinal)
+            ? 1
+            : 0;
+        ApiHost = settings.ApiHost;
+        HasStoredCredential = settings.HasApiCredential;
         Revision = settings.Revision;
         _draft = CreateDraft(settings, label);
         OnPropertyChanged(nameof(CanSave));
@@ -641,6 +806,14 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
                 unitSystem = WeatherSettingsContract.IsValidUnitSystem(settings.UnitSystem)
                     ? settings.UnitSystem
                     : WeatherSettingsContract.MetricUnitSystem,
+                providerId = WeatherSettingsContract.IsValidProviderId(settings.ProviderId)
+                    ? settings.ProviderId
+                    : WeatherSettingsContract.OpenMeteoProviderId,
+                apiHost = WeatherSettingsContract.TryNormalizeApiHost(
+                    settings.ApiHost,
+                    out string apiHost)
+                    ? apiHost
+                    : string.Empty,
             });
         var snapshot = new CardSettingsSnapshot(
             WeatherSettingsContract.DefaultInstanceId,
@@ -698,7 +871,8 @@ public sealed class WeatherSettingsViewModel : INotifyPropertyChanged
         if (propertyName is nameof(LocationLabel) or
             nameof(LatitudeText) or
             nameof(LongitudeText) or
-            nameof(UseDeviceLocation))
+            nameof(UseDeviceLocation) or
+            nameof(ApiHost))
         {
             OnPropertyChanged(nameof(CanSave));
         }

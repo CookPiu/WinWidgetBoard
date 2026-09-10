@@ -18,7 +18,8 @@ public sealed class WeatherSettingsRepository
         WeatherSettingsRecord? result = null;
         _repository.Query(
             "SELECT instance_id, label, latitude, longitude, use_device_location, " +
-            "unit_system, revision, updated_at_utc " +
+            "unit_system, revision, updated_at_utc, provider_id, api_host, " +
+            "api_key_protected " +
             "FROM weather_settings WHERE instance_id = @instance;",
             statement => statement.BindText("@instance", instanceId),
             statement => result = ReadRecord(statement));
@@ -33,7 +34,10 @@ public sealed class WeatherSettingsRepository
         bool useDeviceLocation,
         string unitSystem,
         int expectedRevision,
-        DateTimeOffset? nowUtc = null)
+        DateTimeOffset? nowUtc = null,
+        string providerId = WeatherSettingsContract.OpenMeteoProviderId,
+        string apiHost = "",
+        string? apiKey = null)
     {
         ValidateInstanceId(instanceId);
         if (!WeatherSettingsContract.TryNormalizeLabel(label, out string? normalizedLabel) ||
@@ -58,6 +62,34 @@ public sealed class WeatherSettingsRepository
                 nameof(unitSystem));
         }
 
+        if (!WeatherSettingsContract.IsValidProviderId(providerId))
+        {
+            throw new ArgumentException(
+                "Weather settings provider is invalid.",
+                nameof(providerId));
+        }
+
+        if (!WeatherSettingsContract.TryNormalizeApiHost(
+                apiHost,
+                out string normalizedApiHost))
+        {
+            throw new ArgumentException(
+                "Weather settings API host is invalid.",
+                nameof(apiHost));
+        }
+
+        if (apiKey is not null && !WeatherSettingsContract.IsValidApiKey(apiKey))
+        {
+            throw new ArgumentException(
+                "Weather settings API key is invalid.",
+                nameof(apiKey));
+        }
+
+        // Encrypted once, before the transaction: a DPAPI failure must not leave a half
+        // written row behind, and the ciphertext is what every branch below binds.
+        string? protectedApiKey = apiKey is null
+            ? null
+            : LocalDataProtector.Protect(apiKey);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
         using SqliteTransaction transaction = _repository.BeginTransaction();
         WeatherSettingsRecord? current = Get(instanceId);
@@ -78,9 +110,10 @@ public sealed class WeatherSettingsRepository
             _repository.Execute(
                 "INSERT INTO weather_settings " +
                 "(instance_id, label, latitude, longitude, use_device_location, " +
-                "unit_system, revision, updated_at_utc) " +
+                "unit_system, revision, updated_at_utc, provider_id, api_host, " +
+                "api_key_protected) " +
                 "VALUES (@instance, @label, @latitude, @longitude, @automatic, " +
-                "@units, @revision, @updated);",
+                "@units, @revision, @updated, @provider, @host, @key);",
                 statement =>
                 {
                     statement.BindText("@instance", instanceId);
@@ -91,6 +124,9 @@ public sealed class WeatherSettingsRepository
                     statement.BindText("@units", unitSystem);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
+                    statement.BindText("@provider", providerId);
+                    statement.BindText("@host", normalizedApiHost);
+                    statement.BindNullableText("@key", protectedApiKey);
                 });
         }
         else
@@ -98,7 +134,8 @@ public sealed class WeatherSettingsRepository
             int changes = _repository.Execute(
                 "UPDATE weather_settings SET label = @label, latitude = @latitude, " +
                 "longitude = @longitude, use_device_location = @automatic, " +
-                "unit_system = @units, revision = @revision, updated_at_utc = @updated " +
+                "unit_system = @units, revision = @revision, updated_at_utc = @updated, " +
+                "provider_id = @provider, api_host = @host, api_key_protected = @key " +
                 "WHERE instance_id = @instance AND revision = @expected;",
                 statement =>
                 {
@@ -109,6 +146,9 @@ public sealed class WeatherSettingsRepository
                     statement.BindText("@units", unitSystem);
                     statement.BindInt("@revision", nextRevision);
                     statement.BindText("@updated", updatedAtUtc);
+                    statement.BindText("@provider", providerId);
+                    statement.BindText("@host", normalizedApiHost);
+                    statement.BindNullableText("@key", protectedApiKey);
                     statement.BindText("@instance", instanceId);
                     statement.BindInt("@expected", expectedRevision);
                 });
@@ -130,7 +170,10 @@ public sealed class WeatherSettingsRepository
             useDeviceLocation,
             unitSystem,
             nextRevision,
-            updatedAtUtc);
+            updatedAtUtc,
+            providerId,
+            normalizedApiHost,
+            apiKey);
     }
 
     private static WeatherSettingsRecord ReadRecord(SqliteStatement statement) =>
@@ -142,7 +185,13 @@ public sealed class WeatherSettingsRepository
             statement.ReadInt(4) != 0,
             statement.ReadText(5) ?? throw new SqliteException(1, "weather_settings.unit_system is NULL."),
             statement.ReadInt(6),
-            statement.ReadText(7) ?? throw new SqliteException(1, "weather_settings.updated_at_utc is NULL."));
+            statement.ReadText(7) ?? throw new SqliteException(1, "weather_settings.updated_at_utc is NULL."),
+            statement.ReadText(8) ?? WeatherSettingsContract.OpenMeteoProviderId,
+            statement.ReadText(9) ?? string.Empty,
+            // A credential that does not decrypt here reads as absent rather than as a
+            // storage fault: the row is still a valid settings row, it just has no usable
+            // key - which is what a database copied to another account looks like.
+            LocalDataProtector.TryUnprotect(statement.ReadText(10)));
 
     private static void ValidateInstanceId(string instanceId)
     {

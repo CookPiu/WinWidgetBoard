@@ -490,6 +490,58 @@
                         IsReadOnly="True"
                         Text="{x:Bind WeatherViewModel.CoordinatesText, Mode=OneWay}"
                         automation:AutomationProperties.AutomationId="WeatherSettingsCoordinatesBox" />
+
+                    <!--
+                        Which vendor the readings come from. It sits last because it is
+                        set once and then never touched, while everything above it is the
+                        everyday choice - and this section is taller than the sheet's fixed
+                        frame, so what goes below the fold has to be the rarest control, not
+                        the location the user came here to change.
+                    -->
+                    <ComboBox
+                        x:Name="WeatherSettingsProviderCombo"
+                        x:Uid="WeatherSettingsProviderCombo"
+                        HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind WeatherViewModel.ProviderIndex, Mode=TwoWay}"
+                        automation:AutomationProperties.AutomationId="WeatherSettingsProviderCombo">
+                        <ComboBoxItem x:Uid="WeatherSettingsProviderOpenMeteoItem" />
+                        <ComboBoxItem x:Uid="WeatherSettingsProviderQWeatherItem" />
+                    </ComboBox>
+
+                    <!--
+                        Progressive disclosure: an account's host and key are asked for only
+                        by the source that needs them. The key is write-only - a stored one
+                        is never sent back to this dialog - so the caption under the box says
+                        what saving will do instead of showing a value that cannot be shown.
+                    -->
+                    <StackPanel
+                        x:Name="WeatherSettingsCredentialPanel"
+                        Spacing="{StaticResource WwbSpace2}"
+                        Visibility="{x:Bind WeatherViewModel.UsesApiCredential, Mode=OneWay}">
+                        <TextBox
+                            x:Name="WeatherSettingsApiHostBox"
+                            x:Uid="WeatherSettingsApiHostBox"
+                            Text="{x:Bind WeatherViewModel.ApiHost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            automation:AutomationProperties.AutomationId="WeatherSettingsApiHostBox" />
+                        <PasswordBox
+                            x:Name="WeatherSettingsApiKeyBox"
+                            x:Uid="WeatherSettingsApiKeyBox"
+                            PasswordChanged="WeatherSettingsApiKeyBox_PasswordChanged"
+                            automation:AutomationProperties.AutomationId="WeatherSettingsApiKeyBox" />
+                        <TextBlock
+                            x:Name="WeatherSettingsCredentialStatusText"
+                            Style="{StaticResource WwbCardCaptionStyle}"
+                            Text="{x:Bind WeatherViewModel.CredentialStatusText, Mode=OneWay}"
+                            TextWrapping="Wrap"
+                            automation:AutomationProperties.AutomationId="WeatherSettingsCredentialStatusText" />
+                        <HyperlinkButton
+                            x:Name="WeatherSettingsProviderConsoleLink"
+                            x:Uid="WeatherSettingsProviderConsoleLink"
+                            Padding="0"
+                            HorizontalAlignment="Left"
+                            NavigateUri="https://console.qweather.com/setting"
+                            automation:AutomationProperties.AutomationId="WeatherSettingsProviderConsoleLink" />
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel

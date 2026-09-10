@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.CoreBroker.Persistence;
@@ -10,14 +12,14 @@ internal sealed class WeatherSettingsCommandHandler
 {
     private readonly object _gate;
     private readonly WeatherProviderRuntime _weatherProviderRuntime;
-    private readonly OpenMeteoGeocodingService? _geocodingService;
+    private readonly IWeatherGeocodingService? _geocodingService;
     private readonly Dictionary<Guid, CachedWeatherSettingsOperation> _cachedOperations = new();
     private readonly Queue<Guid> _operationOrder = new();
 
     public WeatherSettingsCommandHandler(
         WeatherProviderRuntime weatherProviderRuntime,
         object gate,
-        OpenMeteoGeocodingService? geocodingService = null)
+        IWeatherGeocodingService? geocodingService = null)
     {
         _weatherProviderRuntime = weatherProviderRuntime ??
             throw new ArgumentNullException(nameof(weatherProviderRuntime));
@@ -191,7 +193,24 @@ internal sealed class WeatherSettingsCommandHandler
             !WeatherSettingsContract.TryNormalizeUnitSystem(
                 payload.UnitSystem,
                 out string unitSystem) ||
+            !WeatherSettingsContract.TryNormalizeProviderId(
+                payload.ProviderId,
+                out string providerId) ||
+            !WeatherSettingsContract.TryNormalizeApiHost(
+                payload.ApiHost,
+                out string apiHost) ||
+            !IsAcceptableApiKey(payload.ApiKey) ||
             payload.ExpectedRevision < 0)
+        {
+            return ErrorResponse(request, "validation.invalid-argument", "validation");
+        }
+
+        // A source that authenticates is only accepted with a host it may authenticate to.
+        // Rejecting here rather than at the provider means a mistyped host is a validation
+        // error the dialog can show, not a card that quietly stops refreshing.
+        if (WeatherSettingsContract.RequiresApiCredential(providerId) &&
+            apiHost.Length > 0 &&
+            !WeatherSettingsContract.IsAllowedQWeatherHost(apiHost))
         {
             return ErrorResponse(request, "validation.invalid-argument", "validation");
         }
@@ -203,6 +222,12 @@ internal sealed class WeatherSettingsCommandHandler
             payload.Longitude,
             payload.UseDeviceLocation,
             unitSystem,
+            providerId,
+            apiHost,
+            // The replay cache compares payloads, and the credential is part of one. It is
+            // reduced to a digest so a retained fingerprint is not a second copy of the key
+            // sitting in memory for the life of the connection.
+            DigestApiKey(payload.ApiKey),
             payload.ExpectedRevision);
         lock (_gate)
         {
@@ -229,7 +254,10 @@ internal sealed class WeatherSettingsCommandHandler
                     payload.Longitude,
                     payload.UseDeviceLocation,
                     unitSystem,
-                    payload.ExpectedRevision);
+                    payload.ExpectedRevision,
+                    providerId,
+                    apiHost,
+                    payload.ApiKey);
                 var responsePayload = new WeatherSettingsSaveResponse
                 {
                     ClientOperationId = payload.ClientOperationId,
@@ -275,8 +303,32 @@ internal sealed class WeatherSettingsCommandHandler
             Longitude = settings.Longitude,
             UseDeviceLocation = settings.UseDeviceLocation,
             UnitSystem = settings.UnitSystem,
+            ProviderId = settings.ProviderId,
+            ApiHost = settings.ApiHost,
+            // Presence only - the key itself never leaves this process.
+            HasApiCredential = settings.HasApiCredential,
             Revision = settings.Revision,
             UpdatedAtUtc = settings.UpdatedAtUtc ?? string.Empty,
+        };
+
+    /// <summary>
+    /// Null means "leave the stored key alone" and empty means "clear it"; both are
+    /// acceptable. Anything else has to look like a credential.
+    /// </summary>
+    private static bool IsAcceptableApiKey(string? apiKey) =>
+        apiKey is null or { Length: 0 } || WeatherSettingsContract.IsValidApiKey(apiKey);
+
+    /// <summary>
+    /// A stable stand-in for the key inside the replay fingerprint. Null and empty are kept
+    /// distinct because they mean different things to the save.
+    /// </summary>
+    private static string DigestApiKey(string? apiKey) =>
+        apiKey switch
+        {
+            null => "unchanged",
+            { Length: 0 } => "cleared",
+            _ => Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(apiKey))),
         };
 
     private static bool IsValidWeatherInstanceId(string? instanceId) =>
@@ -333,5 +385,8 @@ internal sealed class WeatherSettingsCommandHandler
         double Longitude,
         bool UseDeviceLocation,
         string UnitSystem,
+        string ProviderId,
+        string ApiHost,
+        string ApiKeyDigest,
         int ExpectedRevision);
 }

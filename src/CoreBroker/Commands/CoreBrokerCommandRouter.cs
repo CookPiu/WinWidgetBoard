@@ -25,7 +25,7 @@ public sealed class CoreBrokerCommandRouter
         CardSnapshotSubscriptionHub? cardSnapshotSubscriptionHub = null,
         ProviderRefreshVisibilityRegistry? providerVisibilityRegistry = null,
         WeatherProviderRuntime? weatherProviderRuntime = null,
-        OpenMeteoGeocodingService? geocodingService = null,
+        IWeatherGeocodingService? geocodingService = null,
         SystemMonitorRuntime? systemMonitorRuntime = null,
         TokenUsageRuntime? tokenUsageRuntime = null)
     {

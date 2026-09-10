@@ -11,6 +11,11 @@ namespace WinWidgetBoard.CoreBroker.Providers;
 /// Saving a location is revision-protected in SQLite, then swaps the provider
 /// request key and publishes a Loading snapshot before the new visible request
 /// is scheduled. No weather payload is persisted here.
+///
+/// The registration also decides <em>which</em> source runs: the settings row names a
+/// vendor, and switching vendor goes through exactly the same path as switching location -
+/// deactivate, publish Loading, replace - because from the pipeline's point of view a
+/// different vendor is just a different request key (ADR-0038).
 /// </summary>
 public sealed class WeatherProviderRuntime : IDisposable
 {
@@ -75,6 +80,28 @@ public sealed class WeatherProviderRuntime : IDisposable
         }
     }
 
+    /// <summary>
+    /// Everything the router needs to send a city search to the same vendor the card reads
+    /// from. Kept here rather than handed to the router as a snapshot so a search after a
+    /// save uses the source that was just chosen.
+    /// </summary>
+    public WeatherGeocodingSelection GetGeocodingSelection()
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new WeatherGeocodingSelection(
+                _settings.ProviderId,
+                _settings.ApiHost,
+                _settings.ApiKey);
+        }
+    }
+
+    /// <param name="apiKey">
+    /// Null leaves the stored credential alone, an empty string clears it, and any other
+    /// value replaces it. The dialog cannot send back a key it was never given, so "no
+    /// change" has to be expressible.
+    /// </param>
     public WeatherSettingsRecord SaveSettings(
         string instanceId,
         string label,
@@ -82,7 +109,10 @@ public sealed class WeatherProviderRuntime : IDisposable
         double longitude,
         bool useDeviceLocation,
         string unitSystem,
-        int expectedRevision)
+        int expectedRevision,
+        string providerId = WeatherSettingsContract.OpenMeteoProviderId,
+        string apiHost = "",
+        string? apiKey = null)
     {
         if (!string.Equals(
                 instanceId,
@@ -97,6 +127,12 @@ public sealed class WeatherProviderRuntime : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            string? effectiveApiKey = apiKey switch
+            {
+                null => _settings.ApiKey,
+                { Length: 0 } => null,
+                _ => apiKey,
+            };
             WeatherSettingsRecord saved = _settingsRepository.Save(
                 instanceId,
                 label,
@@ -105,7 +141,10 @@ public sealed class WeatherProviderRuntime : IDisposable
                 useDeviceLocation,
                 unitSystem,
                 expectedRevision,
-                _clock.UtcNow);
+                _clock.UtcNow,
+                providerId,
+                apiHost,
+                effectiveApiKey);
             ApplyRegistrationLocked(saved);
             _settings = saved;
             return saved;
@@ -178,9 +217,7 @@ public sealed class WeatherProviderRuntime : IDisposable
             settings.Latitude,
             settings.Longitude,
             settings.UnitSystem);
-        var provider = new OpenMeteoWeatherProvider(
-            _httpClient,
-            utcNow: () => _clock.UtcNow);
+        IProviderRefreshSource provider = CreateProvider(settings);
         var generationPublisher = new GenerationSnapshotPublisher(
             _snapshotHub,
             CaptureSummary);
@@ -202,7 +239,7 @@ public sealed class WeatherProviderRuntime : IDisposable
             _providerHost.Register(
                 new ProviderRefreshSubscription(
                     Guid.NewGuid(),
-                    OpenMeteoWeatherProvider.CreateRequestKey(location),
+                    CreateRequestKey(provider, location),
                     OpenMeteoWeatherProvider.CreateArguments(location),
                     provider,
                     adapter,
@@ -216,6 +253,62 @@ public sealed class WeatherProviderRuntime : IDisposable
             generationPublisher,
             hostRegistration);
     }
+
+    /// <summary>
+    /// The source the settings row names, or a source that reports what is still missing.
+    /// A selected vendor whose credential is absent - or whose stored credential no longer
+    /// decrypts on this machine - must not silently fall back to the other vendor: that
+    /// would send the user's readings somewhere they did not choose.
+    /// </summary>
+    private IProviderRefreshSource CreateProvider(WeatherSettingsRecord settings)
+    {
+        if (!string.Equals(
+                settings.ProviderId,
+                WeatherSettingsContract.QWeatherProviderId,
+                StringComparison.Ordinal))
+        {
+            return new OpenMeteoWeatherProvider(
+                _httpClient,
+                utcNow: () => _clock.UtcNow);
+        }
+
+        if (settings.ApiKey is null ||
+            !WeatherSettingsContract.IsAllowedQWeatherHost(settings.ApiHost))
+        {
+            return new UnconfiguredWeatherProvider(
+                QWeatherProvider.CredentialsMissingErrorCode,
+                () => _clock.UtcNow);
+        }
+
+        try
+        {
+            return new QWeatherProvider(
+                _httpClient,
+                settings.ApiHost,
+                settings.ApiKey,
+                () => _clock.UtcNow);
+        }
+        catch (ArgumentException)
+        {
+            // The stored pair no longer satisfies the provider's own checks - a host rule
+            // tightened by a later build, for instance. Same outcome as never having
+            // configured it: ask, do not guess.
+            return new UnconfiguredWeatherProvider(
+                QWeatherProvider.CredentialsMissingErrorCode,
+                () => _clock.UtcNow);
+        }
+    }
+
+    private static ProviderRequestKey CreateRequestKey(
+        IProviderRefreshSource provider,
+        WeatherLocation location) =>
+        provider switch
+        {
+            QWeatherProvider => QWeatherProvider.CreateRequestKey(location),
+            UnconfiguredWeatherProvider => UnconfiguredWeatherProvider.CreateRequestKey(
+                location),
+            _ => OpenMeteoWeatherProvider.CreateRequestKey(location),
+        };
 
     // The last good reading is kept in this process only, exactly like the card payload it
     // is projected from: nothing here is written to SQLite.
@@ -302,7 +395,7 @@ public sealed class WeatherProviderRuntime : IDisposable
     }
 
     private sealed record RegistrationState(
-        OpenMeteoWeatherProvider Provider,
+        IProviderRefreshSource Provider,
         ProviderCardSnapshotAdapter Adapter,
         GenerationSnapshotPublisher GenerationPublisher,
         ProviderRefreshHostRegistration HostRegistration);

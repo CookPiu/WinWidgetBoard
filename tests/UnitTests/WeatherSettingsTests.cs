@@ -96,8 +96,9 @@ public sealed class WeatherSettingsTests
             "VALUES ('demo.weather', 'Tokyo', 35.6762, 139.6503, 1, " +
             "'2026-08-29T00:00:00.0000000Z');");
 
-        // Migrations 7 (device location), 8 (units) and 9 (token pricing sync) are pending.
-        Assert.AreEqual(3, await database.ApplySchemaAsync());
+        // Migrations 7 (device location), 8 (units), 9 (token pricing sync) and 10 (weather
+        // provider selection) are pending.
+        Assert.AreEqual(4, await database.ApplySchemaAsync());
 
         WeatherSettingsRecord migrated = new WeatherSettingsRepository(database)
             .Get(WeatherSettingsContract.DefaultInstanceId)!;
@@ -105,6 +106,11 @@ public sealed class WeatherSettingsTests
         Assert.AreEqual("Tokyo", migrated.Label);
         // A row from before units existed keeps meaning metric.
         Assert.AreEqual(WeatherSettingsContract.MetricUnitSystem, migrated.UnitSystem);
+        // And a row from before there was a second source keeps reading from the first one,
+        // with no host and no credential: an upgrade must change nothing until the user does.
+        Assert.AreEqual(WeatherSettingsContract.OpenMeteoProviderId, migrated.ProviderId);
+        Assert.AreEqual(string.Empty, migrated.ApiHost);
+        Assert.IsFalse(migrated.HasApiCredential);
     }
 
     private static async Task<SqliteDatabase> OpenDatabaseAsync()
