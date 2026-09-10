@@ -57,6 +57,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageCardProjection.cs" Link="WorkspacePanel\Runtime\TokenUsageCardProjection.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" Link="WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\MonotoneCurveShape.cs" Link="WorkspacePanel\Runtime\MonotoneCurveShape.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Runtime\WeatherHourlyCurveSeries.cs" Link="WorkspacePanel\Runtime\WeatherHourlyCurveSeries.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageSpendCurveShape.cs" Link="WorkspacePanel\Runtime\TokenUsageSpendCurveShape.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\TokenUsageSettingsViewModel.cs" Link="WorkspacePanel\Settings\TokenUsageSettingsViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Settings\WeatherSettingsViewModel.cs" Link="WorkspacePanel\Settings\WeatherSettingsViewModel.cs" />

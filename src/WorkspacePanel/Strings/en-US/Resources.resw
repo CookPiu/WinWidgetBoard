@@ -1291,4 +1291,7 @@
   <data name="WeatherAttributionQWeather" xml:space="preserve">
     <value>Data by QWeather</value>
   </data>
+  <data name="WeatherCurveTipPrecipitationLabel.Text" xml:space="preserve">
+    <value>Rain</value>
+  </data>
 </root>

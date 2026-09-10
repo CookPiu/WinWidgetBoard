@@ -265,8 +265,45 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<WeatherHourProjection> WeatherHours =>
         Slice(WeatherProjection.Hours, WeatherHourBudget);
 
-    public IReadOnlyList<WeatherDayProjection> WeatherDays =>
-        Slice(WeatherProjection.Days, WeatherDayBudget);
+    /// <summary>
+    /// The trend as the curve control wants it: already worded, already in the reader's
+    /// units. The control positions and draws and never formats or looks anything up, because
+    /// this item is the only place that holds the panel's resource loader.
+    /// </summary>
+    public IReadOnlyList<WeatherCurvePoint> WeatherCurvePoints =>
+        WeatherHours
+            .Select(hour => new WeatherCurvePoint(
+                hour.TemperatureCelsius,
+                hour.TimeText,
+                hour.TemperatureText,
+                ResolveConditionText(hour.ConditionResourceKey, hour.ConditionText),
+                hour.ConditionIconId,
+                hour.PrecipitationProbabilityPercent))
+            .ToArray();
+
+    /// <summary>
+    /// The localized condition name, with the projection's English description as the
+    /// fallback - the same arrangement <see cref="WeatherConditionText"/> uses for the
+    /// current reading, so a code with no entry degrades to "WMO 82" rather than to blank.
+    /// </summary>
+    private string ResolveConditionText(string resourceKey, string fallback)
+    {
+        if (resourceKey.Length == 0)
+        {
+            return fallback;
+        }
+
+        string? localized = _runtimeResourceResolver(resourceKey);
+        return string.IsNullOrEmpty(localized) ? fallback : localized;
+    }
+
+    /// <summary>
+    /// The forecast rows, placed on the scale the visible days share. Normalising after the
+    /// slice, not before, is what lets a three-day card and a five-day one each use their
+    /// full width instead of leaving room for days they do not show.
+    /// </summary>
+    public IReadOnlyList<WeatherDayRow> WeatherDays =>
+        WeatherDayScale.Place(Slice(WeatherProjection.Days, WeatherDayBudget));
 
     private static IReadOnlyList<T> Slice<T>(IReadOnlyList<T> source, int count) =>
         source.Count <= count
@@ -337,6 +374,19 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// into half a card.
     /// </summary>
     public int WeatherCurrentColumnSpan => IsWeatherWideLayout ? 1 : 2;
+
+    /// <summary>
+    /// How tall the trend gets. Stated rather than stretched: the control is in a stack, which
+    /// offers infinite height along its own axis, and a curve that measured itself would feed
+    /// its stroke back into the card's height. The four-column sizes can afford more because
+    /// they show a full day of hours and have the width to separate them.
+    /// </summary>
+    public double WeatherCurveHeight => Placement.Size switch
+    {
+        CardSize.XL => 106d,
+        CardSize.W => 84d,
+        _ => 68d,
+    };
 
     /// <summary>
     /// False before the first reading names a place. The card leaves the location line out
@@ -771,6 +821,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 new PropertyChangedEventArgs(nameof(WeatherHours)));
             PropertyChanged?.Invoke(
                 this,
+                new PropertyChangedEventArgs(nameof(WeatherCurvePoints)));
+            PropertyChanged?.Invoke(
+                this,
                 new PropertyChangedEventArgs(nameof(WeatherDays)));
             PropertyChanged?.Invoke(
                 this,
@@ -793,6 +846,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherCurrentColumnSpan)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurveHeight)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherForecastColumnSpan)));
@@ -1008,6 +1064,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherHours)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherCurvePoints)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherDays)));

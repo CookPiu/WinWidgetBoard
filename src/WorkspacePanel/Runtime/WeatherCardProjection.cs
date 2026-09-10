@@ -252,12 +252,19 @@ public sealed record WeatherCardProjection
                 break;
             }
 
+            int? weatherCode = ReadInt32(entry, "weatherCode");
             hours.Add(
                 new WeatherHourProjection(
                     FormatHourLabel(ReadString(entry, "timeLocal")),
                     FormatTemperature(entry, "temperatureC", imperial),
                     celsius,
-                    ReadConditionIconId(entry)));
+                    ReadConditionIconId(entry),
+                    // The hour carries both wordings for the same reason the current reading
+                    // does: the projection is WinUI-free and cannot resolve a resource, so it
+                    // names the string and keeps the English one as the fallback.
+                    DescribeWeatherCode(weatherCode),
+                    ResolveConditionResourceKey(weatherCode),
+                    ReadProbabilityPercent(entry)));
         }
 
         return hours;
@@ -288,12 +295,23 @@ public sealed record WeatherCardProjection
                 break;
             }
 
+            // The numbers behind those two strings, kept metric like everything else on the
+            // wire: the range bar compares days against each other, so what matters is that
+            // all five are on one scale, not which scale the reader sees.
+            if (!TryReadFiniteDouble(entry, "highTemperatureC", out double highCelsius) ||
+                !TryReadFiniteDouble(entry, "lowTemperatureC", out double lowCelsius))
+            {
+                break;
+            }
+
             days.Add(
                 new WeatherDayProjection(
                     FormatDayLabel(ReadString(entry, "dateLocal")),
                     high,
                     low,
-                    ReadConditionIconId(entry)));
+                    ReadConditionIconId(entry),
+                    highCelsius,
+                    lowCelsius));
         }
 
         return days;
@@ -446,6 +464,16 @@ public sealed record WeatherCardProjection
             : null;
     }
 
+    /// <summary>
+    /// The hour's chance of precipitation. Absent, null or out of range all mean the forecast
+    /// had no figure for that hour, which the card draws as nothing rather than as zero.
+    /// </summary>
+    private static int? ReadProbabilityPercent(JsonElement entry)
+    {
+        int? percent = ReadInt32(entry, "precipitationProbabilityPercent");
+        return percent is >= 0 and <= 100 ? percent : null;
+    }
+
     private static int? ReadInt32(
         JsonElement parent,
         string propertyName) =>
@@ -548,11 +576,20 @@ public sealed record WeatherHourProjection(
     string TimeText,
     string TemperatureText,
     double TemperatureCelsius,
-    string ConditionIconId);
+    string ConditionIconId,
+    string ConditionText,
+    string ConditionResourceKey,
+    int? PrecipitationProbabilityPercent);
 
-/// <summary>One day of the forecast, high and low already formatted.</summary>
+/// <summary>
+/// One day of the forecast. The two temperatures are carried both as the text the row prints
+/// and as the numbers the range bar is placed from - the card needs both, and re-parsing the
+/// formatted string to get the number back would make the display format part of the geometry.
+/// </summary>
 public sealed record WeatherDayProjection(
     string DayText,
     string HighTemperatureText,
     string LowTemperatureText,
-    string ConditionIconId);
+    string ConditionIconId,
+    double HighTemperatureCelsius,
+    double LowTemperatureCelsius);

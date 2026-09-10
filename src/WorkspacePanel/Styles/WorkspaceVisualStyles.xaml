@@ -27,6 +27,7 @@
             -->
             <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#93A9BE" />
             <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#FFFFFF" />
+            <Color x:Key="WwbWeatherMotifStrongColor">#FFFFFF</Color>
             <x:Double x:Key="WwbWeatherMotifOpacity">0.18</x:Double>
             <LinearGradientBrush
                 x:Key="WwbPanelAccentWashBrush"
@@ -68,6 +69,7 @@
             <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="#4A4276" Opacity="0.22" />
             <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="#5A7B9C" />
             <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#10304E" />
+            <Color x:Key="WwbWeatherMotifStrongColor">#10304E</Color>
             <x:Double x:Key="WwbWeatherMotifOpacity">0.16</x:Double>
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
@@ -85,6 +87,7 @@
             <SolidColorBrush x:Key="WwbWeatherSkyStormBrush" Color="Transparent" />
             <SolidColorBrush x:Key="WwbWeatherMotifBrush" Color="Transparent" />
             <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="Transparent" />
+            <Color x:Key="WwbWeatherMotifStrongColor">Transparent</Color>
             <x:Double x:Key="WwbWeatherMotifOpacity">0</x:Double>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
@@ -773,6 +776,163 @@
                                     Style="{StaticResource WwbCardCaptionStyle}"
                                     Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                             </Border>
+                        </Canvas>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        One forecast day's span on the scale the whole forecast shares. The track is the
+        card's own hairline so an empty stretch reads as "not this day" rather than as a
+        second reading; the fill is the secondary text colour, because a span is a fact about
+        temperature and not a state.
+    -->
+    <Style
+        x:Key="WwbWeatherRangeBarStyle"
+        TargetType="Control">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Height" Value="4" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Control">
+                    <Grid>
+                        <Rectangle
+                            RadiusX="2"
+                            RadiusY="2"
+                            Fill="{ThemeResource ControlStrongStrokeColorDisabledBrush}" />
+                        <Canvas>
+                            <Rectangle
+                                x:Name="PART_Fill"
+                                RadiusX="2"
+                                RadiusY="2"
+                                Opacity="0.55"
+                                Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Canvas>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The hourly trend. Every shape sits in a Canvas: the control rebuilds this geometry on
+        SizeChanged, and a stroked Path the parent measures grows the card half a pixel a pass
+        until it fails as a layout cycle.
+
+        The area is a vertical ramp rather than a flat block, and it fades to nothing at the
+        baseline - a fill of uniform opacity gives the curve a hard bottom edge and makes it
+        read as a panel pasted onto the card. It is painted from the weather illustration's own
+        brush, not a literal colour, so the curve is the same material as the backdrop behind
+        it and high contrast clears both together.
+    -->
+    <Style
+        x:Key="WwbWeatherHourlyCurveStyle"
+        TargetType="Control">
+        <Setter Property="IsTabStop" Value="False" />
+        <!-- The precipitation bars are painted from this; Canvas has no Foreground. -->
+        <Setter
+            Property="Foreground"
+            Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Control">
+                    <Grid Background="Transparent">
+                        <Canvas IsHitTestVisible="False">
+                            <Path
+                                x:Name="PART_Area"
+                                Opacity="{ThemeResource WwbWeatherMotifOpacity}">
+                                <Path.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop
+                                            Offset="0"
+                                            Color="{ThemeResource WwbWeatherMotifStrongColor}" />
+                                        <GradientStop
+                                            Offset="1"
+                                            Color="Transparent" />
+                                    </LinearGradientBrush>
+                                </Path.Fill>
+                            </Path>
+                            <Path
+                                x:Name="PART_Line"
+                                Stroke="{ThemeResource TextFillColorSecondaryBrush}"
+                                StrokeThickness="1.5"
+                                StrokeLineJoin="Round"
+                                StrokeStartLineCap="Round"
+                                StrokeEndLineCap="Round"
+                                Opacity="0.75" />
+                            <Canvas
+                                x:Name="PART_Band"
+                                Opacity="0.45" />
+                            <!--
+                                One element carries the whole readout, so the fade is a single
+                                compositor opacity rather than four that can drift apart.
+                            -->
+                            <Canvas
+                                x:Name="PART_Readout"
+                                Opacity="0"
+                                Visibility="Collapsed">
+                                <Rectangle
+                                    x:Name="PART_Crosshair"
+                                    Width="1"
+                                    Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <Ellipse
+                                    x:Name="PART_Pip"
+                                    Width="7"
+                                    Height="7"
+                                    Fill="{ThemeResource TextFillColorPrimaryBrush}"
+                                    Stroke="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    StrokeThickness="1.5" />
+                                <Border
+                                    x:Name="PART_Tip"
+                                    Padding="8,5"
+                                    CornerRadius="{StaticResource WwbControlCornerRadius}"
+                                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                                    BorderThickness="{ThemeResource WwbFlyoutBorderThickness}"
+                                    BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}">
+                                    <StackPanel Spacing="2">
+                                        <StackPanel
+                                            Orientation="Horizontal"
+                                            Spacing="6">
+                                            <ContentControl
+                                                x:Name="PART_TipGlyph"
+                                                Width="14"
+                                                Height="14"
+                                                VerticalAlignment="Center"
+                                                IsTabStop="False" />
+                                            <TextBlock
+                                                x:Name="PART_TipTime"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource WwbCardCaptionStyle}" />
+                                            <TextBlock
+                                                x:Name="PART_TipTemperature"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource WwbCardBodyStyle}"
+                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            x:Name="PART_TipCondition"
+                                            Style="{StaticResource WwbCardCaptionStyle}" />
+                                        <StackPanel
+                                            x:Name="PART_TipPrecipitationRow"
+                                            Orientation="Horizontal"
+                                            Spacing="4"
+                                            Visibility="Collapsed">
+                                            <TextBlock
+                                                x:Uid="WeatherCurveTipPrecipitationLabel"
+                                                Style="{StaticResource WwbCardCaptionStyle}" />
+                                            <TextBlock
+                                                x:Name="PART_TipPrecipitation"
+                                                Style="{StaticResource WwbCardCaptionStyle}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Canvas>
                         </Canvas>
                     </Grid>
                 </ControlTemplate>

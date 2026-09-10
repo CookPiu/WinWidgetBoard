@@ -248,19 +248,25 @@
         </DataTemplate>
 
         <!--
-            One day of the forecast. High and low are separate columns rather than one string,
-            so the three rows line up into two readable columns instead of three ragged
-            sentences.
+            One day of the forecast: name, condition, then the day's span drawn on the scale
+            every visible row shares, with its two temperatures at the ends. Five rows of two
+            numbers tell you each day in isolation; five bars on one scale tell you the week -
+            which day is the warm one, and where the spread narrows.
+
+            The bar is a control, not a star column. Inside these card templates a star column
+            is measured against infinity and arranged past the clip, which is what used to cut
+            the high temperature off this very row.
         -->
         <DataTemplate
             x:Key="WeatherDayTemplate"
-            x:DataType="runtime:WeatherDayProjection">
+            x:DataType="runtime:WeatherDayRow">
             <Grid
                 ColumnSpacing="{StaticResource WwbSpace2}"
                 Padding="0,1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="48" />
-                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -270,8 +276,9 @@
                     TextTrimming="CharacterEllipsis" />
                 <ContentControl
                     Grid.Column="1"
-                    Width="18"
-                    Height="18"
+                    Width="16"
+                    Height="16"
+                    VerticalAlignment="Center"
                     automation:AutomationProperties.AccessibilityView="Raw"
                     Content="{x:Bind ConditionIconId}"
                     ContentTemplateSelector="{StaticResource WeatherGlyphSelector}"
@@ -279,13 +286,19 @@
                 <TextBlock
                     Grid.Column="2"
                     HorizontalAlignment="Right"
-                    Style="{StaticResource WwbCardBodyStyle}"
-                    Text="{x:Bind HighTemperatureText}"
-                    TextTrimming="CharacterEllipsis" />
-                <TextBlock
-                    Grid.Column="3"
                     Style="{StaticResource WwbCardCaptionStyle}"
                     Text="{x:Bind LowTemperatureText}"
+                    TextTrimming="CharacterEllipsis" />
+                <layout:WeatherRangeBar
+                    Grid.Column="3"
+                    Margin="0,0,0,0"
+                    Style="{StaticResource WwbWeatherRangeBarStyle}"
+                    Offset="{x:Bind Offset}"
+                    Length="{x:Bind Length}" />
+                <TextBlock
+                    Grid.Column="4"
+                    Style="{StaticResource WwbCardBodyStyle}"
+                    Text="{x:Bind HighTemperatureText}"
                     TextTrimming="CharacterEllipsis" />
             </Grid>
         </DataTemplate>
@@ -1163,22 +1176,25 @@
                                 Grid.ColumnSpan="{x:Bind WeatherCurrentColumnSpan, Mode=OneWay}"
                                 Spacing="{StaticResource WwbSpace1}">
                                 <!--
-                                    The number, then what it is. The glyph sits with the
-                                    condition rather than beside the temperature, so the
-                                    card's first glance stays one number and the
-                                    illustration reads as part of the phrase describing it.
+                                    The number, the sky, and the word for it, on one line. The
+                                    glyph used to sit under the temperature at 16 DIP, where a
+                                    clear sky and an overcast one were the same grey disc and
+                                    the row read as a bullet point. At 24 DIP beside the
+                                    figure it is the second thing the eye lands on, which is
+                                    what a weather card is for.
                                 -->
-                                <TextBlock
-                                    automation:AutomationProperties.AutomationId="WeatherTemperatureText"
-                                    automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
-                                    Style="{StaticResource WwbWeatherTemperatureStyle}"
-                                    Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
                                 <StackPanel
                                     Orientation="Horizontal"
-                                    Spacing="{StaticResource WwbSpace1}">
+                                    Spacing="{StaticResource WwbSpace2}">
+                                    <TextBlock
+                                        automation:AutomationProperties.AutomationId="WeatherTemperatureText"
+                                        automation:AutomationProperties.Name="{x:Bind WeatherTemperatureText, Mode=OneWay}"
+                                        Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                        VerticalAlignment="Center"
+                                        Text="{x:Bind WeatherTemperatureText, Mode=OneWay}" />
                                     <ContentControl
-                                        Width="16"
-                                        Height="16"
+                                        Width="24"
+                                        Height="24"
                                         VerticalAlignment="Center"
                                         automation:AutomationProperties.AccessibilityView="Raw"
                                         Content="{x:Bind WeatherConditionIconId, Mode=OneWay}"
@@ -1227,65 +1243,52 @@
                                 </StackPanel>
 
                                 <!--
-                                    Each secondary reading is named. Three bare numbers in a
-                                    column beside the temperature - 32.4 degrees, 87%,
-                                    1.6 km/h - state nothing about which is the felt
-                                    temperature and which the humidity, and the first of them
-                                    reads as a second temperature.
+                                    Each secondary reading is still named - three bare numbers
+                                    say nothing about which is the felt temperature and which
+                                    the humidity, and the first of them reads as a second
+                                    temperature. What changed is the weight: they run inline in
+                                    caption type instead of a two-row grid of their own. They
+                                    are reference figures, and stacking a label over each value
+                                    gave them the same standing as today's range, which is the
+                                    one pair that changes what the reader does next. Inline
+                                    also buys back the row the trend now spends.
                                 -->
-                                <Grid
-                                    ColumnSpacing="{StaticResource WwbSpace3}"
-                                    Margin="0,4,0,0"
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Margin="0,2,0,0"
+                                    Spacing="{StaticResource WwbSpace2}"
                                     Visibility="{x:Bind HasWeatherSecondary, Mode=OneWay}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <TextBlock
-                                        x:Uid="WeatherApparentLabel"
-                                        Grid.Row="0"
-                                        Grid.Column="0"
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        Grid.Row="1"
-                                        Grid.Column="0"
-                                        automation:AutomationProperties.AutomationId="WeatherApparentTemperatureText"
-                                        Style="{StaticResource WwbCardBodyStyle}"
-                                        Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        x:Uid="WeatherHumidityLabel"
-                                        Grid.Row="0"
-                                        Grid.Column="1"
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        Grid.Row="1"
-                                        Grid.Column="1"
-                                        automation:AutomationProperties.AutomationId="WeatherHumidityText"
-                                        Style="{StaticResource WwbCardBodyStyle}"
-                                        Text="{x:Bind WeatherHumidityText, Mode=OneWay}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        x:Uid="WeatherWindLabel"
-                                        Grid.Row="0"
-                                        Grid.Column="2"
-                                        Style="{StaticResource WwbCardCaptionStyle}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        Grid.Row="1"
-                                        Grid.Column="2"
-                                        automation:AutomationProperties.AutomationId="WeatherWindText"
-                                        Style="{StaticResource WwbCardBodyStyle}"
-                                        Text="{x:Bind WeatherWindText, Mode=OneWay}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock
+                                            x:Uid="WeatherApparentLabel"
+                                            Style="{StaticResource WwbCardCaptionStyle}" />
+                                        <TextBlock
+                                            automation:AutomationProperties.AutomationId="WeatherApparentTemperatureText"
+                                            Style="{StaticResource WwbCardCaptionStyle}"
+                                            Text="{x:Bind WeatherApparentTemperatureText, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock
+                                            x:Uid="WeatherHumidityLabel"
+                                            Style="{StaticResource WwbCardCaptionStyle}" />
+                                        <TextBlock
+                                            automation:AutomationProperties.AutomationId="WeatherHumidityText"
+                                            Style="{StaticResource WwbCardCaptionStyle}"
+                                            Text="{x:Bind WeatherHumidityText, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock
+                                            x:Uid="WeatherWindLabel"
+                                            Style="{StaticResource WwbCardCaptionStyle}" />
+                                        <TextBlock
+                                            automation:AutomationProperties.AutomationId="WeatherWindText"
+                                            Style="{StaticResource WwbCardCaptionStyle}"
+                                            Text="{x:Bind WeatherWindText, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
 
                             <StackPanel
@@ -1295,32 +1298,25 @@
                                 Spacing="{StaticResource WwbSpace1}"
                                 VerticalAlignment="Top">
                                 <!--
-                                    The hourly trend scrolls sideways rather than wrapping: it
-                                    is one sequence in time, and a wrapped second row would
-                                    read as a second day.
-                                -->
-                                <ScrollViewer
-                                    x:Name="WeatherHourlyScroller"
-                                    HorizontalScrollBarVisibility="Hidden"
-                                    HorizontalScrollMode="Enabled"
-                                    VerticalScrollBarVisibility="Disabled"
-                                    VerticalScrollMode="Disabled"
-                                    Visibility="{x:Bind HasWeatherHours, Mode=OneWay}">
-                                    <ItemsControl
-                                        automation:AutomationProperties.AutomationId="WeatherHourlyList"
-                                        ItemsSource="{x:Bind WeatherHours, Mode=OneWay}"
-                                        ItemTemplate="{StaticResource WeatherHourTemplate}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" Spacing="10" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                    </ItemsControl>
-                                </ScrollViewer>
+                                    The trend as a curve rather than a row of times. Six
+                                    columns of "time, glyph, temperature" spent three rows of
+                                    height to list six numbers and could not say the one thing
+                                    the reader wants from them - that it starts cooling at
+                                    dusk. The curve says it in less height, carries twice the
+                                    hours, and answers any single hour on hover.
 
-                                <Border
-                                    Style="{StaticResource WwbWeatherDividerStyle}"
-                                    Visibility="{x:Bind HasWeatherDays, Mode=OneWay}" />
+                                    No divider under it: the fill fades to nothing at its own
+                                    baseline, and a hairline as well would put a hard edge back
+                                    under a shape that was just softened.
+                                -->
+                                <layout:WeatherHourlyCurve
+                                    Height="{x:Bind WeatherCurveHeight, Mode=OneWay}"
+                                    Style="{StaticResource WwbWeatherHourlyCurveStyle}"
+                                    GlyphTemplateSelector="{StaticResource WeatherGlyphSelector}"
+                                    Points="{x:Bind WeatherCurvePoints, Mode=OneWay}"
+                                    IsHitTestVisible="{x:Bind AreCardActionsVisible, Mode=OneWay}"
+                                    Visibility="{x:Bind HasWeatherHours, Mode=OneWay}"
+                                    automation:AutomationProperties.AutomationId="WeatherHourlyCurve" />
 
                                 <ItemsControl
                                     automation:AutomationProperties.AutomationId="WeatherDailyList"

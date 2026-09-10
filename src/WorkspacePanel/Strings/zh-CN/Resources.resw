@@ -1291,4 +1291,7 @@
   <data name="WeatherAttributionQWeather" xml:space="preserve">
     <value>数据来自和风天气</value>
   </data>
+  <data name="WeatherCurveTipPrecipitationLabel.Text" xml:space="preserve">
+    <value>降水</value>
+  </data>
 </root>
