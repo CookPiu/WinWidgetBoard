@@ -27,14 +27,38 @@ function Wait-ElementByAutomationId {
     $deadline = [DateTime]::UtcNow + $Timeout
     do {
         $element = Get-ElementByAutomationId -Root $Root -AutomationId $AutomationId
-        if ($null -ne $element -and -not $element.Current.IsOffscreen) {
-            return $element
+        if ($null -ne $element) {
+            # The weather section is taller than the settings sheet's fixed frame, and this
+            # walk moves between controls above and below the fold in turn. An element that
+            # is not in view is not realized either, so it has to be scrolled to before it
+            # can be read or invoked - the same thing a user does on the way to it.
+            Show-Element -Element $element -Timeout ([TimeSpan]::FromSeconds(2)) | Out-Null
+            if (-not $element.Current.IsOffscreen) {
+                return $element
+            }
         }
 
         Start-Sleep -Milliseconds 150
     } while ([DateTime]::UtcNow -lt $deadline)
 
     throw "UIA element '$AutomationId' did not appear."
+}
+
+function Select-WeatherCategory {
+    param(
+        [Diagnostics.Process]$PanelProcess
+    )
+
+    $root = Wait-ProcessWindowContaining `
+        -ProcessId $PanelProcess.Id `
+        -AutomationId 'SettingsCategoryWeather' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    $category = Wait-ElementByAutomationId `
+        -Root $root `
+        -AutomationId 'SettingsCategoryWeather' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    Select-Element -Element $category
+    return $root
 }
 
 function Wait-ElementName {
@@ -203,10 +227,11 @@ try {
     # top-level UIA window rather than as a descendant of the panel HWND. Resolve the
     # owning window inside this process instead of searching the desktop root, whose
     # descendant walk covers every other running application.
-    $automationRoot = Wait-ProcessWindowContaining `
-        -ProcessId $panelProcess.Id `
-        -AutomationId 'WeatherSettingsLabelBox' `
-        -Timeout ([TimeSpan]::FromSeconds(10))
+    #
+    # The header button opens the sheet on General, and a category that is not showing is
+    # Collapsed rather than merely scrolled away - so the weather controls are not in the
+    # UIA tree at all until the rail is moved to Weather.
+    $automationRoot = Select-WeatherCategory -PanelProcess $panelProcess
 
     $labelBox = Wait-ElementByAutomationId `
         -Root $automationRoot `
@@ -340,10 +365,13 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $settingsButton
 
-    $automationRoot = Wait-ProcessWindowContaining `
-        -ProcessId $panelProcess.Id `
+    $automationRoot = Select-WeatherCategory -PanelProcess $panelProcess
+    # Brings the box into view first: Wait-ElementValue below refuses an offscreen element,
+    # and the reloaded value is what this second pass exists to read.
+    [void](Wait-ElementByAutomationId `
+        -Root $automationRoot `
         -AutomationId 'WeatherSettingsLabelBox' `
-        -Timeout ([TimeSpan]::FromSeconds(10))
+        -Timeout ([TimeSpan]::FromSeconds(10)))
     $reloadedLabel = Wait-ElementValue `
         -Root $automationRoot `
         -AutomationId 'WeatherSettingsLabelBox' `

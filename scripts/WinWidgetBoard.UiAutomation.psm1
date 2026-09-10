@@ -763,6 +763,57 @@ function Invoke-Element {
     ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
 }
 
+function Show-Element {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element,
+        [TimeSpan]$Timeout = ([TimeSpan]::FromSeconds(3))
+    )
+
+    # A pane taller than its fixed frame - the settings sheet is one - only realizes what is
+    # in view. A control below the fold therefore has no bounding rectangle at all and every
+    # visibility check reports it offscreen, which reads as "missing" rather than as "not
+    # scrolled to". Focusing it is what brings it in, because WinUI scrolls the focused
+    # element into view, and it is also what a user does before touching it.
+    #
+    # Prefer Set-VerticalScrollPercent when a script knows its own scroll container: this
+    # moves focus, which a test of focus behaviour must not have done for it.
+    if (-not $Element.Current.IsOffscreen) {
+        return $Element
+    }
+
+    $Element.SetFocus()
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        if (-not $Element.Current.IsOffscreen) {
+            return $Element
+        }
+
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw ("UI Automation element did not come into view: " +
+        "$($Element.Current.AutomationId)")
+}
+
+function Select-Element {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element
+    )
+
+    if (-not $Element.Current.IsEnabled) {
+        throw "UI Automation element is not selectable: $($Element.Current.Name)"
+    }
+
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.SelectionItemPattern]::Pattern,
+            [ref]$pattern)) {
+        throw "SelectionItemPattern unavailable: $($Element.Current.Name)"
+    }
+
+    ([System.Windows.Automation.SelectionItemPattern]$pattern).Select()
+}
+
 function Set-VerticalScrollPercent {
     param(
         [System.Windows.Automation.AutomationElement]$Element,
@@ -1168,6 +1219,8 @@ Export-ModuleMember -Function @(
     'Set-TextValue',
     'Invoke-Element',
     'Invoke-ElementToggle',
+    'Select-Element',
+    'Show-Element',
     'Set-VerticalScrollPercent',
     'Focus-PanelWindow',
     'Get-WindowRectByClass',
