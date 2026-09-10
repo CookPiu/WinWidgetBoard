@@ -202,6 +202,43 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     public string WeatherObservedAtText => WeatherProjection.ObservedAtText;
 
+    /// <summary>
+    /// Who produced the reading, in the panel's language. Resolved the same way the
+    /// condition is: the projection names the string, this item looks it up, and the
+    /// vendor's own English phrase is the fallback rather than the default. It is bound
+    /// rather than stated in the template because the card now has more than one possible
+    /// source, and both vendors require attribution - crediting the wrong one is not a
+    /// cosmetic error.
+    /// </summary>
+    public string WeatherAttributionText
+    {
+        get
+        {
+            WeatherCardProjection projection = WeatherProjection;
+            if (projection.AttributionResourceKey.Length == 0)
+            {
+                return projection.AttributionText;
+            }
+
+            string? localized = _runtimeResourceResolver(
+                projection.AttributionResourceKey);
+            return string.IsNullOrEmpty(localized)
+                ? projection.AttributionText
+                : localized;
+        }
+    }
+
+    /// <summary>
+    /// The licence link that goes with <see cref="WeatherAttributionText"/>. Null when the
+    /// payload's URL is not an absolute HTTP(S) address, so a malformed value leaves the
+    /// text without a link instead of handing the shell something to launch.
+    /// </summary>
+    public Uri? WeatherAttributionUrl =>
+        Uri.TryCreate(WeatherProjection.AttributionUrl, UriKind.Absolute, out Uri? parsed) &&
+        (parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp)
+            ? parsed
+            : null;
+
     public bool HasWeatherData => WeatherProjection.HasData;
 
     public IReadOnlyList<WeatherHourProjection> WeatherHours => WeatherProjection.Hours;
@@ -922,6 +959,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(WeatherObservedAtText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherAttributionText)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(WeatherAttributionUrl)));
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(HasWeatherData)));

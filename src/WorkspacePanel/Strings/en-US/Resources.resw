@@ -1090,9 +1090,6 @@
   <data name="WeatherWindLabel.Text" xml:space="preserve">
     <value>Wind</value>
   </data>
-  <data name="WeatherAttributionLink.Content" xml:space="preserve">
-    <value>Data by Open-Meteo</value>
-  </data>
   <data name="WeatherObservedAtLabel.Text" xml:space="preserve">
     <value>Updated</value>
   </data>
@@ -1287,5 +1284,11 @@
   </data>
   <data name="WeatherSettingsMissingApiKeyStatus" xml:space="preserve">
     <value>Enter the API key for this source.</value>
+  </data>
+  <data name="WeatherAttributionOpenMeteo" xml:space="preserve">
+    <value>Data by Open-Meteo</value>
+  </data>
+  <data name="WeatherAttributionQWeather" xml:space="preserve">
+    <value>Data by QWeather</value>
   </data>
 </root>

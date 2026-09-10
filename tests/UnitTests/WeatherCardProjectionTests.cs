@@ -94,4 +94,47 @@ public sealed class WeatherCardProjectionTests
         Assert.AreEqual("—", projection.TemperatureText);
         Assert.AreEqual("—", projection.ConditionText);
     }
+
+    [TestMethod(DisplayName =
+        "UT-WEA-094 [WEA-001/CRD-001] the card credits the source that produced the reading")]
+    public void AttributionFollowsThePayloadSource()
+    {
+        // Both vendors require attribution, and the card states it in the panel's language,
+        // so the projection has to name a string per source. A fixed one would credit
+        // whichever vendor happened to be implemented first.
+        Assert.AreEqual(
+            "WeatherAttributionQWeather",
+            ProjectSource("app.winwidgetboard.weather.qweather").AttributionResourceKey);
+        Assert.AreEqual(
+            "WeatherAttributionOpenMeteo",
+            ProjectSource("app.winwidgetboard.weather.open-meteo").AttributionResourceKey);
+
+        // A source this build has never heard of is still credited - in the vendor's own
+        // words, which is what the payload carries - rather than mislabelled as a known one.
+        WeatherCardProjection unknown = ProjectSource("app.example.weather.other");
+        Assert.AreEqual(string.Empty, unknown.AttributionResourceKey);
+        Assert.AreEqual("Weather data by Example", unknown.AttributionText);
+        Assert.AreEqual("https://example.com/", unknown.AttributionUrl);
+    }
+
+    private static WeatherCardProjection ProjectSource(string source)
+    {
+        using JsonDocument document = JsonDocument.Parse(
+            "{\"source\":\"" + source + "\"," +
+            "\"attribution\":\"Weather data by Example\"," +
+            "\"attributionUrl\":\"https://example.com/\"," +
+            "\"location\":{\"label\":\"Beijing\"}," +
+            "\"current\":{\"temperatureC\":28.2,\"weatherCode\":0}}");
+        return WeatherCardProjection.FromSnapshot(
+            new CardRuntimeSnapshot(
+                "demo.weather",
+                "builtin.weather",
+                schemaVersion: 1,
+                sequence: 1,
+                DateTimeOffset.UtcNow,
+                CardRuntimeFreshness.Fresh,
+                CardRuntimeStatus.Ready,
+                document.RootElement,
+                [CardRuntimeActionIds.Refresh]));
+    }
 }

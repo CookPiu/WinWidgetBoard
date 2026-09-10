@@ -24,6 +24,7 @@ public sealed record WeatherCardProjection
         string observedAtText,
         string attributionText,
         string attributionUrl,
+        string attributionResourceKey,
         bool hasData,
         IReadOnlyList<WeatherHourProjection> hours,
         IReadOnlyList<WeatherDayProjection> days)
@@ -41,6 +42,7 @@ public sealed record WeatherCardProjection
         ObservedAtText = observedAtText;
         AttributionText = attributionText;
         AttributionUrl = attributionUrl;
+        AttributionResourceKey = attributionResourceKey;
         HasData = hasData;
         Hours = hours;
         Days = days;
@@ -87,6 +89,16 @@ public sealed record WeatherCardProjection
 
     public string AttributionUrl { get; }
 
+    /// <summary>
+    /// The resource key naming the source in the panel's language, the same arrangement
+    /// <see cref="ConditionResourceKey"/> uses. The vendor's own phrase in
+    /// <see cref="AttributionText"/> is English, and it is the fallback rather than the
+    /// default: a source this build does not recognise is still credited, just in its own
+    /// words. What must never happen is the card naming a vendor that did not produce the
+    /// reading - both vendors require attribution, and only one of them earned it.
+    /// </summary>
+    public string AttributionResourceKey { get; }
+
     public bool HasData { get; }
 
     /// <summary>
@@ -115,6 +127,9 @@ public sealed record WeatherCardProjection
     /// the card's location line said "Weather" until the first fetch came back. Empty lets the
     /// card leave the line out until there is a place to name.
     /// </summary>
+    private const string OpenMeteoAttributionResourceKey = "WeatherAttributionOpenMeteo";
+    private const string QWeatherAttributionResourceKey = "WeatherAttributionQWeather";
+
     public static WeatherCardProjection Empty { get; } = new(
         string.Empty,
         "—",
@@ -129,6 +144,7 @@ public sealed record WeatherCardProjection
         "—",
         "Weather data by Open-Meteo.com",
         "https://open-meteo.com/",
+        OpenMeteoAttributionResourceKey,
         hasData: false,
         [],
         []);
@@ -162,6 +178,8 @@ public sealed record WeatherCardProjection
             payload,
             "attributionUrl") ??
             Empty.AttributionUrl;
+        string attributionResourceKey = ResolveAttributionResourceKey(
+            ReadString(payload, "source"));
         if (!payload.TryGetProperty("current", out JsonElement current) ||
             current.ValueKind != JsonValueKind.Object)
         {
@@ -179,6 +197,7 @@ public sealed record WeatherCardProjection
                 "—",
                 attributionText,
                 attributionUrl,
+                attributionResourceKey,
                 hasData: false,
                 [],
                 []);
@@ -204,6 +223,7 @@ public sealed record WeatherCardProjection
             FormatObservedAt(ReadString(current, "observedAtLocal")),
             attributionText,
             attributionUrl,
+            attributionResourceKey,
             hasData,
             ReadHours(payload, imperial),
             ReadDays(payload, imperial));
@@ -459,6 +479,19 @@ public sealed record WeatherCardProjection
             isDayValue.ValueKind != JsonValueKind.False;
         return WeatherConditionContract.FromWeatherCode(code.Value, isDay);
     }
+
+    /// <summary>
+    /// Which source produced this reading, named by the provider id the payload carries.
+    /// Empty for anything else, which the card reads as "use the vendor's own phrase" - a
+    /// source added after this build still gets credited, just not in the panel's language.
+    /// </summary>
+    private static string ResolveAttributionResourceKey(string? source) =>
+        source switch
+        {
+            "app.winwidgetboard.weather.open-meteo" => OpenMeteoAttributionResourceKey,
+            "app.winwidgetboard.weather.qweather" => QWeatherAttributionResourceKey,
+            _ => string.Empty,
+        };
 
     /// <summary>
     /// The resource key for a WMO code. Empty for a code with no localized name, which the

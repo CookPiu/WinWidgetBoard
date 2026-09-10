@@ -1355,15 +1355,20 @@
                             The attribution is stated in the panel's language; the provider's
                             English phrase would make this the one mixed-language line on the
                             card. The brand name and the link are what the licence needs.
+
+                            Bound, not stated: the card has more than one possible source and
+                            both vendors require attribution, so a fixed brand name here would
+                            credit whichever one happened to be first.
                         -->
                         <HyperlinkButton
-                            x:Uid="WeatherAttributionLink"
+                            automation:AutomationProperties.AutomationId="WeatherAttributionLink"
+                            Content="{x:Bind WeatherAttributionText, Mode=OneWay}"
                             HorizontalAlignment="Left"
                             MinHeight="16"
                             Padding="0"
                             FontSize="11"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            NavigateUri="https://open-meteo.com/"
+                            NavigateUri="{x:Bind WeatherAttributionUrl, Mode=OneWay}"
                             VerticalAlignment="Center" />
                     </StackPanel>
                                         <!--
