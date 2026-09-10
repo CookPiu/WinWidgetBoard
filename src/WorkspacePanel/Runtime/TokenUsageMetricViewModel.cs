@@ -38,6 +38,9 @@ public sealed class TokenUsageMetricViewModel : INotifyPropertyChanged
 
     public bool IsSecondaryVisible => _row.IsSecondaryVisible;
 
+    /// <summary>Both number lanes on a card too narrow to draw the secondary figure.</summary>
+    public int PrimaryColumnSpan => _row.PrimaryColumnSpan;
+
     public bool IsMetricStatusTextVisible => _row.IsMetricStatusTextVisible;
 
     /// <summary>0..100 for a ProgressBar, which has no fractional scale of its own.</summary>
@@ -67,6 +70,7 @@ public sealed class TokenUsageMetricViewModel : INotifyPropertyChanged
         Raise(previous.HasReading, row.HasReading, nameof(HasReading));
         Raise(previous.IsMeterVisible, row.IsMeterVisible, nameof(IsMeterVisible));
         Raise(previous.IsSecondaryVisible, row.IsSecondaryVisible, nameof(IsSecondaryVisible));
+        Raise(previous.PrimaryColumnSpan, row.PrimaryColumnSpan, nameof(PrimaryColumnSpan));
         Raise(
             previous.IsMetricStatusTextVisible,
             row.IsMetricStatusTextVisible,
@@ -108,6 +112,9 @@ public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
 
     public string SplitLabel => _row.SplitLabel;
 
+    /// <summary>Its spend, or its token count where it has no price.</summary>
+    public string FigureText => _row.FigureText;
+
     public double MeterPercent => _row.MeterPercent;
 
     public string AutomationName => _row.AutomationName;
@@ -127,6 +134,7 @@ public sealed class TokenUsageBreakdownViewModel : INotifyPropertyChanged
         Raise(previous.SecondaryText, row.SecondaryText, nameof(SecondaryText));
         Raise(previous.CostText, row.CostText, nameof(CostText));
         Raise(previous.SplitLabel, row.SplitLabel, nameof(SplitLabel));
+        Raise(previous.FigureText, row.FigureText, nameof(FigureText));
         Raise(previous.MeterPercent, row.MeterPercent, nameof(MeterPercent));
         Raise(previous.AutomationName, row.AutomationName, nameof(AutomationName));
         return true;

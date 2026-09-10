@@ -74,7 +74,20 @@ public sealed record TokenUsageMetricRow
     /// </summary>
     public bool IsMeterVisible => HasReading && Ratio.HasValue;
 
-    public bool IsSecondaryVisible => HasReading && SecondaryText.Length > 0;
+    /// <summary>
+    /// Whether the row has a lane for its secondary figure. The one-cell card has about 130
+    /// DIP for the whole row, which the 1.5/1/1 proportions split into 55/37/37 - the name
+    /// only just fits and the secondary figure does not fit at all, so it is dropped there and
+    /// the reading takes both number lanes. The figure stays in <see cref="AutomationName"/>:
+    /// it is the card's width that ran out, not the reading that stopped being reportable.
+    /// </summary>
+    public bool HasSecondaryColumn { get; init; } = true;
+
+    public bool IsSecondaryVisible =>
+        HasReading && SecondaryText.Length > 0 && HasSecondaryColumn;
+
+    /// <summary>The reading's lanes: both of them where the secondary one is not drawn.</summary>
+    public int PrimaryColumnSpan => HasSecondaryColumn ? 1 : 2;
 
     public bool IsMetricStatusTextVisible => !HasReading;
 
@@ -96,7 +109,9 @@ public sealed record TokenUsageMetricRow
                 return $"{Name} {MetricStatusText}";
             }
 
-            string reading = IsSecondaryVisible
+            // The secondary figure rides on the name even where the row has no lane to
+            // draw it in: a reader that is not looking at the card is not short of width.
+            string reading = SecondaryText.Length > 0
                 ? $"{Name} {PrimaryText} {SecondaryText}"
                 : $"{Name} {PrimaryText}";
             return AutomationDetail.Length > 0
@@ -156,6 +171,13 @@ public sealed record TokenUsageBreakdownRow
     public string SplitLabel => CostText.Length > 0
         ? $"{Label} {CostText}"
         : $"{Label} {PrimaryText}";
+
+    /// <summary>
+    /// The figure the slice carries when it has a row of its own: its spend, or its token
+    /// count where it has no price - the same fallback the meter's labels make, so the two
+    /// arrangements of the split report the slice in the same currency.
+    /// </summary>
+    public string FigureText => CostText.Length > 0 ? CostText : PrimaryText;
 
     public string AutomationName => $"{Label} {PrimaryText} {SecondaryText}";
 }

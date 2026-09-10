@@ -1897,6 +1897,7 @@
                         TextTrimming="CharacterEllipsis" />
                     <TextBlock
                         Grid.Column="1"
+                        Grid.ColumnSpan="{x:Bind PrimaryColumnSpan, Mode=OneWay}"
                         Style="{StaticResource WwbCardBodyStyle}"
                         Text="{x:Bind PrimaryText, Mode=OneWay}"
                         TextAlignment="Right"
@@ -1927,6 +1928,58 @@
                     IsTabStop="False"
                     automation:AutomationProperties.AccessibilityView="Raw"
                     Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
+            </Grid>
+        </DataTemplate>
+
+        <!--
+            One slice of the split, on the card that has a band for a row per slice. Built to
+            the same proportions as a reading row, because it is read as one more line of the
+            same table: what it is on the left, what it cost and what share it is on the right,
+            and the share as a meter under them. Unlike a reading it always has a ceiling - a
+            share of the day - so the meter is never in doubt here.
+        -->
+        <DataTemplate
+            x:Key="TokenUsageBreakdownTemplate"
+            x:DataType="runtime:TokenUsageBreakdownViewModel">
+            <Grid
+                Padding="0,2"
+                RowSpacing="2"
+                automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="1*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind Label, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        Text="{x:Bind FigureText, Mode=OneWay}"
+                        TextAlignment="Right"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Grid.Column="2"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind SecondaryText, Mode=OneWay}"
+                        TextAlignment="Right"
+                        TextTrimming="CharacterEllipsis" />
+                </Grid>
+                <ProgressBar
+                    Grid.Row="1"
+                    Style="{StaticResource WwbMetricMeterStyle}"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{x:Bind MeterPercent, Mode=OneWay}"
+                    IsTabStop="False"
+                    automation:AutomationProperties.AccessibilityView="Raw" />
             </Grid>
         </DataTemplate>
 
@@ -1969,17 +2022,42 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
+                    <!--
+                        The page tabs live here rather than above the amount. They choose which
+                        page the whole card shows, which is card chrome of the same kind as the
+                        gear beside them - and in the content flow they cost 30 DIP, which on a
+                        two-cell card was the one reading it had room for. The title is the
+                        star column, so a board with more vendors than fit trims the card's
+                        name rather than the tabs that say which of them is on screen.
+                    -->
                     <Grid Grid.Row="0" ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
                             x:Uid="TokenUsageCardTitle"
-                            Style="{StaticResource WwbCardTitleStyle}" />
+                            VerticalAlignment="Center"
+                            Style="{StaticResource WwbCardTitleStyle}"
+                            TextTrimming="CharacterEllipsis" />
+                        <ItemsControl
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            ItemsSource="{x:Bind TokenUsagePages}"
+                            ItemTemplate="{StaticResource TokenUsagePageTabTemplate}"
+                            IsTabStop="False"
+                            automation:AutomationProperties.AutomationId="TokenUsagePageTabs"
+                            Visibility="{x:Bind IsTokenUsagePageSwitcherVisible, Mode=OneWay}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
                         <Button
                             x:Uid="TokenUsageSettingsButton"
-                            Grid.Column="1"
+                            Grid.Column="2"
                             Style="{StaticResource WwbCardIconButtonStyle}"
                             Visibility="{x:Bind AreCardActionsVisible, Mode=OneWay}"
                             Click="TokenUsageSettingsButton_Click"
@@ -1994,154 +2072,214 @@
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
                             Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
-                        <StackPanel
-                            VerticalAlignment="Top"
-                            Spacing="6"
-                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
-                                <ItemsControl
-                                    ItemsSource="{x:Bind TokenUsagePages}"
-                                    ItemTemplate="{StaticResource TokenUsagePageTabTemplate}"
-                                    IsTabStop="False"
-                                    automation:AutomationProperties.AutomationId="TokenUsagePageTabs"
-                                    Visibility="{x:Bind IsTokenUsagePageSwitcherVisible, Mode=OneWay}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="4" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                </ItemsControl>
-                                <!--
-                                    The day's spend, given the weight the weather card gives
-                                    its temperature. It is the figure this card is opened for,
-                                    and a uniform table of rows would give it no more emphasis
-                                    than the response count. Grouped by type scale and spacing
-                                    rather than by a rule or a box, per the visual spec.
+                        <!--
+                            One grid, two arrangements - the same two cells the weather card
+                            uses, not two sets of markup. Stacked, every block spans all three
+                            columns and takes a row of its own; beside each other, the amount,
+                            the tiles and the readings each take a column of row 0 and the
+                            expanded split takes the band under them. The cells come from
+                            CardSurfaceItem, so the tree holds one reading list and one
+                            automation id either way.
 
-                                    Behind it, the day's spend hour by hour. The curve
-                                    reaches past the card padding on both sides for the same
-                                    reason the weather motif bleeds off its corner: it is a
-                                    backdrop, and a backdrop that stops at the text margin
-                                    reads as a box. The crosshair follows the pointer across
-                                    it; in edit mode the curve stops taking the pointer so a
-                                    press on the headline still starts a move.
-                                -->
-                                <Grid Margin="-12,0">
-                                    <layout:TokenUsageSpendCurve
-                                        x:Uid="TokenUsageSpendCurve"
-                                        Style="{StaticResource WwbTokenUsageSpendCurveStyle}"
-                                        Points="{x:Bind TokenUsageSpendCurve, Mode=OneWay}"
-                                        IsHitTestVisible="{x:Bind AreCardActionsVisible, Mode=OneWay}"
-                                        Visibility="{x:Bind IsTokenUsageSpendCurveVisible, Mode=OneWay}"
-                                        automation:AutomationProperties.AutomationId="TokenUsageSpendCurve" />
-                                    <StackPanel
-                                        Margin="12,0"
-                                        IsHitTestVisible="False">
-                                        <StackPanel
-                                            Visibility="{x:Bind IsTokenUsageCostVisible, Mode=OneWay}">
-                                            <TextBlock
-                                                x:Uid="TokenUsageCostLabel"
-                                                Style="{StaticResource WwbCardCaptionStyle}" />
-                                            <TextBlock
-                                                Style="{StaticResource WwbWeatherTemperatureStyle}"
-                                                Text="{x:Bind TokenUsageCostText, Mode=OneWay}"
-                                                automation:AutomationProperties.AutomationId="TokenUsageCostText" />
-                                        </StackPanel>
-                                        <!--
-                                            Usage with no figure: say why (how many models have
-                                            no rate) rather than dropping the headline silently.
-                                        -->
-                                        <TextBlock
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageCostNoteText, Mode=OneWay}"
-                                            TextWrapping="Wrap"
-                                            Visibility="{x:Bind IsTokenUsageCostNoteVisible, Mode=OneWay}"
-                                            automation:AutomationProperties.AutomationId="TokenUsageCostNoteText" />
-                                    </StackPanel>
-                                </Grid>
+                            The column spacing costs the stacked arrangement nothing: a child
+                            spanning all three columns spans the gaps between them too, and the
+                            two Auto columns are empty there. The row gaps are the blocks' own
+                            bottom margins rather than RowSpacing, because RowSpacing is
+                            charged for the empty rows as well - 18 DIP the four-column card,
+                            which has 2 DIP to spare, does not have.
+                        -->
+                        <Grid
+                            ColumnSpacing="12"
+                            VerticalAlignment="Top"
+                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!--
+                                The day's spend hour by hour, behind the blocks of row 0. It
+                                reaches past the card padding on both sides for the same reason
+                                the weather motif bleeds off its corner: it is a backdrop, and a
+                                backdrop that stops at the text margin reads as a box. It spans
+                                every column so that the right edge is still "now" when the card
+                                is four cells wide. The crosshair follows the pointer across it;
+                                in edit mode the curve stops taking the pointer so a press on the
+                                headline still starts a move.
+                            -->
+                            <layout:TokenUsageSpendCurve
+                                x:Uid="TokenUsageSpendCurve"
+                                Grid.ColumnSpan="3"
+                                Margin="-12,0"
+                                Style="{StaticResource WwbTokenUsageSpendCurveStyle}"
+                                Points="{x:Bind TokenUsageSpendCurve, Mode=OneWay}"
+                                IsHitTestVisible="{x:Bind AreCardActionsVisible, Mode=OneWay}"
+                                Visibility="{x:Bind IsTokenUsageSpendCurveVisible, Mode=OneWay}"
+                                automation:AutomationProperties.AutomationId="TokenUsageSpendCurve" />
+                            <!--
+                                The day's spend, given the weight the weather card gives its
+                                temperature. It is the figure this card is opened for, and a
+                                uniform table of rows would give it no more emphasis than the
+                                response count. Grouped by type scale and spacing rather than by
+                                a rule or a box, per the visual spec.
+
+                                Every block here takes no pointer input, so the curve behind
+                                them keeps the crosshair across the whole band.
+                            -->
+                            <StackPanel
+                                Grid.ColumnSpan="{x:Bind TokenUsageHeadlineColumnSpan, Mode=OneWay}"
+                                MaxWidth="{x:Bind TokenUsageHeadlineMaxWidth, Mode=OneWay}"
+                                Margin="0,0,0,6"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False">
+                                <StackPanel
+                                    Visibility="{x:Bind IsTokenUsageCostVisible, Mode=OneWay}">
+                                    <TextBlock
+                                        x:Uid="TokenUsageCostLabel"
+                                        Style="{StaticResource WwbCardCaptionStyle}" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                        Text="{x:Bind TokenUsageCostText, Mode=OneWay}"
+                                        automation:AutomationProperties.AutomationId="TokenUsageCostText" />
+                                </StackPanel>
                                 <!--
-                                    Two tiles a two-row card has room for: every token, and
-                                    responses. They are the two numbers a reader adds up or
-                                    divides by in their head, so each carries that arithmetic
-                                    on its second line rather than leaving it to the reader.
+                                    Usage with no figure: say why (how many models have no
+                                    rate) rather than dropping the headline silently.
                                 -->
-                                <Grid
-                                    ColumnSpacing="8"
-                                    Visibility="{x:Bind IsTokenUsageKpiVisible, Mode=OneWay}"
-                                    automation:AutomationProperties.AutomationId="TokenUsageKpiTiles">
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind TokenUsageCostNoteText, Mode=OneWay}"
+                                    TextWrapping="Wrap"
+                                    Visibility="{x:Bind IsTokenUsageCostNoteVisible, Mode=OneWay}"
+                                    automation:AutomationProperties.AutomationId="TokenUsageCostNoteText" />
+                            </StackPanel>
+                            <!--
+                                Two tiles: every token, and responses. They are the two numbers
+                                a reader adds up or divides by in their head, so each carries
+                                that arithmetic on its second line rather than leaving it to the
+                                reader. Under the amount they need a second grid row; beside it
+                                they cost the amount nothing, which is what earns them a place
+                                on the four-column card that is only one row tall.
+                            -->
+                            <Grid
+                                Grid.Row="{x:Bind TokenUsageKpiRow, Mode=OneWay}"
+                                Grid.Column="{x:Bind TokenUsageKpiColumn, Mode=OneWay}"
+                                Grid.ColumnSpan="{x:Bind TokenUsageKpiColumnSpan, Mode=OneWay}"
+                                MaxWidth="{x:Bind TokenUsageKpiMaxWidth, Mode=OneWay}"
+                                Margin="0,0,0,6"
+                                VerticalAlignment="Top"
+                                ColumnSpacing="8"
+                                IsHitTestVisible="False"
+                                Visibility="{x:Bind IsTokenUsageKpiVisible, Mode=OneWay}"
+                                automation:AutomationProperties.AutomationId="TokenUsageKpiTiles">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock
+                                        x:Uid="TokenUsageKpiTotalTokens"
+                                        Style="{StaticResource WwbCardCaptionStyle}" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardFigureStyle}"
+                                        Text="{x:Bind TokenUsageTotalTokensText, Mode=OneWay}"
+                                        automation:AutomationProperties.AutomationId="TokenUsageTotalTokensText" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind TokenUsageTotalTokensNoteText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock
+                                        x:Uid="TokenUsageKpiRequests"
+                                        Style="{StaticResource WwbCardCaptionStyle}" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardFigureStyle}"
+                                        Text="{x:Bind TokenUsageRequestsText, Mode=OneWay}"
+                                        automation:AutomationProperties.AutomationId="TokenUsageRequestsText" />
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind TokenUsageRequestsNoteText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                            <ItemsControl
+                                Grid.Row="{x:Bind TokenUsageMetricsRow, Mode=OneWay}"
+                                Grid.Column="{x:Bind TokenUsageMetricsColumn, Mode=OneWay}"
+                                Grid.ColumnSpan="{x:Bind TokenUsageMetricsColumnSpan, Mode=OneWay}"
+                                Margin="0,0,0,6"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False"
+                                ItemsSource="{x:Bind TokenUsageMetrics}"
+                                ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
+                                IsTabStop="False"
+                                automation:AutomationProperties.AutomationId="TokenUsageMetricList" />
+                            <!--
+                                How the spend divides: the two largest slices at either end of
+                                one meter, vendors on the overview and models on a vendor page.
+                                One meter rather than a row per slice, because a row per slice
+                                is the breakdown table that was drawn off the bottom of the
+                                card the last time it was here - which is true of every size
+                                except the one below, where the slices have a band of their own.
+                            -->
+                            <StackPanel
+                                Grid.Row="3"
+                                Grid.ColumnSpan="3"
+                                Spacing="3"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False"
+                                Visibility="{x:Bind IsTokenUsageSplitVisible, Mode=OneWay}"
+                                automation:AutomationProperties.AutomationId="TokenUsageSplit">
+                                <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock
-                                            x:Uid="TokenUsageKpiTotalTokens"
-                                            Style="{StaticResource WwbCardCaptionStyle}" />
-                                        <TextBlock
-                                            Style="{StaticResource WwbCardFigureStyle}"
-                                            Text="{x:Bind TokenUsageTotalTokensText, Mode=OneWay}"
-                                            automation:AutomationProperties.AutomationId="TokenUsageTotalTokensText" />
-                                        <TextBlock
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageTotalTokensNoteText, Mode=OneWay}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock
-                                            x:Uid="TokenUsageKpiRequests"
-                                            Style="{StaticResource WwbCardCaptionStyle}" />
-                                        <TextBlock
-                                            Style="{StaticResource WwbCardFigureStyle}"
-                                            Text="{x:Bind TokenUsageRequestsText, Mode=OneWay}"
-                                            automation:AutomationProperties.AutomationId="TokenUsageRequestsText" />
-                                        <TextBlock
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageRequestsNoteText, Mode=OneWay}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
+                                    <TextBlock
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind TokenUsageSplitLeadText, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis"
+                                        automation:AutomationProperties.AutomationId="TokenUsageSplitLeadText" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Style="{StaticResource WwbCardCaptionStyle}"
+                                        Text="{x:Bind TokenUsageSplitTrailText, Mode=OneWay}"
+                                        TextAlignment="Right"
+                                        Visibility="{x:Bind IsTokenUsageSplitTrailVisible, Mode=OneWay}"
+                                        automation:AutomationProperties.AutomationId="TokenUsageSplitTrailText" />
                                 </Grid>
-                                <ItemsControl
-                                    ItemsSource="{x:Bind TokenUsageMetrics}"
-                                    ItemTemplate="{StaticResource TokenUsageMetricTemplate}"
+                                <ProgressBar
+                                    Style="{StaticResource WwbMetricMeterStyle}"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    Value="{x:Bind TokenUsageSplitPercent, Mode=OneWay}"
                                     IsTabStop="False"
-                                    automation:AutomationProperties.AutomationId="TokenUsageMetricList" />
-                                <!--
-                                    How the spend divides: the two largest slices at either end
-                                    of one meter, vendors on the overview and models on a
-                                    vendor page. One meter rather than a row per slice, because
-                                    a row per slice is the breakdown table that was drawn off
-                                    the bottom of the card the last time it was here.
-                                -->
-                                <StackPanel
-                                    Spacing="3"
-                                    Visibility="{x:Bind IsTokenUsageSplitVisible, Mode=OneWay}"
-                                    automation:AutomationProperties.AutomationId="TokenUsageSplit">
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageSplitLeadText, Mode=OneWay}"
-                                            TextTrimming="CharacterEllipsis"
-                                            automation:AutomationProperties.AutomationId="TokenUsageSplitLeadText" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            Style="{StaticResource WwbCardCaptionStyle}"
-                                            Text="{x:Bind TokenUsageSplitTrailText, Mode=OneWay}"
-                                            TextAlignment="Right"
-                                            Visibility="{x:Bind IsTokenUsageSplitTrailVisible, Mode=OneWay}"
-                                            automation:AutomationProperties.AutomationId="TokenUsageSplitTrailText" />
-                                    </Grid>
-                                    <ProgressBar
-                                        Style="{StaticResource WwbMetricMeterStyle}"
-                                        Minimum="0"
-                                        Maximum="100"
-                                        Value="{x:Bind TokenUsageSplitPercent, Mode=OneWay}"
-                                        IsTabStop="False"
-                                        automation:AutomationProperties.AccessibilityView="Raw" />
-                                </StackPanel>
-                        </StackPanel>
+                                    automation:AutomationProperties.AccessibilityView="Raw" />
+                            </StackPanel>
+                            <!--
+                                The same split, a row per slice, under the band. Only the
+                                four-by-two card has the height for it once its lanes are
+                                filled - which is the size ADR-0036 did not have when it chose
+                                the single meter.
+                            -->
+                            <ItemsControl
+                                Grid.Row="1"
+                                Grid.ColumnSpan="3"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False"
+                                ItemsSource="{x:Bind TokenUsageBreakdown}"
+                                ItemTemplate="{StaticResource TokenUsageBreakdownTemplate}"
+                                IsTabStop="False"
+                                automation:AutomationProperties.AutomationId="TokenUsageBreakdownList"
+                                Visibility="{x:Bind IsTokenUsageBreakdownVisible, Mode=OneWay}" />
+                        </Grid>
                     </Grid>
                                         <!--
                         Edit mode draws a resize frame over the card instead of a bar under it.

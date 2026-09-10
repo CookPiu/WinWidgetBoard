@@ -45,3 +45,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0034](0034-core-temp-as-a-second-sensor-source.md) | Accepted | 温度源改为多来源并逐项判断，新增无时限的 Core Temp |
 | [0035](0035-daily-token-pricing-sync.md) | Accepted | Token 定价每日从 LiteLLM 开源价表条件拉取，同步价优先、内置表兜底、用户可关（修订 0030 第 9 条） |
 | [0036](0036-token-usage-spend-curve-card.md) | Accepted | Token 用量卡片以当日累计花费曲线为背景并跟随指针，两块 KPI 与拆分计量条回归（修订 0030 第 3.1 条） |
+| [0037](0037-token-usage-size-ladder.md) | Accepted | Token 用量卡片按行数与列数分档，四列档三栏并排、页签移入头部行、`XL` 拆分逐切片展开（修订 0036 第 3、4 条适用范围） |

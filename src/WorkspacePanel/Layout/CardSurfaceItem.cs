@@ -33,6 +33,17 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         nameof(TokenUsageCostNoteText),
         nameof(IsTokenUsageCostNoteVisible),
         nameof(IsTokenUsagePageSwitcherVisible),
+        nameof(IsTokenUsageWideLayout),
+        nameof(TokenUsageHeadlineColumnSpan),
+        nameof(TokenUsageHeadlineMaxWidth),
+        nameof(TokenUsageKpiRow),
+        nameof(TokenUsageKpiColumn),
+        nameof(TokenUsageKpiColumnSpan),
+        nameof(TokenUsageKpiMaxWidth),
+        nameof(TokenUsageMetricsRow),
+        nameof(TokenUsageMetricsColumn),
+        nameof(TokenUsageMetricsColumnSpan),
+        nameof(IsTokenUsageBreakdownVisible),
         nameof(IsTokenUsageKpiVisible),
         nameof(TokenUsageTotalTokensText),
         nameof(TokenUsageTotalTokensNoteText),
@@ -100,6 +111,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             _runtimeResourceResolver);
         TokenUsagePages = [];
         TokenUsageMetrics = [];
+        TokenUsageBreakdown = [];
         MergeTokenUsage(_tokenUsageProjection);
         _visibilityRegistration = visibilityScheduler?.Register(
             Runtime,
@@ -292,6 +304,12 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     public ObservableCollection<TokenUsageMetricViewModel> TokenUsageMetrics { get; }
 
     /// <summary>
+    /// The split's slices as their own rows. Only the four-by-two card has a band to put them
+    /// under; everywhere else the same slices are the two ends of one meter.
+    /// </summary>
+    public ObservableCollection<TokenUsageBreakdownViewModel> TokenUsageBreakdown { get; }
+
+    /// <summary>
     /// The day's spend curve behind the headline. A list rather than a merged collection: the
     /// curve is one geometry rebuilt from all of its points, so there is no per-point visual
     /// to keep, and a snapshot replaces it whole.
@@ -346,29 +364,80 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     };
 
     /// <summary>
-    /// How many readings are left over once the parts that outrank them have been paid for.
-    ///
-    /// A card clips what does not fit rather than scrolling it, so a reading past this point
-    /// is not cramped - it is invisible, and so is everything below it. The order of payment
-    /// is the order of the card's purpose: the day's spend first, then the page tabs that say
-    /// whose spend it is, then the two tiles and the split meter a two-row card has room for,
-    /// and the readings take what is left. That is a change from counting two readings at
-    /// every small size and showing the spend only at two rows: the readings were being paid
-    /// for before the number the card exists to show.
+    /// True for the four-column sizes, where the card's blocks sit beside each other rather
+    /// than under each other - the same arrangement, and the same reason, as the weather
+    /// card's wide layout. W is four cells across but only one tall, so stacked it left the
+    /// readings the 14 DIP the amount and the tabs had not spent - fewer than the one-cell
+    /// card showed. Beside the amount they get the card's whole height, and the tiles cost
+    /// the amount nothing at all.
     /// </summary>
-    public int TokenUsageMetricLimit
+    public bool IsTokenUsageWideLayout =>
+        Placement.Size is CardSize.W or CardSize.XL;
+
+    /// <summary>
+    /// The amount's grid cell, so one template serves both arrangements. Stacked it spans
+    /// every column, which is also what gives the unpriced note a width to wrap against: in
+    /// an Auto lane of its own it would be measured against infinity and take the whole card.
+    /// </summary>
+    public int TokenUsageHeadlineColumnSpan => IsTokenUsageWideLayout ? 1 : 3;
+
+    /// <summary>
+    /// What the amount's lane may grow to when it has one. 28 DIP digits and their caption
+    /// need about 130; the bound is what keeps the unpriced note out of the lanes beside it.
+    /// </summary>
+    public double TokenUsageHeadlineMaxWidth =>
+        IsTokenUsageWideLayout ? 184d : double.PositiveInfinity;
+
+    public int TokenUsageKpiRow => IsTokenUsageWideLayout ? 0 : 1;
+
+    public int TokenUsageKpiColumn => IsTokenUsageWideLayout ? 1 : 0;
+
+    public int TokenUsageKpiColumnSpan => IsTokenUsageWideLayout ? 1 : 3;
+
+    /// <summary>Same bound, same reason, for the tiles' own Auto lane.</summary>
+    public double TokenUsageKpiMaxWidth =>
+        IsTokenUsageWideLayout ? 224d : double.PositiveInfinity;
+
+    public int TokenUsageMetricsRow => IsTokenUsageWideLayout ? 0 : 2;
+
+    public int TokenUsageMetricsColumn => IsTokenUsageWideLayout ? 2 : 0;
+
+    public int TokenUsageMetricsColumnSpan => IsTokenUsageWideLayout ? 1 : 3;
+
+    /// <summary>
+    /// What the expanded breakdown takes out of the band above it - a row per slice, plus the
+    /// spacing between the two blocks. Zero wherever the breakdown is not shown.
+    /// </summary>
+    private double TokenUsageBreakdownHeight =>
+        IsTokenUsageBreakdownVisible && TokenUsageCurrentPage is TokenUsagePage page
+            ? (page.Breakdown.Count * 24) + 6
+            : 0d;
+
+    /// <summary>
+    /// The height the readings themselves have.
+    ///
+    /// Stacked, they are last in line: the day's spend first, then the two tiles and the
+    /// split meter a two-row card has room for, and the readings take what is left. Beside
+    /// the amount they have a lane to themselves and pay for nothing above them, which is the
+    /// whole point of the wide arrangement - the only thing held back from them there is the
+    /// band the expanded breakdown needs underneath.
+    ///
+    /// The page tabs are not charged at any size any more: they sit in the card's header row
+    /// beside the settings gear, which is a row the card already has.
+    /// </summary>
+    private double TokenUsageMetricBudget
     {
         get
         {
+            if (IsTokenUsageWideLayout)
+            {
+                return TokenUsageContentBudget - TokenUsageBreakdownHeight;
+            }
+
             double budget = TokenUsageContentBudget;
             if (IsTokenUsageCostVisible)
             {
                 budget -= 54;
-            }
-
-            if (IsTokenUsagePageSwitcherVisible)
-            {
-                budget -= 30;
             }
 
             if (IsTokenUsageKpiVisible)
@@ -383,21 +452,37 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 budget -= 25;
             }
 
-            // A reading costs about 24 DIP - a label and its value on one line.
-            return Math.Clamp(
-                (int)(budget / 24),
-                0,
-                TokenUsageContract.MetricIds.Count);
+            return budget;
         }
     }
 
     /// <summary>
-    /// The two tiles - every token, and responses - need two grid rows. A one-row card has
-    /// the headline and, at one cell across, a single reading; the tiles would cost it both.
+    /// How many readings fit in that height. A card clips what does not fit rather than
+    /// scrolling it, so a reading past this point is not cramped - it is invisible, and so is
+    /// everything below it.
+    /// </summary>
+    public int TokenUsageMetricLimit =>
+        // A reading costs about 24 DIP - a label and its value on one line.
+        Math.Clamp(
+            (int)(TokenUsageMetricBudget / 24),
+            0,
+            TokenUsageContract.MetricIds.Count);
+
+    /// <summary>
+    /// The one-cell card has about 130 DIP for a reading row, which the row's proportions
+    /// split into 55/37/37: the name only just fits and the secondary figure does not, so
+    /// there the reading takes both number lanes instead of being trimmed into one.
+    /// </summary>
+    private bool HasTokenUsageSecondaryColumn => Placement.Size is not CardSize.S;
+
+    /// <summary>
+    /// The two tiles - every token, and responses - need a block of their own 60 DIP tall.
+    /// Stacked that is a second grid row, which rules out S and M; beside the amount it costs
+    /// the amount nothing, which is how the one-row W card earns them.
     /// </summary>
     public bool IsTokenUsageKpiVisible =>
         TokenUsageCurrentPage?.HasKpi == true &&
-        Placement.Size is CardSize.L or CardSize.XL;
+        Placement.Size is not (CardSize.S or CardSize.M);
 
     public string TokenUsageTotalTokensText =>
         TokenUsageCurrentPage?.TotalTokensText ?? string.Empty;
@@ -413,13 +498,27 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// The split meter: how the page's spend divides between its two largest slices, vendors
-    /// on the overview and models on a vendor page. Two rows only, for the same reason as the
-    /// tiles; and only where the page has something to split.
+    /// on the overview and models on a vendor page. It needs a second grid row, for the same
+    /// reason as the tiles, and only says anything where the page has something to split.
+    ///
+    /// L only, because that is the size where one meter is all the room there is - which is
+    /// what ADR-0036 chose it for. XL has a band under its lanes and shows the same slices as
+    /// rows instead, so drawing both there would state the split twice.
     /// </summary>
     public bool IsTokenUsageSplitVisible =>
         TokenUsageCurrentPage?.Breakdown.Count > 0 &&
         HasTokenUsageData &&
-        Placement.Size is CardSize.L or CardSize.XL;
+        Placement.Size is CardSize.L;
+
+    /// <summary>
+    /// The same slices as rows, each with its own share meter. Only the four-by-two card has
+    /// the band for them: at every other size a row per slice is the breakdown table that was
+    /// drawn off the bottom of the card, which is why the single meter exists at all.
+    /// </summary>
+    public bool IsTokenUsageBreakdownVisible =>
+        TokenUsageCurrentPage?.Breakdown.Count > 0 &&
+        HasTokenUsageData &&
+        Placement.Size is CardSize.XL;
 
     public string TokenUsageSplitLeadText =>
         TokenUsageCurrentPage?.Breakdown.Count > 0
@@ -467,11 +566,19 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsageCurrentPage?.UnpricedModelCount > 0;
 
     /// <summary>
-    /// The smallest card has no room for tabs. It shows the overview and nothing else, which
-    /// is why the page it shows is the first one rather than whatever was last selected.
+    /// The tabs sit in the card's header row, beside the settings gear: they select which
+    /// page the whole card shows, which is card chrome rather than a block of its content,
+    /// and in the content flow they cost 30 DIP - exactly the reading the two-cell card was
+    /// showing before they were added to it.
+    ///
+    /// The smallest card has no room for them even there: about 114 DIP is left beside the
+    /// title, and three tabs need some 156. It shows the overview and nothing else, which is
+    /// why the page it shows is the first one rather than whatever was last selected. They
+    /// also give way in edit mode, with the gear they now sit next to.
     /// </summary>
     public bool IsTokenUsagePageSwitcherVisible =>
         TokenUsageProjection.IsPageSwitcherVisible &&
+        AreCardActionsVisible &&
         Placement.Size is not CardSize.S;
 
     /// <summary>
@@ -731,6 +838,10 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             PropertyChanged?.Invoke(
                 this,
                 new PropertyChangedEventArgs(nameof(AreNoteToolsVisible)));
+            // The token usage tabs now sit beside that gear and give way with it.
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsTokenUsagePageSwitcherVisible)));
         }
     }
 
@@ -858,6 +969,11 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         TokenUsageListMerger.MergeMetrics(
             TokenUsageMetrics,
             TakeVisibleMetrics(page));
+        TokenUsageListMerger.MergeBreakdown(
+            TokenUsageBreakdown,
+            IsTokenUsageBreakdownVisible && page is not null
+                ? page.Breakdown
+                : Array.Empty<TokenUsageBreakdownRow>());
     }
 
     /// <summary>
@@ -866,7 +982,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// Responses leave the rows when the tile shows them: the same number twice on one card
     /// is the tile's, not the row's.
     /// </summary>
-    private IReadOnlyList<TokenUsageMetricRow> TakeVisibleMetrics(TokenUsagePage? page)
+    private TokenUsageMetricRow[] TakeVisibleMetrics(TokenUsagePage? page)
     {
         IReadOnlyList<TokenUsageMetricRow> metrics =
             page?.Metrics ?? Array.Empty<TokenUsageMetricRow>();
@@ -880,16 +996,14 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 .ToArray();
         }
 
-        int limit = TokenUsageMetricLimit;
-        if (metrics.Count <= limit)
-        {
-            return metrics;
-        }
-
+        int limit = Math.Min(TokenUsageMetricLimit, metrics.Count);
         var visible = new TokenUsageMetricRow[limit];
+        bool secondaryColumn = HasTokenUsageSecondaryColumn;
         for (int index = 0; index < limit; index++)
         {
-            visible[index] = metrics[index];
+            visible[index] = secondaryColumn
+                ? metrics[index]
+                : metrics[index] with { HasSecondaryColumn = false };
         }
 
         return visible;
