@@ -53,7 +53,6 @@ public sealed partial class WeatherHourlyCurve : Control
 
     private static readonly TimeSpan FadeIn = TimeSpan.FromMilliseconds(120);
     private static readonly TimeSpan FadeOut = TimeSpan.FromMilliseconds(90);
-    private static readonly TimeSpan TipSlide = TimeSpan.FromMilliseconds(110);
 
     // Registered as object for the same reason the spend curve is: the value is a managed
     // list of a plain record, which is not a WinRT type, and a property type XAML cannot
@@ -94,7 +93,6 @@ public sealed partial class WeatherHourlyCurve : Control
     private ContentControl? _tipGlyph;
     private WeatherHourlyCurveSeries? _series;
     private bool _isTracking;
-    private double _tipX;
 
     public WeatherHourlyCurve()
     {
@@ -150,15 +148,6 @@ public sealed partial class WeatherHourlyCurve : Control
         _tipPrecipitationRow = GetTemplateChild("PART_TipPrecipitationRow") as FrameworkElement;
         _tipPrecipitation = GetTemplateChild("PART_TipPrecipitation") as TextBlock;
         _tipGlyph = GetTemplateChild("PART_TipGlyph") as ContentControl;
-        if (_tip is not null)
-        {
-            // Required before the tip's composition Translation can be animated. Setting the
-            // UIElement.Translation property works without it, but StartAnimation on the
-            // visual's "Translation" does not - and a failure there is a managed exception
-            // inside a pointer callback, which is a fail-fast with nothing in the dump.
-            ElementCompositionPreview.SetIsTranslationEnabled(_tip, true);
-        }
-
         ApplyGlyphSelector();
         HideReadout(animate: false);
         Rebuild();
@@ -426,10 +415,15 @@ public sealed partial class WeatherHourlyCurve : Control
         percent.ToString(System.Globalization.CultureInfo.CurrentCulture) + "%";
 
     /// <summary>
-    /// Slides the tip rather than teleporting it. The tip is beside the pointer, not under
-    /// it, so a short ease reads as the readout keeping up; the crosshair itself stays exactly
-    /// on the pointer. The first placement of a fresh hover is set outright - easing in from
-    /// wherever the last hover left it would fly the tip across the card.
+    /// Places the tip beside the crosshair, in the same frame and by the same kind of write.
+    ///
+    /// It used to ease across on a composition animation, which looked better in isolation and
+    /// was wrong: the crosshair is a direct property write that lands immediately, so any
+    /// animation on the tip makes the two disagree while it runs - and if the animation fails
+    /// to start, the tip simply stays where it last was while the crosshair walks away from
+    /// it. A readout whose label can point at a different hour than its own line is worse than
+    /// one that does not glide. The smoothing that matters here is the fade, which is about
+    /// appearing rather than about tracking.
     /// </summary>
     private void MoveTip(double tipX)
     {
@@ -438,27 +432,7 @@ public sealed partial class WeatherHourlyCurve : Control
             return;
         }
 
-        if (!_isTracking || ReducedMotion)
-        {
-            _tipX = tipX;
-            ElementCompositionPreview.GetElementVisual(_tip).StopAnimation("Translation");
-            _tip.Translation = new Vector3((float)tipX, 0f, 0f);
-            return;
-        }
-
-        if (Math.Abs(tipX - _tipX) < 0.5d)
-        {
-            return;
-        }
-
-        _tipX = tipX;
-        Visual visual = ElementCompositionPreview.GetElementVisual(_tip);
-        Compositor compositor = visual.Compositor;
-        Vector3KeyFrameAnimation animation = compositor.CreateVector3KeyFrameAnimation();
-        animation.InsertExpressionKeyFrame(0f, "this.CurrentValue");
-        animation.InsertKeyFrame(1f, new Vector3((float)tipX, 0f, 0f));
-        animation.Duration = TipSlide;
-        visual.StartAnimation("Translation", animation);
+        _tip.Translation = new Vector3((float)tipX, 0f, 0f);
     }
 
     /// <summary>
