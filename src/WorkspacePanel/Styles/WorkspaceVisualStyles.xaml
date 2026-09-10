@@ -872,11 +872,15 @@
                             <!--
                                 One element carries the whole readout, so the fade is a single
                                 compositor opacity rather than four that can drift apart.
+
+                                At rest it is transparent, not collapsed. Measuring a collapsed
+                                element yields a desired size of zero, and the tip's width is
+                                what decides which side of the crosshair it goes on - measured
+                                as zero, it never flips and runs off the right edge.
                             -->
                             <Canvas
                                 x:Name="PART_Readout"
-                                Opacity="0"
-                                Visibility="Collapsed">
+                                Opacity="0">
                                 <Rectangle
                                     x:Name="PART_Crosshair"
                                     Width="1"

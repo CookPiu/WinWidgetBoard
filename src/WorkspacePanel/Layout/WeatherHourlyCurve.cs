@@ -150,6 +150,15 @@ public sealed partial class WeatherHourlyCurve : Control
         _tipPrecipitationRow = GetTemplateChild("PART_TipPrecipitationRow") as FrameworkElement;
         _tipPrecipitation = GetTemplateChild("PART_TipPrecipitation") as TextBlock;
         _tipGlyph = GetTemplateChild("PART_TipGlyph") as ContentControl;
+        if (_tip is not null)
+        {
+            // Required before the tip's composition Translation can be animated. Setting the
+            // UIElement.Translation property works without it, but StartAnimation on the
+            // visual's "Translation" does not - and a failure there is a managed exception
+            // inside a pointer callback, which is a fail-fast with nothing in the dump.
+            ElementCompositionPreview.SetIsTranslationEnabled(_tip, true);
+        }
+
         ApplyGlyphSelector();
         HideReadout(animate: false);
         Rebuild();
@@ -432,6 +441,7 @@ public sealed partial class WeatherHourlyCurve : Control
         if (!_isTracking || ReducedMotion)
         {
             _tipX = tipX;
+            ElementCompositionPreview.GetElementVisual(_tip).StopAnimation("Translation");
             _tip.Translation = new Vector3((float)tipX, 0f, 0f);
             return;
         }
@@ -464,9 +474,9 @@ public sealed partial class WeatherHourlyCurve : Control
         }
 
         _isTracking = true;
-        _readout.Visibility = Visibility.Visible;
         if (ReducedMotion)
         {
+            ElementCompositionPreview.GetElementVisual(_readout).StopAnimation("Opacity");
             _readout.Opacity = 1d;
             return;
         }
@@ -482,6 +492,11 @@ public sealed partial class WeatherHourlyCurve : Control
 
     private void HideReadout() => HideReadout(animate: true);
 
+    /// <summary>
+    /// Fades the readout out. Opacity only - the element stays visible and arranged, because
+    /// its tip has to remain measurable: the next hover decides which side of the crosshair
+    /// the tip goes on from its width, and a collapsed element measures as nothing.
+    /// </summary>
     private void HideReadout(bool animate)
     {
         _isTracking = false;
@@ -490,32 +505,20 @@ public sealed partial class WeatherHourlyCurve : Control
             return;
         }
 
+        Visual visual = ElementCompositionPreview.GetElementVisual(_readout);
         if (!animate || ReducedMotion)
         {
+            visual.StopAnimation("Opacity");
             _readout.Opacity = 0d;
-            _readout.Visibility = Visibility.Collapsed;
             return;
         }
 
-        Visual visual = ElementCompositionPreview.GetElementVisual(_readout);
         Compositor compositor = visual.Compositor;
-        CompositionScopedBatch batch =
-            compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
         ScalarKeyFrameAnimation animation = compositor.CreateScalarKeyFrameAnimation();
         animation.InsertExpressionKeyFrame(0f, "this.CurrentValue");
         animation.InsertKeyFrame(1f, 0f);
         animation.Duration = FadeOut;
         visual.StartAnimation("Opacity", animation);
-        batch.End();
-        // Collapsed only once the fade finished, and only if the pointer has not come back:
-        // a re-entry during the fade sets _isTracking again and must keep the element alive.
-        batch.Completed += (_, _) =>
-        {
-            if (!_isTracking && _readout is not null)
-            {
-                _readout.Visibility = Visibility.Collapsed;
-            }
-        };
     }
 
     /// <summary>
