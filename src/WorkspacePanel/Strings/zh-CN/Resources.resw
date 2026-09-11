@@ -763,6 +763,18 @@
   <data name="SysMonStatus.Unavailable" xml:space="preserve">
     <value>此电脑无法读取</value>
   </data>
+  <data name="SysMonCurve.Now" xml:space="preserve">
+    <value>现在</value>
+  </data>
+  <data name="SysMonCurve.SecondsAgo" xml:space="preserve">
+    <value>{0} 秒前</value>
+  </data>
+  <data name="SysMonCurve.MinutesAgo" xml:space="preserve">
+    <value>{0} 分前</value>
+  </data>
+  <data name="SystemMonitorHeadlineCurve.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>该读数近两分钟的走势，指针悬停可查看各次采样</value>
+  </data>
   <data name="SysMonSensorSourceHint.Text" xml:space="preserve">
     <value>温度与风扇转速需要 HWiNFO 或 Core Temp 在后台运行；没有来源时，这些行不会出现在卡片和任务栏上。</value>
   </data>

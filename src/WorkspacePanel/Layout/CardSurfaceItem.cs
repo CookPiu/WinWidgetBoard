@@ -62,6 +62,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     private CardRuntimeStatusPresentation _runtimePresentation;
     private WeatherCardProjection _weatherProjection;
     private SystemMonitorCardProjection _systemMonitorProjection;
+    private SystemMonitorMetricViewModel? _systemMonitorHeadline;
     private TokenUsageCardProjection _tokenUsageProjection;
     // The chosen page is panel-local view state, deliberately not persisted: the card opens on
     // the overview every time rather than on whatever was last looked at.
@@ -102,10 +103,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             Runtime.Snapshot,
             _runtimeResourceResolver);
         SystemMonitorMetrics = [];
-        SystemMonitorMetricListMerger.Merge(
-            SystemMonitorMetrics,
-            _systemMonitorProjection.Metrics);
-        ApplySystemMonitorMetricLimit();
+        MergeSystemMonitor(_systemMonitorProjection);
         _tokenUsageProjection = TokenUsageCardProjection.FromSnapshot(
             Runtime.Snapshot,
             _runtimeResourceResolver);
@@ -432,11 +430,52 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// A stable collection updated in place. Replacing it every tick would rebuild each row's
     /// visuals twice a second on a card whose entire purpose is to sit still and change
-    /// numbers.
+    /// numbers. It holds everything under the headline; the headline itself is
+    /// <see cref="SystemMonitorHeadline"/>, which is a different shape on the card.
     /// </summary>
     public ObservableCollection<SystemMonitorMetricViewModel> SystemMonitorMetrics { get; }
 
+    /// <summary>
+    /// The reading the card leads with, updated in place like the rows under it and replaced
+    /// only when a different metric takes the lead - which happens when the user re-orders
+    /// their list, not on a tick.
+    /// </summary>
+    public SystemMonitorMetricViewModel? SystemMonitorHeadline => _systemMonitorHeadline;
+
+    public bool HasSystemMonitorHeadline => _systemMonitorHeadline is not null;
+
     public bool HasSystemMonitorData => SystemMonitorProjection.HasData;
+
+    /// <summary>
+    /// True for the four-column sizes, where the headline sits beside the readings instead of
+    /// above them - the same arrangement, and the same reason, as the token card's wide
+    /// layout. W is four cells across and one tall: stacked, the headline would eat more than
+    /// half of the 98 DIP and leave room for a single reading on the widest one-row card there
+    /// is. Beside it, the readings get the card's whole height and the headline costs them
+    /// nothing.
+    /// </summary>
+    public bool IsSystemMonitorWideLayout =>
+        Placement.Size is CardSize.W or CardSize.XL;
+
+    /// <summary>
+    /// The headline's grid cell, so one template serves both arrangements. Stacked it spans
+    /// both columns, which is also what gives the value a width to be measured against.
+    /// </summary>
+    public int SystemMonitorHeadlineColumnSpan => IsSystemMonitorWideLayout ? 1 : 2;
+
+    /// <summary>
+    /// What the headline's lane may grow to when it has one beside the readings. A 28 DIP
+    /// figure and its caption need about 150; the bound is what stops a long secondary line
+    /// ("21.8 GB / 31.4 GB") from taking the lane the readings live in.
+    /// </summary>
+    public double SystemMonitorHeadlineMaxWidth =>
+        IsSystemMonitorWideLayout ? 196d : double.PositiveInfinity;
+
+    public int SystemMonitorMetricsRow => IsSystemMonitorWideLayout ? 0 : 1;
+
+    public int SystemMonitorMetricsColumn => IsSystemMonitorWideLayout ? 1 : 0;
+
+    public int SystemMonitorMetricsColumnSpan => IsSystemMonitorWideLayout ? 1 : 2;
 
     public TokenUsageCardProjection TokenUsageProjection =>
         Volatile.Read(ref _tokenUsageProjection);
@@ -806,9 +845,26 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     };
 
     /// <summary>
+    /// What the rows under the headline actually have.
+    ///
+    /// Stacked, the headline is charged against them: a 28 DIP figure with its caption above
+    /// is 54, and 6 more separates the block from the first row. Beside them it costs nothing,
+    /// which is the whole point of the wide arrangement. The curve behind the headline is not
+    /// charged at all - it is a backdrop inside the same 54, exactly as the token card's is.
+    ///
+    /// Any new block on this card has to be added to this account. The reading it would push
+    /// past the budget does not get cramped; it disappears, and so does everything under it.
+    /// </summary>
+    private double SystemMonitorMetricBudget =>
+        IsSystemMonitorWideLayout || !HasSystemMonitorHeadline
+            ? SystemMonitorContentBudget
+            : SystemMonitorContentBudget - 60;
+
+    /// <summary>
     /// A reading's height, measured off the real card rather than guessed: rows sit about
     /// 29 DIP apart, and a second line of detail - memory's "21.8 GB / 31.4 GB" - adds about
-    /// 18 more. A meter costs nothing extra; it is a thin bar inside the row it belongs to.
+    /// 18 more. A meter costs nothing extra; it is a thin bar inside the row it belongs to,
+    /// and neither does the curve that replaces it - that one is behind the row's own text.
     ///
     /// This is per row rather than a count because the rows differ. A flat count of three put
     /// CPU, memory and GPU on a one-row card and drew the third half inside the clip; costing
@@ -940,8 +996,28 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                 new PropertyChangedEventArgs(nameof(NoteSwitcherListMaxHeight)));
             // The hardware readings are held back per row rather than by rebuilding the list:
             // the rows are updated in place twice a second, and replacing them on a resize
-            // would throw away that identity for no gain.
+            // would throw away that identity for no gain. The cells the headline and the rows
+            // occupy do change with the size, and a card that only re-announced them on the
+            // next snapshot would sit in the wrong arrangement for up to two seconds.
             ApplySystemMonitorMetricLimit();
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(IsSystemMonitorWideLayout)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(SystemMonitorHeadlineColumnSpan)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(SystemMonitorHeadlineMaxWidth)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(SystemMonitorMetricsRow)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(SystemMonitorMetricsColumn)));
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(SystemMonitorMetricsColumnSpan)));
             // The token usage card discloses by size too, and its reading count is one of the
             // things that changes - so the bound collection is rebuilt, not just re-announced.
             MergeTokenUsage(TokenUsageProjection);
@@ -959,7 +1035,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// </summary>
     private void ApplySystemMonitorMetricLimit()
     {
-        double budget = SystemMonitorContentBudget;
+        double budget = SystemMonitorMetricBudget;
         double used = 0;
         bool exhausted = false;
         foreach (SystemMonitorMetricViewModel metric in SystemMonitorMetrics)
@@ -975,6 +1051,48 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             used += cost;
             metric.IsWithinCardLimit = true;
         }
+    }
+
+    /// <summary>
+    /// Brings the headline and the rows under it in line with a new projection. The headline
+    /// is updated in place wherever it is still the same metric - the card's largest figure
+    /// would otherwise be rebuilt every two seconds - and replaced only when the lead changes,
+    /// which is a configuration change rather than a tick.
+    /// </summary>
+    private void MergeSystemMonitor(SystemMonitorCardProjection projection)
+    {
+        SystemMonitorMetricRow? headline = projection.Headline;
+        if (headline is null)
+        {
+            if (_systemMonitorHeadline is not null)
+            {
+                _systemMonitorHeadline = null;
+                RaiseSystemMonitorHeadlineChanged();
+            }
+        }
+        else if (_systemMonitorHeadline is null ||
+            !_systemMonitorHeadline.Apply(headline))
+        {
+            // Apply refuses a row for another metric, which is exactly the case that needs a
+            // new view model rather than an update.
+            _systemMonitorHeadline = new SystemMonitorMetricViewModel(headline);
+            RaiseSystemMonitorHeadlineChanged();
+        }
+
+        SystemMonitorMetricListMerger.Merge(
+            SystemMonitorMetrics,
+            projection.TrailingMetrics);
+        ApplySystemMonitorMetricLimit();
+    }
+
+    private void RaiseSystemMonitorHeadlineChanged()
+    {
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(nameof(SystemMonitorHeadline)));
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(nameof(HasSystemMonitorHeadline)));
     }
 
     public void Dispose()
@@ -1071,13 +1189,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
                     Runtime.Snapshot,
                     _runtimeResourceResolver);
             Interlocked.Exchange(ref _systemMonitorProjection, systemMonitor);
-            _uiInvoker(() =>
-            {
-                SystemMonitorMetricListMerger.Merge(
-                    SystemMonitorMetrics,
-                    systemMonitor.Metrics);
-                ApplySystemMonitorMetricLimit();
-            });
+            _uiInvoker(() => MergeSystemMonitor(systemMonitor));
             TokenUsageCardProjection tokenUsage =
                 TokenUsageCardProjection.FromSnapshot(
                     Runtime.Snapshot,

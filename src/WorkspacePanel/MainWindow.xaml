@@ -1790,59 +1790,73 @@
         </DataTemplate>
 
         <!--
-            One metric row. The meter is decoration over a number the row already states, so it
-            carries no automation name of its own; the row's name has the name and the value.
-            A metric with no ceiling - a network rate - shows no meter at all rather than a bar
-            drawn against an invented maximum.
+            One metric row, with its own recent window drawn behind it.
+
+            The curve replaces the meter rather than joining it: the curve's right edge is the
+            same number the meter would show, and both at once states one reading twice. The
+            meter is what a row falls back to before there is a window to plot - the first tick
+            of a cold start, and the first after a wake - which is decided in the projection so
+            the rule is testable without a WinUI host.
+
+            Both are decoration over a number the row already states, so neither carries an
+            automation name; the row's name has the name and the value. A metric with no
+            ceiling - a network rate - still shows no meter, but it does get a curve: a rate
+            has no full scale to draw a bar against, while a shape against the window's own
+            peak is exactly what a rate can honestly be drawn as.
         -->
         <DataTemplate
             x:Key="SystemMonitorMetricTemplate"
             x:DataType="runtime:SystemMonitorMetricViewModel">
             <Grid
                 Padding="0,3"
-                RowSpacing="3"
                 Visibility="{x:Bind IsWithinCardLimit, Mode=OneWay}"
                 automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                <layout:SystemMonitorCurve
+                    Style="{StaticResource WwbSystemMonitorRowCurveStyle}"
+                    Points="{x:Bind CurvePoints, Mode=OneWay}"
+                    Visibility="{x:Bind IsCurveVisible, Mode=OneWay}" />
+                <Grid RowSpacing="3">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Style="{StaticResource WwbCardCaptionStyle}"
+                            Text="{x:Bind Name, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource WwbCardBodyStyle}"
+                            Text="{x:Bind PrimaryText, Mode=OneWay}"
+                            Visibility="{x:Bind HasReading, Mode=OneWay}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource WwbCardCaptionStyle}"
+                            Text="{x:Bind MetricStatusText, Mode=OneWay}"
+                            Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
+                    </Grid>
+                    <ProgressBar
+                        Grid.Row="1"
+                        Style="{StaticResource WwbMetricMeterStyle}"
+                        Minimum="0"
+                        Maximum="100"
+                        Value="{x:Bind MeterPercent, Mode=OneWay}"
+                        IsTabStop="False"
+                        automation:AutomationProperties.AccessibilityView="Raw"
+                        Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
                     <TextBlock
+                        Grid.Row="2"
                         Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind Name, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis" />
-                    <TextBlock
-                        Grid.Column="1"
-                        Style="{StaticResource WwbCardBodyStyle}"
-                        Text="{x:Bind PrimaryText, Mode=OneWay}"
-                        Visibility="{x:Bind HasReading, Mode=OneWay}" />
-                    <TextBlock
-                        Grid.Column="1"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind MetricStatusText, Mode=OneWay}"
-                        Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
+                        Text="{x:Bind SecondaryText, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
                 </Grid>
-                <ProgressBar
-                    Grid.Row="1"
-                    Style="{StaticResource WwbMetricMeterStyle}"
-                    Minimum="0"
-                    Maximum="100"
-                    Value="{x:Bind MeterPercent, Mode=OneWay}"
-                    IsTabStop="False"
-                    automation:AutomationProperties.AccessibilityView="Raw"
-                    Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
-                <TextBlock
-                    Grid.Row="2"
-                    Style="{StaticResource WwbCardCaptionStyle}"
-                    Text="{x:Bind SecondaryText, Mode=OneWay}"
-                    TextTrimming="CharacterEllipsis"
-                    Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
             </Grid>
         </DataTemplate>
 
@@ -1893,13 +1907,94 @@
                             ContentTemplate="{StaticResource CardRuntimeStatusTemplate}"
                             IsTabStop="False"
                             Visibility="{x:Bind RuntimePresentation.IsStateVisible, Mode=OneWay}" />
-                        <ItemsControl
+                        <!--
+                            The headline and the readings under it, in one set of markup that
+                            serves both arrangements. Stacked, the headline spans both columns
+                            and the readings take the row beneath; beside each other - the four
+                            column sizes - the headline takes the Auto column and the readings
+                            the star column of row 0, which is the only way a card one row tall
+                            can carry both. The cells come from CardSurfaceItem, so the tree
+                            holds one reading list and one automation id either way.
+
+                            Row gaps are the headline block's own bottom margin rather than
+                            RowSpacing, which is charged for the empty row of the beside-each-
+                            other arrangement as well.
+                        -->
+                        <Grid
+                            ColumnSpacing="12"
                             VerticalAlignment="Top"
-                            ItemsSource="{x:Bind SystemMonitorMetrics}"
-                            ItemTemplate="{StaticResource SystemMonitorMetricTemplate}"
-                            IsTabStop="False"
-                            automation:AutomationProperties.AutomationId="SystemMonitorMetricList"
-                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}" />
+                            Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!--
+                                The leading reading's last two minutes, behind its value. It
+                                reaches past the card padding on the left for the same reason
+                                the token card's spend curve does: it is a backdrop, and one
+                                that stops at the text margin reads as a box. Beside the
+                                readings its right edge runs into the column gap rather than
+                                under them. In edit mode it stops taking the pointer, so a
+                                press on the headline still starts a move.
+                            -->
+                            <layout:SystemMonitorCurve
+                                x:Uid="SystemMonitorHeadlineCurve"
+                                Grid.ColumnSpan="{x:Bind SystemMonitorHeadlineColumnSpan, Mode=OneWay}"
+                                Margin="-12,0"
+                                Style="{StaticResource WwbSystemMonitorHeadlineCurveStyle}"
+                                Points="{x:Bind SystemMonitorHeadline.CurvePoints, Mode=OneWay}"
+                                IsHitTestVisible="{x:Bind AreCardActionsVisible, Mode=OneWay}"
+                                Visibility="{x:Bind SystemMonitorHeadline.IsCurveVisible, Mode=OneWay}"
+                                automation:AutomationProperties.AutomationId="SystemMonitorHeadlineCurve" />
+                            <!--
+                                The reading the user ranked first, given the weight the weather
+                                card gives its temperature. A uniform table of rows gives the
+                                reading this card is opened for no more emphasis than the one
+                                ranked last. It takes no pointer input, so the curve behind it
+                                keeps the crosshair across the whole block.
+                            -->
+                            <StackPanel
+                                Grid.ColumnSpan="{x:Bind SystemMonitorHeadlineColumnSpan, Mode=OneWay}"
+                                MaxWidth="{x:Bind SystemMonitorHeadlineMaxWidth, Mode=OneWay}"
+                                Margin="0,0,0,6"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                IsHitTestVisible="False"
+                                Visibility="{x:Bind HasSystemMonitorHeadline, Mode=OneWay}"
+                                automation:AutomationProperties.Name="{x:Bind SystemMonitorHeadline.AutomationName, Mode=OneWay}">
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind SystemMonitorHeadline.Name, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Style="{StaticResource WwbWeatherTemperatureStyle}"
+                                    Text="{x:Bind SystemMonitorHeadline.PrimaryText, Mode=OneWay}"
+                                    automation:AutomationProperties.AutomationId="SystemMonitorHeadlineValue" />
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind SystemMonitorHeadline.SecondaryText, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Visibility="{x:Bind SystemMonitorHeadline.IsSecondaryVisible, Mode=OneWay}" />
+                                <TextBlock
+                                    Style="{StaticResource WwbCardCaptionStyle}"
+                                    Text="{x:Bind SystemMonitorHeadline.MetricStatusText, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Visibility="{x:Bind SystemMonitorHeadline.IsMetricStatusTextVisible, Mode=OneWay}" />
+                            </StackPanel>
+                            <ItemsControl
+                                Grid.Row="{x:Bind SystemMonitorMetricsRow, Mode=OneWay}"
+                                Grid.Column="{x:Bind SystemMonitorMetricsColumn, Mode=OneWay}"
+                                Grid.ColumnSpan="{x:Bind SystemMonitorMetricsColumnSpan, Mode=OneWay}"
+                                VerticalAlignment="Top"
+                                ItemsSource="{x:Bind SystemMonitorMetrics}"
+                                ItemTemplate="{StaticResource SystemMonitorMetricTemplate}"
+                                IsTabStop="False"
+                                automation:AutomationProperties.AutomationId="SystemMonitorMetricList" />
+                        </Grid>
                     </Grid>
                                         <!--
                         Edit mode draws a resize frame over the card instead of a bar under it.

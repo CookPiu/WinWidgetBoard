@@ -305,6 +305,14 @@ public sealed record SystemMonitorCardPayloadDto
         Array.Empty<SystemMonitorMetricDto>();
 
     public string SampledAtUtc { get; init; } = string.Empty;
+
+    /// <summary>
+    /// How far apart two history points are. The card's crosshair names how long ago the point
+    /// under the pointer was measured, and that is the only way it can know: the series carries
+    /// no timestamps, and a panel that assumed the cadence would start lying the day the broker
+    /// changed it. Zero or absent means the points carry no time meaning.
+    /// </summary>
+    public double SampleIntervalSeconds { get; init; }
 }
 
 public sealed record SystemMonitorMetricDto
@@ -326,6 +334,28 @@ public sealed record SystemMonitorMetricDto
     /// network rate has no ceiling to draw a bar against.
     /// </summary>
     public double? Ratio { get; init; }
+
+    /// <summary>
+    /// Recent samples for this reading, oldest first, normalised the same way and by the same
+    /// code as <see cref="SystemMonitorSegmentDto.History"/> - a reading with a ceiling is
+    /// drawn against that ceiling, a rate against the window's own peak. The card plots it
+    /// behind the value. Empty when the reading is unavailable or has not been sampled twice.
+    /// </summary>
+    public IReadOnlyList<double> History { get; init; } = Array.Empty<double>();
+
+    /// <summary>
+    /// What the card's crosshair says at each history point, aligned index for index with
+    /// <see cref="History"/>. Only the first reading the card can show carries it, because
+    /// only that one is drawn large enough to take a pointer: the rest are backdrops behind a
+    /// row. Sending it for every metric would repeat eight already-formatted series on every
+    /// two-second tick for readings nobody can hover.
+    ///
+    /// It exists at all because <see cref="History"/> is normalised and cannot be turned back
+    /// into a value - a rate's 0..1 is relative to a peak the panel never sees. Formatting it
+    /// here keeps the rule the rest of this payload follows: the broker owns units and
+    /// rounding, the panel binds text.
+    /// </summary>
+    public IReadOnlyList<string> HistoryTexts { get; init; } = Array.Empty<string>();
 }
 
 public sealed record SystemMonitorSummaryGetRequest

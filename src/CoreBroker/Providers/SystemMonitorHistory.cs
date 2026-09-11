@@ -24,6 +24,34 @@ public static class SystemMonitorHistory
     /// </summary>
     private const double MinimumRatePeakBytesPerSecond = 4d * 1024d;
 
+    /// <summary>
+    /// The tail of <paramref name="samples"/> the surfaces actually plot. Callers that pair a
+    /// series with anything else - the card's crosshair text, for one - take their window from
+    /// here rather than repeating the arithmetic, so the two cannot come out different lengths
+    /// and put a label on the wrong point.
+    /// </summary>
+    public static IReadOnlyList<SystemMetricSample> Window(
+        IReadOnlyList<SystemMetricSample> samples)
+    {
+        ArgumentNullException.ThrowIfNull(samples);
+
+        int start = Math.Max(
+            0,
+            samples.Count - SystemMonitorContract.MaxHistorySamples);
+        if (start == 0)
+        {
+            return samples;
+        }
+
+        var window = new SystemMetricSample[samples.Count - start];
+        for (int index = 0; index < window.Length; index++)
+        {
+            window[index] = samples[start + index];
+        }
+
+        return window;
+    }
+
     public static IReadOnlyList<double> Normalize(
         IReadOnlyList<SystemMetricSample> samples,
         string metricId)

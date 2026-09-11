@@ -64,6 +64,15 @@ public sealed class SystemMonitorMetricViewModel : INotifyPropertyChanged
 
     public bool IsMeterVisible => _row.IsMeterVisible;
 
+    public bool IsCurveVisible => _row.IsCurveVisible;
+
+    /// <summary>
+    /// The window drawn behind this reading. A fresh list arrives on every tick, so this
+    /// raises on every tick - which is the point: the curve is the one part of the row that
+    /// has to be redrawn to stay true, while the text around it usually has not moved.
+    /// </summary>
+    public IReadOnlyList<SystemMonitorCurvePoint> CurvePoints => _row.CurvePoints;
+
     public bool IsSecondaryVisible => _row.IsSecondaryVisible;
 
     public bool IsMetricStatusTextVisible => _row.IsMetricStatusTextVisible;
@@ -95,6 +104,8 @@ public sealed class SystemMonitorMetricViewModel : INotifyPropertyChanged
         Raise(previous.MetricStatusText, row.MetricStatusText, nameof(MetricStatusText));
         Raise(previous.HasReading, row.HasReading, nameof(HasReading));
         Raise(previous.IsMeterVisible, row.IsMeterVisible, nameof(IsMeterVisible));
+        Raise(previous.IsCurveVisible, row.IsCurveVisible, nameof(IsCurveVisible));
+        Raise(previous.CurvePoints, row.CurvePoints, nameof(CurvePoints));
         Raise(previous.IsSecondaryVisible, row.IsSecondaryVisible, nameof(IsSecondaryVisible));
         Raise(previous.IsMetricStatusTextVisible, row.IsMetricStatusTextVisible, nameof(IsMetricStatusTextVisible));
         Raise(previous.MeterFraction, row.MeterFraction, nameof(MeterPercent));

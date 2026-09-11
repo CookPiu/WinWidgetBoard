@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WinWidgetBoard.Contracts.Protocol;
 using WinWidgetBoard.WorkspacePanel.Layout;
 using WinWidgetBoard.WorkspacePanel.Notes;
 using WinWidgetBoard.WorkspacePanel.Runtime;
@@ -44,22 +45,31 @@ public sealed class CardSizeFitTests
             CardSize.L);
         ApplySystemMonitor(item);
 
-        // Two rows of grid: every reading the user asked for.
-        Assert.AreEqual(6, VisibleMetrics(item));
+        // The first reading is the card's headline and is drawn as one, so the rows under it
+        // are the other five. Two rows of grid has room for all of them.
+        Assert.AreEqual(SystemMonitorContract.CpuUsage, item.SystemMonitorHeadline?.MetricId);
+        Assert.AreEqual(5, VisibleMetrics(item));
 
         // One row is about 98 DIP of content after the padding, the header and its spacing,
         // and the cost is per row rather than per count: a row is about 29 DIP and memory
-        // carries a second line, so CPU plus memory is 76 and a third reading does not fit.
-        // Counting three by size alone drew that third row half inside the card's clip.
-        foreach (CardSize size in new[] { CardSize.S, CardSize.M, CardSize.W })
+        // carries a second line, so it is 47. Stacked, the headline takes 60 of the 98 and
+        // memory no longer fits in what is left - and the list stops there rather than
+        // skipping past it to a shorter reading, which would re-rank the user's list.
+        foreach (CardSize size in new[] { CardSize.S, CardSize.M })
         {
             item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, size));
-            Assert.AreEqual(2, VisibleMetrics(item), $"{size} shows the wrong count.");
+            Assert.AreEqual(0, VisibleMetrics(item), $"{size} shows the wrong count.");
         }
+
+        // Four cells across, one tall: the headline moves beside the readings and costs them
+        // nothing, so the same 98 DIP now carries memory and GPU - 76 - and stops before the
+        // third. This is the size that gains the most from the arrangement.
+        item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.W));
+        Assert.AreEqual(2, VisibleMetrics(item));
 
         item.UpdatePlacement(
             Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.XL));
-        Assert.AreEqual(6, VisibleMetrics(item));
+        Assert.AreEqual(5, VisibleMetrics(item));
     }
 
     [TestMethod(DisplayName =
@@ -70,7 +80,7 @@ public sealed class CardSizeFitTests
         using CardSurfaceItem item = CreateItem(
             noteEditor,
             BuiltInCardCatalog.SystemMonitorInstanceId,
-            CardSize.S);
+            CardSize.W);
         ApplySystemMonitor(item);
 
         // The broker sends the list in the order the user configured, so a card that cannot
@@ -96,13 +106,20 @@ public sealed class CardSizeFitTests
             BuiltInCardCatalog.SystemMonitorInstanceId,
             CardSize.S);
         ApplySystemMonitor(item);
-        Assert.AreEqual(2, VisibleMetrics(item));
+        Assert.AreEqual(0, VisibleMetrics(item));
+        Assert.IsFalse(item.IsSystemMonitorWideLayout);
 
         // Growing the card has to bring the rest back without waiting for the next sample:
-        // the rows update in place twice a second, and the limit is not part of a snapshot.
+        // the rows update in place twice a second, and neither the limit nor the cells the
+        // headline and the list occupy are part of a snapshot.
         item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.L));
 
-        Assert.AreEqual(6, VisibleMetrics(item));
+        Assert.AreEqual(5, VisibleMetrics(item));
+
+        item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.XL));
+        Assert.IsTrue(item.IsSystemMonitorWideLayout);
+        Assert.AreEqual(0, item.SystemMonitorMetricsRow, "Beside the headline, not under it.");
+        Assert.AreEqual(1, item.SystemMonitorMetricsColumn);
     }
 
     [TestMethod(DisplayName =

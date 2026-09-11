@@ -168,6 +168,32 @@ public static class SystemMonitorFormatter
     }
 
     /// <summary>
+    /// The value at every point of the window <see cref="SystemMonitorHistory.Normalize"/>
+    /// plots, index for index with that series, so the card's crosshair can name the point it
+    /// is standing on. The window comes from <see cref="SystemMonitorHistory.Window"/> rather
+    /// than being recomputed here: two copies of that arithmetic is how a label ends up on the
+    /// wrong sample. A point that could not be read carries the same placeholder the live
+    /// reading would.
+    /// </summary>
+    public static IReadOnlyList<string> FormatHistoryTexts(
+        IReadOnlyList<SystemMetricSample> samples,
+        string metricId,
+        SystemMonitorDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(samples);
+        ArgumentNullException.ThrowIfNull(metricId);
+
+        IReadOnlyList<SystemMetricSample> window = SystemMonitorHistory.Window(samples);
+        var texts = new string[window.Count];
+        for (int index = 0; index < texts.Length; index++)
+        {
+            texts[index] = FormatMetric(window[index], metricId, detail).PrimaryText;
+        }
+
+        return texts;
+    }
+
+    /// <summary>
     /// Composes one taskbar segment. The text is final; the entry appends nothing to it.
     /// </summary>
     public static SystemMonitorSegmentDto FormatSegment(

@@ -161,6 +161,37 @@ public sealed class SystemMonitorHistoryTests
         Assert.AreEqual(0.25d, history[1], 0.0001d);
     }
 
+    [TestMethod(DisplayName =
+        "UT-SYSMON-064 [MON-002] The plotted window and its labels come from one place")]
+    public void WindowIsSharedWithWhateverLabelsIt()
+    {
+        var samples = new SystemMetricSample[SystemMonitorContract.MaxHistorySamples + 5];
+        for (int index = 0; index < samples.Length; index++)
+        {
+            samples[index] = Sample(cpuUsagePercent: index);
+        }
+
+        IReadOnlyList<SystemMetricSample> window = SystemMonitorHistory.Window(samples);
+        IReadOnlyList<double> history = SystemMonitorHistory.Normalize(
+            samples,
+            SystemMonitorContract.CpuUsage);
+        IReadOnlyList<string> texts = SystemMonitorFormatter.FormatHistoryTexts(
+            samples,
+            SystemMonitorContract.CpuUsage,
+            SystemMonitorDetail.Normal);
+
+        Assert.AreEqual(SystemMonitorContract.MaxHistorySamples, window.Count);
+        Assert.AreEqual(
+            history.Count,
+            texts.Count,
+            "A label under the wrong sample is the failure this alignment prevents.");
+        Assert.AreSame(samples[^1], window[^1], "The window is the tail, not the head.");
+        Assert.AreEqual(
+            "64%",
+            texts[^1],
+            "The newest label describes the newest sample, which is the 65th.");
+    }
+
     private static SystemMetricSample Sample(
         double? cpuUsagePercent = null,
         double? memoryUsedBytes = null,

@@ -54,6 +54,7 @@
     <Compile Include="..\..\src\WorkspacePanel\Runtime\CardSnapshotDispatcher.cs" Link="WorkspacePanel\Runtime\CardSnapshotDispatcher.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\SystemMonitorCardProjection.cs" Link="WorkspacePanel\Runtime\SystemMonitorCardProjection.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\SystemMonitorMetricViewModel.cs" Link="WorkspacePanel\Runtime\SystemMonitorMetricViewModel.cs" />
+    <Compile Include="..\..\src\WorkspacePanel\Runtime\SystemMonitorCurveSeries.cs" Link="WorkspacePanel\Runtime\SystemMonitorCurveSeries.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageCardProjection.cs" Link="WorkspacePanel\Runtime\TokenUsageCardProjection.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" Link="WorkspacePanel\Runtime\TokenUsageMetricViewModel.cs" />
     <Compile Include="..\..\src\WorkspacePanel\Runtime\MonotoneCurveShape.cs" Link="WorkspacePanel\Runtime\MonotoneCurveShape.cs" />

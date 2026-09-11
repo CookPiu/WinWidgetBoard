@@ -168,7 +168,160 @@ public sealed class SystemMonitorCardProjectionTests
         Assert.AreEqual(SystemMonitorContract.CpuUsage, target[1].MetricId);
     }
 
-    private static SystemMonitorCardProjection Project(params object[] metrics)
+    [TestMethod(DisplayName =
+        "UT-SYSMON-051 [MON-001] A reading's window becomes a curve ending at now")]
+    public void HistoryBecomesCurve()
+    {
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.CpuUsage,
+                "41%",
+                ratio: 0.41d,
+                history: [0.1d, 0.5d, 0.41d])).Metrics.Single();
+
+        Assert.AreEqual(3, row.CurvePoints.Count);
+        Assert.AreEqual(0d, row.CurvePoints[0].Fraction);
+        Assert.AreEqual(0.5d, row.CurvePoints[1].Fraction);
+        Assert.AreEqual(1d, row.CurvePoints[^1].Fraction, "The newest sample is 'now'.");
+        Assert.AreEqual(0.41d, row.CurvePoints[^1].Level);
+        Assert.IsTrue(row.IsCurveVisible);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-052 [MON-001] One sample is not a curve, and the row keeps its meter")]
+    public void SingleSampleIsNotACurve()
+    {
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.CpuUsage,
+                "41%",
+                ratio: 0.41d,
+                history: [0.41d])).Metrics.Single();
+
+        Assert.AreEqual(0, row.CurvePoints.Count);
+        Assert.IsFalse(row.IsCurveVisible);
+        Assert.IsTrue(row.IsMeterVisible, "Before there is a window, the meter is the fallback.");
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-053 [MON-001] The curve replaces the meter rather than joining it")]
+    public void CurveReplacesMeter()
+    {
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.CpuUsage,
+                "41%",
+                ratio: 0.41d,
+                history: [0.1d, 0.41d])).Metrics.Single();
+
+        Assert.IsTrue(row.IsCurveVisible);
+        Assert.IsFalse(
+            row.IsMeterVisible,
+            "The curve's last point is the number the meter would show.");
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-054 [MON-001] A rate gets a curve even though it gets no meter")]
+    public void RateGetsCurveWithoutMeter()
+    {
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.NetworkDown,
+                "2.0 MB/s",
+                ratio: null,
+                history: [0.2d, 1d, 0.4d])).Metrics.Single();
+
+        Assert.IsTrue(row.IsCurveVisible, "A rate is drawn against the window's own peak.");
+        Assert.IsFalse(row.IsMeterVisible);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-055 [MON-001] Crosshair text names the value and how long ago it was read")]
+    public void CurveTipNamesValueAndAge()
+    {
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.CpuUsage,
+                "41%",
+                ratio: 0.41d,
+                history: [0.1d, 0.5d, 0.41d],
+                historyTexts: ["10%", "50%", "41%"])).Metrics.Single();
+
+        // The resolver here returns the key rather than a template, so the argument lands
+        // after it; what is being pinned is which wording each point gets and with what age.
+        Assert.AreEqual("10% · [SysMonCurve.SecondsAgo] 4", row.CurvePoints[0].TipText);
+        Assert.AreEqual("41% · [SysMonCurve.Now]", row.CurvePoints[^1].TipText);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-056 [MON-001] Labels that do not line up with the series are dropped")]
+    public void MisalignedHistoryTextsAreDropped()
+    {
+        SystemMonitorMetricRow row = Project(
+            Metric(
+                SystemMonitorContract.CpuUsage,
+                "41%",
+                ratio: 0.41d,
+                history: [0.1d, 0.5d, 0.41d],
+                historyTexts: ["10%", "50%"])).Metrics.Single();
+
+        Assert.IsTrue(row.IsCurveVisible, "The series itself is still drawable.");
+        Assert.IsTrue(
+            row.CurvePoints.All(point => point.TipText.Length == 0),
+            "A label under the wrong point is worse than no crosshair text.");
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-057 [MON-001] A window with no stated cadence gets the value without an age")]
+    public void NoCadenceMeansNoAge()
+    {
+        SystemMonitorMetricRow row = Project(
+            0d,
+            Metric(
+                SystemMonitorContract.CpuUsage,
+                "41%",
+                ratio: 0.41d,
+                history: [0.1d, 0.41d],
+                historyTexts: ["10%", "41%"])).Metrics.Single();
+
+        Assert.AreEqual("41%", row.CurvePoints[^1].TipText);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-058 [MON-001] The headline is the first reading the card can show")]
+    public void HeadlineIsTheFirstShowableReading()
+    {
+        SystemMonitorCardProjection projection = Project(
+            Metric(
+                SystemMonitorContract.CpuTemperature,
+                "—",
+                ratio: null,
+                status: SystemMonitorMetricStatus.NeedsSensorSource),
+            Metric(SystemMonitorContract.CpuUsage, "41%", ratio: 0.41d),
+            Metric(SystemMonitorContract.MemoryUsage, "60%", ratio: 0.6d));
+
+        Assert.AreEqual(SystemMonitorContract.CpuUsage, projection.Headline?.MetricId);
+        Assert.AreEqual(
+            SystemMonitorContract.MemoryUsage,
+            projection.TrailingMetrics.Single().MetricId);
+    }
+
+    [TestMethod(DisplayName =
+        "UT-SYSMON-059 [MON-001] With nothing to show there is no headline and no rows")]
+    public void EmptyProjectionHasNoHeadline()
+    {
+        SystemMonitorCardProjection projection = Project();
+
+        Assert.IsNull(projection.Headline);
+        Assert.AreEqual(0, projection.TrailingMetrics.Count);
+    }
+
+    private static SystemMonitorCardProjection Project(params object[] metrics) =>
+        Project(2d, metrics);
+
+    private static SystemMonitorCardProjection Project(
+        double sampleIntervalSeconds,
+        params object[] metrics)
     {
         var snapshot = new CardRuntimeSnapshot(
             BuiltInCardCatalog.SystemMonitorInstanceId,
@@ -179,7 +332,12 @@ public sealed class SystemMonitorCardProjectionTests
             CardRuntimeFreshness.Fresh,
             CardRuntimeStatus.Ready,
             JsonSerializer.SerializeToElement(
-                new { metrics, sampledAtUtc = "2026-08-21T00:00:00Z" },
+                new
+                {
+                    metrics,
+                    sampledAtUtc = "2026-08-21T00:00:00Z",
+                    sampleIntervalSeconds,
+                },
                 ContractJson.Options));
         return SystemMonitorCardProjection.FromSnapshot(snapshot, Resolver);
     }
@@ -189,7 +347,9 @@ public sealed class SystemMonitorCardProjectionTests
         string primaryText,
         double? ratio,
         SystemMonitorDetail detail = SystemMonitorDetail.Detailed,
-        string status = SystemMonitorMetricStatus.Ready) =>
+        string status = SystemMonitorMetricStatus.Ready,
+        double[]? history = null,
+        string[]? historyTexts = null) =>
         new
         {
             metricId,
@@ -199,6 +359,8 @@ public sealed class SystemMonitorCardProjectionTests
             primaryText,
             secondaryText = "8.0 GB / 32 GB",
             ratio,
+            history = history ?? Array.Empty<double>(),
+            historyTexts = historyTexts ?? Array.Empty<string>(),
         };
 
     // Wrapping the key makes it obvious in an assertion whether the resolver was consulted.

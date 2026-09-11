@@ -763,6 +763,18 @@
   <data name="SysMonStatus.Unavailable" xml:space="preserve">
     <value>Not available on this PC</value>
   </data>
+  <data name="SysMonCurve.Now" xml:space="preserve">
+    <value>now</value>
+  </data>
+  <data name="SysMonCurve.SecondsAgo" xml:space="preserve">
+    <value>{0} s ago</value>
+  </data>
+  <data name="SysMonCurve.MinutesAgo" xml:space="preserve">
+    <value>{0} min ago</value>
+  </data>
+  <data name="SystemMonitorHeadlineCurve.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>The last two minutes of this reading; hover to read a sample</value>
+  </data>
   <data name="SysMonSensorSourceHint.Text" xml:space="preserve">
     <value>Temperature and fan speed need HWiNFO or Core Temp running in the background; without a source those rows stay off the card and the taskbar.</value>
   </data>

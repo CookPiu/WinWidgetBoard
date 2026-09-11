@@ -159,6 +159,7 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
 
         DateTimeOffset producedAtUtc = _utcNow().ToUniversalTime();
         SystemMetricSample sample;
+        SystemMetricSample[] recent;
         lock (_sampleGate)
         {
             if (_disposed)
@@ -179,9 +180,13 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
             {
                 _recentSamples.Dequeue();
             }
+
+            // Copied under the gate: the payload is composed outside it, and the queue is the
+            // same one the taskbar summary reads from another thread.
+            recent = _recentSamples.ToArray();
         }
 
-        JsonElement payload = CreatePayload(sample, producedAtUtc);
+        JsonElement payload = CreatePayload(sample, recent, producedAtUtc);
         return ValueTask.FromResult(
             new ProviderRefreshResult(
                 request.RequestId,
@@ -208,10 +213,18 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
 
     private JsonElement CreatePayload(
         SystemMetricSample sample,
+        IReadOnlyList<SystemMetricSample> recent,
         DateTimeOffset producedAtUtc)
     {
         IReadOnlyList<SystemMonitorItemDto> items = _cardItemsProvider();
         var metrics = new List<SystemMonitorMetricDto>(items.Count);
+        // The card gives its headline to the first reading it can actually show, and that is
+        // the only one drawn large enough for a pointer to land on - so it is the only one
+        // whose history is worth labelling. Labelling all of them would format eight windows
+        // of sixty values every two seconds for curves nobody can hover. A reading waiting on
+        // the optional sensor source never reaches the card (ADR-0028), so it does not take
+        // the headline with it; the order otherwise is the user's own ranking.
+        bool headlineTaken = false;
         foreach (SystemMonitorItemDto item in items)
         {
             if (item.MetricId is null)
@@ -219,8 +232,26 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
                 continue;
             }
 
+            SystemMonitorMetricDto metric =
+                SystemMonitorFormatter.FormatMetric(sample, item.MetricId, item.Detail);
+            IReadOnlyList<double> history =
+                SystemMonitorHistory.Normalize(recent, item.MetricId);
+            bool isHeadline = !headlineTaken && !string.Equals(
+                metric.Status,
+                SystemMonitorMetricStatus.NeedsSensorSource,
+                StringComparison.Ordinal);
+            headlineTaken |= isHeadline;
             metrics.Add(
-                SystemMonitorFormatter.FormatMetric(sample, item.MetricId, item.Detail));
+                metric with
+                {
+                    History = history,
+                    HistoryTexts = isHeadline && history.Count > 0
+                        ? SystemMonitorFormatter.FormatHistoryTexts(
+                            recent,
+                            item.MetricId,
+                            item.Detail)
+                        : Array.Empty<string>(),
+                });
         }
 
         return JsonSerializer.SerializeToElement(
@@ -228,6 +259,7 @@ public sealed class SystemMonitorProvider : IProviderRefreshSource, IDisposable
             {
                 Metrics = metrics,
                 SampledAtUtc = producedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                SampleIntervalSeconds = Descriptor.VisibleInterval.TotalSeconds,
             },
             ContractJson.Options);
     }
