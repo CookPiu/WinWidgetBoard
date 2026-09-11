@@ -83,6 +83,7 @@ private:
     // resolves.
     void EnsureTaskbarOwner();
     [[nodiscard]] HWND ResolveTaskbarWindow() const;
+    [[nodiscard]] bool IsTaskbarResponsive(HWND taskbar) const;
     void UpdateFullscreenVisibility();
     void PollPanelProcess();
     [[nodiscard]] bool IsFullscreenForeground() const;

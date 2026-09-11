@@ -219,6 +219,34 @@ Location search is the only path that sends user-typed text off the machine, and
 
 **The API key is the product's only user credential.** It goes on the individual `HttpRequestMessage` as `X-QW-Api-Key` — never on the shared `HttpClient`'s default headers, which also carry the keyless Open-Meteo traffic — never in a URL, request key, log or error text. It is write-only over IPC (`hasApiCredential` is all a response carries; `apiKey: null` on save means "keep", `""` means "clear"). Hosts are allow-listed to the vendor's own domains: where a bearer credential may be sent is a security boundary, not a setting. A key that no longer decrypts reads as absent, and a source selected without a usable credential registers `UnconfiguredWeatherProvider`, which fails with `weather.credentials-missing` instead of silently falling back.
 
+## The entry's UI thread must never wait on Explorer without a bound
+
+The taskbar entry names `Shell_TrayWnd` as its owner (ADR 0023), which is what keeps it above
+the strip without fighting for the topmost band. The cost is that establishing and reasserting
+that relationship reaches into Explorer's UI thread, and those calls wait there with no bound
+of their own. While Explorer is busy — a servicing pass broadcasting `WM_SETTINGCHANGE` is the
+observed trigger, and that broadcast is itself what schedules the entry's next reposition — the
+entry stops pumping and Windows kills it as a hung application. **Every child dies with it
+through the `KILL_ON_JOB_CLOSE` job**, so a stalled shell takes the panel and the broker down
+too, and leaves no crash dump anywhere: a hang is not a crash.
+
+This has now happened three times (2026-08-21, 08-29, 09-11). The first fix, `e32dd22`, removed
+`SHAppBarMessage` from `TaskbarGeometry.cpp` — correct, but it only covered one of the calls.
+`EnsureTaskbarOwner` and `EnsureTopmost` run every 500 ms on that same thread and both touch
+the cross-process owner chain.
+
+So: anything on the entry's UI thread that can reach Explorer goes behind
+`LauncherWindow::IsTaskbarResponsive` first, and skips its pass when the probe fails. Skipping
+costs one 500 ms tick of stale z-order; not skipping costs the whole process tree. The probe is
+`SendMessageTimeout(..., WM_NULL, SMTO_ABORTIFHUNG, 50)` — **not** `SMTO_BLOCK`: the trigger is
+Explorer sending to us, and refusing to process its send while waiting on ours is how two
+healthy processes deadlock each other.
+
+Diagnosing the next one: `Get-WinEvent` for provider `Application Hang` names the app and the
+time, and `C:\ProgramData\Microsoft\Windows\WER\ReportArchive\AppHang_*` holds the report.
+Neither carries a stack — WER writes no dump for a hang unless `LocalDumps` is configured — so
+the archive is only good for confirming *that* it hung and when.
+
 ## A XAML-referenced type must not use an expression-bodied `as`-plus-`switch`
 
 WinUI's markup compiler resolves `using:`-namespace types by parsing the project's C# sources itself, and its parser is narrower than Roslyn. A `DataTemplateSelector` whose override was written as

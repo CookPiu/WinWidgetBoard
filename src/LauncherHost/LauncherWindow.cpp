@@ -19,6 +19,10 @@ constexpr UINT kRepositionMessage = WM_APP + 1;
 constexpr UINT kForegroundChangedMessage = WM_APP + 2;
 constexpr UINT_PTR kVisibilityTimerId = 1;
 constexpr UINT kVisibilityPollMilliseconds = 500;
+// How long the entry will wait for the taskbar to answer before deciding it is busy. Long
+// enough that a momentarily loaded Explorer still answers, short enough that four of these a
+// second cost nothing measurable.
+constexpr UINT kTaskbarProbeTimeoutMilliseconds = 50;
 // Explorer re-stacks Shell_TrayWnd while it handles a window activation, and it can do so
 // either side of our own re-assert. Reacting to the activation alone therefore still loses
 // the race about a third of the time, so the reaction is followed by a few short re-asserts
@@ -965,6 +969,14 @@ void LauncherWindow::EnsureTopmost()
         return;
     }
 
+    // Reordering a window whose owner belongs to another process makes the window manager
+    // walk that owner chain, so this is guarded for the same reason the owner write above is.
+    // Unowned, the call touches nothing outside this process and needs no probe.
+    if (_taskbarOwner != nullptr && !IsTaskbarResponsive(_taskbarOwner))
+    {
+        return;
+    }
+
     if (SetWindowPos(
             _window,
             HWND_TOPMOST,
@@ -1012,6 +1024,37 @@ HWND LauncherWindow::ResolveTaskbarWindow() const
     return nullptr;
 }
 
+/// Whether the taskbar's thread is answering messages right now.
+///
+/// The entry names Shell_TrayWnd as its owner, so the calls that establish and reassert that
+/// relationship have to reach into Explorer's UI thread, and they wait there with no bound of
+/// their own. While Explorer is busy - a servicing pass broadcasting WM_SETTINGCHANGE is the
+/// case observed on this machine three times now - that wait is what stops the entry pumping,
+/// and Windows kills it as a hung application. Every child process dies with it through the
+/// job object, which is why a stalled shell took the whole board down rather than blinking it.
+///
+/// SMTO_ABORTIFHUNG returns immediately once the window manager has already flagged that
+/// thread, so the usual case costs one fast round trip and the bad case costs the timeout.
+/// Deliberately not SMTO_BLOCK: the trigger is Explorer broadcasting to us, and refusing to
+/// process its send while waiting on ours is how two healthy processes deadlock each other.
+bool LauncherWindow::IsTaskbarResponsive(const HWND taskbar) const
+{
+    if (taskbar == nullptr)
+    {
+        return false;
+    }
+
+    DWORD_PTR result = 0;
+    return SendMessageTimeoutW(
+        taskbar,
+        WM_NULL,
+        0,
+        0,
+        SMTO_ABORTIFHUNG,
+        kTaskbarProbeTimeoutMilliseconds,
+        &result) != 0;
+}
+
 void LauncherWindow::EnsureTaskbarOwner()
 {
     if (_window == nullptr)
@@ -1041,6 +1084,14 @@ void LauncherWindow::EnsureTaskbarOwner()
         // class. Neither is fatal: the entry stays an ordinary topmost window and
         // EnsureTopmost carries the z-order exactly as it did before.
         _taskbarOwner = nullptr;
+        return;
+    }
+
+    // Skip this pass rather than block on a busy shell. The entry keeps whatever owner and
+    // z-order it already had until the next tick half a second later, which is a blink; the
+    // alternative is termination.
+    if (!IsTaskbarResponsive(taskbar))
+    {
         return;
     }
 
