@@ -33,19 +33,35 @@
                 The fill under a curve, shared by the weather trend and the token spend curve
                 so the two cannot drift apart. It is a ramp rather than a flat wash: filled at
                 one opacity the area ends in a hard horizontal edge along the card and reads as
-                a panel pasted behind the figures instead of as shading under a line. How much
-                of it shows depends on the curve's own shape, which is the data's business.
+                a panel pasted behind the figures instead of as shading under a line.
+
+                Three stops, not two. Running straight to transparent grades the area by its
+                position in the path's bounding box, so wherever the curve sits low the fill
+                under it disappears - the weather trend lost its whole right half that way. The
+                middle stop makes the falloff steep just under the line and then nearly flat,
+                which keeps the low stretches present at a weight that still reads as shading.
+
+                The alpha lives in these colours rather than in an Opacity on the Path: two
+                places to change one strength is one place too many. How much of the fill shows
+                at all depends on the curve's own shape, which is the data's business - a spend
+                curve that sits on its baseline all morning has no area there to shade.
             -->
+            <Color x:Key="WwbWeatherCurveAreaTopColor">#2EFFFFFF</Color>
+            <Color x:Key="WwbWeatherCurveAreaMidColor">#1CFFFFFF</Color>
+            <Color x:Key="WwbWeatherCurveAreaBaseColor">#0EFFFFFF</Color>
             <LinearGradientBrush
-                x:Key="WwbCurveAreaFillBrush"
+                x:Key="WwbWeatherCurveAreaBrush"
                 StartPoint="0,0"
                 EndPoint="0,1">
                 <GradientStop
                     Offset="0"
-                    Color="{ThemeResource WwbWeatherMotifStrongColor}" />
+                    Color="{ThemeResource WwbWeatherCurveAreaTopColor}" />
+                <GradientStop
+                    Offset="0.4"
+                    Color="{ThemeResource WwbWeatherCurveAreaMidColor}" />
                 <GradientStop
                     Offset="1"
-                    Color="Transparent" />
+                    Color="{ThemeResource WwbWeatherCurveAreaBaseColor}" />
             </LinearGradientBrush>
             <LinearGradientBrush
                 x:Key="WwbPanelAccentWashBrush"
@@ -89,16 +105,22 @@
             <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="#10304E" />
             <Color x:Key="WwbWeatherMotifStrongColor">#10304E</Color>
             <x:Double x:Key="WwbWeatherMotifOpacity">0.16</x:Double>
+            <Color x:Key="WwbWeatherCurveAreaTopColor">#2910304E</Color>
+            <Color x:Key="WwbWeatherCurveAreaMidColor">#1A10304E</Color>
+            <Color x:Key="WwbWeatherCurveAreaBaseColor">#0D10304E</Color>
             <LinearGradientBrush
-                x:Key="WwbCurveAreaFillBrush"
+                x:Key="WwbWeatherCurveAreaBrush"
                 StartPoint="0,0"
                 EndPoint="0,1">
                 <GradientStop
                     Offset="0"
-                    Color="{ThemeResource WwbWeatherMotifStrongColor}" />
+                    Color="{ThemeResource WwbWeatherCurveAreaTopColor}" />
+                <GradientStop
+                    Offset="0.4"
+                    Color="{ThemeResource WwbWeatherCurveAreaMidColor}" />
                 <GradientStop
                     Offset="1"
-                    Color="Transparent" />
+                    Color="{ThemeResource WwbWeatherCurveAreaBaseColor}" />
             </LinearGradientBrush>
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
@@ -118,7 +140,23 @@
             <SolidColorBrush x:Key="WwbWeatherMotifStrongBrush" Color="Transparent" />
             <Color x:Key="WwbWeatherMotifStrongColor">Transparent</Color>
             <x:Double x:Key="WwbWeatherMotifOpacity">0</x:Double>
-            <SolidColorBrush x:Key="WwbCurveAreaFillBrush" Color="Transparent" />
+            <Color x:Key="WwbWeatherCurveAreaTopColor">Transparent</Color>
+            <Color x:Key="WwbWeatherCurveAreaMidColor">Transparent</Color>
+            <Color x:Key="WwbWeatherCurveAreaBaseColor">Transparent</Color>
+            <LinearGradientBrush
+                x:Key="WwbWeatherCurveAreaBrush"
+                StartPoint="0,0"
+                EndPoint="0,1">
+                <GradientStop
+                    Offset="0"
+                    Color="{ThemeResource WwbWeatherCurveAreaTopColor}" />
+                <GradientStop
+                    Offset="0.4"
+                    Color="{ThemeResource WwbWeatherCurveAreaMidColor}" />
+                <GradientStop
+                    Offset="1"
+                    Color="{ThemeResource WwbWeatherCurveAreaBaseColor}" />
+            </LinearGradientBrush>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -774,8 +812,7 @@
                         <Canvas IsHitTestVisible="False">
                             <Path
                                 x:Name="PART_Area"
-                                Opacity="{ThemeResource WwbWeatherMotifOpacity}"
-                                Fill="{ThemeResource WwbCurveAreaFillBrush}" />
+                                Fill="{ThemeResource WwbWeatherCurveAreaBrush}" />
                             <Path
                                 x:Name="PART_Line"
                                 Stroke="{ThemeResource TextFillColorTertiaryBrush}"
@@ -853,7 +890,7 @@
         SizeChanged, and a stroked Path the parent measures grows the card half a pixel a pass
         until it fails as a layout cycle.
 
-        The area is painted with WwbCurveAreaFillBrush, the ramp the token card's spend curve
+        The area is painted with WwbWeatherCurveAreaBrush, the ramp the token card's spend curve
         also uses, so the two cannot drift apart. It is built from the weather illustration's
         own colour rather than a literal one, so the curve is the same material as the backdrop
         behind it and high contrast clears both together.
@@ -875,8 +912,7 @@
                         <Canvas IsHitTestVisible="False">
                             <Path
                                 x:Name="PART_Area"
-                                Opacity="{ThemeResource WwbWeatherMotifOpacity}"
-                                Fill="{ThemeResource WwbCurveAreaFillBrush}" />
+                                Fill="{ThemeResource WwbWeatherCurveAreaBrush}" />
                             <Path
                                 x:Name="PART_Line"
                                 Stroke="{ThemeResource TextFillColorSecondaryBrush}"
