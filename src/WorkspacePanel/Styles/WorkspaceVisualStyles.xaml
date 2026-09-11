@@ -911,11 +911,14 @@
     </Style>
 
     <!--
-        The same curve behind one reading's row. No crosshair parts, which is what makes it a
-        backdrop: with nothing to track the control ignores the pointer entirely, and a row
-        29 DIP tall has no room for a bubble anyway. The line is a shade lighter than the
-        headline's so a column of them reads as texture under the values rather than as a
-        stack of charts competing with them.
+        The same curve as a band under one reading. No crosshair parts, which is what makes it
+        a sparkline: with nothing to track the control ignores the pointer entirely, and a band
+        22 DIP tall has no room for a bubble anyway.
+
+        No area either. The fill belongs to a curve with height to grade it across; in 22 DIP
+        it arrives as a solid grey shape, and two readings side by side then differ by whether
+        their line happens to run high - which reads as one cell having a background and the
+        other not. A line alone says the same thing and stays quiet next to the value above it.
     -->
     <Style
         x:Key="WwbSystemMonitorRowCurveStyle"
@@ -929,11 +932,8 @@
                 <ControlTemplate TargetType="Control">
                     <Canvas IsHitTestVisible="False">
                         <Path
-                            x:Name="PART_Area"
-                            Fill="{ThemeResource WwbWeatherCurveAreaBrush}" />
-                        <Path
                             x:Name="PART_Line"
-                            Stroke="{ThemeResource TextFillColorDisabledBrush}"
+                            Stroke="{ThemeResource TextFillColorTertiaryBrush}"
                             StrokeThickness="1" />
                     </Canvas>
                 </ControlTemplate>

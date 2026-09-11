@@ -51,10 +51,11 @@ public sealed class CardSizeFitTests
         Assert.AreEqual(5, VisibleMetrics(item));
 
         // One row is about 98 DIP of content after the padding, the header and its spacing.
-        // Readings sit two to a grid row and the taller half pays for both: memory carries a
-        // second line, so its row is 47 rather than 29. Stacked, the headline takes 60 of the
-        // 98 and that first row no longer fits in what is left - and the list stops there
-        // rather than skipping past it, which would re-rank the user's list.
+        // Readings sit two to a grid row and the taller half pays for both: a reading is 52
+        // with its window band, and memory carries a line of detail, so its row is 70.
+        // Stacked, the headline takes 60 of the 98 and that first row no longer fits in what
+        // is left - and the list stops there rather than skipping past it, which would re-rank
+        // the user's list.
         foreach (CardSize size in new[] { CardSize.S, CardSize.M })
         {
             item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, size));
@@ -62,11 +63,10 @@ public sealed class CardSizeFitTests
         }
 
         // Four cells across, one tall: the headline moves beside the readings and costs them
-        // nothing, so the same 98 DIP carries memory + GPU (47) and both network rates (29) and
-        // stops before the clock's row. This is the size that gains the most from both the
-        // arrangement and the second column.
+        // nothing, so the same 98 DIP carries memory + GPU (70) and stops before the network
+        // rates would take it past the clip.
         item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.W));
-        Assert.AreEqual(4, VisibleMetrics(item));
+        Assert.AreEqual(2, VisibleMetrics(item));
 
         item.UpdatePlacement(
             Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.XL));
@@ -91,9 +91,9 @@ public sealed class CardSizeFitTests
         SystemMonitorMetricViewModel[] shown = item.SystemMonitorMetrics
             .Where(metric => metric.IsWithinCardLimit)
             .ToArray();
-        Assert.AreEqual(4, shown.Length);
+        Assert.AreEqual(2, shown.Length);
         CollectionAssert.AreEqual(
-            item.SystemMonitorMetrics.Take(4).ToArray(),
+            item.SystemMonitorMetrics.Take(2).ToArray(),
             shown);
     }
 
@@ -117,12 +117,12 @@ public sealed class CardSizeFitTests
         Assert.AreSame(item.SystemMonitorMetrics[4], item.SystemMonitorMetricPairs[2].Left);
         Assert.IsNull(item.SystemMonitorMetricPairs[2].Right);
 
-        // Both halves share one Auto grid row, so memory's second line costs the row it is on
-        // its extra 18 DIP even though the GPU reading beside it has none: 47 + 29 + 29 is 105
-        // of the one-row card's 98, which is why W stops after two rows rather than three.
+        // Both halves share one grid row, so memory's line of detail costs the row it is on
+        // its extra 18 DIP even though the GPU reading beside it has none: that row is 70 of
+        // the one-row card's 98, and the next one does not fit.
         item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.W));
-        Assert.AreEqual(4, VisibleMetrics(item));
-        Assert.IsFalse(item.SystemMonitorMetrics[4].IsWithinCardLimit);
+        Assert.AreEqual(2, VisibleMetrics(item));
+        Assert.IsFalse(item.SystemMonitorMetrics[2].IsWithinCardLimit);
     }
 
     [TestMethod(DisplayName =

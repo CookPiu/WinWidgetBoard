@@ -120,7 +120,7 @@ public sealed partial class SystemMonitorCurve : Control
     /// </summary>
     private void Rebuild()
     {
-        if (_area is null || _line is null)
+        if (_line is null)
         {
             return;
         }
@@ -130,7 +130,11 @@ public sealed partial class SystemMonitorCurve : Control
         double height = ActualHeight;
         if (series is null || width <= 0d || height <= 0d)
         {
-            _area.Data = null;
+            if (_area is not null)
+            {
+                _area.Data = null;
+            }
+
             _line.Data = null;
             return;
         }
@@ -150,6 +154,17 @@ public sealed partial class SystemMonitorCurve : Control
         };
         lineFigure.Segments.Add(new PolyLineSegment { Points = placed });
 
+        var lineGeometry = new PathGeometry();
+        lineGeometry.Figures.Add(lineFigure);
+        _line.Data = lineGeometry;
+
+        // A template without an area part is a sparkline: a band too short to grade a fill
+        // across renders it as a solid block instead. Only the headline's template has one.
+        if (_area is null)
+        {
+            return;
+        }
+
         var areaPoints = new PointCollection();
         foreach (Point point in placed)
         {
@@ -165,11 +180,8 @@ public sealed partial class SystemMonitorCurve : Control
         };
         areaFigure.Segments.Add(new PolyLineSegment { Points = areaPoints });
 
-        var lineGeometry = new PathGeometry();
-        lineGeometry.Figures.Add(lineFigure);
         var areaGeometry = new PathGeometry();
         areaGeometry.Figures.Add(areaFigure);
-        _line.Data = lineGeometry;
         _area.Data = areaGeometry;
     }
 

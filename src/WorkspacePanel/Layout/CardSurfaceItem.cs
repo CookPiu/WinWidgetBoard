@@ -875,17 +875,22 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             : SystemMonitorContentBudget - 60;
 
     /// <summary>
-    /// A reading's height, measured off the real card rather than guessed: rows sit about
-    /// 29 DIP apart, and a second line of detail - memory's "21.8 GB / 31.4 GB" - adds about
-    /// 18 more. A meter costs nothing extra; it is a thin bar inside the row it belongs to,
-    /// and neither does the curve that replaces it - that one is behind the row's own text.
+    /// A reading's height, measured off the real card rather than guessed: the name-and-value
+    /// line is about 26 DIP with its padding, the window band under it is a stated 22 plus the
+    /// 4 separating them, and a second line of detail - memory's "21.8 GB / 31.4 GB" - adds
+    /// about 18 more. The meter shares the band's row, so a reading is the same height whether
+    /// it has a window yet or not.
+    ///
+    /// The band is charged now that it is one. Drawn behind the text it cost nothing, and the
+    /// readings were 23 DIP slivers with a line through the digits: a card that fits twice as
+    /// many of those is not showing more, it is showing the same numbers less legibly.
     ///
     /// This is per row rather than a count because the rows differ. A flat count of three put
     /// CPU, memory and GPU on a one-row card and drew the third half inside the clip; costing
     /// the meter separately then held back a reading a two-row card had room for.
     /// </summary>
     private static double SystemMonitorRowCost(SystemMonitorMetricViewModel metric) =>
-        29 + (metric.SecondaryText.Length > 0 ? 18 : 0);
+        52 + (metric.SecondaryText.Length > 0 ? 18 : 0);
 
     /// <summary>
     /// The note tools - list, pop out, new, more - on a card with room for a row of them. The

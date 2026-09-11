@@ -1790,73 +1790,90 @@
         </DataTemplate>
 
         <!--
-            One metric row, with its own recent window drawn behind it.
+            One metric reading: its name and value on a line, whatever detail it carries under
+            that, and its recent window along the bottom.
+
+            The window is a band of its own rather than a backdrop behind the text. Behind it,
+            in a cell this short, the line crossed the digits and the area under it read as a
+            grey block filling half the cell - two readings side by side looked like a render
+            fault rather than like two charts.
 
             The curve replaces the meter rather than joining it: the curve's right edge is the
             same number the meter would show, and both at once states one reading twice. The
-            meter is what a row falls back to before there is a window to plot - the first tick
-            of a cold start, and the first after a wake - which is decided in the projection so
-            the rule is testable without a WinUI host.
+            meter is what a reading falls back to before there is a window to plot - the first
+            tick of a cold start, and the first after a wake - which is decided in the
+            projection so the rule is testable without a WinUI host. They share this row, so a
+            reading is the same height either way.
 
-            Both are decoration over a number the row already states, so neither carries an
-            automation name; the row's name has the name and the value. A metric with no
-            ceiling - a network rate - still shows no meter, but it does get a curve: a rate
-            has no full scale to draw a bar against, while a shape against the window's own
-            peak is exactly what a rate can honestly be drawn as.
+            Both are decoration over a number already stated, so neither carries an automation
+            name; the reading's name has the name and the value. A metric with no ceiling - a
+            network rate - still shows no meter, but it does get a curve: a rate has no full
+            scale to draw a bar against, while a shape against the window's own peak is exactly
+            what a rate can honestly be drawn as.
         -->
         <DataTemplate
             x:Key="SystemMonitorMetricTemplate"
             x:DataType="runtime:SystemMonitorMetricViewModel">
             <Grid
                 Padding="0,3"
+                RowSpacing="4"
                 Visibility="{x:Bind IsWithinCardLimit, Mode=OneWay}"
                 automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <!--
+                        The band takes the star and sits at the bottom of it, so the two
+                        readings sharing a grid row put their bands on the same line even when
+                        one of them carries a line of detail and the other does not. Sized to
+                        content they sat 18 DIP apart, which reads as two charts at different
+                        scales rather than as one row.
+                    -->
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind Name, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardBodyStyle}"
+                        Text="{x:Bind PrimaryText, Mode=OneWay}"
+                        Visibility="{x:Bind HasReading, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Style="{StaticResource WwbCardCaptionStyle}"
+                        Text="{x:Bind MetricStatusText, Mode=OneWay}"
+                        Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
+                </Grid>
+                <TextBlock
+                    Grid.Row="1"
+                    Style="{StaticResource WwbCardCaptionStyle}"
+                    Text="{x:Bind SecondaryText, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
                 <layout:SystemMonitorCurve
+                    Grid.Row="2"
+                    Height="22"
+                    VerticalAlignment="Bottom"
                     Style="{StaticResource WwbSystemMonitorRowCurveStyle}"
                     Points="{x:Bind CurvePoints, Mode=OneWay}"
                     Visibility="{x:Bind IsCurveVisible, Mode=OneWay}" />
-                <Grid RowSpacing="3">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Style="{StaticResource WwbCardCaptionStyle}"
-                            Text="{x:Bind Name, Mode=OneWay}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            Grid.Column="1"
-                            Style="{StaticResource WwbCardBodyStyle}"
-                            Text="{x:Bind PrimaryText, Mode=OneWay}"
-                            Visibility="{x:Bind HasReading, Mode=OneWay}" />
-                        <TextBlock
-                            Grid.Column="1"
-                            Style="{StaticResource WwbCardCaptionStyle}"
-                            Text="{x:Bind MetricStatusText, Mode=OneWay}"
-                            Visibility="{x:Bind IsMetricStatusTextVisible, Mode=OneWay}" />
-                    </Grid>
-                    <ProgressBar
-                        Grid.Row="1"
-                        Style="{StaticResource WwbMetricMeterStyle}"
-                        Minimum="0"
-                        Maximum="100"
-                        Value="{x:Bind MeterPercent, Mode=OneWay}"
-                        IsTabStop="False"
-                        automation:AutomationProperties.AccessibilityView="Raw"
-                        Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
-                    <TextBlock
-                        Grid.Row="2"
-                        Style="{StaticResource WwbCardCaptionStyle}"
-                        Text="{x:Bind SecondaryText, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis"
-                        Visibility="{x:Bind IsSecondaryVisible, Mode=OneWay}" />
-                </Grid>
+                <ProgressBar
+                    Grid.Row="2"
+                    VerticalAlignment="Bottom"
+                    Style="{StaticResource WwbMetricMeterStyle}"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{x:Bind MeterPercent, Mode=OneWay}"
+                    IsTabStop="False"
+                    automation:AutomationProperties.AccessibilityView="Raw"
+                    Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
             </Grid>
         </DataTemplate>
 
@@ -1880,14 +1897,14 @@
                 </Grid.ColumnDefinitions>
                 <ContentControl
                     HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Top"
+                    VerticalContentAlignment="Stretch"
                     IsTabStop="False"
                     Content="{x:Bind Left}"
                     ContentTemplate="{StaticResource SystemMonitorMetricTemplate}" />
                 <ContentControl
                     Grid.Column="1"
                     HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Top"
+                    VerticalContentAlignment="Stretch"
                     IsTabStop="False"
                     Content="{x:Bind Right}"
                     ContentTemplate="{StaticResource SystemMonitorMetricTemplate}" />
@@ -1953,13 +1970,17 @@
                             Row gaps are the headline block's own bottom margin rather than
                             RowSpacing, which is charged for the empty row of the beside-each-
                             other arrangement as well.
+
+                            The headline's row takes the star, so whatever height the readings
+                            leave goes to the curve behind it rather than to empty card. The
+                            readings are costed against a fixed budget and cannot spend it, so
+                            an Auto row there left the bottom third of a two-row card blank.
                         -->
                         <Grid
                             ColumnSpacing="12"
-                            VerticalAlignment="Top"
                             Visibility="{x:Bind RuntimePresentation.IsContentVisible, Mode=OneWay}">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
