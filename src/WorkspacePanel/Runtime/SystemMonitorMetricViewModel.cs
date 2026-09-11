@@ -124,6 +124,87 @@ public sealed class SystemMonitorMetricViewModel : INotifyPropertyChanged
     }
 }
 
+/// <summary>
+/// Two readings side by side - one row of the card's two-column grid, or one reading and an
+/// empty half where the list runs out.
+///
+/// The pairing is a view model rather than a layout that wraps on its own because the two
+/// halves of a row have to share a height: a reading with a second line of detail is 18 DIP
+/// taller than one without, and a grid that sizes every cell alike would clip it. An
+/// ItemsControl over pairs gives each row an Auto height that the taller half decides, and it
+/// is also the unit the height budget is spent in.
+///
+/// Pairs are immutable. They are rebuilt when the membership or the order changes - a
+/// configuration change - and never on a tick, because the reading view models inside them are
+/// the same instances being updated in place.
+/// </summary>
+public sealed class SystemMonitorMetricPairViewModel
+{
+    public SystemMonitorMetricPairViewModel(
+        SystemMonitorMetricViewModel left,
+        SystemMonitorMetricViewModel? right)
+    {
+        Left = left ?? throw new ArgumentNullException(nameof(left));
+        Right = right;
+    }
+
+    public SystemMonitorMetricViewModel Left { get; }
+
+    /// <summary>Null on the last row of an odd-length list.</summary>
+    public SystemMonitorMetricViewModel? Right { get; }
+
+    public override string ToString() =>
+        Right is null ? Left.ToString() : Left + " | " + Right;
+}
+
+public static class SystemMonitorMetricPairListMerger
+{
+    /// <summary>How many readings sit on one row of the card.</summary>
+    public const int Columns = 2;
+
+    /// <summary>
+    /// Pairs up <paramref name="metrics"/> in order, replacing only the rows whose halves
+    /// actually changed. Reading left to right then down keeps the user's ranking legible:
+    /// filling one column top to bottom first would put their second choice halfway down the
+    /// card.
+    /// </summary>
+    public static void Merge(
+        ObservableCollection<SystemMonitorMetricPairViewModel> target,
+        IReadOnlyList<SystemMonitorMetricViewModel> metrics)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(metrics);
+
+        int rows = (metrics.Count + Columns - 1) / Columns;
+        for (int index = 0; index < rows; index++)
+        {
+            SystemMonitorMetricViewModel left = metrics[index * Columns];
+            SystemMonitorMetricViewModel? right = (index * Columns) + 1 < metrics.Count
+                ? metrics[(index * Columns) + 1]
+                : null;
+            if (index < target.Count)
+            {
+                SystemMonitorMetricPairViewModel existing = target[index];
+                if (ReferenceEquals(existing.Left, left) &&
+                    ReferenceEquals(existing.Right, right))
+                {
+                    continue;
+                }
+
+                target[index] = new SystemMonitorMetricPairViewModel(left, right);
+                continue;
+            }
+
+            target.Add(new SystemMonitorMetricPairViewModel(left, right));
+        }
+
+        while (target.Count > rows)
+        {
+            target.RemoveAt(target.Count - 1);
+        }
+    }
+}
+
 public static class SystemMonitorMetricListMerger
 {
     /// <summary>

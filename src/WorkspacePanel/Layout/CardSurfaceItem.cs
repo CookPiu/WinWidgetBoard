@@ -103,6 +103,7 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
             Runtime.Snapshot,
             _runtimeResourceResolver);
         SystemMonitorMetrics = [];
+        SystemMonitorMetricPairs = [];
         MergeSystemMonitor(_systemMonitorProjection);
         _tokenUsageProjection = TokenUsageCardProjection.FromSnapshot(
             Runtime.Snapshot,
@@ -434,6 +435,19 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// <see cref="SystemMonitorHeadline"/>, which is a different shape on the card.
     /// </summary>
     public ObservableCollection<SystemMonitorMetricViewModel> SystemMonitorMetrics { get; }
+
+    /// <summary>
+    /// The same readings paired up two to a row, which is what the card actually binds. A
+    /// single column left every reading as a wide, 29 DIP sliver with most of the card's width
+    /// empty beside it; two to a row makes each one about as wide as it is tall and halves what
+    /// the list costs in height. The pairing lives in a view model rather than in a wrapping
+    /// layout so the two halves of a row can share the taller one's height - a uniform grid
+    /// would clip the reading that carries a second line of detail.
+    /// </summary>
+    public ObservableCollection<SystemMonitorMetricPairViewModel> SystemMonitorMetricPairs
+    {
+        get;
+    }
 
     /// <summary>
     /// The reading the card leads with, updated in place like the rows under it and replaced
@@ -1035,21 +1049,41 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
     /// </summary>
     private void ApplySystemMonitorMetricLimit()
     {
+        int columns = SystemMonitorMetricPairListMerger.Columns;
         double budget = SystemMonitorMetricBudget;
         double used = 0;
         bool exhausted = false;
-        foreach (SystemMonitorMetricViewModel metric in SystemMonitorMetrics)
+        for (int index = 0; index < SystemMonitorMetrics.Count; index += columns)
         {
-            double cost = SystemMonitorRowCost(metric);
-            if (exhausted || used + cost > budget)
+            // The taller half decides the row: both sit in one Auto grid row, so a reading with
+            // a second line of detail costs its whole row that extra 18 DIP even when the
+            // reading beside it has none.
+            double cost = 0;
+            for (int column = 0;
+                column < columns && index + column < SystemMonitorMetrics.Count;
+                column++)
             {
-                exhausted = true;
-                metric.IsWithinCardLimit = false;
-                continue;
+                cost = Math.Max(
+                    cost,
+                    SystemMonitorRowCost(SystemMonitorMetrics[index + column]));
             }
 
-            used += cost;
-            metric.IsWithinCardLimit = true;
+            bool fits = !exhausted && used + cost <= budget;
+            if (fits)
+            {
+                used += cost;
+            }
+            else
+            {
+                exhausted = true;
+            }
+
+            for (int column = 0;
+                column < columns && index + column < SystemMonitorMetrics.Count;
+                column++)
+            {
+                SystemMonitorMetrics[index + column].IsWithinCardLimit = fits;
+            }
         }
     }
 
@@ -1082,6 +1116,9 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
         SystemMonitorMetricListMerger.Merge(
             SystemMonitorMetrics,
             projection.TrailingMetrics);
+        SystemMonitorMetricPairListMerger.Merge(
+            SystemMonitorMetricPairs,
+            SystemMonitorMetrics);
         ApplySystemMonitorMetricLimit();
     }
 

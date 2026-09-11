@@ -169,6 +169,49 @@ public sealed class SystemMonitorCardProjectionTests
     }
 
     [TestMethod(DisplayName =
+        "UT-SYSMON-065 [MON-001] A tick leaves the paired rows alone; re-ordering rebuilds them")]
+    public void PairsSurviveATickAndFollowAReorder()
+    {
+        var metrics = new ObservableCollection<SystemMonitorMetricViewModel>();
+        var pairs = new ObservableCollection<SystemMonitorMetricPairViewModel>();
+        SystemMonitorMetricListMerger.Merge(
+            metrics,
+            Project(
+                Metric(SystemMonitorContract.CpuUsage, "10%", 0.1d),
+                Metric(SystemMonitorContract.MemoryUsage, "50%", 0.5d),
+                Metric(SystemMonitorContract.GpuUsage, "20%", 0.2d)).Metrics);
+        SystemMonitorMetricPairListMerger.Merge(pairs, metrics);
+        SystemMonitorMetricPairViewModel firstRow = pairs[0];
+
+        // A tick changes only the numbers, and the view models are updated in place - so the
+        // rows holding them must not be replaced either, or the card rebuilds its visuals
+        // twice a second.
+        SystemMonitorMetricListMerger.Merge(
+            metrics,
+            Project(
+                Metric(SystemMonitorContract.CpuUsage, "11%", 0.11d),
+                Metric(SystemMonitorContract.MemoryUsage, "52%", 0.52d),
+                Metric(SystemMonitorContract.GpuUsage, "21%", 0.21d)).Metrics);
+        SystemMonitorMetricPairListMerger.Merge(pairs, metrics);
+
+        Assert.AreEqual(2, pairs.Count);
+        Assert.AreSame(firstRow, pairs[0], "A value change must not replace a row.");
+        Assert.IsNull(pairs[1].Right, "Three readings leave the last column short.");
+
+        // Dropping one is a configuration change, and the pairing does have to follow it.
+        SystemMonitorMetricListMerger.Merge(
+            metrics,
+            Project(
+                Metric(SystemMonitorContract.MemoryUsage, "52%", 0.52d),
+                Metric(SystemMonitorContract.CpuUsage, "11%", 0.11d)).Metrics);
+        SystemMonitorMetricPairListMerger.Merge(pairs, metrics);
+
+        Assert.AreEqual(1, pairs.Count);
+        Assert.AreEqual(SystemMonitorContract.MemoryUsage, pairs[0].Left.MetricId);
+        Assert.AreEqual(SystemMonitorContract.CpuUsage, pairs[0].Right?.MetricId);
+    }
+
+    [TestMethod(DisplayName =
         "UT-SYSMON-051 [MON-001] A reading's window becomes a curve ending at now")]
     public void HistoryBecomesCurve()
     {

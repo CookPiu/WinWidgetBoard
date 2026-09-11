@@ -1860,6 +1860,40 @@
             </Grid>
         </DataTemplate>
 
+        <!--
+            Two readings side by side. A single column left each one a wide 29 DIP sliver with
+            most of the card's width empty beside it, and spent twice the height doing it.
+
+            The pair comes from the view model rather than from a layout that wraps on its own,
+            because the two halves share this row's Auto height: a reading carrying a second
+            line of detail is 18 DIP taller than one without, and a grid that sized every cell
+            alike would clip it. The right half is empty on the last row of an odd list, which
+            is a column that simply ends - not a hole.
+        -->
+        <DataTemplate
+            x:Key="SystemMonitorMetricPairTemplate"
+            x:DataType="runtime:SystemMonitorMetricPairViewModel">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ContentControl
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    IsTabStop="False"
+                    Content="{x:Bind Left}"
+                    ContentTemplate="{StaticResource SystemMonitorMetricTemplate}" />
+                <ContentControl
+                    Grid.Column="1"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    IsTabStop="False"
+                    Content="{x:Bind Right}"
+                    ContentTemplate="{StaticResource SystemMonitorMetricTemplate}" />
+            </Grid>
+        </DataTemplate>
+
         <DataTemplate
             x:Key="SystemMonitorCardTemplate"
             x:DataType="layout:CardSurfaceItem">
@@ -1990,8 +2024,8 @@
                                 Grid.Column="{x:Bind SystemMonitorMetricsColumn, Mode=OneWay}"
                                 Grid.ColumnSpan="{x:Bind SystemMonitorMetricsColumnSpan, Mode=OneWay}"
                                 VerticalAlignment="Top"
-                                ItemsSource="{x:Bind SystemMonitorMetrics}"
-                                ItemTemplate="{StaticResource SystemMonitorMetricTemplate}"
+                                ItemsSource="{x:Bind SystemMonitorMetricPairs}"
+                                ItemTemplate="{StaticResource SystemMonitorMetricPairTemplate}"
                                 IsTabStop="False"
                                 automation:AutomationProperties.AutomationId="SystemMonitorMetricList" />
                         </Grid>
