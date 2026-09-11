@@ -876,21 +876,23 @@ public sealed class CardSurfaceItem : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// A reading's height, measured off the real card rather than guessed: the name-and-value
-    /// line is about 26 DIP with its padding, the window band under it is a stated 22 plus the
-    /// 4 separating them, and a second line of detail - memory's "21.8 GB / 31.4 GB" - adds
-    /// about 18 more. The meter shares the band's row, so a reading is the same height whether
-    /// it has a window yet or not.
+    /// line is about 26 DIP, the window band under it is a stated 22 plus the 4 separating
+    /// them, the tile's own surface adds 8 above and 8 below, the gap to the next row is 8,
+    /// and a second line of detail - memory's "21.8 GB / 31.4 GB" - adds about 18 more. The
+    /// meter shares the band's row, so a reading is the same height whether it has a window
+    /// yet or not.
     ///
-    /// The band is charged now that it is one. Drawn behind the text it cost nothing, and the
-    /// readings were 23 DIP slivers with a line through the digits: a card that fits twice as
-    /// many of those is not showing more, it is showing the same numbers less legibly.
+    /// The band and the tile's padding are charged now that they exist. Drawn behind the text
+    /// on no surface of its own, a reading was a 23 DIP sliver with a line through its digits:
+    /// a card that fits twice as many of those is not showing more, it is showing the same
+    /// numbers less legibly.
     ///
     /// This is per row rather than a count because the rows differ. A flat count of three put
     /// CPU, memory and GPU on a one-row card and drew the third half inside the clip; costing
     /// the meter separately then held back a reading a two-row card had room for.
     /// </summary>
     private static double SystemMonitorRowCost(SystemMonitorMetricViewModel metric) =>
-        52 + (metric.SecondaryText.Length > 0 ? 18 : 0);
+        76 + (metric.SecondaryText.Length > 0 ? 18 : 0);
 
     /// <summary>
     /// The note tools - list, pop out, new, more - on a card with room for a row of them. The

@@ -258,6 +258,20 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $settingsButton
 
+    # Swapped in for a reading that is on by default rather than simply added. The card's
+    # height budget is real - a two-row card has room for four readings under the headline -
+    # so adding a fifth asserts the budget rather than the thing under test, which is whether
+    # the card follows the saved list at all. This keeps the count the same, exactly as the
+    # temperature step further down does.
+    $upToggle = Wait-CardMetricToggle `
+        -Root $window `
+        -AutomationId 'SysMonCardInclude_net.up'
+    $upPattern = $upToggle.GetCurrentPattern(
+        [System.Windows.Automation.TogglePattern]::Pattern)
+    if ($upPattern.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) {
+        $upPattern.Toggle()
+    }
+
     $clockToggle = Wait-CardMetricToggle `
         -Root $window `
         -AutomationId 'SysMonCardInclude_cpu.clock'

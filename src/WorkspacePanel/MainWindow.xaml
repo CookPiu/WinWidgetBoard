@@ -1814,11 +1814,18 @@
         <DataTemplate
             x:Key="SystemMonitorMetricTemplate"
             x:DataType="runtime:SystemMonitorMetricViewModel">
-            <Grid
-                Padding="0,3"
-                RowSpacing="4"
+            <!--
+                Each reading sits on the panel's own secondary surface - the same one the note
+                editor and the status blocks use - so a column of them reads as tiles rather
+                than as text floating on the card. Layering, not outlining: the surface is a
+                shade off the card in normal themes and the style restores the system's 1-DIP
+                boundary under high contrast, which is the rule for every container here.
+            -->
+            <Border
+                Style="{StaticResource WwbSecondarySurfaceStyle}"
                 Visibility="{x:Bind IsWithinCardLimit, Mode=OneWay}"
                 automation:AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                <Grid RowSpacing="4">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -1874,7 +1881,8 @@
                     IsTabStop="False"
                     automation:AutomationProperties.AccessibilityView="Raw"
                     Visibility="{x:Bind IsMeterVisible, Mode=OneWay}" />
-            </Grid>
+                </Grid>
+            </Border>
         </DataTemplate>
 
         <!--
@@ -1890,7 +1898,14 @@
         <DataTemplate
             x:Key="SystemMonitorMetricPairTemplate"
             x:DataType="runtime:SystemMonitorMetricPairViewModel">
-            <Grid ColumnSpacing="12">
+            <!--
+                The gap between rows is this row's own bottom margin rather than spacing on the
+                list, so a row held back by the height budget takes its gap with it instead of
+                leaving one behind.
+            -->
+            <Grid
+                ColumnSpacing="8"
+                Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -1999,7 +2014,7 @@
                             <layout:SystemMonitorCurve
                                 x:Uid="SystemMonitorHeadlineCurve"
                                 Grid.ColumnSpan="{x:Bind SystemMonitorHeadlineColumnSpan, Mode=OneWay}"
-                                Margin="-12,0"
+                                Margin="-12,0,-12,8"
                                 Style="{StaticResource WwbSystemMonitorHeadlineCurveStyle}"
                                 Points="{x:Bind SystemMonitorHeadline.CurvePoints, Mode=OneWay}"
                                 IsHitTestVisible="{x:Bind AreCardActionsVisible, Mode=OneWay}"

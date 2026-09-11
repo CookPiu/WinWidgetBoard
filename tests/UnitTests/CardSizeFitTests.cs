@@ -45,17 +45,17 @@ public sealed class CardSizeFitTests
             CardSize.L);
         ApplySystemMonitor(item);
 
-        // The first reading is the card's headline and is drawn as one, so the rows under it
-        // are the other five. Two rows of grid has room for all of them.
+        // The first reading is the card's headline and is drawn as one, so the tiles under it
+        // are the other five - four of which fit two rows of grid.
         Assert.AreEqual(SystemMonitorContract.CpuUsage, item.SystemMonitorHeadline?.MetricId);
-        Assert.AreEqual(5, VisibleMetrics(item));
+        Assert.AreEqual(4, VisibleMetrics(item));
 
         // One row is about 98 DIP of content after the padding, the header and its spacing.
-        // Readings sit two to a grid row and the taller half pays for both: a reading is 52
-        // with its window band, and memory carries a line of detail, so its row is 70.
-        // Stacked, the headline takes 60 of the 98 and that first row no longer fits in what
-        // is left - and the list stops there rather than skipping past it, which would re-rank
-        // the user's list.
+        // Readings sit two to a grid row and the taller half pays for both: a tile is 76 with
+        // its surface padding, its window band and the gap to the next row, and memory carries
+        // a line of detail, so its row is 94. Stacked, the headline takes 60 of the 98 and
+        // that first row no longer fits in what is left - and the list stops there rather than
+        // skipping past it, which would re-rank the user's list.
         foreach (CardSize size in new[] { CardSize.S, CardSize.M })
         {
             item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, size));
@@ -63,7 +63,7 @@ public sealed class CardSizeFitTests
         }
 
         // Four cells across, one tall: the headline moves beside the readings and costs them
-        // nothing, so the same 98 DIP carries memory + GPU (70) and stops before the network
+        // nothing, so the same 98 DIP carries memory + GPU (94) and stops before the network
         // rates would take it past the clip.
         item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.W));
         Assert.AreEqual(2, VisibleMetrics(item));
@@ -143,7 +143,7 @@ public sealed class CardSizeFitTests
         // headline and the list occupy are part of a snapshot.
         item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.L));
 
-        Assert.AreEqual(5, VisibleMetrics(item));
+        Assert.AreEqual(4, VisibleMetrics(item));
 
         item.UpdatePlacement(Place(BuiltInCardCatalog.SystemMonitorInstanceId, CardSize.XL));
         Assert.IsTrue(item.IsSystemMonitorWideLayout);
