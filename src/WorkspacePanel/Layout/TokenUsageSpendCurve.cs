@@ -156,8 +156,15 @@ public sealed partial class TokenUsageSpendCurve : Control
             areaFigure.Segments.Add(Bezier(span, width, height));
         }
 
+        // Down to the baseline, then back along it. The day's first knot is the origin, so
+        // closing straight from the last point's foot already lands on the bottom edge - but
+        // only while that knot survives: a first record at midnight exactly replaces it, and
+        // the closing edge would then cut a diagonal across the fill. Stating both segments
+        // makes the shape independent of that, and matches how the weather trend closes.
+        Point start = Place(spans[0].Start, width, height);
         Point end = Place(spans[^1].End, width, height);
         areaFigure.Segments.Add(new LineSegment { Point = new Point(end.X, height) });
+        areaFigure.Segments.Add(new LineSegment { Point = new Point(start.X, height) });
 
         var lineGeometry = new PathGeometry();
         lineGeometry.Figures.Add(lineFigure);
