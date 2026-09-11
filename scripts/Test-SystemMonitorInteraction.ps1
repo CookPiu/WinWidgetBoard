@@ -85,6 +85,52 @@ function Wait-MetricReading {
         (($seen | Select-Object -First 40) -join ' | '))
 }
 
+# The settings sheet keeps both metric lists in Expanders that are collapsed when it opens, and
+# a collapsed Expander has no children in the automation tree - so a toggle inside one is not
+# late, it is absent. Opening the card's section first is what a user does too.
+function Wait-CardMetricToggle {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [string]$AutomationId
+    )
+
+    $expander = Wait-ElementByAutomationId `
+        -Root $Root `
+        -AutomationId 'SysMonCardExpander' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    Expand-Element -Element $expander | Out-Null
+
+    return Wait-ElementByAutomationId `
+        -Root $Root `
+        -AutomationId $AutomationId `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+}
+
+# Saving closes the sheet, but not instantly - and until it is gone its own metric labels
+# ("CPU 频率") sit in the same automation tree as the card's rows. A search of the window run
+# in that gap finds the label and reads it as the card having followed the save, whatever the
+# card is actually showing.
+function Wait-SettingsDialogClosed {
+    param(
+        [System.Windows.Automation.AutomationElement]$Root,
+        [TimeSpan]$Timeout = ([TimeSpan]::FromSeconds(10))
+    )
+
+    $deadline = [DateTime]::UtcNow + $Timeout
+    do {
+        $save = Get-ElementByAutomationId `
+            -Root $Root `
+            -AutomationId 'SysMonSettingsSaveButton'
+        if ($null -eq $save) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 150
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw 'The settings sheet was still open after saving.'
+}
+
 function Start-Stack {
     param(
         [string]$BrokerPath,
@@ -185,11 +231,26 @@ try {
     Focus-PanelWindow -Window $window
 
     # A percentage proves the whole chain: sampler, provider, snapshot event, projection, card.
+    # Anchored on the metric's own name rather than on any percentage in the window - the
+    # weather card announces a humidity, which matched a bare '\d+%' and passed this step on a
+    # board with no hardware readings at all.
     $reading = Wait-MetricReading `
         -Root $window `
-        -Pattern '\d+%' `
+        -Pattern '^CPU\s+\d+(\.\d+)?%' `
         -Timeout ([TimeSpan]::FromSeconds(30))
     Write-Output "SYSMON-CARD-PASS reading=`"$reading`""
+
+    # The card's leading reading is drawn as a headline rather than as a row, so its value is
+    # its own element; a card that showed only rows would still satisfy the check above.
+    $headlineValue = Wait-ElementByAutomationId `
+        -Root $window `
+        -AutomationId 'SystemMonitorHeadlineValue' `
+        -Timeout ([TimeSpan]::FromSeconds(10))
+    if ($headlineValue.Current.Name -notmatch '\d') {
+        throw "The headline read '$($headlineValue.Current.Name)' rather than a value."
+    }
+
+    Write-Output "SYSMON-HEADLINE-PASS `"$($headlineValue.Current.Name)`""
 
     $settingsButton = Wait-ElementByAutomationId `
         -Root $window `
@@ -197,10 +258,9 @@ try {
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $settingsButton
 
-    $clockToggle = Wait-ElementByAutomationId `
+    $clockToggle = Wait-CardMetricToggle `
         -Root $window `
-        -AutomationId 'SysMonCardInclude_cpu.clock' `
-        -Timeout ([TimeSpan]::FromSeconds(10))
+        -AutomationId 'SysMonCardInclude_cpu.clock'
     $togglePattern = $clockToggle.GetCurrentPattern(
         [System.Windows.Automation.TogglePattern]::Pattern)
     $before = $togglePattern.Current.ToggleState
@@ -216,6 +276,7 @@ try {
         -AutomationId 'SysMonSettingsSaveButton' `
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $saveButton
+    Wait-SettingsDialogClosed -Root $window
     Write-Output "SYSMON-SETTINGS-PASS cpu.clock $before -> $after"
 
     # The card follows the saved list within one refresh cadence.
@@ -227,7 +288,9 @@ try {
         $names = @(Get-Descendants -Root $window |
             ForEach-Object { $_.Current.Name } |
             Where-Object { $_ })
-        $clockNames = @($names | Where-Object { $_ -match 'CPU clock|CPU 频率' })
+        # A card row announces its name and then its reading; the settings sheet's list item is
+        # the bare name. Requiring something after the name is what tells the two apart.
+        $clockNames = @($names | Where-Object { $_ -match '^(CPU clock|CPU 频率)\s+\S' })
         $hasClock = $clockNames.Count -gt 0
         if ($hasClock -eq $expected) { $found = $true; break }
         Start-Sleep -Milliseconds 400
@@ -274,10 +337,9 @@ try {
         -AutomationId 'SysMonSettingsButton' `
         -Timeout ([TimeSpan]::FromSeconds(15))
     Invoke-Element -Element $settingsButton
-    $clockToggle = Wait-ElementByAutomationId `
+    $clockToggle = Wait-CardMetricToggle `
         -Root $window `
-        -AutomationId 'SysMonCardInclude_cpu.clock' `
-        -Timeout ([TimeSpan]::FromSeconds(10))
+        -AutomationId 'SysMonCardInclude_cpu.clock'
     $reloaded = $clockToggle.GetCurrentPattern(
         [System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState
     if ($reloaded -ne $after) {
@@ -290,10 +352,9 @@ try {
     # memory when the user is already running it, and says so when they are not (ADR-0033).
     # Swapping it in for the clock keeps the number of rows the same, so what this asserts is
     # the wording rather than the card's size ladder a second time.
-    $temperatureToggle = Wait-ElementByAutomationId `
+    $temperatureToggle = Wait-CardMetricToggle `
         -Root $window `
-        -AutomationId 'SysMonCardInclude_cpu.temperature' `
-        -Timeout ([TimeSpan]::FromSeconds(10))
+        -AutomationId 'SysMonCardInclude_cpu.temperature'
     $temperaturePattern = $temperatureToggle.GetCurrentPattern(
         [System.Windows.Automation.TogglePattern]::Pattern)
     if ($temperaturePattern.Current.ToggleState -ne
@@ -312,15 +373,37 @@ try {
         -AutomationId 'SysMonSettingsSaveButton' `
         -Timeout ([TimeSpan]::FromSeconds(10))
     Invoke-Element -Element $saveButton
+    Wait-SettingsDialogClosed -Root $window
 
-    # Either a real temperature, or the wording for whichever of the two unreadable states this
-    # machine is in. Both are correct answers; an empty row or a bare resource key is not.
-    $temperatureRow = Wait-MetricReading `
-        -Root $window `
-        -Pattern ('(CPU 温度|CPU temperature).*' +
-            '(°C|需运行 HWiNFO|Needs HWiNFO running|此电脑无法读取|Not available)') `
-        -Timeout ([TimeSpan]::FromSeconds(25))
-    Write-Output "SYSMON-TEMPERATURE-PASS `"$temperatureRow`""
+    # A reading held up by the optional sensor source is an instruction, and instructions are
+    # settings content - so the card leaves that row out entirely rather than carrying a
+    # permanent line of setup jargon. Which outcome is correct here depends on whether this
+    # machine happens to be running HWiNFO or Core Temp, so both are accepted: a row naming a
+    # temperature, or no row at all. What is never accepted is the card repeating the setup
+    # requirement, or a row with nothing after its name.
+    $deadline = [DateTime]::UtcNow.AddSeconds(12)
+    $temperatureRow = $null
+    do {
+        $temperatureRow = @(Get-Descendants -Root $window |
+            ForEach-Object { $_.Current.Name } |
+            Where-Object { $_ -match '^(CPU 温度|CPU temperature)\s+\S' })[0]
+        if ($temperatureRow) {
+            break
+        }
+
+        Start-Sleep -Milliseconds 400
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    if ($temperatureRow) {
+        if ($temperatureRow -match '需运行|Needs HWiNFO|Core Temp') {
+            throw "The card carried a setup instruction as a reading: $temperatureRow"
+        }
+
+        Write-Output "SYSMON-TEMPERATURE-PASS `"$temperatureRow`""
+    }
+    else {
+        Write-Output 'SYSMON-TEMPERATURE-PASS row absent, no sensor source running'
+    }
 
     Write-Output 'REAL-SYSMON-PASS card+settings+persistence+sensor-source'
 }

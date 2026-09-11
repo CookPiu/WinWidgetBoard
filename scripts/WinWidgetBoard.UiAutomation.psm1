@@ -763,6 +763,31 @@ function Invoke-Element {
     ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
 }
 
+function Expand-Element {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element
+    )
+
+    # A collapsed Expander has no children in the automation tree at all - not offscreen
+    # children, none - so a lookup inside one fails as "did not appear" and reads as a missing
+    # control rather than as a closed section. The settings sheet collapses both metric lists
+    # by default, which is exactly the shape a script has to open first.
+    $pattern = $null
+    if (-not $Element.TryGetCurrentPattern(
+            [System.Windows.Automation.ExpandCollapsePattern]::Pattern,
+            [ref]$pattern)) {
+        throw "ExpandCollapsePattern unavailable: $($Element.Current.AutomationId)"
+    }
+
+    $expandCollapse = [System.Windows.Automation.ExpandCollapsePattern]$pattern
+    if ($expandCollapse.Current.ExpandCollapseState -eq
+        [System.Windows.Automation.ExpandCollapseState]::Collapsed) {
+        $expandCollapse.Expand()
+    }
+
+    return $Element
+}
+
 function Show-Element {
     param(
         [System.Windows.Automation.AutomationElement]$Element,
@@ -1220,6 +1245,7 @@ Export-ModuleMember -Function @(
     'Invoke-Element',
     'Invoke-ElementToggle',
     'Select-Element',
+    'Expand-Element',
     'Show-Element',
     'Set-VerticalScrollPercent',
     'Focus-PanelWindow',
