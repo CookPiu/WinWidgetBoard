@@ -47,3 +47,4 @@ ADR 一旦批准不应被直接重写结论。若决策改变：
 | [0036](0036-token-usage-spend-curve-card.md) | Accepted | Token 用量卡片以当日累计花费曲线为背景并跟随指针，两块 KPI 与拆分计量条回归（修订 0030 第 3.1 条） |
 | [0037](0037-token-usage-size-ladder.md) | Accepted | Token 用量卡片按行数与列数分档，四列档三栏并排、页签移入头部行、`XL` 拆分逐切片展开（修订 0036 第 3、4 条适用范围） |
 | [0038](0038-second-weather-provider-qweather.md) | Accepted | 天气新增和风天气数据源，API Key 以 DPAPI 加密落库、只走请求头且限定厂商域名（修订 0020 的唯一 Provider 结论） |
+| [0039](0039-mit-license-and-public-repository.md) | Accepted | 项目采用 MIT 许可证并公开仓库（落定 0006 挂起的许可证决定，其源码复用禁令继续有效） |
