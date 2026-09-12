@@ -1,22 +1,41 @@
+<div align="center">
+
 # WinWidgetBoard
+
+**A local-first widget board that lives in the Windows 11 taskbar.**
 
 [![Build](https://github.com/CookPiu/WinWidgetBoard/actions/workflows/build.yml/badge.svg)](https://github.com/CookPiu/WinWidgetBoard/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows%2011-x64-0078D4.svg)](#requirements)
+[![Release](https://img.shields.io/github/v/release/CookPiu/WinWidgetBoard?include_prereleases&sort=semver)](https://github.com/CookPiu/WinWidgetBoard/releases)
 
 English | [简体中文](README.zh-CN.md)
 
-A local-first widget board for Windows 11. It adds its own entry to the taskbar strip and opens
-a native half-screen panel holding notes, weather, hardware readings and AI token usage.
+<img src="docs/assets/panel.png" alt="The WinWidgetBoard panel: hardware, weather, notes and token usage cards on a responsive grid" width="820">
+
+</div>
+
+Your own entry sits in the taskbar strip and opens a native half-screen panel with notes, weather,
+hardware readings and AI token usage. Everything is stored locally, there is no account, and nothing
+is sent anywhere unless a card you turned on needs it.
 
 It does **not** inject into `explorer.exe`, hook the shell, or read Explorer's private XAML tree.
 The entry is an ordinary Win32 window of our own, positioned from public geometry — when that
 geometry is ambiguous it hides or degrades rather than guessing.
 
+> The screenshots show a Chinese Windows install. The app ships English and Chinese resources and
+> follows your Windows display language.
+
 ## What it does
+
+<img src="docs/assets/taskbar-entry.png" alt="The taskbar entry: a weather capsule and a hardware capsule embedded in the taskbar strip" width="680">
+
+The entry itself is a readable surface, not just a button — weather on one capsule, live hardware
+readings on an optional second one.
 
 | Capability | Detail |
 | --- | --- |
-| **Taskbar entry** | A native C++/Win32 info strip embedded in the taskbar. Alignment, content, an optional hardware capsule, and a hotkey (four presets plus a recorded custom one) are all configurable. |
+| **Taskbar entry** | A native C++/Win32 info strip embedded in the taskbar. Alignment, content, the hardware capsule, and a hotkey (four presets plus a recorded custom one) are all configurable. |
 | **Panel** | WinUI 3, Desktop Acrylic, system accent layering. Closing hides it and keeps the process resident, so reopening costs tens of milliseconds rather than a cold start. |
 | **Responsive layout** | A logical 2/4/6-column grid. Drag, resize, add and remove cards in an edit session; 20-step undo/redo. Persisted state is order and a size ID — never screen pixels — so a layout survives a resolution or DPI change. |
 | **Notes** | Local CRUD, search, Markdown preview, autosave with a draft-preserving failure policy. |
@@ -28,8 +47,9 @@ geometry is ambiguous it hides or degrades rather than guessing.
 
 Timers, todos, clipboard history, calendar, third-party plugins, accounts, cloud sync and telemetry
 are deliberately deferred ([ADR-0022](docs/adr/0022-lightweight-core-strategy.md)). Placeholder cards
-that exist in the tree are layout filler and will not grow behavior. Feature requests for these are
-answered in `CONTRIBUTING.md` rather than silently queued.
+that exist in the tree are layout filler and will not grow behavior. Requests for these get an
+answer and a link rather than a silent backlog entry — see
+[CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-before-writing-code).
 
 ## Privacy
 
@@ -64,7 +84,7 @@ Download the zip from [Releases](https://github.com/CookPiu/WinWidgetBoard/relea
 anywhere, and run `WinWidgetBoard.LauncherHost.exe`. It starts the panel and the broker itself.
 
 > The binaries are **not code-signed**, so SmartScreen will warn on first run. Verify the download
-> against the release page if that matters to you, or build from source.
+> against the SHA-256 on the release page if that matters to you, or build from source.
 
 To remove it: quit from the entry's context menu, delete the folder, and delete
 `%LOCALAPPDATA%\WinWidgetBoard` if you also want the data gone.
@@ -125,7 +145,8 @@ contract in [docs/07-api-contracts.md](docs/07-api-contracts.md).
 Pre-1.0, single-maintainer, actively developed. The seven capabilities above are implemented and
 run end to end, but verification so far comes from one reference machine — the full display matrix
 (multi-monitor, 100–200% DPI, high contrast, text scaling) and the multi-device performance gates in
-[docs/08-testing-strategy.md](docs/08-testing-strategy.md) have not been run.
+[docs/08-testing-strategy.md](docs/08-testing-strategy.md) have not been run. If it misbehaves on a
+machine unlike that one, that is exactly the bug report this project wants.
 
 Current facts, known debt and next steps:
 [docs/status/implementation-status.md](docs/status/implementation-status.md).
@@ -134,15 +155,28 @@ Current facts, known debt and next steps:
 
 All design documentation is written in Chinese and indexed at [docs/README.md](docs/README.md).
 Start with [the ADR index](docs/adr/README.md) if you want to know why something is the way it is —
-every expensive decision has one.
+every expensive decision has one, including the ones that were rejected.
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) first. It covers the risk-tiered verification rules, the
-scope boundary, and what the build actually needs. Security issues go through
-[SECURITY.md](SECURITY.md), not the issue tracker.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. It leads with what will not be merged, then covers
+the risk-tiered verification rules and the build traps worth knowing before you hit them. Security
+issues go through [SECURITY.md](SECURITY.md), not the issue tracker.
+
+## Acknowledgements
+
+This project vendors no third-party source or assets. It does depend on other people's work at
+runtime, and each of them is optional or replaceable:
+
+- [Open-Meteo](https://open-meteo.com) — free, account-less weather and geocoding; the default source.
+- [QWeather / 和风天气](https://dev.qweather.com) — the second weather source, for networks the first
+  one cannot reach.
+- [HWiNFO](https://www.hwinfo.com) and [Core Temp](https://www.alcpu.com/CoreTemp/) — temperature and
+  fan readings, through the shared memory they publish. WinWidgetBoard reads; it ships no driver.
+- [LiteLLM](https://github.com/BerriAI/litellm) — the public model price table used to estimate token
+  cost. Synced daily, and you can turn the sync off.
 
 ## License
 
 [MIT](LICENSE) — see [ADR-0039](docs/adr/0039-mit-license-and-public-repository.md) for the decision
-and its dependency constraints. No third-party source or assets are vendored into this repository.
+and the dependency constraints that come with it.

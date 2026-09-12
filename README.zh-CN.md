@@ -1,17 +1,31 @@
+<div align="center">
+
 # WinWidgetBoard
+
+**一块住在 Windows 11 任务栏里的本地优先工作台。**
 
 [![Build](https://github.com/CookPiu/WinWidgetBoard/actions/workflows/build.yml/badge.svg)](https://github.com/CookPiu/WinWidgetBoard/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows%2011-x64-0078D4.svg)](#运行要求)
+[![Release](https://img.shields.io/github/v/release/CookPiu/WinWidgetBoard?include_prereleases&sort=semver)](https://github.com/CookPiu/WinWidgetBoard/releases)
 
 [English](README.md) | 简体中文
 
-面向 Windows 11 的本地优先快捷工作台。它在任务栏条带上放置自己的入口，打开一块原生半屏面板，
-承载便签、天气、本机硬件读数与 AI Token 用量。
+<img src="docs/assets/panel.png" alt="WinWidgetBoard 面板：硬件、天气、便签与 Token 用量卡片排布在响应式网格上" width="820">
+
+</div>
+
+自己的入口坐在任务栏条带上，点开是一块原生半屏面板，承载便签、天气、本机硬件读数与 AI Token 用量。
+数据全部留在本地，无账号；除非你打开的卡片自身需要，否则不向任何地方发送数据。
 
 它**不注入** `explorer.exe`，不挂钩 Shell，也不读取 Explorer 的私有 XAML 树。入口是应用自有的普通
 Win32 窗口，位置由公开几何推导；几何无法确认时宁可隐藏或降级，也不猜测。
 
 ## 能力
+
+<img src="docs/assets/taskbar-entry.png" alt="任务栏入口：天气胶囊与硬件胶囊嵌在任务栏条带里" width="680">
+
+入口本身就是一块可读的信息条，而不只是一个按钮——一枚胶囊显示天气，另一枚（可关闭）显示实时硬件读数。
 
 | 能力 | 说明 |
 | --- | --- |
@@ -27,7 +41,8 @@ Win32 窗口，位置由公开几何推导；几何无法确认时宁可隐藏�
 
 计时器、待办、剪贴板历史、日历、第三方插件、账号、云同步和遥测均为**刻意延期**
 （[ADR-0022](docs/adr/0022-lightweight-core-strategy.md)）。代码树中已有的占位卡片只是布局填充，
-不会继续增加业务行为。这类功能请求的处理方式写在 `CONTRIBUTING.md`，不会被静默排队。
+不会继续增加业务行为。这类请求会得到一个答复和一条链接，而不是静默排队——见
+[CONTRIBUTING.md](CONTRIBUTING.md#scope-read-this-before-writing-code)。
 
 ## 隐私
 
@@ -54,8 +69,8 @@ Win32 窗口，位置由公开几何推导；几何无法确认时宁可隐藏�
 从 [Releases](https://github.com/CookPiu/WinWidgetBoard/releases) 下载 zip，解压到任意位置，运行
 `WinWidgetBoard.LauncherHost.exe`。它会自行拉起面板与 broker。
 
-> 发布产物**未做代码签名**，首次运行会出现 SmartScreen 提示。若你在意，请对照 Release 页面校验下载，
-> 或自行从源码构建。
+> 发布产物**未做代码签名**，首次运行会出现 SmartScreen 提示。若你在意，请对照 Release 页面上的
+> SHA-256 校验下载，或自行从源码构建。
 
 卸载：从入口右键菜单选「退出」，删除该目录；若同时要清除数据，再删除 `%LOCALAPPDATA%\WinWidgetBoard`。
 
@@ -110,21 +125,32 @@ User -> LauncherHost (C++/Win32)  --spawns-->  WorkspacePanel (C#/WinUI 3)
 
 1.0 之前，单人维护，持续开发中。上述七项能力均已实现并跑通完整链路，但验证目前只来自一台参考机——
 [docs/08-testing-strategy.md](docs/08-testing-strategy.md) 中的完整显示矩阵（多显示器、100–200% DPI、
-高对比度、文本缩放）与多设备性能门禁尚未执行。
+高对比度、文本缩放）与多设备性能门禁尚未执行。如果它在与那台机器不同的环境上表现异常，
+那正是本项目最需要的缺陷报告。
 
 当前事实、已知债务与下一步：[docs/status/implementation-status.md](docs/status/implementation-status.md)。
 
 ## 文档
 
 全部设计文档为中文，索引在 [docs/README.md](docs/README.md)。想知道某处为什么这样设计，
-先看 [ADR 索引](docs/adr/README.md)——每个高成本决策都有一条。
+先看 [ADR 索引](docs/adr/README.md)——每个高成本决策都有一条，包括那些被否掉的方案。
 
 ## 参与贡献
 
-先读 [CONTRIBUTING.md](CONTRIBUTING.md)，其中包含风险分级验证规则、范围边界和构建的真实要求。
-安全问题走 [SECURITY.md](SECURITY.md)，不要提到 issue 里。
+先读 [CONTRIBUTING.md](CONTRIBUTING.md)：它开篇就是「不会被合并的改动」，然后才是风险分级验证规则和
+那些踩过才知道的构建陷阱。安全问题走 [SECURITY.md](SECURITY.md)，不要提到 issue 里。
+
+## 致谢
+
+本项目不内嵌任何第三方源码或资源，但运行时确实依赖他人的工作，且每一项都可选或可替换：
+
+- [Open-Meteo](https://open-meteo.com)——免费、免账号的天气与地理编码，默认数据源。
+- [和风天气 QWeather](https://dev.qweather.com)——第二个天气数据源，面向第一个数据源无法到达的网络。
+- [HWiNFO](https://www.hwinfo.com) 与 [Core Temp](https://www.alcpu.com/CoreTemp/)——温度与风扇读数，
+  经由它们发布的共享内存获取。WinWidgetBoard 只读，不分发任何驱动。
+- [LiteLLM](https://github.com/BerriAI/litellm)——用于折算 Token 花费的公开模型价表。每日同步，可关闭。
 
 ## 许可证
 
 [MIT](LICENSE)——决定与其附带的依赖约束见
-[ADR-0039](docs/adr/0039-mit-license-and-public-repository.md)。本仓库不内嵌任何第三方源码或资源。
+[ADR-0039](docs/adr/0039-mit-license-and-public-repository.md)。
