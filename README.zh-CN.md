@@ -11,7 +11,7 @@
 
 [English](README.md) | 简体中文
 
-<img src="docs/assets/panel.png" alt="WinWidgetBoard 面板：硬件、天气、便签与 Token 用量卡片排布在响应式网格上" width="820">
+<img src="docs/assets/panel.zh-CN.png" alt="WinWidgetBoard 面板：硬件、天气、便签与 Token 用量卡片排布在响应式网格上" width="820">
 
 </div>
 
@@ -20,6 +20,8 @@
 
 它**不注入** `explorer.exe`，不挂钩 Shell，也不读取 Explorer 的私有 XAML 树。入口是应用自有的普通
 Win32 窗口，位置由公开几何推导；几何无法确认时宁可隐藏或降级，也不猜测。
+
+> 中英文界面随包提供，面板跟随 Windows 显示语言；英文界面的截图见 [English README](README.md)。
 
 ## 能力
 

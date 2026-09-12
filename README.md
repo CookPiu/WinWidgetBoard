@@ -23,8 +23,9 @@ It does **not** inject into `explorer.exe`, hook the shell, or read Explorer's p
 The entry is an ordinary Win32 window of our own, positioned from public geometry — when that
 geometry is ambiguous it hides or degrades rather than guessing.
 
-> The screenshots show a Chinese Windows install. The app ships English and Chinese resources and
-> follows your Windows display language.
+> English and Chinese both ship in the box and the panel follows your Windows display language.
+> Dates and weekday names follow your Windows *regional format*, which is a separate setting —
+> which is why they stay Chinese in this capture.
 
 ## What it does
 
