@@ -48,10 +48,10 @@ These are architectural, not stylistic. A change that crosses one will be sent b
   [ADR-0014](docs/adr/0014-logical-layout-cell-replay.md)).
 - Session tokens and API keys never reach a log, a URL, or a command line.
 
-`AGENTS.md` is the binding execution-rules file for this repository and applies to every directory.
-`CLAUDE.md` carries the same rules plus the traps that have already cost someone a debugging round.
-Read both if you are doing anything non-trivial — including if you are working with an AI agent,
-which both files are written for.
+[docs/development/pitfalls.md](docs/development/pitfalls.md) collects the traps that have already
+cost someone a debugging round — a markup-compiler error that names no file, a resource key that
+crashes the installed panel but passes every smoke test, a taskbar call that hangs the whole process
+tree. Read it before your first non-trivial change; each entry is there because it happened.
 
 ## Build
 

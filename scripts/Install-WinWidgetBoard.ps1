@@ -174,7 +174,7 @@ foreach ($component in $components) {
     if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
         throw (
             "$($component.Name) is not built: $executablePath is missing. " +
-            'Build it first - see the Build section of CLAUDE.md, or run ' +
+            'Build it first - see the Build section of CONTRIBUTING.md, or run ' +
             '.\scripts\Start-DevSandbox.ps1 -Task Build.')
     }
 }

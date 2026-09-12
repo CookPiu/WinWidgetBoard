@@ -14,6 +14,7 @@
 | [09-security-privacy.md](09-security-privacy.md) | 当前攻击面和隐私约束 |
 | [development/toolchain.md](development/toolchain.md) | 锁定的 SDK、MSBuild、构建与环境核对基线 |
 | [development/dependencies.md](development/dependencies.md) | 直接依赖、版本锁定、许可证和发布前审查项 |
+| [development/pitfalls.md](development/pitfalls.md) | 已造成过真实故障的陷阱：成因、正确写法与下次的诊断入口 |
 | [status/implementation-status.md](status/implementation-status.md) | 当前事实、债务和下一步 |
 | [history/completed-milestones.md](history/completed-milestones.md) | 已完成里程碑简表 |
 | [adr/README.md](adr/README.md) | 高成本架构决策 |

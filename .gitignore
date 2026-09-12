@@ -23,6 +23,14 @@ CrashDumps/
 *.etl
 *.dmp
 
+# Local AI agent configuration. Kept on disk so the tooling keeps working, kept out of the
+# repository because it configures a coding assistant rather than the product.
+/CLAUDE.md
+/AGENTS.md
+/.codex/
+/.claude/
+/.gemini/
+
 # Secrets and machine-local configuration
 *.secrets.json
 appsettings.Local.json

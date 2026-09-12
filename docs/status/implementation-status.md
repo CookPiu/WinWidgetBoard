@@ -66,13 +66,13 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
   改为按曲线与 KPI 断言）；`WorkspacePanel --smoke-test` 与 `CoreBroker --pipe-handshake-smoke-test` 退出码均为 0；
   已按 Release x64 重新安装。首次安装后面板打不开：资源键 `TokenUsageSpendCurve.Now/.HourTokens` 与曲线控件的
   `x:Uid="TokenUsageSpendCurve"` 同前缀，被资源加载器当作要设到控件上的属性，面板一开即以 `0xc000027b` 崩溃
-  （编译与 `--smoke-test` 都不报，只有 `%LOCALAPPDATA%\CrashDumps` 里的转储字符串说明原因，规则已记入 `CLAUDE.md`）；
+  （编译与 `--smoke-test` 都不报，只有 `%LOCALAPPDATA%\CrashDumps` 里的转储字符串说明原因，规则已记入 [development/pitfalls.md](../development/pitfalls.md) 第 4 条）；
   改为 `TokenUsageCurve.*` 后仍崩：第二个原因是 `LayoutCycleException`——曲线 `Path` 直接挂在模板 Grid 下，
   每次 `SizeChanged` 重建几何，描边把期望尺寸撑大半像素，布局永不收敛；转储里没有这段文字，临时的
   `Application.UnhandledException` 钩子第一次运行就报出来了。现改为所有图形放进 `Canvas`（期望尺寸不随子元素变）。
   复现与验证走隔离栈：停掉已安装实例后用 `Start-TestBroker`/`Start-TestPanel`（临时数据目录、新实例 id）启动，
   Broker 照常扫描本机会话记录，30 s 后面板存活、UIA 读到 `TokenUsageCostText = ≈$51.80`、`TokenUsageTotalTokensText = 39.4M`，
-  应用日志无崩溃；两次排查经过与规则已记入 `CLAUDE.md`。**未复验**：目视核对（浅色/深色下曲线可见、指针跨右缘时标签翻转、
+  应用日志无崩溃；两次排查经过与规则已记入 [development/pitfalls.md](../development/pitfalls.md) 第 4、5 条。**未复验**：目视核对（浅色/深色下曲线可见、指针跨右缘时标签翻转、
   编辑模式下按住大字可拖动）仍未做——本机另一全屏程序挡住桌面截图；下次打开面板时按
   [ADR-0036](../adr/0036-token-usage-spend-curve-card.md) 门禁三项逐一核对。
 - **便签卡片交互与布局整改（2026-09-02，浅色主题、`3200×2000 @ 165 Hz`、200% DPI、中文，隔离栈脚本复跑）**。
@@ -498,7 +498,7 @@ attestation 签名的持续费用与实名流程、驱动本身在 HVCI 与后�
 本轮修正的一处判断错误：先前认为「天气卡片收不到数据」是既有缺陷，实际上是我一直在运行
 **前一天的面板产物**。`Install-WinWidgetBoard.ps1` 与真实桌面脚本读取的是 `x64\Release`，
 而 `dotnet build -c Release` 不带 `-p:Platform=x64` 写的是另一个路径。加上 `-p:Platform=x64`
-后卡片订阅正常：`cards.subscribe` 返回 `ready` 快照并被应用。该陷阱已写入 CLAUDE.md。
+后卡片订阅正常：`cards.subscribe` 返回 `ready` 快照并被应用。该陷阱已写入 [CONTRIBUTING.md](../../CONTRIBUTING.md) 的构建一节。
 
 ## 7. 下一步
 
