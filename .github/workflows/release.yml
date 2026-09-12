@@ -1,0 +1,202 @@
+name: Release
+
+# Publishing is driven by an annotated tag: `git tag -a v0.1.0 -m ... && git push origin v0.1.0`.
+# workflow_dispatch runs everything except the publish step, so the packaging can be exercised
+# without burning a version number.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package Windows x64
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install locked .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $tag = $env:GITHUB_REF -replace '^refs/tags/', ''
+            $version = $tag.Substring(1)
+          }
+          else {
+            # A dispatch run has no tag. Build something identifiable that can never be mistaken
+            # for a release, and skip publishing below.
+            $tag = ''
+            $version = "0.0.0-dev.$env:GITHUB_RUN_NUMBER"
+          }
+
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "version: $version"
+
+      - name: Restore
+        run: msbuild .\WinWidgetBoard.sln /m /t:Restore /p:Platform=x64
+
+      - name: Build
+        run: >
+          msbuild .\WinWidgetBoard.sln /m
+          /p:Configuration=Release /p:Platform=x64 /p:Restore=false
+          /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: >
+          dotnet test .\tests\UnitTests\WinWidgetBoard.UnitTests.csproj
+          --configuration Release --no-build --no-restore --property:Platform=x64
+
+      - name: Stage the install layout
+        id: stage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Managed projects gain an extra `x64\` path segment when Platform is passed explicitly
+          # and lack it otherwise. Probe both rather than hard-coding one, so a change in how the
+          # solution is built fails loudly here instead of shipping an incomplete zip.
+          function Resolve-Output {
+              param([string]$Project, [string[]]$Candidates, [string]$Executable)
+
+              foreach ($candidate in $Candidates) {
+                  if (Test-Path -LiteralPath (Join-Path $candidate $Executable) -PathType Leaf) {
+                      return $candidate
+                  }
+              }
+
+              throw "$Project was not produced. Looked in: $($Candidates -join '; ')"
+          }
+
+          $bin = Join-Path $PWD 'artifacts\bin'
+          $framework = 'net10.0-windows10.0.26100.0\win-x64'
+
+          $launcher = Resolve-Output 'LauncherHost' `
+              @((Join-Path $bin 'WinWidgetBoard.LauncherHost\Release\x64')) `
+              'WinWidgetBoard.LauncherHost.exe'
+          $panel = Resolve-Output 'WorkspacePanel' `
+              @((Join-Path $bin "WinWidgetBoard.WorkspacePanel\x64\Release\$framework"),
+                (Join-Path $bin "WinWidgetBoard.WorkspacePanel\Release\$framework")) `
+              'WinWidgetBoard.WorkspacePanel.exe'
+          $broker = Resolve-Output 'CoreBroker' `
+              @((Join-Path $bin "WinWidgetBoard.CoreBroker\x64\Release\$framework"),
+                (Join-Path $bin "WinWidgetBoard.CoreBroker\Release\$framework")) `
+              'WinWidgetBoard.CoreBroker.exe'
+
+          # Same layout Install-WinWidgetBoard.ps1 produces: the entry at the root, each managed
+          # application in its own subdirectory, which is where LauncherHost probes for them.
+          $staging = Join-Path $env:RUNNER_TEMP 'staging'
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item -Path (Join-Path $launcher '*') -Destination $staging -Recurse -Force
+
+          foreach ($component in @(
+              @{ Source = $panel;  Name = 'WorkspacePanel' },
+              @{ Source = $broker; Name = 'CoreBroker' })) {
+              $destination = Join-Path $staging $component.Name
+              New-Item -ItemType Directory -Path $destination -Force | Out-Null
+              Copy-Item -Path (Join-Path $component.Source '*') -Destination $destination -Recurse -Force
+          }
+
+          $fileCount = @(Get-ChildItem -LiteralPath $staging -Recurse -File).Count
+          Write-Output "staged $fileCount files in $staging"
+          "path=$staging" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Smoke-test the staged build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = '${{ steps.stage.outputs.path }}'
+
+          # Gate the publish on the executables that will actually ship, from the layout they will
+          # ship in - not on the build output they were copied from.
+          $targets = @(
+              @{ Path = Join-Path $staging 'WinWidgetBoard.LauncherHost.exe';                 Argument = '--smoke-test' },
+              @{ Path = Join-Path $staging 'WorkspacePanel\WinWidgetBoard.WorkspacePanel.exe'; Argument = '--smoke-test' },
+              @{ Path = Join-Path $staging 'CoreBroker\WinWidgetBoard.CoreBroker.exe';         Argument = '--pipe-handshake-smoke-test' })
+
+          foreach ($target in $targets) {
+              $process = Start-Process -FilePath $target.Path -ArgumentList $target.Argument `
+                  -WindowStyle Hidden -Wait -PassThru
+              if ($process.ExitCode -ne 0) {
+                  throw "Smoke test failed with exit code $($process.ExitCode): $($target.Path)"
+              }
+              Write-Output "ok: $($target.Path) $($target.Argument)"
+          }
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.version }}'
+          $name = "WinWidgetBoard-$version-win-x64.zip"
+          $zip = Join-Path $env:RUNNER_TEMP $name
+
+          Compress-Archive -Path (Join-Path '${{ steps.stage.outputs.path }}' '*') `
+              -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sizeMb = [math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)
+
+          Write-Output "$name  $sizeMb MB  sha256 $hash"
+          "path=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.path }}
+          if-no-files-found: error
+
+      - name: Publish release
+        if: steps.version.outputs.tag != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          ASSET_PATH: ${{ steps.package.outputs.path }}
+          ASSET_NAME: ${{ steps.package.outputs.name }}
+          ASSET_SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fence = [string]::new('`', 3)
+          $notes = Join-Path $env:RUNNER_TEMP 'notes.md'
+
+          # Built as an array rather than a here-string: YAML dedents this block, and a here-string
+          # terminator that ends up indented is a PowerShell parse error.
+          $lines = @(
+              '## Install',
+              '',
+              'Extract the zip anywhere and run `WinWidgetBoard.LauncherHost.exe`. It starts the',
+              'panel and the broker itself. Requires **Windows 11 x64 (build 22000+)** and the',
+              '[.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0);',
+              'the Windows App SDK is bundled.',
+              '',
+              'These binaries are **not code-signed**, so SmartScreen will warn on first run.',
+              '',
+              $fence,
+              $env:ASSET_NAME,
+              "SHA256  $($env:ASSET_SHA256)",
+              $fence)
+          Set-Content -LiteralPath $notes -Value $lines -Encoding utf8
+
+          gh release create $env:RELEASE_TAG $env:ASSET_PATH `
+              --title $env:RELEASE_TAG `
+              --notes-file $notes `
+              --generate-notes
