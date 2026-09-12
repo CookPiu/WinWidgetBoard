@@ -74,6 +74,9 @@ Win32 窗口，位置由公开几何推导；几何无法确认时宁可隐藏�
 > 发布产物**未做代码签名**，首次运行会出现 SmartScreen 提示。若你在意，请对照 Release 页面上的
 > SHA-256 校验下载，或自行从源码构建。
 
+包内另附 `LICENSE`、[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)（随包分发的全部 Microsoft
+产物及其适用条款）与 `sbom.cdx.json`——一份 CycloneDX 物料清单，由装配完成的产物生成而非由仓库引用推导。
+
 卸载：从入口右键菜单选「退出」，删除该目录；若同时要清除数据，再删除 `%LOCALAPPDATA%\WinWidgetBoard`。
 
 ## 从源码构建

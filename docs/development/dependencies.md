@@ -36,7 +36,7 @@ M1.0 不引用完整 `Microsoft.WindowsAppSDK` 元包。官方 Windows App SDK 2
 | .NET SDK | `10.0.302` | restore、编译和测试 .NET 10 项目 | Microsoft 官方 .NET SDK；安装和使用受 Microsoft 对应版本条款约束 | 构建工具；应用运行时分发方式在打包阶段单独复核 |
 | Visual Studio Community 2026 | `18.8.2` | IDE、MSBuild、C++ 工具集管理 | Microsoft 官方安装；遵守 Visual Studio Community 许可及适用资格 | 不随产品分发 |
 | MSBuild | `18.8` | 统一构建 `.sln`、C++ 和 C# 项目 | 随 Visual Studio 安装 | 不随产品分发 |
-| MSVC v143 | `14.44.35207` | LauncherHost C++23 编译 | 随 Visual Studio C++ 工作负载安装 | 只分发许可允许的 C/C++ 运行时文件；发布前按实际链接方式复核 |
+| MSVC v143 | `14.44.35207` | LauncherHost C++23 编译 | 随 Visual Studio C++ 工作负载安装 | 已按实际链接方式复核：LauncherHost 为 `/MD`，导入 `VCRUNTIME140.dll`、`VCRUNTIME140_1.dll`、`MSVCP140.dll`，三者随发布包以 application-local 方式分发（Visual Studio 可分发代码条款允许），不安装任何机器级运行时；UCRT（`api-ms-win-crt-*`）属 Windows 组件，不分发 |
 | Windows SDK API | `10.0.26100.0` | Windows 头文件、库和 API 目标 | Microsoft Windows SDK | 仅按 Windows SDK 条款分发允许的 redistributable 文件 |
 
 本机还安装了 MSVC v145 `14.51.36231` 和 Windows SDK `10.0.28000.0`，但它们不是 M1.0 项目基线。构建不得因为本机存在更新工具而静默切换版本。
@@ -61,6 +61,12 @@ NuGet restore 会带入传递依赖。版本锁定完成后必须生成并审查
 - 生成第三方 Notice 和 SBOM；
 - 重新打开上述 Microsoft 官方许可链接，确认条款和可分发文件范围未变化；
 - 确认测试包没有进入正式产品输出。
+
+**当前状态（2026-09-12，为 `v0.1.0` 预发布执行）**：上述清单中的 Notice 与 SBOM 已完成。
+面向使用者的第三方声明是仓库根目录的 [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md)，
+随发布包一同分发；机器可读的 SBOM 由 [scripts/New-ThirdPartySbom.ps1](../../scripts/New-ThirdPartySbom.ps1)
+在发布流水线中**针对已装配好的产物**生成（CycloneDX 1.5，`sbom.cdx.json`），因此它描述的是实际打包的
+文件而不是仓库引用，且不会与构建脱节。产物仍不做代码签名。
 
 ## 5. 变更规则
 

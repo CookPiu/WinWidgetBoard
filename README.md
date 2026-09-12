@@ -87,6 +87,10 @@ anywhere, and run `WinWidgetBoard.LauncherHost.exe`. It starts the panel and the
 > The binaries are **not code-signed**, so SmartScreen will warn on first run. Verify the download
 > against the SHA-256 on the release page if that matters to you, or build from source.
 
+The archive also carries `LICENSE`, [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) — everything
+Microsoft-produced that ships with it, and under what terms — and `sbom.cdx.json`, a CycloneDX bill
+of materials generated from the assembled build rather than from the repository.
+
 To remove it: quit from the entry's context menu, delete the folder, and delete
 `%LOCALAPPDATA%\WinWidgetBoard` if you also want the data gone.
 

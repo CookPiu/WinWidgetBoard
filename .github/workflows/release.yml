@@ -112,6 +112,31 @@ jobs:
               Copy-Item -Path (Join-Path $component.Source '*') -Destination $destination -Recurse -Force
           }
 
+          # LauncherHost is compiled /MD, so it imports VCRUNTIME140, VCRUNTIME140_1 and MSVCP140.
+          # Ship them application-local - which is the deployment the Visual Studio redistributable
+          # terms permit - rather than making every user install the redistributable first. Failing
+          # here is correct: a zip missing these starts with a missing-DLL dialog and no other clue.
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsPath = & $vswhere -latest -products * -property installationPath
+          $redistVersion = (Get-Content -LiteralPath (Join-Path $vsPath 'VC\Auxiliary\Build\Microsoft.VCRedistVersion.default.txt') -Raw).Trim()
+          $crtDirectory = @(Get-ChildItem -LiteralPath (Join-Path $vsPath "VC\Redist\MSVC\$redistVersion\x64") `
+                  -Directory -Filter 'Microsoft.VC*.CRT')[0]
+          if ($null -eq $crtDirectory) {
+              throw "No Microsoft.VC*.CRT redistributable folder under $vsPath (redist version $redistVersion)."
+          }
+
+          foreach ($runtimeDll in @('VCRUNTIME140.dll', 'VCRUNTIME140_1.dll', 'MSVCP140.dll')) {
+              $source = Join-Path $crtDirectory.FullName $runtimeDll
+              if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                  throw "$runtimeDll was not found in $($crtDirectory.FullName)."
+              }
+              Copy-Item -LiteralPath $source -Destination $staging -Force
+          }
+          Write-Output "staged the VC runtime from $($crtDirectory.Name) ($redistVersion)"
+
+          Copy-Item -LiteralPath (Join-Path $PWD 'LICENSE') -Destination $staging -Force
+          Copy-Item -LiteralPath (Join-Path $PWD 'THIRD-PARTY-NOTICES.md') -Destination $staging -Force
+
           $fileCount = @(Get-ChildItem -LiteralPath $staging -Recurse -File).Count
           Write-Output "staged $fileCount files in $staging"
           "path=$staging" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -137,6 +162,19 @@ jobs:
               }
               Write-Output "ok: $($target.Path) $($target.Argument)"
           }
+
+      - name: Write the software bill of materials
+        id: sbom
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sbom = Join-Path $env:RUNNER_TEMP 'sbom.cdx.json'
+          .\scripts\New-ThirdPartySbom.ps1 `
+              -StagingDirectory '${{ steps.stage.outputs.path }}' `
+              -Version '${{ steps.version.outputs.version }}' `
+              -OutputPath $sbom
+          Copy-Item -LiteralPath $sbom -Destination '${{ steps.stage.outputs.path }}' -Force
+          "path=$sbom" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Package
         id: package
@@ -173,6 +211,7 @@ jobs:
           ASSET_PATH: ${{ steps.package.outputs.path }}
           ASSET_NAME: ${{ steps.package.outputs.name }}
           ASSET_SHA256: ${{ steps.package.outputs.sha256 }}
+          SBOM_PATH: ${{ steps.sbom.outputs.path }}
         run: |
           $ErrorActionPreference = 'Stop'
           $fence = [string]::new('`', 3)
@@ -186,9 +225,12 @@ jobs:
               'Extract the zip anywhere and run `WinWidgetBoard.LauncherHost.exe`. It starts the',
               'panel and the broker itself. Requires **Windows 11 x64 (build 22000+)** and the',
               '[.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0);',
-              'the Windows App SDK is bundled.',
+              'the Windows App SDK and the Visual C++ runtime are bundled.',
               '',
               'These binaries are **not code-signed**, so SmartScreen will warn on first run.',
+              '',
+              'The archive carries `LICENSE`, `THIRD-PARTY-NOTICES.md` and `sbom.cdx.json`; the',
+              'SBOM is also attached to this release on its own.',
               '',
               $fence,
               $env:ASSET_NAME,
@@ -196,7 +238,10 @@ jobs:
               $fence)
           Set-Content -LiteralPath $notes -Value $lines -Encoding utf8
 
-          gh release create $env:RELEASE_TAG $env:ASSET_PATH `
+          # Pre-release until the display matrix and multi-device performance gates in
+          # docs/08-testing-strategy.md have actually been run.
+          gh release create $env:RELEASE_TAG $env:ASSET_PATH $env:SBOM_PATH `
               --title $env:RELEASE_TAG `
               --notes-file $notes `
-              --generate-notes
+              --generate-notes `
+              --prerelease
