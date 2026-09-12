@@ -1,0 +1,85 @@
+name: Bug report
+description: Something behaves incorrectly, crashes, or degrades without saying so
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The most useful bug report here is one that tells the maintainer how
+        to see the failure — this product touches the taskbar, sensors and other machines' hardware,
+        so behavior on your machine is often the only evidence that exists.
+
+        **Do not paste an API key, a session token, note content or a location into this form.**
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - LauncherHost (taskbar entry)
+        - WorkspacePanel (the panel window)
+        - CoreBroker (data, weather, sensors, token usage)
+        - Scripts / build
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Numbered steps, starting from a known state. If it only happens sometimes, say how often and
+        what seems to precede it.
+      placeholder: |
+        1. Open the panel from the taskbar entry
+        2. Enter edit mode and drag the notes card onto the weather card
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The release tag you downloaded, or the commit you built.
+      placeholder: v0.1.0, or 4f2f17c
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows build
+      description: Run `winver`, or `[System.Environment]::OSVersion.Version` in pwsh.
+      placeholder: Windows 11 Pro 25H2, build 26200.8737
+    validations:
+      required: true
+  - type: textarea
+    id: display
+    attributes:
+      label: Display setup
+      description: >
+        Only if the problem is visual or positional — number of monitors, scaling per monitor,
+        taskbar position and whether it auto-hides, and the display language.
+      placeholder: Two monitors, 200% and 100%, taskbar at the bottom, centered, no auto-hide
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >
+        A screenshot, a crash dump path under `%LOCALAPPDATA%\CrashDumps`, an `Application Hang` or
+        `Application Error` event, or the exit code of the relevant `--smoke-test`. Redact anything
+        private first.
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: This report contains no API key, session token, note content or precise location.
+          required: true

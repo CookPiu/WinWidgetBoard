@@ -1,72 +1,148 @@
 # WinWidgetBoard
 
-WinWidgetBoard 是一个面向 Windows 11 的本地优先快捷工作台。它通过独立任务栏入口打开原生半屏面板，不注入或修改 `explorer.exe`。
+[![Build](https://github.com/CookPiu/WinWidgetBoard/actions/workflows/build.yml/badge.svg)](https://github.com/CookPiu/WinWidgetBoard/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-项目当前采用“轻量核心版”策略：做少量高频能力，把启动速度、后台占用、可靠性和可维护性放在功能数量之前。
+English | [简体中文](README.zh-CN.md)
 
-## 核心范围
+A local-first widget board for Windows 11. It adds its own entry to the taskbar strip and opens
+a native half-screen panel holding notes, weather, hardware readings and AI token usage.
 
-| 能力 | 当前方向 |
+It does **not** inject into `explorer.exe`, hook the shell, or read Explorer's private XAML tree.
+The entry is an ordinary Win32 window of our own, positioned from public geometry — when that
+geometry is ambiguous it hides or degrades rather than guessing.
+
+## What it does
+
+| Capability | Detail |
 | --- | --- |
-| 任务栏入口 | 原生 C++/Win32 独立覆盖窗口 |
-| 面板 | C#、.NET 10、WinUI 3，按需启动 |
-| 基础布局 | 响应式网格、拖动、持久化和已有撤销能力 |
-| 便签 | 本地 CRUD、搜索、Markdown、自动保存 |
-| 天气 | Open-Meteo 当前天气、Windows 自动位置、手动位置、离线状态 |
+| **Taskbar entry** | A native C++/Win32 info strip embedded in the taskbar. Alignment, content, an optional hardware capsule, and a hotkey (four presets plus a recorded custom one) are all configurable. |
+| **Panel** | WinUI 3, Desktop Acrylic, system accent layering. Closing hides it and keeps the process resident, so reopening costs tens of milliseconds rather than a cold start. |
+| **Responsive layout** | A logical 2/4/6-column grid. Drag, resize, add and remove cards in an edit session; 20-step undo/redo. Persisted state is order and a size ID — never screen pixels — so a layout survives a resolution or DPI change. |
+| **Notes** | Local CRUD, search, Markdown preview, autosave with a draft-preserving failure policy. |
+| **Weather** | Current conditions from **Open-Meteo** (default, no account) or **QWeather** (your own API host and key). Location comes from Windows device location with foreground consent, or from a manual search. Metric/imperial is a display setting. |
+| **Hardware monitor** | Nine readings from public user-mode APIs (PDH counters; no kernel driver is shipped or loaded). Temperature and fan speed are read from **HWiNFO** or **Core Temp** shared memory when one of them is running; a reading with no source is not displayed at all rather than shown as zero. |
+| **Token usage** | Reads the local session transcripts of **Claude Code** and **Codex**, read-only, and shows today's spend, an hourly spend curve, billed/output/cache tokens and a cache hit rate. Cost is estimated from public API list prices and marked `≈`. Transcript content never enters logs or the database. |
 
-以下能力不属于当前轻量版：计时器、待办、剪贴板、日历、系统监控、第三方插件、账号、云同步、复杂诊断平台和企业级发布体系。仓库中已有的占位或基础合同不代表继续实施承诺。
+### Not in scope
 
-## 当前状态
+Timers, todos, clipboard history, calendar, third-party plugins, accounts, cloud sync and telemetry
+are deliberately deferred ([ADR-0022](docs/adr/0022-lightweight-core-strategy.md)). Placeholder cards
+that exist in the tree are layout filler and will not grow behavior. Feature requests for these are
+answered in `CONTRIBUTING.md` rather than silently queued.
 
-核心进程、IPC、SQLite、布局、便签、卡片快照订阅、Open-Meteo 和天气位置设置已经形成可运行链路。最近完成的天气设置链路包含双语 UI、revision 保护的本地持久化和运行时 Provider 切换。
+## Privacy
 
-当前不继续扩展卡片品类，优先处理：
+- Notes, layout, weather location and settings live in a SQLite database under
+  `%LOCALAPPDATA%\WinWidgetBoard`. There is no account and no cloud sync.
+- There is **no telemetry**. Nothing is sent anywhere unless a capability you enabled needs it.
+- Outbound traffic is limited to: the selected weather source's endpoints, and — if you leave daily
+  price sync on — the LiteLLM public price table on `raw.githubusercontent.com`.
+- A location search term is the only user-typed text that leaves the machine, and only when you
+  submit the search.
+- Weather payloads are never persisted; they stay in the broker process.
+- The QWeather API key is the product's only user credential. It is DPAPI-encrypted at rest, sent
+  only as a per-request header to allow-listed vendor domains, never placed in a URL or a log, and
+  write-only over IPC.
+- Session transcripts are read but never copied, stored or transmitted.
 
-1. 拆分 `MainWindow.xaml.cs`、命令路由和调度器等集中式大文件；
-2. 在有构建产物的参考环境验证共享 UIA 模块；
-3. 保持构建输出和 NuGet 缓存可控；
-4. 在一个明确参考环境中验证核心五项体验。
+Details: [docs/09-security-privacy.md](docs/09-security-privacy.md).
 
-准确状态见 [实施状态](docs/status/implementation-status.md)。
+## Requirements
 
-## 进程边界
+- Windows 11 x64, build 22000 or newer. Older taskbars are not a supported target — the entry
+  refuses to embed there and falls back to a safe slot in the work area.
+- [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0). The two
+  managed processes are framework-dependent; the Windows App SDK is bundled self-contained, so
+  there is nothing else to install.
+- Optional: HWiNFO or Core Temp running, if you want temperature and fan readings.
+- Normal user rights. No elevation, no service, no driver, no registry classes.
 
-| 组件 | 职责 | 生命周期 |
-| --- | --- | --- |
-| `LauncherHost` | 任务栏入口、几何、点击和面板启动 | 常驻、最小依赖 |
-| `WorkspacePanel` | WinUI 面板、布局、便签和天气视图 | 按需 |
-| `CoreBroker` | SQLite、天气 Provider、调度和 IPC | 按启用能力运行 |
-| `CoreBroker.Client` | 面板使用的高层 Named Pipe 客户端 | 随面板 |
-| `Contracts` | 版本化 JSON 协议 | 共享库 |
+## Install
 
-安全边界保持不变：不注入 Explorer，不让面板直接访问数据库，不让常驻入口加载 UI 或网络框架。
+Download the zip from [Releases](https://github.com/CookPiu/WinWidgetBoard/releases), extract it
+anywhere, and run `WinWidgetBoard.LauncherHost.exe`. It starts the panel and the broker itself.
 
-## 工程策略
+> The binaries are **not code-signed**, so SmartScreen will warn on first run. Verify the download
+> against the release page if that matters to you, or build from source.
 
-- 小改动只运行相关测试和受影响构建。
-- UI/IPC/数据库变更增加一条针对性真实流程。
-- 完整 Debug/Release、显示矩阵、性能和发布门禁只在发布候选阶段执行。
-- 普通功能不再创建独立工作包文档。
-- 构建输出只保存在被忽略的目录中，并在验证结束后清理。
+To remove it: quit from the entry's context menu, delete the folder, and delete
+`%LOCALAPPDATA%\WinWidgetBoard` if you also want the data gone.
 
-详细规则见 [AGENTS.md](AGENTS.md) 和 [测试策略](docs/08-testing-strategy.md)。
+## Build from source
 
-## 文档
+Prerequisites are version-locked on purpose — see
+[docs/development/toolchain.md](docs/development/toolchain.md) for the full baseline and why each
+value is pinned. In short: Visual Studio 2026 with the C++ desktop workload (MSVC v143, Windows SDK
+`10.0.26100.0`) and .NET SDK `10.0.302`, which `global.json` pins with `rollForward: disable`.
 
-建议只按任务需要阅读：
+```powershell
+dotnet restore .\WinWidgetBoard.sln
 
-1. [轻量产品需求](docs/01-product-requirements.md)
-2. [UI、视觉与动效规范](docs/02-ux-design-spec.md)
-3. [UI 变更模板](docs/templates/ui-change-template.md)
-4. [当前技术架构](docs/03-technical-architecture.md)
-5. [当前实施计划](docs/05-implementation-plan.md)
-6. [当前接口契约](docs/07-api-contracts.md)
-7. [风险分级测试策略](docs/08-testing-strategy.md)
-8. [安全与隐私边界](docs/09-security-privacy.md)
-9. [ADR 索引](docs/adr/README.md)
+# From a Visual Studio Developer PowerShell
+msbuild .\WinWidgetBoard.sln /m /p:Configuration=Release /p:Platform=x64
 
-工具链和构建命令见 [开发工具链](docs/development/toolchain.md)。
+dotnet test .\tests\UnitTests\WinWidgetBoard.UnitTests.csproj -c Release --no-build --property:Platform=x64
+```
 
-## 许可证
+Then install your build for daily use:
 
-项目许可证尚未决定。确定前不得复制第三方源码或资源；新增依赖必须记录用途、版本和许可证。
+```powershell
+.\scripts\Install-WinWidgetBoard.ps1
+```
+
+Each executable also self-tests without a desktop session — `--smoke-test` on the launcher and the
+panel, `--pipe-handshake-smoke-test` on the broker — and exits 0 on success. That is what CI runs.
+Per-project build commands, the output-path trap between the C++ and C# projects, and the
+real-desktop UI Automation scripts are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Architecture
+
+Three processes and two shared libraries. The split is load-bearing, not organizational: the
+resident entry must never carry a UI or network runtime, and the panel must never touch the
+database directly.
+
+```
+User -> LauncherHost (C++/Win32)  --spawns-->  WorkspacePanel (C#/WinUI 3)
+             |                                        |
+             +---- minimal native pipe client --------+ CoreBroker.Client (typed clients)
+                                                      |
+                                             CoreBroker (C# worker)
+                                                 +-- SQLite (winsqlite3.dll)
+                                                 +-- weather / pricing over HTTPS
+```
+
+They talk over a current-user named pipe: a 4-byte length prefix plus UTF-8 JSON, capped at 1 MiB
+and rejected before allocation, with `session.hello` gating every business method. Every write
+carries a `clientOperationId` so a retry replays the first result instead of applying twice, and
+each domain has its own concurrency token and conflict code.
+
+Rationale lives in [docs/03-technical-architecture.md](docs/03-technical-architecture.md); the wire
+contract in [docs/07-api-contracts.md](docs/07-api-contracts.md).
+
+## Status
+
+Pre-1.0, single-maintainer, actively developed. The seven capabilities above are implemented and
+run end to end, but verification so far comes from one reference machine — the full display matrix
+(multi-monitor, 100–200% DPI, high contrast, text scaling) and the multi-device performance gates in
+[docs/08-testing-strategy.md](docs/08-testing-strategy.md) have not been run.
+
+Current facts, known debt and next steps:
+[docs/status/implementation-status.md](docs/status/implementation-status.md).
+
+## Documentation
+
+All design documentation is written in Chinese and indexed at [docs/README.md](docs/README.md).
+Start with [the ADR index](docs/adr/README.md) if you want to know why something is the way it is —
+every expensive decision has one.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. It covers the risk-tiered verification rules, the
+scope boundary, and what the build actually needs. Security issues go through
+[SECURITY.md](SECURITY.md), not the issue tracker.
+
+## License
+
+[MIT](LICENSE) — see [ADR-0039](docs/adr/0039-mit-license-and-public-repository.md) for the decision
+and its dependency constraints. No third-party source or assets are vendored into this repository.

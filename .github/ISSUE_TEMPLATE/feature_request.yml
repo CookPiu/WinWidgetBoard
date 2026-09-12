@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a change to one of the seven core capabilities
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project has a deliberately fixed scope — seven capabilities, listed in
+        [CONTRIBUTING.md](https://github.com/CookPiu/WinWidgetBoard/blob/main/CONTRIBUTING.md#scope-read-this-before-writing-code).
+        New card types, a plugin platform, timers, todos, clipboard history, calendar, accounts,
+        cloud sync and telemetry are **default rejections**, and were decided in
+        [ADR-0022](https://github.com/CookPiu/WinWidgetBoard/blob/main/docs/adr/0022-lightweight-core-strategy.md).
+
+        A request for one of those will be closed with a link, not because it is a bad idea but
+        because the answer is already written down. Proposals that make an existing capability work
+        on more machines, or work correctly where it currently degrades, are always welcome.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I read the scope section in CONTRIBUTING.md and this is not on the default-rejection list.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What you were trying to do and what got in the way. Describe the situation, not the solution
+        you have in mind — the best fix is often not the one that was requested.
+    validations:
+      required: true
+  - type: dropdown
+    id: capability
+    attributes:
+      label: Which capability does this belong to?
+      options:
+        - Taskbar entry
+        - Panel
+        - Layout
+        - Notes
+        - Weather
+        - Hardware monitor
+        - Token usage
+        - Build / scripts / docs
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Existing settings, workarounds, or other tools — and why they fall short.

@@ -344,7 +344,7 @@ WorkspacePanel 已完成“静谧画布”视觉收口：减少多层边框和�
 4. `EntryVisual.cpp`（约 3600 行，仓库最大单文件）同时承担自绘、动效、两枚胶囊排版、天气插画和走势图；与 `MainWindow.xaml.cs` 同一策略——下次真要改其行为时先按职责拆，不单独开一轮。
 5. UIA 公共窗口、元素、输入和进程辅助函数已提取到 `scripts/WinWidgetBoard.UiAutomation.psm1`；查找一律限定在目标进程自己的顶层窗口内，并对可重试的 UIA COM 故障退避重试。
 6. Windows App SDK 自包含输出较大，开发构建不应长期留在仓库。
-7. 远程仓库 `CookPiu/WinWidgetBoard`（私有）已配置。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。
+7. 远程仓库 `CookPiu/WinWidgetBoard` 已公开，许可证 MIT（[ADR-0039](../adr/0039-mit-license-and-public-repository.md)）。CI 在 GitHub 托管镜像 `windows-2025-vs2026` 上 Debug 与 Release 双配置全绿，单个 job 约 2 分钟，已按 `push` / `pull_request` 自动触发，纯 Markdown 改动不触发。该镜像自带 VS Enterprise 2026 `18.8.12023.21`、Windows SDK `10.0.26100.0`、.NET SDK `10.0.302` 和 `VC.14.44.17.14.x86.x64` 工具集，项目锁定的 `VCToolsVersion 14.44.35207` 解析正常，无需放宽任何锁定值。`release.yml` 在推送 `v*` tag 时打包三个进程为安装布局的 zip 并发布到 GitHub Releases，**未在真实 tag 上跑过**；产物不签名，第三方 Notice 与 SBOM 仍是首个二进制发布前的未完成项。
 8. 整解决方案构建已在 CI 上验证通过，但仍无法在本机进行：本机 VS MSBuild 解析不到 `Microsoft.NET.Sdk`，设置 `MSBuildSDKsPath` 也只能多走一步，随后卡在 `Microsoft.NET.SDK.WorkloadAutoImportPropsLocator`。本地仍按分项目构建。
 9. 完整显示、无障碍、性能和发布矩阵尚未执行。
 10. **入口已改为任务栏窗口的 owned window**（`GWLP_HWNDPARENT`），不再与任务栏争 topmost。
