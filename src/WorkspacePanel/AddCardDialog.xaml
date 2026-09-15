@@ -27,10 +27,10 @@
     <controls:ContentDialog.Resources>
         <!--
             The outer radius is drawn by the dialog's template from OverlayCornerRadius, not
-            from the CornerRadius property - without this the sheet keeps the system's 8 DIP
-            while every surface inside the panel uses 16.
+            from the CornerRadius property - without this the sheet keeps the system's corner
+            while the surfaces inside it follow the panel's. Both come from WwbPanelCornerRadius.
         -->
-        <CornerRadius x:Key="OverlayCornerRadius">16</CornerRadius>
+        <StaticResource x:Key="OverlayCornerRadius" ResourceKey="WwbPanelCornerRadius" />
         <DataTemplate
             x:Key="AddCardOptionTemplate"
             x:DataType="settings:AddCardOption">

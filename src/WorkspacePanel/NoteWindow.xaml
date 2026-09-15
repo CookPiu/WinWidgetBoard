@@ -9,10 +9,6 @@
         bar reads as a different application's window that happens to contain the text.
     -->
     <Grid x:Name="NoteWindowRoot">
-        <Border
-            Background="{ThemeResource WwbPanelAccentWashBrush}"
-            IsHitTestVisible="False" />
-
         <Grid Style="{StaticResource WwbPanelRootStyle}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />

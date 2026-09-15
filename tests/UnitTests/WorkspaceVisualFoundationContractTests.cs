@@ -130,7 +130,7 @@ public sealed class WorkspaceVisualFoundationContractTests
             "28");
 
         StringAssert.Contains(source, "{ThemeResource ");
-        AssertLiteralColorsAreWeatherIllustrationOnly(document);
+        AssertLiteralColorsAreIllustrationOrPanelEdgeOnly(document);
 
         AssertThemeThickness(document, "Default", "0");
         AssertThemeThickness(document, "HighContrast", "1");
@@ -542,11 +542,30 @@ public sealed class WorkspaceVisualFoundationContractTests
             "WwbPanelRootStyle",
             "Background",
             "Transparent");
+        // Cards stay slightly see-through: the most solid system surface colour at an alpha
+        // below one. At full strength a card reads as paper laid on the panel; the system card
+        // brush at its own weight is too thin to read over a thin backdrop.
         AssertStyleSetterValue(
             styles,
             "WwbCardSurfaceStyle",
             "Background",
-            "{ThemeResource CardBackgroundFillColorDefaultBrush}");
+            "{ThemeResource WwbCardSurfaceBrush}");
+        foreach (string theme in new[] { "Default", "Light" })
+        {
+            XElement cardBrush = GetThemeResource(styles, theme, "WwbCardSurfaceBrush");
+            Assert.AreEqual(
+                "{ThemeResource SolidBackgroundFillColorQuarternary}",
+                (string?)cardBrush.Attribute("Color"));
+            double opacity = double.Parse(
+                (string?)cardBrush.Attribute("Opacity") ?? "1",
+                System.Globalization.CultureInfo.InvariantCulture);
+            Assert.IsTrue(
+                opacity is > 0.5 and < 1,
+                $"The {theme} card surface must stay translucent but readable, was {opacity}.");
+        }
+        Assert.IsNull(
+            GetThemeResource(styles, "HighContrast", "WwbCardSurfaceBrush").Attribute("Opacity"),
+            "High contrast cards must be opaque.");
         AssertStyleSetterValue(
             styles,
             "WwbToolbarButtonStyle",
@@ -558,18 +577,73 @@ public sealed class WorkspaceVisualFoundationContractTests
             "BorderThickness",
             "{ThemeResource WwbSurfaceBorderThickness}");
 
+        // The panel frames itself on thin acrylic: the system frame line is suppressed and a
+        // 1 DIP edge is drawn above the content on the window's own corner, taking no input.
+        string backdrop = File.ReadAllText(GetSourcePath(
+            "src",
+            "WorkspacePanel",
+            "Shell",
+            "ThinDesktopAcrylicBackdrop.cs"));
+        StringAssert.Contains(backdrop, "Kind = DesktopAcrylicKind.Thin");
         StringAssert.Contains(
-            styleSource,
-            "WwbPanelAccentWashBrush");
-        StringAssert.Contains(
-            styleSource,
-            "{ThemeResource SystemAccentColor}");
+            backdrop,
+            "GetDefaultSystemBackdropConfiguration(connectedTarget, xamlRoot)");
+        foreach (string customised in new[]
+                 {
+                     "TintColor",
+                     "TintOpacity",
+                     "LuminosityOpacity",
+                     "FallbackColor",
+                 })
+        {
+            Assert.IsFalse(
+                backdrop.Contains(customised + " =", StringComparison.Ordinal),
+                $"Setting {customised} stops the controller following the system theme.");
+        }
+
         StringAssert.Contains(
             mainWindow,
-            "new DesktopAcrylicBackdrop()");
+            "new ThinDesktopAcrylicBackdrop()");
         StringAssert.Contains(
             mainWindow,
             "NativeWindowStyles.PreferRoundedCorners");
+        StringAssert.Contains(
+            mainWindow,
+            "NativeWindowStyles.HideFrameBorder");
+        Assert.IsFalse(
+            styleSource.Contains("WwbPanelAccentWashBrush", StringComparison.Ordinal),
+            "The accent wash was replaced by the panel edge and must not return beside it.");
+
+        XDocument mainWindowXaml = LoadAsset("MainWindow.xaml");
+        Assert.AreEqual(
+            "{StaticResource WwbPanelEdgeStyle}",
+            (string?)GetNamedElement(mainWindowXaml, "Border", "PanelEdge").Attribute("Style"));
+        AssertStyleSetterValue(
+            styles,
+            "WwbPanelEdgeStyle",
+            "BorderBrush",
+            "{ThemeResource WwbPanelEdgeBrush}");
+        AssertStyleSetterValue(
+            styles,
+            "WwbPanelEdgeStyle",
+            "CornerRadius",
+            "{StaticResource WwbPanelCornerRadius}");
+        AssertStyleSetterValue(
+            styles,
+            "WwbPanelEdgeStyle",
+            "IsHitTestVisible",
+            "False");
+        // DWM rounds the window at 8 DIP and offers no other radius; the edge has to follow it.
+        Assert.AreEqual(
+            "8",
+            styles
+                .Descendants(Presentation + "CornerRadius")
+                .Single(element =>
+                    string.Equals(
+                        (string?)element.Attribute(Xaml + "Key"),
+                        "WwbPanelCornerRadius",
+                        StringComparison.Ordinal))
+                .Value);
         StringAssert.Contains(
             mainWindow,
             "new ThemeShadow()");
@@ -727,60 +801,89 @@ public sealed class WorkspaceVisualFoundationContractTests
     }
 
     /// <summary>
-    /// Literal colour is banned everywhere in the shared dictionary except the weather
-    /// illustration, which has no semantic equivalent - no Windows brush means "overcast
-    /// sky". The exception is kept narrow on purpose: every literal must sit on a
-    /// <c>WwbWeather*</c> brush, and high contrast must neutralise every one of them, so a
-    /// page can still never state a colour of its own.
+    /// Literal colour is banned everywhere in the shared dictionary except in two places with
+    /// no semantic equivalent: the weather illustration (no Windows brush means "overcast
+    /// sky") and the panel edge (none means "specular highlight"). The exception is kept
+    /// narrow on purpose: every literal must sit on a <c>WwbWeather*</c> or
+    /// <c>WwbPanelEdge*</c> brush or colour, and high contrast must neutralise every one of
+    /// them, so a page can still never state a colour of its own.
     /// </summary>
-    private static void AssertLiteralColorsAreWeatherIllustrationOnly(XDocument document)
+    private static void AssertLiteralColorsAreIllustrationOrPanelEdgeOnly(XDocument document)
     {
         var literalKeys = new List<string>();
-        foreach (XElement brush in document.Descendants().Where(
-            element => element.Name.LocalName == "SolidColorBrush"))
+        foreach (XElement element in document.Descendants())
         {
-            string? color = (string?)brush.Attribute("Color");
+            string? color = LiteralColorValue(element);
             if (color is null || !color.StartsWith('#'))
             {
                 continue;
             }
 
-            string key = (string?)brush.Attribute(Xaml + "Key") ?? "";
+            string key = (string?)element.Attribute(Xaml + "Key") ?? "";
             Assert.IsTrue(
-                key.StartsWith("WwbWeather", StringComparison.Ordinal),
+                key.StartsWith("WwbWeather", StringComparison.Ordinal) ||
+                key.StartsWith("WwbPanelEdge", StringComparison.Ordinal),
                 $"Literal color {color} is only allowed on the weather illustration " +
-                $"palette, but it is on '{key}'.");
+                $"palette or the panel edge, but it is on '{key}'.");
             literalKeys.Add(key);
         }
 
         Assert.IsTrue(
-            literalKeys.Count > 0,
+            literalKeys.Any(key => key.StartsWith("WwbWeather", StringComparison.Ordinal)),
             "The weather illustration palette went missing from the shared dictionary.");
+        Assert.IsTrue(
+            literalKeys.Any(key => key.StartsWith("WwbPanelEdge", StringComparison.Ordinal)),
+            "The panel edge colours went missing from the shared dictionary.");
 
-        // Every literal-colour brush has to exist in high contrast too, and be transparent
-        // there: high contrast conveys state with text and shape, never with illustration.
-        XElement highContrast = document
+        // Every literal colour has to exist in high contrast too, and be transparent there:
+        // high contrast conveys state with text and shape, never with illustration or light.
+        foreach (string key in literalKeys.Distinct(StringComparer.Ordinal))
+        {
+            XElement? resource = GetThemeResourceOrDefault(document, "HighContrast", key);
+            Assert.IsNotNull(
+                resource,
+                $"High contrast does not override '{key}'.");
+            Assert.AreEqual(
+                "Transparent",
+                LiteralColorValue(resource!),
+                $"High contrast must neutralise '{key}'.");
+        }
+    }
+
+    // A brush states its colour in an attribute, a Color resource in its text.
+    private static string? LiteralColorValue(XElement element) =>
+        element.Name.LocalName switch
+        {
+            "SolidColorBrush" => (string?)element.Attribute("Color"),
+            "Color" => element.Value.Trim(),
+            _ => null,
+        };
+
+    private static XElement GetThemeResource(
+        XDocument document,
+        string themeKey,
+        string resourceKey) =>
+        GetThemeResourceOrDefault(document, themeKey, resourceKey)
+        ?? throw new AssertFailedException(
+            $"Theme '{themeKey}' does not define '{resourceKey}'.");
+
+    private static XElement? GetThemeResourceOrDefault(
+        XDocument document,
+        string themeKey,
+        string resourceKey) =>
+        document
             .Descendants(Presentation + "ResourceDictionary")
             .Single(element =>
                 string.Equals(
                     (string?)element.Attribute(Xaml + "Key"),
-                    "HighContrast",
+                    themeKey,
+                    StringComparison.Ordinal))
+            .Elements()
+            .FirstOrDefault(element =>
+                string.Equals(
+                    (string?)element.Attribute(Xaml + "Key"),
+                    resourceKey,
                     StringComparison.Ordinal));
-        foreach (string key in literalKeys.Distinct(StringComparer.Ordinal))
-        {
-            XElement? brush = highContrast
-                .Elements()
-                .FirstOrDefault(element =>
-                    (string?)element.Attribute(Xaml + "Key") == key);
-            Assert.IsNotNull(
-                brush,
-                $"High contrast does not override '{key}'.");
-            Assert.AreEqual(
-                "Transparent",
-                (string?)brush!.Attribute("Color"),
-                $"High contrast must neutralise '{key}'.");
-        }
-    }
 
     private static void AssertThemeThickness(
         XDocument document,

@@ -311,8 +311,9 @@ offscreen，画面上只表现为「按钮不见了」。天气的搜索按钮�
 
 **浮层用面板自己的材质与层次**：半透明底、面板圆角、分类栏与两个分段各坐在卡片/次级表面上，
 列表带自身边界，好让被截断的那一行读作「可滚动」而不是「坏了」。浮层的外圆角由模板的
-`OverlayCornerRadius` 画出，**不是**控件上的 `CornerRadius`——只设后者，浮层会保持系统的 8 DIP，
-而它内部每一块表面都是面板的 16。标题同样按 `TitleTemplate` 降到面板标题的字号：一张盖在面板上
+`OverlayCornerRadius` 画出，**不是**控件上的 `CornerRadius`——只设后者，浮层外角停在系统值上，内部表面
+却跟着面板走；所以两个对话框都把 `OverlayCornerRadius` 指向 `WwbPanelCornerRadius`，两处不会再各自漂移。
+标题同样按 `TitleTemplate` 降到面板标题的字号：一张盖在面板上
 的设置纸不该比它盖住的东西喊得更响。
 
 #### 天气
@@ -492,8 +493,9 @@ Broker 看不到卡片尺寸，按一个尺寸裁的载荷会饿死另一个。
 同一条便签会互相争夺光标。窗口的默认尺寸按 DPI 换算，`AppWindow.Resize` 收的是物理像素，直接
 传逻辑值在 200% 缩放下只有一半大。
 
-窗口**用面板自己的表面搭起来**：Desktop Acrylic、同一层强调色薄雾、面板的头部条，正文坐在一张
-卡片表面上。内容延伸进标题栏，所以那条头部就是面板的头部，而不是压在面板头部之上的系统标题栏。
+窗口**用面板自己的表面搭起来**：同一种 Thin Desktop Acrylic、不带底板的面板头部，正文坐在一张卡片
+表面上。它是可调整大小的普通窗口，外轮廓沿用系统边框，不画面板的光边。内容延伸进标题栏，所以那条
+头部就是面板的头部，而不是压在面板头部之上的系统标题栏。
 
 - 「保持在最前」是窗口所处的**模式**，用图标切换按钮陈述，按下态即是答案；头部一行里放复选框
   会读成标题旁边的表单字段；
@@ -655,7 +657,7 @@ Broker 看不到卡片尺寸，按一个尺寸裁的载荷会饿死另一个。
 
 - 面板宽度目标为工作区宽度的 `46%`，逻辑宽度限制在 `680～960 DIP`；
 - 面板高度目标为工作区高度的 `90%`，逻辑最小高度为 `560 DIP`；
-- 面板距工作区边缘 `10 DIP`；
+- 面板距工作区边缘 `12 DIP`，给面板光边留出与桌面之间的间隔；
 - 优先从 LauncherHost 所在角落展开；入口几何不可用时使用工作区左下角；
 - 所有尺寸按当前显示器 DPI 换算，最终矩形不得越出工作区；
 - 不以全屏或固定像素代替响应式计算。
@@ -788,31 +790,42 @@ Broker 看不到卡片尺寸，按一个尺寸裁的载荷会饿死另一个。
 
 ### 6.1 层级
 
-1. 顶层面板使用 Desktop Acrylic 承载环境色；
-2. 面板顶部可叠加系统强调色微光，当前不透明度为 `0.06`；
-3. 卡片使用较实的系统语义表面，保证文字稳定可读；
-4. 浮层可使用 In-App Acrylic，但不能与多层半透明卡片叠加；
-5. ThemeShadow 只表达浮起或层级，不作为常驻分隔线。
+1. 顶层面板使用 Thin 变体的 Desktop Acrylic 承载环境色（`ThinDesktopAcrylicBackdrop`）。只设 `Kind`：
+   色调、亮度与回退色任何一项被自定义，控制器就不再按主题套用默认值，深浅色切换会变成要自己处理的事；
+2. 面板轮廓是一道自绘的 1 DIP 光边（`WwbPanelEdgeStyle`）：顶部受光、两侧淡出、底部压暗。系统画的
+   DWM 边框经 `DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE` 关闭，否则光边外侧会再并排一道平的系统线。
+   `SetBorderAndTitleBar(false, false)` 在窗口样式里仍留下的 `WS_DLGFRAME` 也一并去掉：那圈经典边框
+   （参考机 200% 缩放下 3 px）原本藏在 DWM 边线下面，边线关掉后会以浅色立体描边露出来，深色主题下
+   是一圈白线，还让客户区连同光边一起缩在窗口边缘以内；
+3. 头部不带底板，直接坐在材质上；
+4. 卡片是可读层，取系统最实的表面色 `SolidBackgroundFillColorQuarternary` 并**保留少量透明度**
+   （`WwbCardSurfaceBrush`；透明度写在画刷上，卡片内的文字与控件保持不透明）。全实会读成压在面板上的
+   纸，系统卡片画刷原本的透明度在 Thin 材质上又太薄；高对比度改用不透明的系统窗口色；
+5. 浮层可使用 In-App Acrylic，但不能与多层半透明卡片叠加；
+6. ThemeShadow 只表达浮起或层级，不作为常驻分隔线。
 
 ### 6.2 颜色
 
 - 只使用 `ThemeResource` 和 Windows 语义色表达文字、表面、强调、危险及禁用状态；
 - 不为普通正文、图标或按钮写死 RGB/十六进制颜色；
-- **唯一例外是天气插画配色**：没有任何 Windows 语义色的含义是「阴天的天空」。
-  该配色集中定义在 `WorkspaceVisualStyles.xaml` 的主题字典里，键名一律以 `WwbWeather` 开头，
-  页面只引用键、永远不自己写颜色；高对比度把其中每一个都改为 `Transparent`。
-  `UT-UI-002` 会断言这两条：字面颜色只能出现在 `WwbWeather*` 画刷上，且必须在高对比度里被清零；
-  任务栏入口画同一套插画，但它是分层窗口、没有 `ThemeResource` 可查，只能像第 3.1 节的
-  4 DIP 节奏那样把这组值重述一遍。**`WorkspaceVisualStyles.xaml` 仍是权威**：入口侧的副本
-  取其 Default 字典对应深色条带、Light 字典对应浅色条带，高对比度不画；改配色要两边一起改；
-- 强调色只用于焦点、选中、主要动作和少量环境微光；
+- **例外只有两处，都是没有语义色能表达的东西**。两组值都集中定义在 `WorkspaceVisualStyles.xaml` 的主题
+  字典里，页面只引用键、永远不自己写颜色，高对比度把其中每一个都改为 `Transparent`；`UT-UI-002` 断言
+  字面颜色只能出现在这两组键上，且必须在高对比度里被清零：
+  - **天气插画配色**（键名以 `WwbWeather` 开头）：没有任何 Windows 语义色的含义是「阴天的天空」。
+    任务栏入口画同一套插画，但它是分层窗口、没有 `ThemeResource` 可查，只能像第 3.1 节的
+    4 DIP 节奏那样把这组值重述一遍。**`WorkspaceVisualStyles.xaml` 仍是权威**：入口侧的副本
+    取其 Default 字典对应深色条带、Light 字典对应浅色条带，高对比度不画；改配色要两边一起改；
+  - **面板光边**（键名以 `WwbPanelEdge` 开头）：没有语义色的含义是「镜面高光」。只用带 alpha 的白或黑，
+    不带色相；
+- 强调色只用于焦点、选中和主要动作；
 - 危险色只用于真实破坏性动作或失败状态；
 - 不能只靠颜色传达状态，必须同时有文字、图标、形状或自动化名称。
 
 ### 6.3 边框
 
-- 普通主题的面板、头部、卡片和次级表面默认边框为 `0`；
-- 高对比度主题恢复系统 `1 DIP` 边界；
+- 普通主题的面板根、头部、卡片和次级表面默认边框为 `0`；
+- 面板轮廓由 6.1 第 2 条的 1 DIP 光边承担，不使用系统 DWM 边框；它是面板唯一一道常驻外轮廓，不再叠加第二条；
+- 高对比度主题恢复系统 `1 DIP` 边界，光边清零；
 - 浮层边框为 `1 DIP`；
 - 禁止为了“精致感”给每一层容器都加描边；
 - 分组优先使用间距、字号、字重、底色差和对齐，不优先使用线框。
@@ -821,10 +834,14 @@ Broker 看不到卡片尺寸，按一个尺寸裁的载荷会饿死另一个。
 
 | Token | 数值 | 用途 |
 | --- | ---: | --- |
-| `WwbPanelCornerRadius` | `16` | 顶层面板 |
-| `WwbCardCornerRadius` | `12` | 卡片 |
+| `WwbPanelCornerRadius` | `8` | 顶层面板、面板光边、两个对话框浮层的外圆角 |
+| `WwbCardCornerRadius` | `8` | 卡片 |
 | `WwbControlCornerRadius` | `7` | 输入、工具条、次级表面 |
 | `WwbSmallCornerRadius` | `6` | 小按钮、拖动柄、骨架块 |
+
+面板的外圆角由 DWM 决定：`DWMWA_WINDOW_CORNER_PREFERENCE` 只有圆角（8 DIP）、小圆角（4 DIP）与直角三档，
+不能设任意半径，所以 `WwbPanelCornerRadius` 必须与窗口实际圆角一致，否则自绘光边会与系统切出的圆角交叉。
+卡片距窗口边 12 DIP，圆角不得大于外框——内层比外层更圆，读作反向嵌套。
 
 同一层级不得随意混用不同圆角。
 
@@ -862,13 +879,14 @@ Broker 看不到卡片尺寸，按一个尺寸裁的载荷会饿死另一个。
 ### 8.1 面板壳层
 
 ```text
-PanelRoot (Desktop Acrylic + WwbPanelRootStyle)
-├─ AccentWash（高对比度自动禁用）
-├─ HeaderSurface (WwbHeaderSurfaceStyle)
-│  └─ Title/Meta | Search | GlobalCommands
-├─ TransientSurface（默认 Collapsed）
-└─ ScrollViewer
-   └─ ItemsRepeater + CardGridLayout
+Window (ThinDesktopAcrylicBackdrop；DWM 圆角 8 DIP，系统边框关闭)
+├─ PanelRoot (WwbPanelRootStyle)
+│  ├─ HeaderSurface (WwbHeaderSurfaceStyle，无底板)
+│  │  └─ Title/Meta | Search | GlobalCommands
+│  ├─ TransientSurface（默认 Collapsed）
+│  └─ ScrollViewer
+│     └─ ItemsRepeater + CardGridLayout
+└─ PanelEdge (WwbPanelEdgeStyle，叠在根之上、不接收输入，高对比度清零)
 ```
 
 ### 8.2 卡片

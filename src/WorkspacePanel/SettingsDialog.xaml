@@ -24,10 +24,11 @@
     <controls:ContentDialog.Resources>
         <!--
             The dialog's outer radius is drawn by its own template from OverlayCornerRadius,
-            not from the CornerRadius set on the control, so the sheet kept the system's
-            8-DIP corner while every surface inside it used the panel's 16.
+            not from the CornerRadius set on the control - set only the latter and the sheet
+            keeps the system's corner while the surfaces inside it follow the panel's. Both
+            come from WwbPanelCornerRadius here, so the two cannot drift apart again.
         -->
-        <CornerRadius x:Key="OverlayCornerRadius">16</CornerRadius>
+        <StaticResource x:Key="OverlayCornerRadius" ResourceKey="WwbPanelCornerRadius" />
         <!--
             The dialog's width is clamped by this template resource, NOT by MaxWidth on the
             control - the default is 548, and everything wider was silently clipped at the

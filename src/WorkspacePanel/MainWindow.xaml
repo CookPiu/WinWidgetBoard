@@ -2565,9 +2565,6 @@
             TokenUsageTemplate="{StaticResource TokenUsageCardTemplate}"
             DefaultTemplate="{StaticResource UnknownCardTemplate}" />
         </Grid.Resources>
-        <Border
-            Background="{ThemeResource WwbPanelAccentWashBrush}"
-            IsHitTestVisible="False" />
         <Grid
             x:Name="RootGrid"
             Style="{StaticResource WwbPanelRootStyle}"
@@ -2762,5 +2759,17 @@
             </ScrollViewer>
 
         </Grid>
+
+        <!--
+            The panel's edge, above everything the root grid draws. It belongs to the window
+            rather than to the content: the cards fold in and out during the open and close
+            motion while the frame stays where the material behind them is. It takes no input
+            and is invisible to UI Automation - it is the outline of the panel, not an element
+            in it.
+        -->
+        <Border
+            x:Name="PanelEdge"
+            Style="{StaticResource WwbPanelEdgeStyle}"
+            automation:AutomationProperties.AccessibilityView="Raw" />
     </Grid>
 </Window>

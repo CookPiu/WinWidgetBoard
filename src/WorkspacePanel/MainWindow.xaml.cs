@@ -35,7 +35,10 @@ namespace WinWidgetBoard.WorkspacePanel;
 
 public sealed partial class MainWindow : Window, IAsyncDisposable
 {
+    private const int GwlStyle = -16;
     private const int GwlExStyle = -20;
+    private const long WsDlgFrame = 0x00400000L;
+    private const long WsExWindowEdge = 0x00000100L;
     private const long WsExAppWindow = 0x00040000L;
     private const long WsExToolWindow = 0x00000080L;
     private const long WsExLayered = 0x00080000L;
@@ -47,6 +50,8 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     private const uint SwpFrameChanged = 0x0020;
     private const int DwmwaWindowCornerPreference = 33;
     private const int DwmwcpRound = 2;
+    private const int DwmwaBorderColor = 34;
+    private const int DwmwaColorNone = unchecked((int)0xFFFFFFFE);
     private readonly AppWindow _appWindow;
     // The popped-out note, while one is open. Null is the normal state; the panel does not
     // keep a closed window around because the editor it edits lives on this side anyway.
@@ -292,6 +297,9 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
 
         NativeWindowStyles.MakeToolWindow(_windowHandle);
         NativeWindowStyles.PreferRoundedCorners(_windowHandle);
+        // The panel draws its own edge (WwbPanelEdgeStyle). The system frame - DWM's border line
+        // and the dialog frame under it - would otherwise sit just outside it as a second outline.
+        NativeWindowStyles.HideFrameBorder(_windowHandle);
         _nativeOpacitySupported = NativeWindowStyles.EnableLayeredOpacity(_windowHandle);
     }
 
@@ -299,17 +307,25 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
     {
         try
         {
-            SystemBackdrop = new DesktopAcrylicBackdrop();
+            if (ThinDesktopAcrylicBackdrop.IsSupported())
+            {
+                SystemBackdrop = new ThinDesktopAcrylicBackdrop();
+                return;
+            }
+
+            Debug.WriteLine(
+                "WorkspacePanel Desktop Acrylic unavailable: not supported on this system");
         }
         catch (Exception exception)
             when (exception is COMException or NotSupportedException)
         {
             Debug.WriteLine(
                 $"WorkspacePanel Desktop Acrylic unavailable: {exception.Message}");
-            RootGrid.Background =
-                Application.Current.Resources[
-                    "ApplicationPageBackgroundThemeBrush"] as Brush;
         }
+
+        RootGrid.Background =
+            Application.Current.Resources[
+                "ApplicationPageBackgroundThemeBrush"] as Brush;
     }
 
     private PanelLaunchContext ResolveLaunchContext(WindowId windowId)
@@ -3137,6 +3153,36 @@ public sealed partial class MainWindow : Window, IAsyncDisposable
                 window,
                 DwmwaWindowCornerPreference,
                 ref preference,
+                sizeof(int));
+        }
+
+        public static void HideFrameBorder(IntPtr window)
+        {
+            // SetBorderAndTitleBar(false, false) still leaves WS_DLGFRAME: a classic frame, 3 px
+            // at 200% scaling, around the client area. DWM's own border used to cover most of
+            // it; with that border gone the frame's light 3D paint showed as a pale outline, on
+            // a dark panel too, and it held the client area - and the edge XAML draws - 3 px
+            // inside the window. Without it the client area reaches the window's real edge.
+            long style = GetWindowLongPtr(window, GwlStyle).ToInt64();
+            SetWindowLongPtr(window, GwlStyle, new IntPtr(style & ~WsDlgFrame));
+            long exStyle = GetWindowLongPtr(window, GwlExStyle).ToInt64();
+            SetWindowLongPtr(window, GwlExStyle, new IntPtr(exStyle & ~WsExWindowEdge));
+            SetWindowPos(
+                window,
+                IntPtr.Zero,
+                0,
+                0,
+                0,
+                0,
+                SwpNoSize | SwpNoMove | SwpNoActivate | SwpNoZOrder | SwpFrameChanged);
+
+            // DWMWA_COLOR_NONE removes the border and keeps the rounded corner. A system older
+            // than Windows 11 rejects the attribute and keeps its default, which is harmless.
+            int color = DwmwaColorNone;
+            _ = DwmSetWindowAttribute(
+                window,
+                DwmwaBorderColor,
+                ref color,
                 sizeof(int));
         }
 

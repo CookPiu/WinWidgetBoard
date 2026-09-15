@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using WinRT.Interop;
 using WinWidgetBoard.WorkspacePanel.Notes;
+using WinWidgetBoard.WorkspacePanel.Shell;
 
 namespace WinWidgetBoard.WorkspacePanel;
 
@@ -111,15 +112,18 @@ public sealed partial class NoteWindow : Window
     }
 
     /// <summary>
-    /// Desktop Acrylic, or the default window background when the system cannot provide it.
-    /// Matches the panel: a backdrop is a nicety, and failing to get one must not stop a
-    /// note from opening.
+    /// The panel's thin Desktop Acrylic, or the default window background when the system
+    /// cannot provide it. Matches the panel: a backdrop is a nicety, and failing to get one
+    /// must not stop a note from opening.
     /// </summary>
     private void TryConfigureSystemBackdrop()
     {
         try
         {
-            SystemBackdrop = new DesktopAcrylicBackdrop();
+            if (ThinDesktopAcrylicBackdrop.IsSupported())
+            {
+                SystemBackdrop = new ThinDesktopAcrylicBackdrop();
+            }
         }
         catch (Exception exception)
         {

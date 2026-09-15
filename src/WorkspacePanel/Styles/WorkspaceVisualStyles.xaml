@@ -63,34 +63,82 @@
                     Offset="1"
                     Color="{ThemeResource WwbWeatherCurveAreaBaseColor}" />
             </LinearGradientBrush>
+            <!--
+                The panel's own edge, drawn in place of the frame border DWM would put around
+                the window (MainWindow suppresses that one). Light catches the top of the sheet
+                and fades down the sides; the bottom closes on a darker line where the panel
+                meets whatever sits below it. The sides keep a trace of colour instead of going
+                clear, because over thin acrylic this line is all that separates the panel from
+                a window of the same tone behind it.
+
+                These are literal colours, the one exception besides the weather palette: no
+                Windows brush means "specular highlight". Each is white or black at an alpha,
+                never a hue, and high contrast clears all of them - the system boundary comes
+                back there through WwbSurfaceBorderThickness on the root instead.
+            -->
+            <Color x:Key="WwbPanelEdgeHighlightColor">#5CFFFFFF</Color>
+            <Color x:Key="WwbPanelEdgeSideColor">#14FFFFFF</Color>
+            <Color x:Key="WwbPanelEdgeShadeColor">#8C000000</Color>
             <LinearGradientBrush
-                x:Key="WwbPanelAccentWashBrush"
+                x:Key="WwbPanelEdgeBrush"
                 StartPoint="0,0"
-                EndPoint="0,1"
-                Opacity="0.06">
+                EndPoint="0,1">
                 <GradientStop
-                    Color="{ThemeResource SystemAccentColor}"
-                    Offset="0" />
+                    Offset="0"
+                    Color="{ThemeResource WwbPanelEdgeHighlightColor}" />
                 <GradientStop
-                    Color="Transparent"
-                    Offset="0.38" />
+                    Offset="0.35"
+                    Color="{ThemeResource WwbPanelEdgeSideColor}" />
+                <GradientStop
+                    Offset="0.75"
+                    Color="{ThemeResource WwbPanelEdgeSideColor}" />
+                <GradientStop
+                    Offset="1"
+                    Color="{ThemeResource WwbPanelEdgeShadeColor}" />
             </LinearGradientBrush>
+            <!--
+                Cards are the readable layer over a thin backdrop, so they take the system's most
+                solid surface colour - but not at full strength. A trace of the desktop showing
+                through is what keeps a card part of the panel instead of a sheet of paper laid
+                on top of it. The alpha lives on the brush, not on the card, so the text and
+                controls inside stay fully opaque.
+            -->
+            <SolidColorBrush
+                x:Key="WwbCardSurfaceBrush"
+                Color="{ThemeResource SolidBackgroundFillColorQuarternary}"
+                Opacity="0.78" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
             <Thickness x:Key="WwbSurfaceBorderThickness">0</Thickness>
             <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
+            <!--
+                On a light panel the highlight has little to be brighter than, so the sides and
+                the bottom carry the separation as a faint dark line instead.
+            -->
+            <Color x:Key="WwbPanelEdgeHighlightColor">#F2FFFFFF</Color>
+            <Color x:Key="WwbPanelEdgeSideColor">#14000000</Color>
+            <Color x:Key="WwbPanelEdgeShadeColor">#33000000</Color>
             <LinearGradientBrush
-                x:Key="WwbPanelAccentWashBrush"
+                x:Key="WwbPanelEdgeBrush"
                 StartPoint="0,0"
-                EndPoint="0,1"
-                Opacity="0.06">
+                EndPoint="0,1">
                 <GradientStop
-                    Color="{ThemeResource SystemAccentColor}"
-                    Offset="0" />
+                    Offset="0"
+                    Color="{ThemeResource WwbPanelEdgeHighlightColor}" />
                 <GradientStop
-                    Color="Transparent"
-                    Offset="0.38" />
+                    Offset="0.35"
+                    Color="{ThemeResource WwbPanelEdgeSideColor}" />
+                <GradientStop
+                    Offset="0.75"
+                    Color="{ThemeResource WwbPanelEdgeSideColor}" />
+                <GradientStop
+                    Offset="1"
+                    Color="{ThemeResource WwbPanelEdgeShadeColor}" />
             </LinearGradientBrush>
+            <SolidColorBrush
+                x:Key="WwbCardSurfaceBrush"
+                Color="{ThemeResource SolidBackgroundFillColorQuarternary}"
+                Opacity="0.82" />
             <!--
                 A light card needs a stronger wash to read at all, and the motif has to be a
                 darker tone rather than white, which would vanish into the surface.
@@ -126,9 +174,33 @@
         <ResourceDictionary x:Key="HighContrast">
             <Thickness x:Key="WwbSurfaceBorderThickness">1</Thickness>
             <Thickness x:Key="WwbFlyoutBorderThickness">1</Thickness>
+            <Color x:Key="WwbPanelEdgeHighlightColor">Transparent</Color>
+            <Color x:Key="WwbPanelEdgeSideColor">Transparent</Color>
+            <Color x:Key="WwbPanelEdgeShadeColor">Transparent</Color>
+            <LinearGradientBrush
+                x:Key="WwbPanelEdgeBrush"
+                StartPoint="0,0"
+                EndPoint="0,1">
+                <GradientStop
+                    Offset="0"
+                    Color="{ThemeResource WwbPanelEdgeHighlightColor}" />
+                <GradientStop
+                    Offset="0.35"
+                    Color="{ThemeResource WwbPanelEdgeSideColor}" />
+                <GradientStop
+                    Offset="0.75"
+                    Color="{ThemeResource WwbPanelEdgeSideColor}" />
+                <GradientStop
+                    Offset="1"
+                    Color="{ThemeResource WwbPanelEdgeShadeColor}" />
+            </LinearGradientBrush>
+            <!--
+                Opaque, and the system's own window colour: a surface the desktop shows through
+                is exactly what high contrast exists to remove.
+            -->
             <SolidColorBrush
-                x:Key="WwbPanelAccentWashBrush"
-                Color="Transparent" />
+                x:Key="WwbCardSurfaceBrush"
+                Color="{ThemeResource SystemColorWindowColor}" />
             <!-- High contrast conveys state with text and shape only; no illustration. -->
             <SolidColorBrush x:Key="WwbWeatherSkyClearBrush" Color="Transparent" />
             <SolidColorBrush x:Key="WwbWeatherSkyNightBrush" Color="Transparent" />
@@ -176,14 +248,21 @@
     <Thickness x:Key="WwbToolbarPadding">4</Thickness>
     <Thickness x:Key="WwbCompactToolbarPadding">4</Thickness>
 
-    <CornerRadius x:Key="WwbPanelCornerRadius">16</CornerRadius>
-    <CornerRadius x:Key="WwbCardCornerRadius">12</CornerRadius>
+    <!--
+        The panel's corner is the window's: DWM rounds a top-level window at 8 DIP and offers
+        only that, 4 or square, so a larger value here never reached the panel's own outline.
+        Cards share it. They sit 12 DIP inside that corner, and a card rounder than the frame
+        around it reads as inverted.
+    -->
+    <CornerRadius x:Key="WwbPanelCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="WwbCardCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="WwbControlCornerRadius">7</CornerRadius>
     <CornerRadius x:Key="WwbSmallCornerRadius">6</CornerRadius>
 
     <!--
-        The top-level Desktop Acrylic carries ambient color. Cards remain more
-        solid so translucent layers do not stack and reduce legibility.
+        The window's thin Desktop Acrylic carries ambient colour and the root stays clear over
+        it. Cards are the readable layer on top (WwbCardSurfaceBrush); the edge is drawn apart
+        from the root by WwbPanelEdgeStyle so that it can sit above the content.
     -->
     <Style
         x:Key="WwbPanelRootStyle"
@@ -202,6 +281,11 @@
             Value="{StaticResource WwbPanelCornerRadius}" />
     </Style>
 
+    <!--
+        No surface of its own: the header sits straight on the backdrop. A layer here was a
+        second translucent sheet over the acrylic - too faint to read as a band, and still one
+        more thing to keep in step with every theme.
+    -->
     <Style
         x:Key="WwbHeaderSurfaceStyle"
         TargetType="Border">
@@ -210,7 +294,7 @@
             Value="{StaticResource WwbHeaderPadding}" />
         <Setter
             Property="Background"
-            Value="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
+            Value="Transparent" />
         <Setter
             Property="BorderBrush"
             Value="{ThemeResource SurfaceStrokeColorDefaultBrush}" />
@@ -230,13 +314,35 @@
             Value="{StaticResource WwbCardCornerRadius}" />
         <Setter
             Property="Background"
-            Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            Value="{ThemeResource WwbCardSurfaceBrush}" />
         <Setter
             Property="BorderBrush"
             Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter
             Property="BorderThickness"
             Value="{ThemeResource WwbSurfaceBorderThickness}" />
+    </Style>
+
+    <!--
+        The panel's 1 DIP edge. The brush is the per-theme gradient at the top of this file; the
+        radius is the window's own, so the line follows the corner DWM cuts instead of crossing
+        it. High contrast clears the brush and relies on the root's system boundary.
+    -->
+    <Style
+        x:Key="WwbPanelEdgeStyle"
+        TargetType="Border">
+        <Setter
+            Property="BorderBrush"
+            Value="{ThemeResource WwbPanelEdgeBrush}" />
+        <Setter
+            Property="BorderThickness"
+            Value="1" />
+        <Setter
+            Property="CornerRadius"
+            Value="{StaticResource WwbPanelCornerRadius}" />
+        <Setter
+            Property="IsHitTestVisible"
+            Value="False" />
     </Style>
 
     <Style

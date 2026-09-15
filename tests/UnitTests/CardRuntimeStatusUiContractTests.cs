@@ -149,16 +149,17 @@ public sealed class CardRuntimeStatusUiContractTests
         string styles = File.ReadAllText(GetAssetPath(
             "Styles",
             "WorkspaceVisualStyles.xaml"));
-        // Literal colour is allowed only on the weather illustration palette, which
-        // UT-UI-002 pins in detail; here it is enough that nothing else acquired one.
+        // Literal colour is allowed only on the weather illustration palette and the panel
+        // edge, which UT-UI-002 pins in detail; here it is enough that nothing else acquired one.
         foreach (string line in styles.Split('\n'))
         {
             if (line.Contains('#', StringComparison.Ordinal))
             {
-                StringAssert.Contains(
-                    line,
-                    "WwbWeather",
-                    "Only the weather illustration palette may state a literal color.");
+                Assert.IsTrue(
+                    line.Contains("WwbWeather", StringComparison.Ordinal) ||
+                    line.Contains("WwbPanelEdge", StringComparison.Ordinal),
+                    "Only the weather illustration palette and the panel edge may state a " +
+                    $"literal color: {line.Trim()}");
             }
         }
 

@@ -12,7 +12,7 @@ public static class PanelGeometry
     private const int MinimumWidthLogical = 680;
     private const int MaximumWidthLogical = 960;
     private const int MinimumHeightLogical = 560;
-    private const int EdgeGapLogical = 10;
+    private const int EdgeGapLogical = 12;
 
     public static PanelPlacement Calculate(PanelLaunchContext context)
     {
